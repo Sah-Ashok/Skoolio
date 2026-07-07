@@ -6,12 +6,14 @@ import {
   createFeePaymentAtomic, getPaymentsByCollection, getPaymentsByStudent,
   getTransportFeeForPeriod, getTransportFeeSummary,
   getHostelFeeForPeriod, getHostelFeeSummary,
+  getAcademicFeeForPeriod,
 } from '../Repositories/fee.repository';
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
   ICreateFeeCollection, IUpdateFeeCollection, ICreateFeePayment,
 } from '../types/fee.types';
-import { getStudentById } from '../Repositories/student.repository';
+import { getStudentById, getEnrollmentsBySchool } from '../Repositories/student.repository';
+import { IStudentEnrollmentWithStudent } from '../types/student.types';
 import { getAssignmentByStudent, getAssignmentsByRoute, getRoutesBySchool } from '../Repositories/transport.repository';
 import { getAssignmentByStudent as getHostelAssignmentByStudent, getAssignmentsByHostel, getHostelsBySchool } from '../Repositories/hostel.repository';
 import { assertFeeManagementEnabled } from './subscription.service';
@@ -319,6 +321,127 @@ export const getStudentPaymentsService = async (
   if (!student) throw new AppError('Student not found.', 404);
 
   return await getPaymentsByStudent(student_id, school_id);
+};
+
+// ── GENERATE MONTHLY ACADEMIC BILLS (batch) ───────────────────────────────
+export const generateMonthlyFeeBillsService = async (
+  school_id:        number,
+  created_by:       number,
+  academic_year_id: number,
+  billing_month:    string
+) => {
+  await assertFeeManagementEnabled(school_id);
+
+  // due_date = 1st day of the billing month
+  const due_date = `${billing_month}-01`;
+  const [billYearStr, billMonthStr] = billing_month.split('-');
+  const billYear = parseInt(billYearStr, 10);
+  const billMonth = parseInt(billMonthStr, 10) - 1; // JS months are 0-indexed
+
+  // 1. Get all active enrollments for this year
+  const enrollments = await getEnrollmentsBySchool(school_id, academic_year_id);
+  if (!enrollments.length) return { created: 0, skipped: 0, errors: [] };
+
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const en of enrollments) {
+    try {
+      // 2. Get monthly fee structures for this class
+      const structures = await getFeeStructuresByClass(en.class_id, school_id, academic_year_id);
+      const monthlyStructures = structures.filter(s => s.frequency === 'monthly' && s.is_active);
+
+      if (!monthlyStructures.length) { skipped++; continue; }
+
+      // 3. Admission date parsing — comes from joined student.admission_date (::text)
+      const admissionDate  = new Date(en.admission_date);
+      const admissionYear  = admissionDate.getFullYear();
+      const admissionMonth = admissionDate.getMonth();
+      const admissionDay   = admissionDate.getDate();
+
+      for (const structure of monthlyStructures) {
+        // Evaluate eligibility based on billing_start_rule and mid-month rule
+        let isEligible = false;
+
+        const rule = (structure as any).billing_start_rule || 'next_month';
+
+        if (rule === 'academic_year') {
+          isEligible = true;
+        } else {
+          // Compare (billYear, billMonth) to (admissionYear, admissionMonth)
+          const monthsDiff = (billYear - admissionYear) * 12 + (billMonth - admissionMonth);
+
+          if (rule === 'next_month') {
+            if (monthsDiff > 1) {
+              isEligible = true; // Later months
+            } else if (monthsDiff === 1) {
+              isEligible = true; // Next month
+            } else if (monthsDiff === 0) {
+              // Current month (admission month)
+              if (admissionDay <= 15) {
+                isEligible = true; // include this month
+              }
+            }
+          } else if (rule === 'skip_two_months') {
+            if (monthsDiff > 2) {
+              isEligible = true;
+            } else if (monthsDiff === 2) {
+              isEligible = true;
+            } else if (monthsDiff === 1) {
+               // Next month, skipped
+            } else if (monthsDiff === 0) {
+              // Current month, skipped
+            }
+          }
+        }
+
+        if (!isEligible) { skipped++; continue; }
+
+        // 4. Check idempotency (Already billed this structure for this month?)
+        const existingResult = await getAcademicFeeForPeriod(
+          school_id, en.student_id, structure.id, due_date
+        );
+        if (existingResult) { skipped++; continue; }
+
+        // 5. Apply scholarship — en.scholarship_percent comes from the student JOIN
+        const amount = Number(structure.amount);
+        let discount        = 0;
+        let discount_reason = '';
+        if (en.scholarship_percent && Number(en.scholarship_percent) > 0) {
+          discount        = (amount * Number(en.scholarship_percent)) / 100;
+          discount_reason = `Scholarship: ${en.scholarship_percent}% (${en.scholarship_type || 'Custom'})`;
+        }
+        const net_amount = amount - discount;
+
+        // 6. Create collection
+        const fee_name = `${structure.fee_name} — ${billing_month}`;
+        await createFeeCollection(
+          school_id,
+          created_by,
+          {
+            student_id:       en.student_id,
+            enrollment_id:    en.id,
+            fee_structure_id: structure.id,
+            academic_year_id,
+            due_date,
+            total_amount:     amount,
+            discount_amount:  discount > 0 ? discount : undefined,
+            discount_reason:  discount_reason || undefined,
+          },
+          fee_name,
+          net_amount,
+          net_amount,
+          'academic'
+        );
+        created++;
+      }
+    } catch (err: any) {
+      errors.push(`Student ${en.student_id}: ${err.message}`);
+    }
+  }
+
+  return { created, skipped, errors };
 };
 
 // ── GENERATE TRANSPORT BILLS (batch) ──────────────────────────────────────

@@ -131,3 +131,16 @@ export type IUpdateEnrollment = Partial<ICreateEnrollment> & {
   is_promoted?: boolean;
   promoted_to_class_id?: number;
 };
+
+// Extended type returned by getEnrollmentsBySchool — includes joined student fields
+export interface IStudentEnrollmentWithStudent extends IStudentEnrollment {
+  full_name:           string;
+  admission_number:    string;
+  photo?:              string;
+  gender:              string;
+  admission_date:      string;   // ::text cast from DB
+  scholarship_type?:   ScholarshipType;
+  scholarship_percent?: number;
+  class_name:          string;
+  section_name:        string;
+}

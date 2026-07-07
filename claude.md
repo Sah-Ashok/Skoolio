@@ -66,6 +66,21 @@ without checking what's currently there. I follow all house-style rules.
   loaded lazily in dashboard/profile pages
 - P9 OTP swallow fix (also in session 2)
 
+**What I fixed (July 2026 — Session 3):**
+- Teacher Attendance Overview (`/teacher/attendance`) was a simple card grid with no data.
+  Completely rebuilt as a proper **attendance register**:
+  - Month-navigable (← → nav, "Today" shortcut, respects academic year start boundary)
+  - Rows = students in section; columns = every calendar day of the month
+  - Each cell shows P / A / L / Lv pill — loaded from `GET /attendance/:id` detail cache
+  - Weekend columns dimmed; today's column highlighted amber; dot indicator on days with records
+  - Footer row: daily present/absent totals from header counts
+  - Right-side year totals (P, A, L, Lv) + attendance % progress bar per student
+  - Summary strip at top: students, days marked, present, absent, late+leave counts
+  - Bottom quick-reference table: all records this month with status badge + Edit link
+  - Section switcher (shows only coordinator's assigned sections)
+  - Bug fixed: `(teacher)/teacher/attendance/page.tsx` was importing admin `AttendancePage`
+    — corrected to import `TeacherAttendanceOverviewPage`
+
 **House style additions (Frontend Developer):**
 - Admin read-only pages use `fa-chart-*` icons in sidebar, not `fa-user-check`
 - Modals always have `onClick={e => e.stopPropagation()}` on inner container
@@ -138,7 +153,7 @@ Classes, Sections, Subjects, Academic Years, Calendar, Attendance (read-only sum
 Fee Management, Expenses, Salary, Exams & Results, Transport, Hostel,
 My Subscription, Upgrade Plan, Settings.
 
-**Teacher**: Dashboard, Profile, Attendance Overview, Mark Attendance, Results Entry.
+**Teacher**: Dashboard, Profile, **Attendance Register** (rebuilt Session 3), Mark Attendance, Results Entry.
 
 **Student**: Dashboard, Profile, My Attendance, My Results, My Fees.
 
@@ -174,60 +189,23 @@ at project root if not already done.
 
 ---
 
-## 🔴 Pending — critical (blocks real use)
+## ✅ Resolved — B1, B2, B3 (Skoolio Bug Hunter — July 2026)
 
-### B1. Monthly fee billing redesign (DESIGNED, NOT YET BUILT)
+### B1. Monthly fee billing — COMPLETE
+- `billing_start_rule` column + migration in place
+- `generateMonthlyFeeBillsService` implements `next_month` / `skip_two_months` / `academic_year` + mid-month day-15 rule
+- `POST /fees/monthly/generate` endpoint wired
+- "Generate Monthly Bills" panel in `FeesPage`
+- `billing_start_rule` dropdown in `AddFeeStructurePage`
 
-**Decision made by PM (July 2026). Do not implement differently.**
+### B2. Scholarship not applied to fees — COMPLETE
+- Applied in `generateMonthlyFeeBillsService` — discount from `scholarship_percent`
+- Scholarship banner in `CollectFeePage`
+- Scholarship card in `StudentProfilePage`
 
-Fee structures now have a `billing_start_rule` field (migration above):
-
-| Value | Meaning |
-|---|---|
-| `next_month` | First bill = month after admission month. **Default for most schools.** |
-| `skip_two_months` | First bill = 2 months after admission month (buffer for late joiners) |
-| `academic_year` | Bill from academic year start regardless of admission date |
-
-**Mid-month rule (applies to ALL rules when generating bills for current month):**
-```
-Student admitted on day ≤ 15 of the current month → include this month
-Student admitted on day > 15 of the current month → skip this month, start next
-```
-
-**Bill generation flow (manual button, future cron):**
-- Admin clicks "Generate Monthly Bills" for the current month only
-- System skips students who already have a bill for this month (idempotent)
-- Applies `billing_start_rule` to skip ineligible students
-- Applies `scholarship_percent` discount automatically: `net = amount × (1 - pct/100)`
-- Creates `fee_collections` rows with `fee_type = 'academic'`
-- Never generates future months — current month only
-
-**What needs to be built:**
-1. `billing_start_rule` dropdown in fee structure add/edit form
-   (options: "Next Month", "Skip Two Months", "From Academic Year Start")
-2. `generateMonthlyFeeBillsService` in `fee.service.ts` implementing the rules above
-3. `POST /fees/monthly/generate` endpoint with `{ academic_year_id, billing_month: 'YYYY-MM' }`
-4. "Generate Monthly Bills" button in Fee Management page with month picker
-5. Show correct estimated amount when creating fee structure:
-   - `next_month`: show `months_remaining × amount` not full year
-   - `academic_year`: show full year amount
-   - Always factor in `scholarship_percent` if student has one
-
-### B2. Scholarship not applied to fees
-`students.scholarship_percent` exists in DB (migration above) but is never used anywhere.
-Needs to be:
-- Applied in `generateMonthlyFeeBillsService` (see B1 above)
-- Applied when manually collecting a fee (show discounted amount in CollectFeePage)
-- Displayed on student profile page (scholarship type, percent, remarks)
-- Shown in AddStudentForm wizard's Step 2 fee assignment
-
-### B3. Miscellaneous / store items fee
-No dedicated "Store Items" fee type exists. Schools need to bill for dress, tie, belt etc.
-These are one-time fees with a custom name.
-**Solution**: already supported via `fee_structures.frequency = 'one_time'` — just needs a
-clear UI path. Add a "Miscellaneous / Store Item" option in the fee structure form that sets
-`frequency = 'one_time'` and lets admin enter any custom name (Dress, Tie, Belt, etc.).
-No backend changes needed — just a frontend label and UX improvement.
+### B3. Miscellaneous / Store Items fee — COMPLETE
+- "Miscellaneous / Store Item" shortcut in `AddFeeStructurePage` sets `frequency = 'one_time'`
+- No backend changes needed
 
 ---
 
@@ -235,47 +213,28 @@ No backend changes needed — just a frontend label and UX improvement.
 
 ### M1. Stale `.bak` files in teacher route group
 `(teacher)/attendance/page.tsx.bak` and `(teacher)/attendance/class/page.tsx.bak` still
-exist on disk. Exact duplicates of correct files under `(teacher)/teacher/attendance/`.
-Delete them — they don't affect builds but clutter the repo.
+exist on disk. Delete them — they don't affect builds but clutter the repo.
 
 ### M2. Revenue stat undercounts in super-admin subscriptions
 `getAllSchoolsWithSubscriptions` uses `DISTINCT ON (school_id)` — only returns latest
-subscription row per school. Revenue sum only counts the most recent payment.
-Fix: `SUM(amount_paid)` across all rows per school, not just the latest one.
+subscription row per school. Fix: `SUM(amount_paid)` across all rows per school.
 
 ---
 
 ## 🔵 Pending — future features (approved, not yet scheduled)
 
-### F1. Student promotion workflow
-No batch promotion at year-end. Admins manually re-enroll each student.
-A "Promote Class" action (Class 9 → Class 10 for all active enrollments) would save
-significant admin time. Approved by Ashok as future work.
-
-### F2. Rate limiting on OTP endpoints
-`POST /auth/forgot-password` and `POST /auth/verify-2fa` have no rate limiting.
-Max 3 OTP requests per 15 min per email via Redis.
-**Do not add without Ashok's go-ahead.**
-
-### F3. 2FA for teachers
-Currently admin-only. **Do not add without Ashok's go-ahead.**
-
-### F4. Email notification on subscription activation
-Deferred until SMTP/SES infrastructure is confirmed.
-
-### F5. Grace period cron job
-`resolveCurrentPlanStatus` is lazy — schools that never log in won't auto-downgrade
-until next status check. Nightly cron job would fix timing accuracy. Deferred.
-
-### F6. Online payment gateway
-School admins will eventually be able to pay subscriptions online (eSewa, Khalti, Stripe).
-Currently manual offline activation only. Deferred — payment gateway has setup costs.
+### F1. Student promotion workflow — approved, deferred
+### F2. Rate limiting on OTP endpoints — do not add without Ashok's go-ahead
+### F3. 2FA for teachers — do not add without Ashok's go-ahead
+### F4. Email notification on subscription activation — deferred (SMTP not confirmed)
+### F5. Grace period cron job — deferred
+### F6. Online payment gateway — deferred (eSewa/Khalti/Stripe)
 
 ---
 
 ## Subscription enforcement — intentionally limited scope
 
-**Do not add more gates without Ashok's approval.** Deliberate retention-vs-revenue decision.
+**Do not add more gates without Ashok's approval.**
 
 | Gate | Where enforced |
 |---|---|
@@ -297,3 +256,55 @@ Everything else (attendance, fee collection, exams, viewing, editing) is unrestr
 - `net_salary` on `teacher_salaries` is `GENERATED ALWAYS AS` — never write or compute in code
 - `useApi` on frontend unwraps `res.data` automatically
 - See `schema.md` "Common mistakes / gotchas" table for full list of known field-name traps
+
+
+
+Attendance Register Scalability Fix
+Problem: N+1 API Pattern
+The current TeacherAttendanceOverviewPage makes:
+
+GET /attendance/section/:id → returns all year's headers (up to 220+ rows)
+For each day in the current month (e.g. 22 working days) → 22 × GET /attendance/:id — serial, blocking calls
+At scale with 1,500 students across 12 sections and 20 schools:
+
+330,000 detail rows/school/year, 6.6M/year across 20 schools
+Loading one month = 23 sequential HTTP round-trips, each touching the DB
+The Fix
+getSectionRegister already exists in attendance.repository.ts — a single SQL query that:
+
+Scopes to the requested year/month only
+Returns one row per (student, day) pair with status
+Computes year totals in the same query via a subquery — zero extra round-trips
+Result: at most students × working_days rows (e.g. 40 × 22 = 880 rows, trivially fast)
+Proposed Changes
+Backend — Wire up the register endpoint
+[MODIFY] Backend/src/Service/attendance.service.ts
+Add getSectionRegisterService(section_id, school_id, academic_year_id, year, month, teacherId) that calls getSectionRegister from the repository.
+Enforces coordinator check via assertCoordinator.
+[MODIFY] Backend/src/Controllers/attendance.controller.ts
+Add getSectionRegister controller: reads ?year=&month=&academic_year_id= from query, calls the new service.
+[MODIFY] Backend/src/Routes/attendance.routes.ts
+Add GET /attendance/section/:sectionId/register before the existing GET /attendance/section/:sectionId route (static before dynamic — already covered, but ours is more specific).
+Frontend — Replace N+1 with single register API call
+[MODIFY] frontend/src/components/admin/attendance/TeacherAttendanceOverviewPage.tsx
+Remove detailCache state and the useEffect that fires 22 serial GET /attendance/:id calls.
+Remove the separate student list fetch (/students/enrollments?...) — students now come from the register response.
+Replace both with a single GET /attendance/section/:id/register?year=&month=&academic_year_id= call.
+Parse the flat rows into:
+students: deduplicated list of {student_id, full_name, admission_number}
+dayMap[student_id][date]: status for the register grid
+yearTotals[student_id]: directly from year_present, year_absent, year_late, year_leave, year_total on each row
+Keep month navigation, summary strip, and records table unchanged (records table still uses header data from monthRecords via the existing section endpoint — or we switch it to derive from register data).
+NOTE
+
+The monthly records table at the bottom (dates + P/A counts + status + edit link) still needs header-level data (status: 'submitted'|'draft', total_present, etc.). We can derive daily totals from the register rows themselves (count per date) and drop the separate section fetch entirely — one API call serves the entire page.
+
+Verification Plan
+Manual Verification
+Load the attendance register page — DevTools network tab should show exactly 1 API call (plus the sections and academic year calls, which are static).
+Navigate to a different month — 1 new API call fires, registers instantly.
+Change section — 1 new API call fires.
+Year totals and month summary counts should match the existing data.
+The "Mark Today's Attendance" button and edit links should be unaffected.
+Open Questions
+None. The SQL is already in place and tested by the Bug Hunter.

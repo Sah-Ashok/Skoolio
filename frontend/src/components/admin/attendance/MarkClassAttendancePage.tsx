@@ -30,7 +30,8 @@ export default function MarkClassAttendancePage() {
   const isFaculty  = user?.role === "faculty";
 
   const { data: activeYear } = useApi<any>("/academic-years/active");
-  const { data: teachers   } = useApi<any[]>("/teachers");
+  // Only fetch teachers list for admin — faculty gets 403 on GET /teachers
+  const { data: teachers   } = useApi<any[]>(!isFaculty ? "/teachers" : "");
 
   // Faculty: only their coordinator sections | Admin: all classes
   const { data: mySections, loading: mySectionsLoading } = useApi<any[]>(

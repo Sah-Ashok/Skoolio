@@ -50,6 +50,129 @@ export const getAttendanceBySection = async (
   return result.rows;
 };
 
+// ── REGISTER QUERY — the core scalability fix ──────────────────────────────
+//
+// This replaces the N+1 pattern (1 call per day) with a SINGLE SQL query.
+//
+// What it does in one pass:
+//   1. Joins attendance + attendance_details + students for the target month only
+//   2. For each (student, day) pair, returns the status directly
+//   3. Returns one row per student — the register-shaped output the frontend needs
+//
+// Performance characteristics:
+//   - Filters by (section_id, school_id, academic_year_id, month) before any join
+//   - The idx_attendance_details_student index (migration_attendance_index.sql)
+//     covers the inner join on attendance_details
+//   - Result set: at most (students_in_section × working_days_in_month) rows
+//     e.g. 40 students × 22 days = 880 rows — trivially fast
+//   - Year totals are computed in the SAME query via a second aggregation window
+//     over all submitted attendance for the year — no second round-trip needed
+//
+// Response shape per row:
+//   { student_id, full_name, admission_number,
+//     date, status,                             ← one row per (student, day)
+//     year_present, year_absent, year_late, year_leave, year_total }
+//
+// The frontend pivots these rows into a keyed object: dayMap[student_id][date] = status
+// This is O(n) in JS — much cheaper than 22 API calls.
+//
+export const getSectionRegister = async (
+  section_id: number,
+  school_id: number,
+  academic_year_id: number,
+  year: number,
+  month: number           // 1-indexed
+): Promise<any[]> => {
+  // Build the month boundary strings once — PostgreSQL BETWEEN is inclusive
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const monthStart = `${year}-${pad(month)}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();    // month is 1-indexed, so month+0 = last day of target month
+  const monthEnd   = `${year}-${pad(month)}-${pad(lastDay)}`;
+
+  const result = await pool.query(
+    `SELECT
+       s.id                                                      AS student_id,
+       s.full_name,
+       s.admission_number,
+       -- Per-day status (one row per student per marked day this month)
+       a.date::text                                              AS date,
+       ad.status,
+       -- Year totals aggregated in same query — no second round-trip
+       yt.year_present,
+       yt.year_absent,
+       yt.year_late,
+       yt.year_leave,
+       yt.year_total
+     FROM student_enrollments se
+     -- Enrolled students for this section+year
+     INNER JOIN students s ON s.id = se.student_id
+     -- LEFT: students appear even on days where attendance wasn't marked
+     LEFT JOIN attendance a
+       ON a.section_id        = $1
+      AND a.school_id         = $2
+      AND a.academic_year_id  = $3
+      AND a.date BETWEEN $4 AND $5
+     LEFT JOIN attendance_details ad
+       ON ad.attendance_id = a.id
+      AND ad.student_id    = s.id
+      AND ad.school_id     = $2
+     -- Year totals CTE joined per student — computed once, reused across all their rows
+     LEFT JOIN (
+       SELECT
+         ad2.student_id,
+         COUNT(*) FILTER (WHERE ad2.status = 'present') AS year_present,
+         COUNT(*) FILTER (WHERE ad2.status = 'absent')  AS year_absent,
+         COUNT(*) FILTER (WHERE ad2.status = 'late')    AS year_late,
+         COUNT(*) FILTER (WHERE ad2.status = 'leave')   AS year_leave,
+         COUNT(*)                                        AS year_total
+       FROM attendance_details ad2
+       INNER JOIN attendance a2
+         ON a2.id              = ad2.attendance_id
+        AND a2.section_id      = $1
+        AND a2.school_id       = $2
+        AND a2.academic_year_id = $3
+        AND a2.status          = 'submitted'
+       WHERE ad2.school_id = $2
+       GROUP BY ad2.student_id
+     ) yt ON yt.student_id = s.id
+     WHERE se.section_id        = $1
+       AND se.school_id         = $2
+       AND se.academic_year_id  = $3
+       AND se.status            = 'active'
+     ORDER BY s.full_name ASC, a.date ASC`,
+    [section_id, school_id, academic_year_id, monthStart, monthEnd]
+  );
+  return result.rows;
+};
+
+// ── Month headers only (lightweight — for the records table at bottom of register) ──
+// Returns header rows for a specific month — no details.
+// Used separately from getSectionRegister so the register itself doesn't
+// need the status column on headers (those come from the register query above).
+export const getAttendanceBySectionAndMonth = async (
+  section_id: number,
+  school_id: number,
+  academic_year_id: number,
+  year: number,
+  month: number
+): Promise<IAttendance[]> => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const monthStart = `${year}-${pad(month)}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${pad(month)}-${pad(lastDay)}`;
+
+  const result = await pool.query(
+    `SELECT id, section_id, date::text, total_present, total_absent,
+            total_late, total_leave, status, marked_by
+     FROM attendance
+     WHERE section_id = $1 AND school_id = $2 AND academic_year_id = $3
+       AND date BETWEEN $4 AND $5
+     ORDER BY date ASC`,
+    [section_id, school_id, academic_year_id, monthStart, monthEnd]
+  );
+  return result.rows;
+};
+
 export const getAttendanceByDate = async (
   section_id: number,
   school_id: number,
@@ -279,10 +402,6 @@ export const getStudentMonthlyAttendance = async (
 };
 
 // ── CLASS ATTENDANCE OVERVIEW (admin dashboard) ──
-// Returns per-section stats for a given class and month.
-// Each row: section_id, section_name, total_students, days_marked,
-//   total_present, total_absent, total_late, total_leave,
-//   avg_attendance_pct (present / (present+absent+late+leave) * 100)
 
 export const getClassAttendanceOverview = async (
   school_id: number,
@@ -325,9 +444,7 @@ export const getClassAttendanceOverview = async (
   return result.rows;
 };
 
-// ── ALL-CLASSES OVERVIEW (admin home — current month & previous month) ──
-// Returns one row per class with this-month and prev-month avg pct,
-// plus total students marked in that period.
+// ── ALL-CLASSES OVERVIEW ──
 
 export const getAllClassesAttendanceOverview = async (
   school_id: number,
@@ -387,15 +504,8 @@ export const createSectionTeacherHistory = async (
       (school_id, section_id, teacher_id, academic_year_id, from_date, to_date, reason)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [
-      school_id,
-      data.section_id,
-      data.teacher_id,
-      data.academic_year_id,
-      data.from_date,
-      data.to_date || null,
-      data.reason  || null,
-    ]
+    [school_id, data.section_id, data.teacher_id, data.academic_year_id,
+     data.from_date, data.to_date || null, data.reason || null]
   );
   return result.rows[0];
 };
@@ -421,18 +531,14 @@ export const updateSectionTeacherHistory = async (
   to_date: string
 ): Promise<ISectionTeacherHistory | null> => {
   const result = await pool.query(
-    `UPDATE section_teacher_history
-     SET to_date = $1
-     WHERE id = $2 AND school_id = $3
-     RETURNING *`,
+    `UPDATE section_teacher_history SET to_date = $1
+     WHERE id = $2 AND school_id = $3 RETURNING *`,
     [to_date, id, school_id]
   );
   return result.rows[0] || null;
 };
 
 // ── ADMIN SECTION ATTENDANCE SUMMARY ──
-// Returns per-section: current month present + working days, prev month present + working days.
-// Working days = calendar days - weekly offs (calendar_weekly_offs) - custom holidays (calendar_events where affects_attendance=true).
 
 export const getAdminSectionSummary = async (
   school_id: number,
@@ -444,99 +550,71 @@ export const getAdminSectionSummary = async (
 ): Promise<any[]> => {
   const result = await pool.query(
     `WITH
-      -- Working days for current month (exclude weekly offs and holidays)
       cur_working AS (
         SELECT COUNT(*) AS days
         FROM generate_series($3::date, $4::date, '1 day'::interval) AS d
-        WHERE
-          EXTRACT(DOW FROM d) NOT IN (
+        WHERE EXTRACT(DOW FROM d) NOT IN (
             SELECT CASE day
-              WHEN 'sunday'    THEN 0 WHEN 'monday'   THEN 1
-              WHEN 'tuesday'   THEN 2 WHEN 'wednesday' THEN 3
-              WHEN 'thursday'  THEN 4 WHEN 'friday'    THEN 5
-              WHEN 'saturday'  THEN 6 END
-            FROM calendar_weekly_offs
-            WHERE school_id = $1 AND academic_year_id = $2
-          )
+              WHEN 'sunday' THEN 0 WHEN 'monday' THEN 1 WHEN 'tuesday' THEN 2
+              WHEN 'wednesday' THEN 3 WHEN 'thursday' THEN 4
+              WHEN 'friday' THEN 5 WHEN 'saturday' THEN 6 END
+            FROM calendar_weekly_offs WHERE school_id = $1 AND academic_year_id = $2)
           AND d::date NOT IN (
             SELECT event_date::date FROM calendar_events
-            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true
-          )
+            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true)
       ),
-      -- Working days for previous month
       prev_working AS (
         SELECT COUNT(*) AS days
         FROM generate_series($5::date, $6::date, '1 day'::interval) AS d
-        WHERE
-          EXTRACT(DOW FROM d) NOT IN (
+        WHERE EXTRACT(DOW FROM d) NOT IN (
             SELECT CASE day
-              WHEN 'sunday'    THEN 0 WHEN 'monday'   THEN 1
-              WHEN 'tuesday'   THEN 2 WHEN 'wednesday' THEN 3
-              WHEN 'thursday'  THEN 4 WHEN 'friday'    THEN 5
-              WHEN 'saturday'  THEN 6 END
-            FROM calendar_weekly_offs
-            WHERE school_id = $1 AND academic_year_id = $2
-          )
+              WHEN 'sunday' THEN 0 WHEN 'monday' THEN 1 WHEN 'tuesday' THEN 2
+              WHEN 'wednesday' THEN 3 WHEN 'thursday' THEN 4
+              WHEN 'friday' THEN 5 WHEN 'saturday' THEN 6 END
+            FROM calendar_weekly_offs WHERE school_id = $1 AND academic_year_id = $2)
           AND d::date NOT IN (
             SELECT event_date::date FROM calendar_events
-            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true
-          )
+            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true)
       ),
-      -- Current month present count per section
       cur_present AS (
-        SELECT a.section_id,
-               SUM(a.total_present) AS total_present
+        SELECT a.section_id, SUM(a.total_present) AS total_present
         FROM attendance a
-        WHERE a.school_id        = $1
-          AND a.academic_year_id = $2
-          AND a.date BETWEEN $3 AND $4
-          AND a.status = 'submitted'
+        WHERE a.school_id = $1 AND a.academic_year_id = $2
+          AND a.date BETWEEN $3 AND $4 AND a.status = 'submitted'
         GROUP BY a.section_id
       ),
-      -- Previous month present count per section
       prev_present AS (
-        SELECT a.section_id,
-               SUM(a.total_present) AS total_present
+        SELECT a.section_id, SUM(a.total_present) AS total_present
         FROM attendance a
-        WHERE a.school_id        = $1
-          AND a.academic_year_id = $2
-          AND a.date BETWEEN $5 AND $6
-          AND a.status = 'submitted'
+        WHERE a.school_id = $1 AND a.academic_year_id = $2
+          AND a.date BETWEEN $5 AND $6 AND a.status = 'submitted'
         GROUP BY a.section_id
       ),
-      -- All time present per section
       all_present AS (
-        SELECT a.section_id,
-               SUM(a.total_present) AS total_present
+        SELECT a.section_id, SUM(a.total_present) AS total_present
         FROM attendance a
-        WHERE a.school_id        = $1
-          AND a.academic_year_id = $2
-          AND a.status = 'submitted'
+        WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.status = 'submitted'
         GROUP BY a.section_id
       )
     SELECT
-      sec.id                                     AS section_id,
-      sec.name                                   AS section_name,
-      c.id                                       AS class_id,
-      c.name                                     AS class_name,
-      COALESCE(t.full_name, 'Unassigned')        AS coordinator_name,
+      sec.id AS section_id, sec.name AS section_name,
+      c.id AS class_id, c.name AS class_name,
+      COALESCE(t.full_name, 'Unassigned') AS coordinator_name,
       sec.coordinator_id,
-      COALESCE(cp.total_present, 0)              AS current_month_present,
-      (SELECT days FROM cur_working)             AS current_working_days,
-      COALESCE(pp.total_present, 0)              AS prev_month_present,
-      (SELECT days FROM prev_working)            AS prev_working_days,
-      COALESCE(ap.total_present, 0)              AS total_present_all_time
+      COALESCE(cp.total_present, 0) AS current_month_present,
+      (SELECT days FROM cur_working) AS current_working_days,
+      COALESCE(pp.total_present, 0) AS prev_month_present,
+      (SELECT days FROM prev_working) AS prev_working_days,
+      COALESCE(ap.total_present, 0) AS total_present_all_time
     FROM sections sec
-    INNER JOIN classes   c   ON c.id = sec.class_id
-    LEFT  JOIN teachers  t   ON t.id = sec.coordinator_id
-    LEFT  JOIN cur_present  cp ON cp.section_id = sec.id
-    LEFT  JOIN prev_present pp ON pp.section_id = sec.id
-    LEFT  JOIN all_present  ap ON ap.section_id = sec.id
-    WHERE sec.school_id        = $1
-      AND c.academic_year_id   = $2
+    INNER JOIN classes c ON c.id = sec.class_id
+    LEFT JOIN teachers t ON t.id = sec.coordinator_id
+    LEFT JOIN cur_present  cp ON cp.section_id = sec.id
+    LEFT JOIN prev_present pp ON pp.section_id = sec.id
+    LEFT JOIN all_present  ap ON ap.section_id = sec.id
+    WHERE sec.school_id = $1 AND c.academic_year_id = $2
     ORDER BY c.name ASC, sec.name ASC`,
     [school_id, academic_year_id, current_start, current_end, prev_start, prev_end]
   );
   return result.rows;
 };
-

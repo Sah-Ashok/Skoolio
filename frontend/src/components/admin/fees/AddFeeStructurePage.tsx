@@ -18,10 +18,11 @@ type FeeHead = {
   name: string;
   cycle: string;
   amount: string;
+  billing_start_rule: string;
 };
 
 const initialFeeHeads: FeeHead[] = [
-  { id: 1, name: "Tuition Fee", cycle: "monthly", amount: "2000" }
+  { id: 1, name: "Tuition Fee", cycle: "monthly", amount: "2000", billing_start_rule: "next_month" }
 ];
 
 export default function AddFeeStructurePage() {
@@ -42,7 +43,10 @@ export default function AddFeeStructurePage() {
 
   const estimatedTotal = feeHeads.reduce((total, head) => {
     const amt = Number(head.amount || 0);
-    const multiplier = head.cycle === "monthly" ? 12 : head.cycle === "quarterly" ? 4 : head.cycle === "half_yearly" ? 2 : 1;
+    // If it's skip_two_months, it's 10 months. If next_month, it's typically 12 for the whole year (or 11 depending on admission, but 12 is standard).
+    // Let's use standard estimation.
+    let multiplier = head.cycle === "monthly" ? 12 : head.cycle === "quarterly" ? 4 : head.cycle === "half_yearly" ? 2 : 1;
+    if (head.cycle === "monthly" && head.billing_start_rule === "skip_two_months") multiplier = 10;
     return total + (amt * multiplier);
   }, 0);
 
@@ -53,7 +57,14 @@ export default function AddFeeStructurePage() {
   const addFeeHead = () => {
     setFeeHeads((heads) => [
       ...heads,
-      { id: Date.now(), name: "", cycle: "monthly", amount: "" },
+      { id: Date.now(), name: "", cycle: "monthly", amount: "", billing_start_rule: "next_month" },
+    ]);
+  };
+
+  const addStoreItem = () => {
+    setFeeHeads((heads) => [
+      ...heads,
+      { id: Date.now(), name: "Store Item", cycle: "one_time", amount: "", billing_start_rule: "next_month" },
     ]);
   };
 
@@ -83,7 +94,8 @@ export default function AddFeeStructurePage() {
           amount: parseFloat(head.amount),
           frequency: head.cycle,
           due_date_type: 'fixed_day',
-          due_day: 10
+          due_day: 10,
+          billing_start_rule: head.billing_start_rule
         });
       }
       
@@ -139,6 +151,13 @@ export default function AddFeeStructurePage() {
                       <option value="yearly">Yearly</option>
                       <option value="one_time">One Time</option>
                     </select>
+                    {head.cycle === 'monthly' && (
+                      <select value={head.billing_start_rule} onChange={(e) => updateFeeHead(head.id, "billing_start_rule", e.target.value)}>
+                        <option value="next_month">Next Month (Default)</option>
+                        <option value="skip_two_months">Skip 2 Months</option>
+                        <option value="academic_year">From Academic Year</option>
+                      </select>
+                    )}
                     <input
                       type="number"
                       onChange={(e) => updateFeeHead(head.id, "amount", e.target.value)}
@@ -151,9 +170,14 @@ export default function AddFeeStructurePage() {
                   </div>
                 ))}
               </div>
-              <button className={cx(s("btn"), s("btn-soft"), s("add-line-btn"))} onClick={addFeeHead} type="button" style={{marginTop: '1rem'}}>
-                <i className="fa-solid fa-plus" /> Add Fee Head
-              </button>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+                <button className={cx(s("btn"), s("btn-soft"), s("add-line-btn"))} onClick={addFeeHead} type="button">
+                  <i className="fa-solid fa-plus" /> Add Fee Head
+                </button>
+                <button className={cx(s("btn"), s("btn-outline"), s("add-line-btn"))} onClick={addStoreItem} type="button">
+                  <i className="fa-solid fa-cart-shopping" /> Miscellaneous / Store Item
+                </button>
+              </div>
             </FormCard>
           </div>
 

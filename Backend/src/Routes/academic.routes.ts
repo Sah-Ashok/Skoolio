@@ -12,12 +12,15 @@ import {
 
 const router = Router();
 
-// All routes protected — admin only
+// GET /active — needed by teacher + student portals for academic_year_id context
+// Must be declared BEFORE the admin-only middleware below
+router.get('/active', protect, restrictTo('admin', 'super_admin', 'faculty', 'student'), getActiveAcademicYear);
+
+// All other routes — admin only
 router.use(protect, restrictTo('admin', 'super_admin'));
 
 router.post('/', createAcademicYear);
 router.get('/', getAcademicYears);
-router.get('/active', getActiveAcademicYear);
 router.get('/:id', getAcademicYearById);
 router.patch('/:id', updateAcademicYear);
 router.delete('/:id', deleteAcademicYear);

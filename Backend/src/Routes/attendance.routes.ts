@@ -8,7 +8,7 @@ import {
   assignSectionTeacher, getSectionTeacherHistory,
   getMyAttendanceSummary, getMyMonthlyAttendance,
   getClassAttendanceOverview, getAllClassesAttendanceOverview,
-  getAdminSectionSummary,
+  getAdminSectionSummary, getSectionRegister,
 } from '../Controllers/attendance.controller';
 
 const router = Router();
@@ -37,7 +37,10 @@ router.post('/section-teacher', restrictTo('admin', 'super_admin'), assignSectio
 router.get('/section/:sectionId/teacher-history', restrictTo('admin', 'super_admin', 'faculty'), getSectionTeacherHistory);
 
 // ── SECTION ATTENDANCE ──
-// Admin: read-only (GET only). Faculty: full access for their coordinator section.
+// Register endpoint MUST be before the generic section/:sectionId (static before dynamic).
+// One-call register: returns all month data + year totals in a single SQL query.
+router.get('/section/:sectionId/register', restrictTo('admin', 'super_admin', 'faculty'), getSectionRegister);
+// Legacy full-year section list (still used by Mark Attendance page for header lookup)
 router.get('/section/:sectionId', restrictTo('admin', 'super_admin', 'faculty'), getAttendanceBySection);
 
 // ── ATTENDANCE DETAIL UPDATE — FACULTY ONLY (coordinator + date-lock enforced in service) ──

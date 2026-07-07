@@ -9,7 +9,7 @@ import {
   updateAcademicYearService,
   deleteAcademicYearService,
 } from '../Service/academic.service';
-import { IJwtAdminPayload } from '../types/auth.types';
+import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 
 // Create Academic Year
 export const createAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -32,9 +32,11 @@ export const getAcademicYearById = catchAsync(async (req: Request, res: Response
   sendResponse(res, 200, true, 'Academic year fetched successfully', year);
 });
 
-// Get Active Academic Year
+// Get Active Academic Year — accessible to admin, faculty, and student
 export const getActiveAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  // Admin JWT: school_id = user.id  |  Faculty/Student JWT: school_id = user.school_id
+  const school_id = 'school_id' in user ? user.school_id : user.id;
   const year = await getActiveAcademicYearService(school_id);
   sendResponse(res, 200, true, 'Active academic year fetched successfully', year);
 });

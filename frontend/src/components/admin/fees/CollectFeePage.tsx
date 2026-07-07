@@ -277,6 +277,24 @@ export default function CollectFeePage() {
               </div>
 
               <div style={{ padding: "14px 18px" }}>
+                {/* Scholarship notice */}
+                {matchedStudent?.scholarship_percent && Number(matchedStudent.scholarship_percent) > 0 && (
+                  <div style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 10, background: "#fefce8", border: "1px solid #fde68a", display: "flex", alignItems: "center", gap: 10 }}>
+                    <i className="fa-solid fa-graduation-cap" style={{ color: "#b45309", fontSize: 16 }} />
+                    <div>
+                      <strong style={{ fontSize: 13, color: "#92400e" }}>
+                        {matchedStudent.scholarship_type
+                          ? `${matchedStudent.scholarship_type.replace(/_/g, " ")} Scholarship`
+                          : "Scholarship"}
+                        {" "}— {matchedStudent.scholarship_percent}% fee discount
+                      </strong>
+                      {matchedStudent.scholarship_remarks && (
+                        <p style={{ fontSize: 11, color: "#78350f", fontWeight: 700, marginTop: 2 }}>{matchedStudent.scholarship_remarks}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Fee selector */}
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>

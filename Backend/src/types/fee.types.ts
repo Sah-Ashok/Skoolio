@@ -4,6 +4,7 @@ export type DueDateType = 'fixed_day' | 'admission_date';
 export type FeeCollectionStatus = 'unpaid' | 'partial' | 'paid' | 'waived';
 export type FeePaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'online';
 export type FeeType = 'academic' | 'transport' | 'hostel';
+export type BillingStartRule = 'next_month' | 'skip_two_months' | 'academic_year';
 
 // ── FEE STRUCTURE ──
 export interface IFeeStructure {
@@ -17,6 +18,7 @@ export interface IFeeStructure {
   due_date_type: DueDateType;
   due_day?: number;
   description?: string;
+  billing_start_rule: BillingStartRule;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -33,6 +35,7 @@ export type ICreateFeeStructure = Pick<
 > & {
   due_day?: number;
   description?: string;
+  billing_start_rule?: BillingStartRule;
 };
 
 export type IUpdateFeeStructure = Partial<ICreateFeeStructure>;

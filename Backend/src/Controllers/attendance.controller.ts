@@ -10,6 +10,7 @@ import {
   getSectionTeacherHistoryService,
   getClassAttendanceOverviewService, getAllClassesAttendanceOverviewService,
   getAdminSectionSummaryService,
+  getSectionRegisterService,
 } from '../Service/attendance.service';
 
 // ── ATTENDANCE CONTROLLERS (ADMIN / FACULTY) ──
@@ -212,4 +213,29 @@ export const getAdminSectionSummary = catchAsync(async (req: Request, res: Respo
   }
   const result = await getAdminSectionSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Section attendance summary fetched successfully', result);
+});
+
+// ── SECTION REGISTER (single-query register endpoint) ─────────────────────
+// Returns flat rows for the register grid in one SQL round-trip.
+// GET /attendance/section/:sectionId/register?year=2026&month=7&academic_year_id=3
+export const getSectionRegister = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
+
+  const { year, month, academic_year_id } = req.query;
+
+  if (!year || !month || !academic_year_id) {
+    return sendResponse(res, 400, false, 'year, month and academic_year_id are required', null);
+  }
+
+  const result = await getSectionRegisterService(
+    Number(req.params.sectionId),
+    school_id,
+    Number(academic_year_id),
+    Number(year),
+    Number(month),
+    teacherId
+  );
+  sendResponse(res, 200, true, 'Section register fetched successfully', result);
 });

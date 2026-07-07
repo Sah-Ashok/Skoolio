@@ -1,5 +1,5 @@
-import AttendancePage from "@/components/admin/attendance/AttendancePage";
+import TeacherAttendanceOverviewPage from "@/components/admin/attendance/TeacherAttendanceOverviewPage";
 
 export default function TeacherAttendanceRoutePage() {
-  return <AttendancePage />;
+  return <TeacherAttendanceOverviewPage />;
 }

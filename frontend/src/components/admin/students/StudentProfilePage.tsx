@@ -237,6 +237,32 @@ export default function StudentProfilePage() {
                   </div>
                 ))}
               </div>
+
+              {/* ── SCHOLARSHIP ── */}
+              {student.scholarship_type && (
+                <div style={{ margin: "0 18px 18px", padding: "14px 16px", borderRadius: 10, background: "#fefce8", border: "1px solid #fde68a" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <i className="fa-solid fa-graduation-cap" style={{ color: "#b45309", fontSize: 16 }} />
+                    <strong style={{ fontSize: 13, color: "#92400e" }}>Scholarship Awarded</strong>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Type</p>
+                      <strong style={{ textTransform: "capitalize" }}>{student.scholarship_type.replace(/_/g, " ")}</strong>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Discount</p>
+                      <strong style={{ color: "#92400e", fontSize: 15 }}>{student.scholarship_percent}% off fees</strong>
+                    </div>
+                    {student.scholarship_remarks && (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Remarks</p>
+                        <strong style={{ fontWeight: 700 }}>{student.scholarship_remarks}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* ── ATTENDANCE CARD ── */}

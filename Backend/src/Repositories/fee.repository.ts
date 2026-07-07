@@ -14,8 +14,8 @@ export const createFeeStructure = async (
 ): Promise<IFeeStructure> => {
   const result = await pool.query(
     `INSERT INTO fee_structures
-      (school_id, academic_year_id, class_id, fee_name, amount, frequency, due_date_type, due_day, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (school_id, academic_year_id, class_id, fee_name, amount, frequency, due_date_type, due_day, description, billing_start_rule)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       school_id,
@@ -27,6 +27,7 @@ export const createFeeStructure = async (
       data.due_date_type,
       data.due_day || null,
       data.description || null,
+      data.billing_start_rule || 'next_month',
     ]
   );
   return result.rows[0];
@@ -64,14 +65,15 @@ export const updateFeeStructure = async (
 ): Promise<IFeeStructure | null> => {
   const result = await pool.query(
     `UPDATE fee_structures SET
-      fee_name      = COALESCE($1, fee_name),
-      amount        = COALESCE($2, amount),
-      frequency     = COALESCE($3, frequency),
-      due_date_type = COALESCE($4, due_date_type),
-      due_day       = COALESCE($5, due_day),
-      description   = COALESCE($6, description),
-      updated_at    = NOW()
-     WHERE id = $7 AND school_id = $8
+      fee_name           = COALESCE($1, fee_name),
+      amount             = COALESCE($2, amount),
+      frequency          = COALESCE($3, frequency),
+      due_date_type      = COALESCE($4, due_date_type),
+      due_day            = COALESCE($5, due_day),
+      description        = COALESCE($6, description),
+      billing_start_rule = COALESCE($7, billing_start_rule),
+      updated_at         = NOW()
+     WHERE id = $8 AND school_id = $9
      RETURNING *`,
     [
       data.fee_name || null,
@@ -80,6 +82,7 @@ export const updateFeeStructure = async (
       data.due_date_type || null,
       data.due_day || null,
       data.description || null,
+      data.billing_start_rule || null,
       id,
       school_id,
     ]
@@ -241,6 +244,24 @@ export const updateCollectionPaidAmount = async (
      WHERE id = $4 AND school_id = $5
      RETURNING *`,
     [paid_amount, remaining_amount, status, id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+// ── ACADEMIC FEE DUPLICATE CHECK ──
+export const getAcademicFeeForPeriod = async (
+  school_id:        number,
+  student_id:       number,
+  fee_structure_id: number,
+  due_date:         string
+): Promise<IFeeCollection | null> => {
+  const result = await pool.query(
+    `SELECT * FROM fee_collections
+     WHERE school_id        = $1
+       AND student_id       = $2
+       AND fee_structure_id = $3
+       AND due_date         = $4::date`,
+    [school_id, student_id, fee_structure_id, due_date]
   );
   return result.rows[0] || null;
 };

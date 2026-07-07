@@ -6,6 +6,7 @@ import {
   createFeeCollection, getFeeCollections, getStudentFeeCollections, updateFeeCollection,
   createFeePayment, getPaymentsByCollection, getStudentPayments,
   getMyFeeCollections, getMyPayments,
+  generateMonthlyFeeBills,
   generateTransportBills, getTransportFeeSummary,
   generateHostelBills, getHostelFeeSummary,
 } from '../Controllers/fee.controller';
@@ -16,6 +17,9 @@ router.use(protect);
 // ── SELF-SERVICE (student's own fees) ──
 router.get('/me/collections', restrictTo('student'), getMyFeeCollections);
 router.get('/me/payments',    restrictTo('student'), getMyPayments);
+
+// ── ACADEMIC MONTHLY BILLING ──
+router.post('/monthly/generate',  restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
 
 // ── TRANSPORT BILLING ──
 router.post('/transport/generate',  restrictTo('admin', 'super_admin'), generateTransportBills);

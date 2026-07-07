@@ -3,7 +3,7 @@ import {
   getAttendanceById, updateAttendance, updateAttendanceCounts,
   createAttendanceDetails, getAttendanceDetails, updateAttendanceDetail,
   getStudentAttendanceSummary, getStudentMonthlyAttendance,
-  getSectionAttendanceSummary,
+  getSectionAttendanceSummary, getSectionRegister,
   getClassAttendanceOverview, getAllClassesAttendanceOverview,
   createSectionTeacherHistory, getSectionTeacherHistory, updateSectionTeacherHistory,
   getAdminSectionSummary,
@@ -360,4 +360,21 @@ export const getAdminSectionSummaryService = async (
     current_month: { label: cur_start.slice(0, 7), start: cur_start, end: cur_end  },
     prev_month:    { label: prev_start.slice(0, 7), start: prev_start, end: prev_end },
   };
+};
+
+// ── SECTION REGISTER — single-query scalable endpoint ───────────────────────
+// Replaces the N+1 pattern (1 call per day) on the frontend register page.
+// Returns flat rows: { student_id, full_name, admission_number, date, status,
+//                      year_present, year_absent, year_late, year_leave, year_total }
+// The frontend pivots these into the register grid in O(n) JS — zero serial calls.
+export const getSectionRegisterService = async (
+  section_id:       number,
+  school_id:        number,
+  academic_year_id: number,
+  year:             number,
+  month:            number,    // 1-indexed
+  teacherId?:       number
+) => {
+  await assertCoordinator(section_id, school_id, teacherId);
+  return getSectionRegister(section_id, school_id, academic_year_id, year, month);
 };

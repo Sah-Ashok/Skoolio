@@ -144,11 +144,17 @@ export default function TeacherMarkAttendancePage() {
         setRemarks(initRemarks);
       } else {
         // No existing record — load enrolled students for this section
+        // Use /students/enrollments (accessible to faculty) not /students (admin-only)
         const enrollRes = await apiRequest<{ data: any[] }>(
-          `/students?section_id=${sectionId}&academic_year_id=${activeYear.id}&status=active`
+          `/students/enrollments?section_id=${sectionId}&academic_year_id=${activeYear.id}`
         );
         const enrolled = enrollRes.data ?? enrollRes;
-        const studs = Array.isArray(enrolled) ? enrolled : [];
+        const studs = (Array.isArray(enrolled) ? enrolled : []).map((en: any) => ({
+          id:               en.student_id,   // enrollment row uses student_id, not id
+          full_name:        en.full_name,
+          admission_number: en.admission_number,
+          enrollment_id:    en.id,           // the enrollment row id — needed for POST /attendance
+        }));
         setStudents(studs);
         const initStatuses: Record<number, string> = {};
         studs.forEach((s: any) => { initStatuses[s.id] = "present"; });
@@ -270,8 +276,28 @@ export default function TeacherMarkAttendancePage() {
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>Mark Attendance</h1>
             <p style={{ color: "#6a7882", fontSize: 13, fontWeight: 700, marginTop: 4 }}>
-              Only your assigned coordinator sections are shown.
+              {selectedSection
+                ? `Your section — ${selectedSection.name} · ${selectedSection.class_name} · ${new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`
+                : "Only your assigned coordinator sections are shown."}
             </p>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => window.history.back()}
+              style={{ minHeight: 38, padding: "0 16px", borderRadius: 8, border: "1px solid #d4dde2", background: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <i className="fa-solid fa-arrow-left" /> Back
+            </button>
+            {!readonly && students.length > 0 && (
+              <button
+                onClick={handleSave}
+                disabled={submitting}
+                style={{ minHeight: 38, padding: "0 16px", borderRadius: 8, border: "none", background: "#ff9b51", color: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}
+              >
+                {submitting ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />}
+                Save Attendance
+              </button>
+            )}
           </div>
         </div>
 

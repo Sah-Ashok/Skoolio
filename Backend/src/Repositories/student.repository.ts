@@ -1,7 +1,7 @@
 import pool from '../config/db';
 import {
   IStudent, ICreateStudent, IUpdateStudent,
-  IStudentEnrollment, ICreateEnrollment, IUpdateEnrollment
+  IStudentEnrollment, IStudentEnrollmentWithStudent, ICreateEnrollment, IUpdateEnrollment
 } from '../types/student.types';
 
 // ── STUDENT QUERIES ──
@@ -265,13 +265,14 @@ export const getEnrollmentsBySchool = async (
   school_id: number,
   academic_year_id: number,
   section_id?: number
-): Promise<IStudentEnrollment[]> => {
+): Promise<IStudentEnrollmentWithStudent[]> => {
   const params: any[] = [school_id, academic_year_id];
   const sectionFilter = section_id ? `AND se.section_id = $3` : '';
   if (section_id) params.push(section_id);
 
   const result = await pool.query(
     `SELECT se.*, s.full_name, s.admission_number, s.photo, s.gender,
+       s.scholarship_type, s.scholarship_percent, s.admission_date::text as admission_date,
        c.name AS class_name, sec.name AS section_name
      FROM student_enrollments se
      INNER JOIN students  s   ON s.id   = se.student_id

@@ -9,6 +9,7 @@ import {
   getStudentFeeCollectionsService, updateFeeCollectionService,
   createFeePaymentService, getPaymentsByCollectionService,
   getStudentPaymentsService,
+  generateMonthlyFeeBillsService,
   generateTransportBillsService, getTransportFeeSummaryService,
   generateHostelBillsService, getHostelFeeSummaryService,
 } from '../Service/fee.service';
@@ -113,6 +114,25 @@ export const getMyPayments = catchAsync(async (req: Request, res: Response, next
   const { id, school_id } = req.user as IJwtUserPayload;
   const result = await getStudentPaymentsService(id, school_id);
   sendResponse(res, 200, true, 'Your payments fetched successfully', result);
+});
+
+// ── ACADEMIC MONTHLY BILLING CONTROLLERS (ADMIN) ──
+
+export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_month } = req.body;
+
+  if (!academic_year_id || !billing_month) {
+    return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
+  }
+
+  const result = await generateMonthlyFeeBillsService(
+    school_id, school_id, Number(academic_year_id), billing_month
+  );
+  sendResponse(res, 201, true,
+    `Academic monthly bills generated: ${result.created} created, ${result.skipped} skipped`,
+    result
+  );
 });
 
 // ── TRANSPORT BILLING CONTROLLERS (ADMIN) ──

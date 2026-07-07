@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
+import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
+import { useAppDispatch } from "@/store/hooks";
+import { showToast } from "@/store/toastSlice";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -15,8 +19,33 @@ const formatINR = (amount: number) => new Intl.NumberFormat("en-IN", { style: "c
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default function FeesPage() {
+  const dispatch = useAppDispatch();
   const { data: activeYear } = useApi<any>('/academic-years/active');
   const { data: collections, loading } = useApi<any[]>(activeYear?.id ? `/fees/collections?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
+
+  const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [generating, setGenerating]     = useState(false);
+
+  const handleGenerateMonthlyBills = async () => {
+    if (!activeYear?.id || !billingMonth) return;
+    setGenerating(true);
+    try {
+      const res = await apiRequest<{ data: any }>('/fees/monthly/generate', {
+        method: 'POST',
+        body: JSON.stringify({ academic_year_id: activeYear.id, billing_month: billingMonth }),
+      });
+      const { created, skipped, errors } = res.data || {};
+      if (errors?.length) {
+        dispatch(showToast({ type: 'error', title: 'Partial Success', message: `${created} created, ${skipped} skipped, ${errors.length} errors.` }));
+      } else {
+        dispatch(showToast({ type: 'success', title: 'Monthly Bills Generated', message: `${created} new bills created, ${skipped} already existed.` }));
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || 'Could not generate bills.' }));
+    } finally {
+      setGenerating(false);
+    }
+  };
   
   const totalCollected = collections?.filter(c => c.status === 'paid' || c.status === 'partial')
     .reduce((sum, c) => sum + parseFloat(c.paid_amount || '0'), 0) || 0;
@@ -98,6 +127,40 @@ export default function FeesPage() {
           <QuickAction href="/fees/structures" icon="fa-list-check" title="Fee Structures" text="Manage fee plans" />
           <QuickAction href="/fees/structures/add" icon="fa-plus" title="Add Structure" text="New fee template" />
           <QuickAction href="/fees/records" icon="fa-table-list" title="All Records" text="View all payments" />
+        </section>
+
+        {/* ── GENERATE MONTHLY BILLS ── */}
+        <section className={s("card")} style={{ marginBottom: 0 }}>
+          <div className={s("card-head")}>
+            <div>
+              <h3><i className="fa-solid fa-calendar-plus" style={{ color: "#ff9b51", marginRight: 8 }} />Generate Monthly Bills</h3>
+              <p>Batch-create academic fee collections for all enrolled students for a billing month. Applies scholarship discounts automatically. Skips already-billed students.</p>
+            </div>
+          </div>
+          <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 900 }}>Billing Month</label>
+              <input
+                type="month"
+                value={billingMonth}
+                onChange={e => setBillingMonth(e.target.value)}
+                style={{ minHeight: 40, padding: "0 12px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 13, fontWeight: 800, outline: "none" }}
+              />
+            </div>
+            <button
+              className={cx(s("btn"), s("btn-primary"))}
+              onClick={handleGenerateMonthlyBills}
+              disabled={generating || !activeYear?.id}
+            >
+              {generating
+                ? <><Spinner size={15} color="#fff" /> Generating…</>
+                : <><i className="fa-solid fa-bolt" /> Generate Bills</>}
+            </button>
+            <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, alignSelf: "center" }}>
+              <i className="fa-solid fa-circle-info" style={{ marginRight: 5 }} />
+              Idempotent — safe to run multiple times. Scholarship discounts applied automatically.
+            </p>
+          </div>
         </section>
 
         <section className={s("chart-row")}>
