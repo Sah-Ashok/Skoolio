@@ -1,0 +1,473 @@
+.page {
+  min-height: 100vh;
+  background: #eef2f3;
+  color: #1f2d36;
+}
+
+.content {
+  padding: 24px 28px 34px;
+}
+
+.head {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.head p,
+.cardHead p {
+  margin: 4px 0 0;
+  color: #6a7882;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #1f2d36;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btnPrimary { background: #ff9b51; }
+
+.btnOutline {
+  border: 1px solid #c6d0d7;
+  background: #fff;
+}
+
+.btnSoft { background: #e5ebee; }
+
+.stats {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stats article {
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid #d4dde2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(31, 45, 54, 0.06);
+  display: grid;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stats article::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--accent);
+}
+
+.stats i {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.stats span {
+  color: #6a7882;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stats strong {
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.stats small {
+  color: #7b8992;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.green  { --accent: #12805c; --soft: #e2f6ee; }
+.red    { --accent: #b42318; --soft: #fde7e7; }
+.blue   { --accent: #3b5bdb; --soft: #e8edff; }
+.orange { --accent: #c46a14; --soft: #fff1df; }
+
+.layout,
+.formLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+
+.card,
+.summaryCard {
+  border: 1px solid #d4dde2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(31, 45, 54, 0.06);
+  overflow: hidden;
+}
+
+.cardHead {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardHead h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.monthControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monthControls button,
+.monthControls select {
+  min-height: 36px;
+  border: 1px solid #c6d0d7;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2d36;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.monthControls button {
+  width: 36px;
+}
+
+.monthControls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.monthControls select {
+  padding: 0 12px;
+}
+
+.calendarGrid {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weekday {
+  padding: 8px;
+  color: #6a7882;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.day {
+  min-height: 94px;
+  padding: 10px;
+  border: 1px solid #dce5e9;
+  border-radius: 9px;
+  background: #fbfcfd;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+/* Reveal the delete button on hover */
+.day:hover .day-delete-btn {
+  opacity: 1 !important;
+}
+
+.day span {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.day em {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.muted { opacity: 0.42; }
+
+.holiday,
+.off          { background: #fff5f5; border-color: #f4c7c7; --accent: #b42318; --soft: #fde7e7; }
+.event        { background: #f5f8ff; border-color: #ccd7ff; --accent: #3b5bdb; --soft: #e8edff; }
+.exam         { background: #fff8ed; border-color: #ffd7a8; --accent: #c46a14; --soft: #fff1df; }
+.early_closing,
+.working      { background: #f0fff8; border-color: #bee8d6; --accent: #12805c; --soft: #e2f6ee; }
+
+.sideStack,
+.formStack {
+  display: grid;
+  gap: 16px;
+}
+
+.rules {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.rules span {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rules span:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.rules b {
+  color: #6a7882;
+  font-size: 12px;
+}
+
+.rules strong {
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.eventList {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.eventItem {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.eventItem i {
+  width: 10px;
+  height: 10px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.eventItem strong,
+.eventItem span {
+  display: block;
+}
+
+.eventItem strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.eventItem span {
+  margin-top: 3px;
+  color: #6a7882;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.emptyState {
+  min-height: 150px;
+  padding: 18px;
+  border: 1px dashed #c6d0d7;
+  border-radius: 10px;
+  background: #fbfcfd;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.emptyState i    { color: #12805c; font-size: 22px; }
+.emptyState strong { font-size: 13px; font-weight: 900; }
+.emptyState span { color: #6a7882; font-size: 12px; font-weight: 700; }
+
+.formGrid {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  color: #1f2d36;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.field b { color: #b42318; }
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #c6d0d7;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2d36;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  outline: none;
+}
+
+.field textarea {
+  min-height: 96px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: #ff9148;
+  box-shadow: 0 0 0 3px rgba(255, 145, 72, 0.15);
+}
+
+.full { grid-column: 1 / -1; }
+
+.step {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff1df;
+  color: #c46a14;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.classScope {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.classScope label {
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid #dce5e9;
+  border-radius: 8px;
+  background: #fbfcfd;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.formActions {
+  padding: 16px;
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.summaryCard {
+  position: sticky;
+  top: 96px;
+  padding: 20px;
+}
+
+.summaryIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #fff1df;
+  color: #ff9148;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.summaryCard h2 {
+  margin: 14px 0 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+@media (max-width: 1180px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .layout,
+  .formLayout { grid-template-columns: 1fr; }
+  .summaryCard { position: static; }
+}
+
+@media (max-width: 760px) {
+  .content { padding: 20px 18px 28px; }
+  .head,
+  .cardHead { align-items: flex-start; flex-direction: column; }
+  .actions,
+  .monthControls,
+  .formActions { width: 100%; align-items: stretch; flex-direction: column; }
+  .btn,
+  .monthControls button,
+  .monthControls select { width: 100%; }
+  .stats,
+  .formGrid,
+  .classScope { grid-template-columns: 1fr; }
+  .calendarGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,0 +1,369 @@
+import pool from '../config/db';
+import {
+  IStudent, ICreateStudent, IUpdateStudent,
+  IStudentEnrollment, ICreateEnrollment, IUpdateEnrollment
+} from '../types/student.types';
+
+// ── STUDENT QUERIES ──
+
+export const createStudent = async (
+  school_id: number,
+  data: ICreateStudent
+): Promise<IStudent> => {
+  const result = await pool.query(
+    `INSERT INTO students
+      (school_id, admission_number, full_name, email, phone, password, gender,
+       date_of_birth, blood_group, photo, nationality, religion, ethnicity,
+       city, state, country, previous_school, admission_date, disability,
+       disability_description, scholarship_type, scholarship_percent,
+       scholarship_remarks, guardian_name, guardian_phone, guardian_email,
+       guardian_relation, guardian_occupation, guardian_address, status)
+     VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
+     RETURNING id, school_id, admission_number, full_name, email, phone, gender,
+       date_of_birth::text, blood_group, photo, nationality, religion, ethnicity,
+       city, state, country, previous_school, admission_date::text, disability,
+       disability_description, scholarship_type, scholarship_percent, scholarship_remarks,
+       guardian_name, guardian_phone, guardian_email,
+       guardian_relation, guardian_occupation, guardian_address, status,
+       created_at, updated_at`,
+    [
+      school_id,
+      data.admission_number,
+      data.full_name,
+      data.email || null,
+      data.phone || null,
+      data.password,
+      data.gender,
+      data.date_of_birth,
+      data.blood_group || null,
+      data.photo || null,
+      data.nationality || 'Nepali',
+      data.religion || null,
+      data.ethnicity || null,
+      data.city || null,
+      data.state || null,
+      data.country || null,
+      data.previous_school || null,
+      data.admission_date,
+      data.disability || false,
+      data.disability_description || null,
+      data.scholarship_type || null,
+      data.scholarship_percent || null,
+      data.scholarship_remarks || null,
+      data.guardian_name,
+      data.guardian_phone,
+      data.guardian_email || null,
+      data.guardian_relation,
+      data.guardian_occupation || null,
+      data.guardian_address || null,
+      data.status || 'active',
+    ]
+  );
+  return result.rows[0];
+};
+
+export const getStudentsBySchool = async (
+  school_id: number
+): Promise<IStudent[]> => {
+  const result = await pool.query(
+    `SELECT id, school_id, admission_number, full_name, email, phone, gender,
+       date_of_birth::text, blood_group, photo, nationality, religion, ethnicity,
+       city, state, country, previous_school, admission_date::text, disability,
+       disability_description, scholarship_type, scholarship_percent, scholarship_remarks,
+       guardian_name, guardian_phone, guardian_email,
+       guardian_relation, guardian_occupation, guardian_address, status,
+       created_at, updated_at
+     FROM students WHERE school_id = $1
+     ORDER BY full_name ASC`,
+    [school_id]
+  );
+  return result.rows;
+};
+
+export const getStudentById = async (
+  id: number,
+  school_id: number
+): Promise<IStudent | null> => {
+  const result = await pool.query(
+    `SELECT id, school_id, admission_number, full_name, email, phone, gender,
+       date_of_birth::text, blood_group, photo, nationality, religion, ethnicity,
+       city, state, country, previous_school, admission_date::text, disability,
+       disability_description, scholarship_type, scholarship_percent, scholarship_remarks,
+       guardian_name, guardian_phone, guardian_email,
+       guardian_relation, guardian_occupation, guardian_address, status,
+       created_at, updated_at
+     FROM students WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const getStudentByAdmissionNumber = async (
+  admission_number: string,
+  school_id: number
+): Promise<IStudent | null> => {
+  const result = await pool.query(
+    `SELECT * FROM students WHERE admission_number = $1 AND school_id = $2`,
+    [admission_number, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const getStudentByEmail = async (
+  email: string,
+  school_id: number
+): Promise<IStudent | null> => {
+  const result = await pool.query(
+    `SELECT * FROM students WHERE email = $1 AND school_id = $2`,
+    [email, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+// Used for login — student doesn't know their school_id upfront
+export const findStudentByEmailGlobal = async (
+  email: string
+): Promise<(IStudent & { school_name: string; school_logo: string | null; school_timezone: string; school_account_status: string }) | null> => {
+  const result = await pool.query(
+    `SELECT st.*, s.school_name, s.logo as school_logo, s.timezone as school_timezone, s.is_account as school_account_status
+     FROM students st
+     INNER JOIN schools s ON s.id = st.school_id
+     WHERE st.email = $1`,
+    [email]
+  );
+  return result.rows[0] || null;
+};
+
+export const updateStudent = async (
+  id: number,
+  school_id: number,
+  data: IUpdateStudent
+): Promise<IStudent | null> => {
+  const result = await pool.query(
+    `UPDATE students SET
+      full_name              = COALESCE($1, full_name),
+      email                  = COALESCE($2, email),
+      phone                  = COALESCE($3, phone),
+      gender                 = COALESCE($4, gender),
+      date_of_birth          = COALESCE($5, date_of_birth),
+      blood_group            = COALESCE($6, blood_group),
+      photo                  = COALESCE($7, photo),
+      nationality            = COALESCE($8, nationality),
+      religion               = COALESCE($9, religion),
+      ethnicity              = COALESCE($10, ethnicity),
+      city                   = COALESCE($11, city),
+      state                  = COALESCE($12, state),
+      country                = COALESCE($13, country),
+      previous_school        = COALESCE($14, previous_school),
+      disability             = COALESCE($15, disability),
+      disability_description = COALESCE($16, disability_description),
+      scholarship_type       = COALESCE($17, scholarship_type),
+      scholarship_percent    = COALESCE($18, scholarship_percent),
+      scholarship_remarks    = COALESCE($19, scholarship_remarks),
+      guardian_name          = COALESCE($20, guardian_name),
+      guardian_phone         = COALESCE($21, guardian_phone),
+      guardian_email         = COALESCE($22, guardian_email),
+      guardian_relation      = COALESCE($23, guardian_relation),
+      guardian_occupation    = COALESCE($24, guardian_occupation),
+      guardian_address       = COALESCE($25, guardian_address),
+      status                 = COALESCE($26, status),
+      updated_at             = NOW()
+     WHERE id = $27 AND school_id = $28
+     RETURNING id, school_id, admission_number, full_name, email, phone, gender,
+       date_of_birth::text, blood_group, photo, nationality, religion, ethnicity,
+       city, state, country, previous_school, admission_date::text, disability,
+       disability_description, scholarship_type, scholarship_percent, scholarship_remarks,
+       guardian_name, guardian_phone, guardian_email,
+       guardian_relation, guardian_occupation, guardian_address, status,
+       created_at, updated_at`,
+    [
+      data.full_name || null,
+      data.email || null,
+      data.phone || null,
+      data.gender || null,
+      data.date_of_birth || null,
+      data.blood_group || null,
+      data.photo || null,
+      data.nationality || null,
+      data.religion || null,
+      data.ethnicity || null,
+      data.city || null,
+      data.state || null,
+      data.country || null,
+      data.previous_school || null,
+      data.disability ?? null,
+      data.disability_description || null,
+      data.scholarship_type || null,
+      data.scholarship_percent || null,
+      data.scholarship_remarks || null,
+      data.guardian_name || null,
+      data.guardian_phone || null,
+      data.guardian_email || null,
+      data.guardian_relation || null,
+      data.guardian_occupation || null,
+      data.guardian_address || null,
+      data.status || null,
+      id,
+      school_id,
+    ]
+  );
+  return result.rows[0] || null;
+};
+
+export const deleteStudent = async (
+  id: number,
+  school_id: number
+): Promise<boolean> => {
+  const result = await pool.query(
+    `DELETE FROM students WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  return (result.rowCount ?? 0) > 0;
+};
+
+// ── ENROLLMENT QUERIES ──
+
+export const createEnrollment = async (
+  school_id: number,
+  data: ICreateEnrollment
+): Promise<IStudentEnrollment> => {
+  const result = await pool.query(
+    `INSERT INTO student_enrollments
+      (school_id, student_id, academic_year_id, class_id, section_id, roll_number,
+       stream, registration_number, symbol_number, exam_roll_number, board_name,
+       transport_required, transport_route, pickup_location, transport_fee,
+       transport_fee_type, remarks, status)
+     VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+     RETURNING *`,
+    [
+      school_id,
+      data.student_id,
+      data.academic_year_id,
+      data.class_id,
+      data.section_id,
+      data.roll_number || null,
+      data.stream || 'not_applicable',
+      data.registration_number || null,
+      data.symbol_number || null,
+      data.exam_roll_number || null,
+      data.board_name || null,
+      data.transport_required || false,
+      data.transport_route || null,
+      data.pickup_location || null,
+      data.transport_fee || null,
+      data.transport_fee_type || null,
+      data.remarks || null,
+      data.status || 'active',
+    ]
+  );
+  return result.rows[0];
+};
+
+export const getEnrollmentsBySchool = async (
+  school_id: number,
+  academic_year_id: number,
+  section_id?: number
+): Promise<IStudentEnrollment[]> => {
+  const params: any[] = [school_id, academic_year_id];
+  const sectionFilter = section_id ? `AND se.section_id = $3` : '';
+  if (section_id) params.push(section_id);
+
+  const result = await pool.query(
+    `SELECT se.*, s.full_name, s.admission_number, s.photo, s.gender,
+       c.name AS class_name, sec.name AS section_name
+     FROM student_enrollments se
+     INNER JOIN students  s   ON s.id   = se.student_id
+     INNER JOIN classes   c   ON c.id   = se.class_id
+     INNER JOIN sections  sec ON sec.id = se.section_id
+     WHERE se.school_id = $1
+       AND se.academic_year_id = $2
+       AND se.status = 'active'
+       ${sectionFilter}
+     ORDER BY c.name ASC, sec.name ASC, se.roll_number ASC NULLS LAST, s.full_name ASC`,
+    params
+  );
+  return result.rows;
+};
+
+export const getEnrollmentByStudent = async (
+  student_id: number,
+  school_id: number
+): Promise<IStudentEnrollment[]> => {
+  const result = await pool.query(
+    `SELECT se.*, c.name as class_name, sec.name as section_name,
+       ay.year_name as academic_year_name
+     FROM student_enrollments se
+     INNER JOIN classes c ON c.id = se.class_id
+     INNER JOIN sections sec ON sec.id = se.section_id
+     INNER JOIN academic_years ay ON ay.id = se.academic_year_id
+     WHERE se.student_id = $1 AND se.school_id = $2
+     ORDER BY se.created_at DESC`,
+    [student_id, school_id]
+  );
+  return result.rows;
+};
+
+export const getEnrollmentById = async (
+  id: number,
+  school_id: number
+): Promise<IStudentEnrollment | null> => {
+  const result = await pool.query(
+    `SELECT * FROM student_enrollments WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const updateEnrollment = async (
+  id: number,
+  school_id: number,
+  data: IUpdateEnrollment
+): Promise<IStudentEnrollment | null> => {
+  const result = await pool.query(
+    `UPDATE student_enrollments SET
+      class_id             = COALESCE($1, class_id),
+      section_id           = COALESCE($2, section_id),
+      roll_number          = COALESCE($3, roll_number),
+      stream               = COALESCE($4, stream),
+      registration_number  = COALESCE($5, registration_number),
+      symbol_number        = COALESCE($6, symbol_number),
+      exam_roll_number     = COALESCE($7, exam_roll_number),
+      board_name           = COALESCE($8, board_name),
+      is_promoted          = COALESCE($9, is_promoted),
+      promoted_to_class_id = COALESCE($10, promoted_to_class_id),
+      transport_required   = COALESCE($11, transport_required),
+      transport_route      = COALESCE($12, transport_route),
+      pickup_location      = COALESCE($13, pickup_location),
+      transport_fee        = COALESCE($14, transport_fee),
+      transport_fee_type   = COALESCE($15, transport_fee_type),
+      remarks              = COALESCE($16, remarks),
+      status               = COALESCE($17, status),
+      updated_at           = NOW()
+     WHERE id = $18 AND school_id = $19
+     RETURNING *`,
+    [
+      data.class_id || null,
+      data.section_id || null,
+      data.roll_number || null,
+      data.stream || null,
+      data.registration_number || null,
+      data.symbol_number || null,
+      data.exam_roll_number || null,
+      data.board_name || null,
+      data.is_promoted ?? null,
+      data.promoted_to_class_id || null,
+      data.transport_required ?? null,
+      data.transport_route || null,
+      data.pickup_location || null,
+      data.transport_fee || null,
+      data.transport_fee_type || null,
+      data.remarks || null,
+      data.status || null,
+      id,
+      school_id,
+    ]
+  );
+  return result.rows[0] || null;
+};

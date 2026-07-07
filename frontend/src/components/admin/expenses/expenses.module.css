@@ -1,0 +1,568 @@
+.page {
+  min-height: 100vh;
+  background: #eef2f3;
+  color: #1f2d36;
+}
+
+.content {
+  padding: 24px 28px 34px;
+}
+
+.head {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.head p,
+.cardHead p {
+  margin: 4px 0 0;
+  color: #6a7882;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #1f2d36;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  background: #ff9b51;
+}
+
+.btnOutline {
+  border: 1px solid #c6d0d7;
+  background: #fff;
+}
+
+.btnSoft {
+  background: #e5ebee;
+}
+
+.btnSm {
+  min-height: 32px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+.stats {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat {
+  min-height: 116px;
+  padding: 16px;
+  border: 1px solid #d4dde2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(31, 45, 54, 0.06);
+  display: grid;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--accent);
+}
+
+.stat div {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.stat span {
+  color: #6a7882;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stat strong {
+  color: #1f2d36;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.stat small {
+  color: #7b8992;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.green {
+  --accent: #12805c;
+  --soft: #e2f6ee;
+}
+
+.orange {
+  --accent: #c46a14;
+  --soft: #fff1df;
+}
+
+.blue {
+  --accent: #3b5bdb;
+  --soft: #e8edff;
+}
+
+.red {
+  --accent: #b42318;
+  --soft: #fde7e7;
+}
+
+.toolbar {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #d4dde2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(31, 45, 54, 0.06);
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 180px 160px 170px;
+  gap: 12px;
+}
+
+.search {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #c6d0d7;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search i {
+  color: #6a7882;
+}
+
+.search input,
+.toolbar select,
+.toolbar input,
+.field input,
+.field select,
+.field textarea,
+.inlineCreate input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #c6d0d7;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2d36;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  outline: none;
+}
+
+.search input {
+  border: 0;
+  padding: 0;
+}
+
+.field textarea {
+  min-height: 96px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.inlineCreate input:focus,
+.toolbar select:focus,
+.toolbar input:focus {
+  border-color: #ff9148;
+  box-shadow: 0 0 0 3px rgba(255, 145, 72, 0.15);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.35fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.card,
+.formCard,
+.summaryBox,
+.saveBox {
+  border: 1px solid #d4dde2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(31, 45, 54, 0.06);
+  overflow: hidden;
+}
+
+.cardHead,
+.formCardHead {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardHead h3,
+.formCardHead h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.cardHead i,
+.formCardHead i {
+  color: #ff9b51;
+  margin-right: 6px;
+}
+
+.categoryList {
+  padding: 14px 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.categoryItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.categoryItem strong,
+.categoryItem span {
+  display: block;
+}
+
+.categoryItem strong {
+  color: #1f2d36;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.categoryItem span {
+  margin-top: 3px;
+  color: #6a7882;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.categoryItem b {
+  color: #1f2d36;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.categoryItem i {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 999px;
+  background: #e5ebee;
+  overflow: hidden;
+}
+
+.categoryItem em {
+  height: 100%;
+  border-radius: inherit;
+  background: #12805c;
+  display: block;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 13px 16px;
+  border-bottom: 1px solid #e1e8eb;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tableWrap th {
+  background: #f7fafb;
+  color: #6a7882;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.voucher {
+  color: #c46a14;
+  font-weight: 900;
+}
+
+.badge {
+  min-height: 24px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.approved {
+  background: #e2f6ee;
+  color: #12805c;
+}
+
+.pending {
+  background: #fff1df;
+  color: #a85f12;
+}
+
+.rejected {
+  background: #fde7e7;
+  color: #b42318;
+}
+
+.formLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+
+.formStack {
+  display: grid;
+  gap: 16px;
+}
+
+.formCardHead span {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff1df;
+  color: #c46a14;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.formCardBody {
+  padding: 18px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  color: #1f2d36;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.field.full {
+  grid-column: 1 / -1;
+}
+
+.field span b {
+  margin-left: 3px;
+  color: #b42318;
+}
+
+.inlineCreate {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #d7e4e7;
+  border-radius: 10px;
+  background: #fbfcfd;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 0.9fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.inlineCreate div {
+  display: grid;
+  gap: 4px;
+}
+
+.inlineCreate strong {
+  color: #1f2d36;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.inlineCreate span {
+  color: #6a7882;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sidePanel {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 14px;
+}
+
+.summaryBox {
+  padding: 20px;
+}
+
+.summaryIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #fff1df;
+  color: #ff9148;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.summaryBox h3 {
+  margin: 14px 0 0;
+  color: #1f2d36;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.summaryRows {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.summaryRows span {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e1e8eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summaryRows span:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.summaryRows b {
+  color: #6a7882;
+  font-size: 12px;
+}
+
+.summaryRows strong {
+  color: #1f2d36;
+  font-size: 13px;
+  text-align: right;
+}
+
+.saveBox {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.saveBox .btn {
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar,
+  .grid,
+  .formLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidePanel {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .content {
+    padding: 20px 18px 28px;
+  }
+
+  .head {
+    flex-direction: column;
+  }
+
+  .stats,
+  .formGrid,
+  .inlineCreate {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .cardHead,
+  .formCardHead {
+    align-items: flex-start;
+  }
+
+  .summaryRows span {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

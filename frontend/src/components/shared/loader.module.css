@@ -1,0 +1,110 @@
+/* ── Keyframes ── */
+@keyframes spinRing {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%       { transform: scale(1.08); opacity: 0.85; }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
+  40%           { transform: translateY(-8px); opacity: 1; }
+}
+
+@keyframes spinSvg {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Full-screen overlay ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(234, 239, 239, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Card ── */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 48px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+  box-shadow:
+    0 8px 32px rgba(37, 52, 63, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+}
+
+/* ── Logo wrap with spinning ring ── */
+.logoWrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #FF9B51;
+  border-right-color: #FF9B51;
+  animation: spinRing 0.9s linear infinite;
+}
+
+.logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #25343F;
+  color: #FF9B51;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+/* ── Label ── */
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+/* ── Bouncing dots ── */
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF9B51;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+
+.dots span:nth-child(1) { animation-delay: 0s; }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Inline SVG spinner ── */
+.spinner {
+  animation: spinSvg 0.75s linear infinite;
+  flex-shrink: 0;
+}

@@ -1,0 +1,1113 @@
+/* ============================================================
+   CampusPOS Landing — "School Operations Register" design system
+   Palette: ink navy, ledger paper, brass, stamp-red
+   Type: Fraunces (display) / Inter (body) / IBM Plex Mono (data, labels)
+   ============================================================ */
+
+.page {
+  --ink: #1b2a4a;
+  --ink-soft: #5b6b8c;
+  --paper: #fbf8f2;
+  --paper-card: #fffdf8;
+  --paper-line: #e4dcc8;
+  --brass: #b8862e;
+  --brass-soft: #e8d9b8;
+  --stamp: #b23a2e;
+  --stamp-soft: #f3dcd6;
+
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 35px,
+      var(--paper-line) 35px,
+      var(--paper-line) 36px
+    ),
+    var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- reveal-on-scroll ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.revealVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- nav ---------- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 6vw;
+  background: rgba(251, 248, 242, 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.logoMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.navLinks {
+  display: flex;
+  gap: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.navLinks a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.navLinks a:hover {
+  color: var(--ink);
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1.5px solid var(--ink);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+}
+
+.btnPrimary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 var(--brass);
+}
+
+.btnGhost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--paper-line);
+}
+.btnGhost:hover {
+  border-color: var(--ink);
+}
+
+.btnStamp {
+  background: var(--stamp);
+  border-color: var(--stamp);
+  color: #fff8f2;
+}
+.btnStamp:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.btnSm {
+  padding: 9px 16px;
+  font-size: 13px;
+}
+
+/* ---------- hero ---------- */
+.hero {
+  padding: 9vw 6vw 6vw;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+
+.heroEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--stamp);
+  margin-bottom: 22px;
+}
+.heroEyebrow::before {
+  content: '';
+  width: 26px;
+  height: 1.5px;
+  background: var(--stamp);
+}
+
+.heroTitle {
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: clamp(38px, 5vw, 64px);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  margin: 0 0 22px;
+  color: var(--ink);
+}
+.heroTitle em {
+  font-style: italic;
+  color: var(--stamp);
+}
+
+.heroSub {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  max-width: 50ch;
+  margin: 0 0 34px;
+}
+
+.heroActions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.heroNote {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.heroNote i {
+  color: var(--brass);
+}
+
+/* ---------- hero visual: register card ---------- */
+.heroVisual {
+  position: relative;
+}
+
+.registerCard {
+  background: var(--paper-card);
+  border: 1px solid var(--paper-line);
+  border-radius: 14px;
+  box-shadow: 0 30px 60px -25px rgba(27, 42, 74, 0.35);
+  padding: 26px 24px;
+  transform: rotate(1.2deg);
+}
+
+.registerHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1.5px solid var(--ink);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.registerHead h4 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 17px;
+}
+.registerHead span {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.registerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--paper-line);
+  font-size: 13.5px;
+}
+.registerRow:last-child {
+  border-bottom: none;
+}
+
+.registerName {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatarDot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brass-soft);
+  color: var(--brass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.statusPresent,
+.statusLate {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 4px;
+}
+.statusPresent {
+  background: #dff3e4;
+  color: #1e7a3d;
+}
+.statusLate {
+  background: #fdecc8;
+  color: #a6650b;
+}
+
+.stamp {
+  position: absolute;
+  top: -22px;
+  right: -18px;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 2.5px solid var(--stamp);
+  color: var(--stamp);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  transform: rotate(-16deg) scale(0);
+  background: rgba(251, 248, 242, 0.9);
+  animation: stampIn 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.5s forwards;
+}
+@keyframes stampIn {
+  to {
+    transform: rotate(-16deg) scale(1);
+  }
+}
+
+.stampSmall {
+  width: 60px;
+  height: 60px;
+  font-size: 7px;
+  border-width: 1.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp {
+    animation: none;
+    transform: rotate(-16deg) scale(1);
+  }
+  .reveal {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- facts strip ---------- */
+.factsStrip {
+  margin: 0 6vw;
+  padding: 26px 0;
+  border-top: 1px solid var(--paper-line);
+  border-bottom: 1px solid var(--paper-line);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.factItem {
+  padding: 0 22px;
+  border-left: 1px solid var(--paper-line);
+}
+.factItem:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+
+.factItem strong {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.factItem span {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- generic section ---------- */
+.section {
+  padding: 7vw 6vw;
+}
+.sectionTight {
+  padding-top: 0;
+}
+
+.sectionHead {
+  max-width: 640px;
+  margin-bottom: 48px;
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brass);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.sectionTitle {
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.12;
+  margin: 0 0 14px;
+}
+
+.sectionIntro {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/* ---------- modules grid ---------- */
+.modulesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--paper-line);
+  border: 1px solid var(--paper-line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.moduleCard {
+  background: var(--paper-card);
+  padding: 30px 28px;
+  transition: background 0.2s ease;
+}
+.moduleCard:hover {
+  background: #fff;
+}
+
+.moduleCode {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--stamp);
+  background: var(--stamp-soft);
+  padding: 4px 9px;
+  border-radius: 4px;
+  margin-bottom: 18px;
+}
+
+.moduleCard h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  margin: 0 0 10px;
+}
+
+.moduleCard p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ---------- portals ---------- */
+.portalsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.portalCard {
+  background: var(--paper-card);
+  border: 1px solid var(--paper-line);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.portalStrip {
+  height: 6px;
+}
+
+.portalBody {
+  padding: 24px 22px 26px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.portalTag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+
+.portalBody h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  margin: 0 0 10px;
+}
+
+.portalBody p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+  flex: 1;
+}
+
+/* ---------- photo banner ---------- */
+.photoBanner {
+  position: relative;
+  margin: 0 6vw;
+  border-radius: 18px;
+  overflow: hidden;
+  height: 420px;
+}
+
+.photoBannerImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photoOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(27, 42, 74, 0) 30%, rgba(27, 42, 74, 0.88) 100%);
+  display: flex;
+  align-items: flex-end;
+  padding: 36px;
+}
+
+.photoCaption {
+  max-width: 480px;
+  color: #fbf8f2;
+}
+.photoCaption .eyebrow {
+  color: var(--brass-soft);
+}
+.photoCaption h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 26px;
+  margin: 0 0 10px;
+}
+.photoCaption p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #d9dfee;
+  margin: 0;
+}
+
+/* ---------- CTA band ---------- */
+.ctaBand {
+  margin: 7vw 6vw;
+  background: var(--ink);
+  border-radius: 20px;
+  padding: 64px 56px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.ctaBand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 33px,
+    rgba(255, 255, 255, 0.035) 33px,
+    rgba(255, 255, 255, 0.035) 34px
+  );
+}
+
+.ctaText {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+}
+
+.ctaText .eyebrow {
+  color: var(--brass-soft);
+}
+
+.ctaText h2 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(26px, 3vw, 36px);
+  color: var(--paper);
+  margin: 0 0 14px;
+  line-height: 1.15;
+}
+
+.ctaText p {
+  color: #c3cbe0;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.ctaActions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.ctaActions .btnGhost {
+  border-color: rgba(251, 248, 242, 0.3);
+  color: var(--paper);
+}
+.ctaActions .btnGhost:hover {
+  border-color: var(--paper);
+}
+
+/* ---------- footer ---------- */
+.footer {
+  padding: 48px 6vw 30px;
+  border-top: 1px solid var(--paper-line);
+}
+
+.footerInner {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 36px;
+  flex-wrap: wrap;
+}
+
+.footerBrand p {
+  font-size: 13px;
+  color: var(--ink-soft);
+  max-width: 32ch;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.footerCols {
+  display: flex;
+  gap: 56px;
+}
+
+.footerCol h5 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+}
+
+.footerCol a {
+  display: block;
+  font-size: 13.5px;
+  color: var(--ink);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.footerCol a:hover {
+  color: var(--stamp);
+}
+
+.footerBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 22px;
+  border-top: 1px solid var(--paper-line);
+  font-size: 12px;
+  color: var(--ink-soft);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 1080px) {
+  .modulesGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .portalsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding-top: 110px;
+  }
+  .heroVisual {
+    order: -1;
+    max-width: 420px;
+  }
+  .factsStrip {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 22px;
+  }
+  .factItem:nth-child(3) {
+    border-left: none;
+    padding-left: 0;
+  }
+  .ctaBand {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 760px) {
+  .navLinks {
+    display: none;
+  }
+  .modulesGrid,
+  .portalsGrid {
+    grid-template-columns: 1fr;
+  }
+  .photoBanner {
+    height: 320px;
+  }
+  .ctaBand {
+    padding: 40px 28px;
+  }
+  .footerInner {
+    flex-direction: column;
+  }
+  .footerCols {
+    gap: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .heroActions,
+  .navActions {
+    width: 100%;
+  }
+  .heroActions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .footerCols {
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+   Additions: campus intro, capability checklists, role detail cards
+   ============================================================ */
+
+/* ---------- campus intro (image + text) ---------- */
+.campusSection {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 56px;
+  align-items: center;
+}
+
+.campusImgWrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3.1;
+}
+
+.campusImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.campusBadge {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(251, 248, 242, 0.95);
+  backdrop-filter: blur(6px);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.campusBadge i {
+  color: var(--stamp);
+}
+
+.campusText .sectionHead {
+  margin-bottom: 22px;
+}
+
+.campusList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.campusList li {
+  display: flex;
+  gap: 12px;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.campusList li strong {
+  color: var(--ink);
+}
+
+/* ---------- capability checklist (used inside module + role cards) ---------- */
+.checklist {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+.checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.checklist li i {
+  color: var(--brass);
+  font-size: 11px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* hover polish on module cards */
+.moduleCard {
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.moduleCard:hover {
+  transform: translateY(-3px);
+}
+
+/* ---------- role detail cards (faculty / student, image + checklist) ---------- */
+.roleDetailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.roleDetailCard {
+  background: var(--paper-card);
+  border: 1px solid var(--paper-line);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.roleDetailCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -28px rgba(27, 42, 74, 0.35);
+}
+
+.roleDetailImgWrap {
+  height: 190px;
+  position: relative;
+}
+.roleDetailImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.roleDetailTag {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: rgba(251, 248, 242, 0.92);
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+
+.roleDetailBody {
+  padding: 24px 24px 26px;
+}
+.roleDetailBody h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 21px;
+  margin: 0 0 6px;
+}
+.roleDetailBody > p {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin: 0 0 4px;
+}
+
+.roleBoundary {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--paper-line);
+  display: flex;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.roleBoundary i {
+  color: var(--stamp);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* compact role cards (admin / super admin) reuse .portalsGrid but 2-up */
+.compactRoleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 760px) {
+  .campusSection {
+    grid-template-columns: 1fr;
+  }
+  .roleDetailGrid,
+  .compactRoleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   How it works (genuine sequence - numbered steps justified)
+   ============================================================ */
+.howGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.stepCard {
+  position: relative;
+  padding-top: 8px;
+}
+
+.stepNum {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 46px;
+  color: var(--brass-soft);
+  line-height: 1;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.stepCard h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  margin: 0 0 10px;
+}
+
+.stepCard p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.stepConnector {
+  position: absolute;
+  top: 30px;
+  left: -12px;
+  width: 24px;
+  border-top: 1.5px dashed var(--paper-line);
+}
+
+/* ============================================================
+   FAQ accordion
+   ============================================================ */
+.faqList {
+  max-width: 760px;
+  border-top: 1px solid var(--paper-line);
+}
+
+.faqItem {
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.faqQuestion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 22px 4px;
+  text-align: left;
+  font-family: 'Fraunces', serif;
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.faqQuestion i {
+  flex-shrink: 0;
+  color: var(--brass);
+  transition: transform 0.25s ease;
+  font-size: 13px;
+}
+.faqQuestionOpen i {
+  transform: rotate(45deg);
+}
+
+.faqAnswer {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.3s ease;
+}
+.faqAnswerOpen {
+  max-height: 240px;
+}
+
+.faqAnswer p {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  padding: 0 4px 22px;
+  margin: 0;
+  max-width: 62ch;
+}
+
+/* ============================================================
+   Footer v2 - support / legal / social
+   ============================================================ */
+.footerInner {
+  align-items: flex-start;
+}
+
+.footerBrand {
+  max-width: 260px;
+}
+
+.footerSocial {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.footerSocial a {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--paper-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 13px;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.footerSocial a:hover {
+  border-color: var(--stamp);
+  color: var(--stamp);
+  background: var(--stamp-soft);
+}
+
+.footerLegalRow {
+  display: flex;
+  gap: 18px;
+}
+.footerLegalRow a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 12px;
+}
+.footerLegalRow a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 1080px) {
+  .howGrid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .footerCols {
+    gap: 36px;
+    flex-wrap: wrap;
+  }
+}
+

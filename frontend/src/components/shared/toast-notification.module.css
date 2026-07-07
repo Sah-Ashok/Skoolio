@@ -1,0 +1,158 @@
+/* ── Keyframes ── */
+@keyframes slideIn {
+  from { transform: translateX(calc(100% + 32px)); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; transform: translateX(20px); }
+}
+
+/* ── Toast shell ── */
+.toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: min(420px, calc(100vw - 36px));
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07),
+    0 20px 50px -10px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+  display: grid;
+  grid-template-columns: 4px auto 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0;
+  align-items: center;
+  overflow: hidden;
+  animation: slideIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Accent bar (left glow strip) ── */
+.accentBar {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 4px;
+  align-self: stretch;
+  background: var(--toast-accent);
+  border-radius: 16px 0 0 16px;
+}
+
+/* ── Icon ── */
+.iconWrap {
+  grid-column: 2;
+  grid-row: 1;
+  width: 40px;
+  height: 40px;
+  margin: 14px 0 14px 14px;
+  border-radius: 10px;
+  background: var(--toast-bg-light);
+  color: var(--toast-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* ── Content ── */
+.content {
+  grid-column: 3;
+  grid-row: 1;
+  padding: 14px 8px 14px 12px;
+  min-width: 0;
+}
+
+.toastTitle {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.toastMsg {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+/* ── Close button ── */
+.closeBtn {
+  grid-column: 4;
+  grid-row: 1;
+  width: 30px;
+  height: 30px;
+  margin-right: 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.closeBtn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1e293b;
+}
+
+/* ── Progress bar ── */
+.progressBar {
+  grid-column: 1 / 5;
+  grid-row: 2;
+  height: 3px;
+  background: var(--toast-accent);
+  opacity: 0.35;
+  animation: progress 4s linear forwards;
+  border-radius: 0 0 16px 16px;
+}
+
+/* ── Color themes ── */
+.success {
+  --toast-accent: #10b981;
+  --toast-bg-light: #d1fae5;
+}
+
+.error {
+  --toast-accent: #ef4444;
+  --toast-bg-light: #fee2e2;
+}
+
+.warning {
+  --toast-accent: #f59e0b;
+  --toast-bg-light: #fef3c7;
+}
+
+.info {
+  --toast-accent: #6366f1;
+  --toast-bg-light: #e0e7ff;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .toast {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}

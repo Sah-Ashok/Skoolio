@@ -1,0 +1,42 @@
+.page { min-height: 100vh; background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(234,236,239,.9) 260px), #eaecef; color: #25343f; }
+.content { padding: 26px 28px 40px; display: flex; flex-direction: column; gap: 18px; }
+
+/* Hero */
+.hero { display: flex; align-items: center; gap: 20px; }
+.school-badge { width: 72px; height: 72px; border-radius: 16px; background: linear-gradient(135deg, #ff9b51, #e87a2f); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; flex-shrink: 0; box-shadow: 0 8px 24px rgba(255,155,81,0.32); overflow: hidden; }
+.school-logo { width: 100%; height: 100%; object-fit: cover; }
+.eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; color: #ff9b51; margin-bottom: 4px; }
+.hero h1 { font-size: 24px; font-weight: 900; }
+.hero p { margin-top: 4px; color: #6b7b86; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.code-chip { padding: 3px 10px; border-radius: 999px; background: #eaecef; font-size: 11px; font-weight: 900; color: #25343f; font-family: monospace; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; padding: 5px; background: rgba(191,201,209,0.28); border-radius: 11px; align-self: flex-start; }
+.tab { min-height: 36px; padding: 0 18px; border: none; border-radius: 8px; background: transparent; color: #6b7b86; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+.tab:hover { color: #25343f; background: rgba(255,255,255,0.6); }
+.tab-active { background: #fff !important; color: #25343f !important; box-shadow: 0 2px 8px rgba(37,52,63,0.12); }
+
+/* Panel */
+.panel { border: 1px solid rgba(191,201,209,0.78); border-radius: 12px; background: #fff; box-shadow: 0 2px 12px rgba(37,52,63,0.07); overflow: hidden; }
+.panel-head { padding: 16px 18px; border-bottom: 1px solid rgba(191,201,209,0.42); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.panel-head h2 { font-size: 15px; font-weight: 900; display: flex; align-items: center; gap: 6px; }
+.panel-head p { margin-top: 3px; color: #6b7b86; font-size: 12px; font-weight: 700; }
+
+/* Form */
+.form-grid { padding: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.field { display: grid; gap: 7px; }
+.field span { font-size: 12px; font-weight: 900; }
+.field em { color: #f43f5e; font-style: normal; }
+.field input, .field select, .field textarea { width: 100%; min-height: 42px; padding: 0 13px; border: 1px solid rgba(191,201,209,0.9); border-radius: 9px; background: #fff; color: #25343f; font: inherit; font-size: 13.5px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: #ff9b51; box-shadow: 0 0 0 3px rgba(255,155,81,0.14); }
+.full { grid-column: 1 / -1; }
+.form-actions { padding: 14px 18px; border-top: 1px solid rgba(191,201,209,0.42); display: flex; justify-content: flex-end; gap: 10px; background: #fbfdfd; }
+
+/* Buttons */
+.btn { min-height: 38px; padding: 8px 16px; border: 1px solid rgba(191,201,209,0.78); border-radius: 9px; background: #fff; color: #25343f; font: inherit; font-size: 13px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.82; }
+.btn-primary { background: #ff9b51; border-color: #ff9b51; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 960px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .content { padding: 18px 16px; } .form-grid { grid-template-columns: 1fr; } .tabs { flex-wrap: wrap; } }
