@@ -8,8 +8,9 @@ import { Spinner } from "@/components/shared/Loader";
 export default function StudentDashboardPage() {
   const { data: me, loading: meLoading } = useApi<any>('/auth/me');
   const { data: activeYear } = useApi<any>('/academic-years/active');
+  const { data: enrollments } = useApi<any[]>('/students/me/enrollments');
 
-  const currentEnrollment = me?.enrollments?.find((en: any) => en.academic_year_id === activeYear?.id) || me?.enrollments?.[0];
+  const currentEnrollment = enrollments?.find((en: any) => en.academic_year_id === activeYear?.id) || enrollments?.[0];
 
   const startOfYear = activeYear ? `${activeYear.start_date}` : '';
   const today = new Date().toISOString().split('T')[0];

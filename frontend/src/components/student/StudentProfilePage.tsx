@@ -6,12 +6,13 @@ import { Spinner } from "@/components/shared/Loader";
 
 export default function StudentProfilePage() {
   const { data: me, loading } = useApi<any>('/auth/me');
+  const { data: enrollments } = useApi<any[]>('/students/me/enrollments');
 
   const initials = me?.full_name
     ? me.full_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : 'S';
 
-  const currentEnrollment = me?.enrollments?.[0];
+  const currentEnrollment = enrollments?.[0];
 
   const personalRows: [string, any][] = me ? [
     ['Admission Number', me.admission_number],

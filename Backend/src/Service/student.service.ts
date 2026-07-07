@@ -50,6 +50,12 @@ export const getStudentByIdService = async (id: number, school_id: number) => {
   return { ...student, enrollments };
 };
 
+export const getStudentProfileService = async (id: number, school_id: number) => {
+  const student = await getStudentById(id, school_id);
+  if (!student) throw new AppError('Student not found.', 404);
+  return student;
+};
+
 export const updateStudentService = async (
   id: number,
   school_id: number,

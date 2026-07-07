@@ -165,44 +165,27 @@ export default function Sidebar({ role }: SidebarProps) {
       ══════════════════════════════════════ */}
       <aside className="sidebar">
 
-        {/* ── Logo block: white bg, logo on top, school name below ── */}
+        {/* ── Logo block: centered and large ── */}
         <div
           className="sidebar-logo"
           style={{
             background:     '#ffffff',
             flexDirection:  'column',
-            alignItems:     'flex-start',
+            alignItems:     'center',
             gap:            0,
-            padding:        '14px 20px 12px',
+            padding:        '20px 20px',
           }}
         >
           <Link href="/" style={{ display: 'block', lineHeight: 0, textDecoration: 'none' }}>
             <Image
               src="/desktop-logo.png"
               alt="Skoolio"
-              width={160}
-              height={48}
+              width={200}
+              height={60}
               priority
-              style={{ objectFit: 'contain', width: 'auto', height: 44, maxWidth: '100%' }}
+              style={{ objectFit: 'contain', width: 'auto', height: 60, maxWidth: '100%' }}
             />
           </Link>
-
-          {/* School name sits BELOW the logo, dark text on white bg */}
-          {user?.school_name && (
-            <p style={{
-              marginTop:     6,
-              fontSize:      11,
-              fontWeight:    700,
-              color:         '#64748b',
-              whiteSpace:    'nowrap',
-              overflow:      'hidden',
-              textOverflow:  'ellipsis',
-              maxWidth:      '100%',
-              lineHeight:    1.3,
-            }}>
-              {user.school_name}
-            </p>
-          )}
         </div>
 
         {/* Nav */}

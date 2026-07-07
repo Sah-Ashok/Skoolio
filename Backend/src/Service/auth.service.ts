@@ -14,7 +14,7 @@ import {
 import { findTeacherByEmailGlobal }  from '../Repositories/teacher.repository';
 import { findStudentByEmailGlobal }  from '../Repositories/student.repository';
 import { getTeacherByIdService }     from './teacher.service';
-import { getStudentByIdService }     from './student.service';
+import { getStudentByIdService, getStudentProfileService }     from './student.service';
 import { isMaintenanceModeActive }   from './platform.service';
 import { generateToken, generateShortToken, verifyToken } from '../config/jwt.config';
 import { sendOTPEmail, send2FAEnabledEmail } from '../utils/emailService';
@@ -301,7 +301,7 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
     return { ...teacher, role: 'faculty', school_name: u.school_name, logo: u.logo };
   }
   const u = jwtUser as IJwtUserPayload;
-  const student = await getStudentByIdService(u.id, u.school_id);
+  const student = await getStudentProfileService(u.id, u.school_id);
   return { ...student, role: 'student', school_name: u.school_name, logo: u.logo };
 };
 
