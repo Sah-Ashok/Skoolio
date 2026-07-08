@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Topbar from '@/components/shared/Topbar';
+import ImageUpload from '@/components/shared/ImageUpload';
 import { useApi } from '@/lib/useApi';
 import { apiRequest } from '@/lib/api';
 import { useAppDispatch } from '@/store/hooks';
 import { showToast } from '@/store/toastSlice';
+import { setUser } from '@/store/authSlice';
 import { Spinner } from '@/components/shared/Loader';
 import styles from './settings.module.css';
 
@@ -96,6 +98,13 @@ export default function AdminSettingsPage() {
     ? school.school_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
+  // Logo upload handler — updates Redux user.logo so sidebar refreshes immediately
+  const handleLogoUploaded = (url: string) => {
+    setInfo(prev => ({ ...prev, logo: url }));
+    dispatch(setUser({ logo: url } as any));
+    dispatch(showToast({ type: 'success', title: 'Logo Updated', message: 'School logo has been uploaded successfully.' }));
+  };
+
   return (
     <div className={s('page')}>
       <Topbar title="Settings" subtitle="Manage your school profile and security settings" />
@@ -103,12 +112,15 @@ export default function AdminSettingsPage() {
       <main className={s('content')}>
         {/* Hero */}
         <section className={s('hero')}>
-          <div className={s('school-badge')}>
-            {school?.logo
-              ? <img src={school.logo} alt="logo" className={s('school-logo')}/>
-              : <span>{initials}</span>
-            }
-          </div>
+          <ImageUpload
+            currentUrl={info.logo}
+            endpoint="/upload/logo"
+            onSuccess={handleLogoUploaded}
+            shape="rounded"
+            size={80}
+            initials={initials}
+            label="Change Logo"
+          />
           <div>
             <div className={s('eyebrow')}>School Settings</div>
             <h1>{school?.school_name || 'My School'}</h1>
@@ -205,26 +217,29 @@ export default function AdminSettingsPage() {
                 <input value={info.pincode} onChange={e => setInfo({ ...info, pincode: e.target.value })} placeholder="e.g. 44600"/>
               </label>
 
-              {/* Logo URL */}
-              <label className={cx(s('field'), s('full'))}>
-                <span>Logo URL</span>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  {info.logo && (
-                    <img src={info.logo} alt="logo preview" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', border: '1px solid #e2e8f0', flexShrink: 0 }}
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  )}
+              {/* Logo */}
+              <div className={cx(s('field'), s('full'))} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 20 }}>
+                <ImageUpload
+                  currentUrl={info.logo}
+                  endpoint="/upload/logo"
+                  onSuccess={handleLogoUploaded}
+                  shape="rounded"
+                  size={90}
+                  initials={initials}
+                  label="Upload Logo"
+                />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 12, fontWeight: 900, marginBottom: 6, display: 'block' }}>Logo URL</span>
                   <input
                     value={info.logo}
                     onChange={e => setInfo({ ...info, logo: e.target.value })}
-                    placeholder="https://your-school.com/logo.png"
-                    style={{ flex: 1 }}
+                    placeholder="https://your-school.com/logo.png (or upload above)"
                   />
+                  <small style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, marginTop: 4, display: 'block' }}>
+                    Click the logo to upload from device (JPEG/PNG/WebP, max 2 MB). Or paste a URL.
+                  </small>
                 </div>
-                <small style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700 }}>
-                  Paste a public image URL. This appears in the sidebar and emails.
-                </small>
-              </label>
+              </div>
             </div>
 
             {/* Read-only info */}

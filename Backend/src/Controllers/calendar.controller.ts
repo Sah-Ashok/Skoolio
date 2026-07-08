@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import catchAsync from '../utils/catchAsync';
 import sendResponse from '../utils/response';
-import { IJwtAdminPayload } from '../types/auth.types';
+import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 import {
   createCalendarService, getCalendarService, updateCalendarService,
   createCalendarEventService, getCalendarEventsService,
@@ -9,6 +9,10 @@ import {
   getWeeklyOffsService, setWeeklyOffsService,
   calculateWorkingDays,
 } from '../Service/calendar.service';
+
+// Helper — resolves school_id from any JWT shape
+const resolveSchoolId = (user: any): number =>
+  'school_id' in user ? user.school_id : user.id;
 
 // ── CALENDAR CONTROLLERS ──
 
@@ -19,7 +23,7 @@ export const createCalendar = catchAsync(async (req: Request, res: Response, nex
 });
 
 export const getCalendar = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
@@ -43,7 +47,7 @@ export const createCalendarEvent = catchAsync(async (req: Request, res: Response
 });
 
 export const getCalendarEvents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getCalendarEventsService(Number(req.params.calendarId), school_id);
   sendResponse(res, 200, true, 'Calendar events fetched successfully', result);
 });
@@ -63,7 +67,7 @@ export const deleteCalendarEvent = catchAsync(async (req: Request, res: Response
 // ── WORKING DAYS CONTROLLER ──
 
 export const getWorkingDays = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, start_date, end_date } = req.query;
 
   if (!academic_year_id || !start_date || !end_date) {
@@ -82,7 +86,7 @@ export const getWorkingDays = catchAsync(async (req: Request, res: Response, nex
 // ── CALENDAR WEEKLY OFF CONTROLLERS ──
 
 export const getCalendarWeeklyOffs = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getWeeklyOffsService(Number(req.params.calendarId), school_id);
   sendResponse(res, 200, true, 'Weekly off days fetched successfully', result);
 });

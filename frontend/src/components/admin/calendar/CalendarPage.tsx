@@ -378,22 +378,25 @@ export default function CalendarPage() {
   // Delete modal
   const [deletingEvent, setDeletingEvent] = useState<{ id: number; title: string } | null>(null);
 
-  // Build date → event lookup
+  // Build date → event lookup — exam events excluded from calendar grid (Stage 1)
+  // Exams are managed in the Exams & Results module, not here.
   const fixedEntries = useMemo(() => {
     const entries: Record<string, { type: EventType; label: string; scope: string; eventId: number }> = {};
-    (eventsData ?? []).forEach((ev) => {
-      const d   = new Date(ev.event_date);
-      const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.event_date);
-      while (d <= end) {
-        entries[fmt(d)] = {
-          type:    ev.event_type as EventType,
-          label:   ev.title,
-          scope:   ev.class_id ? "Specific class" : "All classes",
-          eventId: ev.id,
-        };
-        d.setDate(d.getDate() + 1);
-      }
-    });
+    (eventsData ?? [])
+      .filter((ev) => ev.event_type !== 'exam')   // ← exclude exam type
+      .forEach((ev) => {
+        const d   = new Date(ev.event_date);
+        const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.event_date);
+        while (d <= end) {
+          entries[fmt(d)] = {
+            type:    ev.event_type as EventType,
+            label:   ev.title,
+            scope:   ev.class_id ? "Specific class" : "All classes",
+            eventId: ev.id,
+          };
+          d.setDate(d.getDate() + 1);
+        }
+      });
     return entries;
   }, [eventsData]);
 
@@ -474,8 +477,7 @@ export default function CalendarPage() {
   const visibleDays  = calendarDays.filter((d) => !d.muted);
   const offCount     = visibleDays.filter((d) => d.type === "off").length;
   const holidayCount = visibleDays.filter((d) => d.type === "holiday").length;
-  const eventCount   = visibleDays.filter((d) => d.type === "event").length;
-  const examCount    = visibleDays.filter((d) => d.type === "exam").length;
+  const eventCount   = visibleDays.filter((d) => d.type === "event" || d.type === "early_closing").length;
   const workingDays  = visibleDays.length - offCount - holidayCount;
   const monthEntries = visibleDays.filter((d) => d.type && d.type !== "off");
 
@@ -522,12 +524,6 @@ export default function CalendarPage() {
             <strong>{eventCount}</strong>
             <small>School activities</small>
           </article>
-          <article className={s("orange")}>
-            <i className="fa-solid fa-pen-to-square" />
-            <span>Exam Days</span>
-            <strong>{examCount}</strong>
-            <small>Exam schedule</small>
-          </article>
         </section>
 
         <section className={s("layout")}>
@@ -538,9 +534,10 @@ export default function CalendarPage() {
                 <h2>{monthLabel}</h2>
                 <p>
                   Attendance counts only working days.&nbsp;
-                  <span style={{ color:"#b42318" }}>■</span> Off &nbsp;
+                  <span style={{ color:"#b42318" }}>■</span> Off/Holiday &nbsp;
                   <span style={{ color:"#3b5bdb" }}>■</span> Event &nbsp;
-                  <span style={{ color:"#c46a14" }}>■</span> Exam
+                  <span style={{ color:"#7c3aed" }}>■</span> Early Closing
+                  &nbsp;— Exams shown in <strong>Exams &amp; Results</strong>
                 </p>
               </div>
               <div className={s("monthControls")}>

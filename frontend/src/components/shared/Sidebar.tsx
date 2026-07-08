@@ -73,7 +73,13 @@ const teacherNav: NavSection[] = [
   {
     label: 'Payroll',
     links: [
-      { href: '/teacher/salary', icon: 'fa-money-bill-wave', label: 'My Salary' },
+      { href: '/teacher/salary',   icon: 'fa-money-bill-wave', label: 'My Salary'  },
+    ],
+  },
+  {
+    label: 'School',
+    links: [
+      { href: '/teacher/calendar', icon: 'fa-calendar-days',   label: 'Calendar'   },
     ],
   },
 ]
@@ -92,6 +98,12 @@ const studentNav: NavSection[] = [
       { href: '/student/attendance', icon: 'fa-user-check',          label: 'My Attendance' },
       { href: '/student/results',    icon: 'fa-file-circle-check',   label: 'My Results'    },
       { href: '/student/fees',       icon: 'fa-file-invoice-dollar', label: 'My Fees'       },
+    ],
+  },
+  {
+    label: 'School',
+    links: [
+      { href: '/student/calendar',   icon: 'fa-calendar-days',       label: 'Calendar'      },
     ],
   },
 ]
@@ -184,7 +196,7 @@ export default function Sidebar({ role }: SidebarProps) {
         >
           <Link href="/" style={{ display: 'block', lineHeight: 0, textDecoration: 'none' }}>
             <Image
-              src="/desktop-logo.png"
+              src="/Logo.png"
               alt="Skoolio"
               width={200}
               height={60}

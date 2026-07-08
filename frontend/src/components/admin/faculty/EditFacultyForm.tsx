@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import styles from "./faculty.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
+import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
@@ -28,13 +28,18 @@ export default function EditFacultyForm() {
   const { data: teacher, loading: fetching } = useApi<any>(`/teachers/${id}`);
   const { execute: updateTeacher, loading: saving } = useMutation(`/teachers/${id}`, "PATCH");
 
+  /* ── photo state ── */
+  const photoInputRef    = useRef<HTMLInputElement>(null);
+  const [photoPreview,   setPhotoPreview]   = useState<string | null>(null);
+  const [photoFile,      setPhotoFile]      = useState<File | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   const [form, setForm] = useState({
     full_name:        "",
     email:            "",
     phone:            "",
     gender:           "male",
     date_of_birth:    "",
-    blood_group:      "",
     qualification:    "",
     experience_years: "",
     join_date:        "",
@@ -45,8 +50,9 @@ export default function EditFacultyForm() {
   });
 
   const [passwordSection, setPasswordSection] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<"personal" | "professional" | "address">("personal");
+  const [newPassword,     setNewPassword]     = useState("");
+  const [showPassword,    setShowPassword]    = useState(false);
+  const [activeTab, setActiveTab] = useState<"personal" | "professional" | "address" | "security">("personal");
 
   // Populate form once teacher data arrives
   useEffect(() => {
@@ -57,23 +63,61 @@ export default function EditFacultyForm() {
       phone:            teacher.phone            ?? "",
       gender:           teacher.gender           ?? "male",
       date_of_birth:    teacher.date_of_birth
-        ? new Date(teacher.date_of_birth).toISOString().split("T")[0]
-        : "",
-      blood_group:      teacher.blood_group      ?? "",
+        ? new Date(teacher.date_of_birth).toISOString().split("T")[0] : "",
       qualification:    teacher.qualification    ?? "",
       experience_years: teacher.experience_years?.toString() ?? "",
       join_date:        teacher.join_date
-        ? new Date(teacher.join_date).toISOString().split("T")[0]
-        : "",
+        ? new Date(teacher.join_date).toISOString().split("T")[0] : "",
       city:             teacher.city             ?? "",
       state:            teacher.state            ?? "",
       country:          teacher.country          ?? "",
       status:           teacher.status           ?? "active",
     });
+    if (teacher.photo) setPhotoPreview(teacher.photo);
   }, [teacher]);
 
   const set = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  /* ── Photo handlers ── */
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      dispatch(showToast({ type: "error", title: "Invalid File", message: "Only JPEG, PNG or WebP images are allowed." }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 2 MB." }));
+      return;
+    }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!photoFile || !id) return;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", photoFile);
+      const res = await apiRequest<any>(`/upload/teacher-photo/${id}`, {
+        method: "POST",
+        body:   fd,
+      });
+      const url = res?.url || res?.data?.url || null;
+      if (url) setPhotoPreview(url);
+      dispatch(showToast({ type: "success", title: "Photo Updated", message: "Teacher photo has been uploaded." }));
+      setPhotoFile(null);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Upload Failed", message: err.message || "Could not upload photo." }));
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.full_name || !form.email || !form.phone) {
@@ -85,6 +129,10 @@ export default function EditFacultyForm() {
       experience_years: form.experience_years ? Number(form.experience_years) : undefined,
       date_of_birth:    form.date_of_birth    || undefined,
       join_date:        form.join_date        || undefined,
+      city:             form.city             || undefined,
+      state:            form.state            || undefined,
+      country:          form.country          || undefined,
+      qualification:    form.qualification    || undefined,
     };
     if (passwordSection && newPassword) {
       if (newPassword.length < 6) {
@@ -107,9 +155,7 @@ export default function EditFacultyForm() {
       <div className={s("faculty-page")}>
         <Topbar title="Edit Teacher" subtitle="" />
         <main className={s("page-content")}>
-          <div style={{ padding: "4rem", textAlign: "center" }}>
-            <Spinner size={36} color="#FF9B51" />
-          </div>
+          <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={36} color="#FF9B51" /></div>
         </main>
       </div>
     );
@@ -127,9 +173,10 @@ export default function EditFacultyForm() {
   }
 
   const tabs = [
-    { key: "personal",     icon: "fa-user",      label: "Personal" },
-    { key: "professional", icon: "fa-briefcase", label: "Professional" },
-    { key: "address",      icon: "fa-location-dot", label: "Address" },
+    { key: "personal",     icon: "fa-user",          label: "Personal"     },
+    { key: "professional", icon: "fa-briefcase",     label: "Professional" },
+    { key: "address",      icon: "fa-location-dot",  label: "Address"      },
+    { key: "security",     icon: "fa-lock",          label: "Security"     },
   ] as const;
 
   return (
@@ -147,37 +194,37 @@ export default function EditFacultyForm() {
             <Link className={cx(s("btn"), s("btn-outline"))} href={`/teachers/${id}`}>
               <i className="fa-solid fa-arrow-left" /> Back to Profile
             </Link>
-            <button
-              className={cx(s("btn"), s("btn-primary"))}
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving
-                ? <><Spinner size={15} /> Saving…</>
-                : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
+            <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={saving}>
+              {saving ? <><Spinner size={15} /> Saving…</> : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
             </button>
           </div>
         </div>
 
         {/* Hero banner */}
         <div className={s("profile-hero")} style={{ marginBottom: 22 }}>
-          <div className={s("profile-avatar")}>{getInitials(form.full_name || teacher.full_name)}</div>
+          {/* Avatar / photo */}
+          <div
+            className={s("profile-avatar")}
+            style={{ position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
+            onClick={() => setActiveTab("personal")}
+          >
+            {photoPreview
+              ? <img src={photoPreview} alt={form.full_name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />
+              : getInitials(form.full_name || teacher.full_name)}
+          </div>
           <div className={s("profile-title")}>
             <span>FACULTY ID #{teacher.id}</span>
             <h2>{form.full_name || teacher.full_name}</h2>
             <p>{form.email || teacher.email}</p>
             <div className={s("chip-row")}>
-              <b className={cx(s("badge"), s(form.status === "active" ? "chip-green" : "yellow"))}
-                style={{ textTransform: "capitalize" }}>
+              <b className={cx(s("badge"), s(form.status === "active" ? "chip-green" : "yellow"))} style={{ textTransform: "capitalize" }}>
                 {form.status}
               </b>
               <b className={cx(s("badge"), s("chip-blue"))} style={{ textTransform: "capitalize" }}>
                 {form.gender}
               </b>
               {form.experience_years && (
-                <b className={cx(s("badge"), s("chip-green"))}>
-                  {form.experience_years} yrs exp
-                </b>
+                <b className={cx(s("badge"), s("chip-green"))}>{form.experience_years} yrs exp</b>
               )}
             </div>
           </div>
@@ -227,6 +274,58 @@ export default function EditFacultyForm() {
               <h3><i className="fa-solid fa-user" />Personal Information</h3>
               <span>Required</span>
             </div>
+
+            {/* Photo upload */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderBottom: "1px solid #eef2f3" }}>
+              <div
+                onClick={() => photoInputRef.current?.click()}
+                style={{
+                  width: 72, height: 72, borderRadius: 12, flexShrink: 0,
+                  border: "2px dashed #d4dde2", background: "#f8fafc",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", overflow: "hidden",
+                }}
+              >
+                {photoPreview
+                  ? <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <i className="fa-solid fa-camera" style={{ fontSize: 22, color: "#b0bec5" }} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 800, color: "#25343f", margin: "0 0 4px" }}>Teacher Photo</p>
+                <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600, margin: "0 0 6px" }}>JPEG / PNG / WebP · max 2 MB</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2", background: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    <i className="fa-solid fa-upload" style={{ marginRight: 5 }} />
+                    {photoFile ? "Change" : "Upload Photo"}
+                  </button>
+                  {photoFile && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handlePhotoUpload}
+                        disabled={photoUploading}
+                        style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #bbf7d0", background: "#dcfce7", color: "#15803d", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        {photoUploading ? <><Spinner size={11} /> Uploading…</> : <><i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 4 }} />Save Photo</>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoFile(null); setPhotoPreview(teacher?.photo || null); if (photoInputRef.current) photoInputRef.current.value = ""; }}
+                        style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handlePhotoChange} />
+            </div>
+
             <div className={s("form-grid")}>
               <label className={cx(s("field"), s("full"))}>
                 <span>Full Name <em>*</em></span>
@@ -253,51 +352,12 @@ export default function EditFacultyForm() {
                 <input name="date_of_birth" type="date" value={form.date_of_birth} onChange={set} />
               </label>
               <label className={s("field")}>
-                <span>Blood Group</span>
-                <select name="blood_group" value={form.blood_group} onChange={set}>
-                  <option value="">— Select —</option>
-                  {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bg) => (
-                    <option key={bg} value={bg}>{bg}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={s("field")}>
                 <span>Status</span>
                 <select name="status" value={form.status} onChange={set}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </label>
-            </div>
-
-            {/* Password section toggle */}
-            <div style={{ padding: "0 18px 18px" }}>
-              <button
-                type="button"
-                className={cx(s("btn"), s("btn-outline"), s("btn-sm"))}
-                onClick={() => { setPasswordSection((v) => !v); setNewPassword(""); }}
-              >
-                <i className={`fa-solid ${passwordSection ? "fa-eye-slash" : "fa-lock"}`} />
-                {passwordSection ? "Cancel Password Change" : "Change Password"}
-              </button>
-
-              {passwordSection && (
-                <div style={{ marginTop: 14, maxWidth: 340 }}>
-                  <label className={s("field")}>
-                    <span>New Password <em>*</em></span>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Min. 6 characters"
-                    />
-                  </label>
-                  <p style={{ marginTop: 6, fontSize: 11.5, color: "#6b7b86", fontWeight: 700 }}>
-                    <i className="fa-solid fa-circle-info" style={{ marginRight: 5 }} />
-                    Leave blank to keep the existing password.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -350,19 +410,67 @@ export default function EditFacultyForm() {
           </div>
         )}
 
+        {/* ── SECURITY TAB ── */}
+        {activeTab === "security" && (
+          <div className={s("form-section")} style={{ marginBottom: 18 }}>
+            <div className={s("form-section-head")}>
+              <h3><i className="fa-solid fa-lock" />Security</h3>
+              <span>Password reset</span>
+            </div>
+            <div style={{ padding: "14px 18px" }}>
+              <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", fontSize: 13, fontWeight: 700, color: "#c2410c", display: "flex", gap: 10, marginBottom: 16 }}>
+                <i className="fa-solid fa-triangle-exclamation" />
+                <span>Only fill this in if you want to reset the teacher's password. Leave blank to keep the existing one.</span>
+              </div>
+              <div style={{ maxWidth: 380 }}>
+                <label className={s("field")}>
+                  <span>New Password</span>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Min. 6 characters"
+                      style={{ paddingRight: 44 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, border: "none", background: "transparent", cursor: "pointer", color: "#6b7b86", fontSize: 14 }}
+                    >
+                      <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} />
+                    </button>
+                  </div>
+                  {newPassword && newPassword.length < 6 && (
+                    <span style={{ color: "#be123c", fontSize: 12, fontWeight: 700 }}>
+                      <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 4 }} />Password must be at least 6 characters
+                    </span>
+                  )}
+                  {newPassword && newPassword.length >= 6 && (
+                    <span style={{ color: "#15803d", fontSize: 12, fontWeight: 700 }}>
+                      <i className="fa-solid fa-circle-check" style={{ marginRight: 4 }} />Password looks good
+                    </span>
+                  )}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setPasswordSection(false); setNewPassword(""); }}
+                  style={{ marginTop: 8, padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2", background: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", color: "#6b7b86" }}
+                >
+                  <i className="fa-solid fa-xmark" style={{ marginRight: 5 }} />Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bottom actions */}
         <div className={s("form-actions")}>
           <Link className={cx(s("btn"), s("btn-outline"))} href={`/teachers/${id}`}>
             <i className="fa-solid fa-xmark" /> Cancel
           </Link>
-          <button
-            className={cx(s("btn"), s("btn-primary"))}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving
-              ? <><Spinner size={15} /> Saving…</>
-              : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
+          <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={saving}>
+            {saving ? <><Spinner size={15} /> Saving…</> : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
           </button>
         </div>
       </main>

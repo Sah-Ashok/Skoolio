@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./students.module.css";
@@ -57,12 +57,6 @@ function calcFeeTotal(
   return Math.round(Number(structure.amount) * periods * 100) / 100;
 }
 
-// ── After scholarship discount ───────────────────────────────────────────────
-function applyScholarship(amount: number, pct: number | null): number {
-  if (!pct || pct <= 0 || pct > 100) return amount;
-  return Math.round(amount * (1 - pct / 100) * 100) / 100;
-}
-
 const FREQ_LABEL: Record<string, string> = {
   monthly:     "/month",
   quarterly:   "/quarter",
@@ -85,8 +79,11 @@ export default function AddStudentForm() {
   const [form, setForm] = useState({
     admission_number: "", full_name: "", email: "", phone: "", password: "",
     gender: "male", date_of_birth: "", blood_group: "", nationality: "Nepali",
+    religion: "", ethnicity: "", previous_school: "",
     city: "", state: "", country: "", admission_date: "",
-    guardian_name: "", guardian_phone: "", guardian_relation: "Father", guardian_email: "",
+    disability: false, disability_description: "",
+    guardian_name: "", guardian_phone: "", guardian_relation: "Father",
+    guardian_email: "", guardian_occupation: "", guardian_address: "",
     scholarship_type: "", scholarship_percent: "", scholarship_remarks: "", status: "active",
   });
 
@@ -103,6 +100,13 @@ export default function AddStudentForm() {
   const [createdStudent, setCreatedStudent] = useState<any>(null);
   const [createdEnroll,  setCreatedEnroll]  = useState<any>(null);
 
+  /* ── photo upload ── */
+  const photoInputRef  = useRef<HTMLInputElement>(null);
+  const [photoPreview, setPhotoPreview]  = useState<string | null>(null);
+  const [photoFile,    setPhotoFile]     = useState<File | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+
   /* ── fee structures ── */
   const [feeStructures, setFeeStructures] = useState<any[]>([]);
   const [feesLoading,   setFeesLoading]   = useState(false);
@@ -115,8 +119,12 @@ export default function AddStudentForm() {
 
   const scholarshipPct = form.scholarship_percent ? parseFloat(form.scholarship_percent) : null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleDisabilityToggle = () =>
+    setForm(prev => ({ ...prev, disability: !prev.disability, disability_description: "" }));
 
   const handleClassChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const class_id = e.target.value;
@@ -129,6 +137,47 @@ export default function AddStudentForm() {
       setSections(res.data || []);
     } catch { setSections([]); }
     finally { setSectionsLoading(false); }
+  };
+
+  /* ── Photo file pick ── */
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      dispatch(showToast({ type: "error", title: "Invalid File", message: "Only JPEG, PNG or WebP images are allowed." }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 2 MB." }));
+      return;
+    }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  /* ── Upload photo after student is created ── */
+  const uploadPhoto = async (studentId: number) => {
+    if (!photoFile) return null;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", photoFile);
+      const res = await apiRequest<{ url: string }>(`/upload/student-photo/${studentId}`, {
+        method: "POST",
+        body:   fd,
+        // don't set Content-Type — let browser set multipart boundary
+      });
+      const url = (res as any)?.url || (res as any)?.data?.url || null;
+      if (url) setUploadedPhotoUrl(url);
+      return url;
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Photo Upload Failed", message: err.message || "Could not upload photo. You can add it later from the student profile." }));
+      return null;
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   /* ── Step 1: create student + enrollment ── */
@@ -152,27 +201,49 @@ export default function AddStudentForm() {
     }
     setIsSubmitting(true);
     try {
-      const studentPayload = {
-        ...form,
-        email:               form.email               || undefined,
-        phone:               form.phone               || undefined,
-        blood_group:         form.blood_group         || undefined,
-        city:                form.city                || undefined,
-        state:               form.state               || undefined,
-        country:             form.country             || undefined,
-        guardian_email:      form.guardian_email      || undefined,
-        scholarship_type:    form.scholarship_type    || undefined,
-        scholarship_percent: scholarshipPct           ?? undefined,
-        scholarship_remarks: form.scholarship_remarks || undefined,
+      const studentPayload: Record<string, any> = {
+        admission_number:   form.admission_number,
+        full_name:          form.full_name,
+        password:           form.password,
+        gender:             form.gender,
+        date_of_birth:      form.date_of_birth,
+        admission_date:     form.admission_date,
+        nationality:        form.nationality || undefined,
+        status:             form.status,
+        guardian_name:      form.guardian_name,
+        guardian_phone:     form.guardian_phone,
+        guardian_relation:  form.guardian_relation,
+        disability:         form.disability,
+        // optional strings — omit if empty
+        email:                     form.email                    || undefined,
+        phone:                     form.phone                    || undefined,
+        blood_group:               form.blood_group              || undefined,
+        city:                      form.city                     || undefined,
+        state:                     form.state                    || undefined,
+        country:                   form.country                  || undefined,
+        religion:                  form.religion                 || undefined,
+        ethnicity:                 form.ethnicity                || undefined,
+        previous_school:           form.previous_school          || undefined,
+        disability_description:    form.disability && form.disability_description
+                                     ? form.disability_description : undefined,
+        guardian_email:            form.guardian_email           || undefined,
+        guardian_occupation:       form.guardian_occupation      || undefined,
+        guardian_address:          form.guardian_address         || undefined,
+        scholarship_type:          form.scholarship_type         || undefined,
+        scholarship_percent:       scholarshipPct                ?? undefined,
+        scholarship_remarks:       form.scholarship_remarks      || undefined,
       };
 
-      const studentRes = await apiRequest<{ data: any }>("/students", { method: "POST", body: JSON.stringify(studentPayload) });
-      const student    = studentRes.data;
+      const studentRes = await apiRequest<{ data: any }>("/students", {
+        method: "POST",
+        body: JSON.stringify(studentPayload),
+      });
+      const student = studentRes.data;
       if (!student?.id) throw new Error("Could not create student.");
 
-      const enrollRes  = await apiRequest<{ data: any }>("/students/enrollments", {
+      const enrollRes = await apiRequest<{ data: any }>("/students/enrollments", {
         method: "POST",
-        body:   JSON.stringify({
+        body: JSON.stringify({
           student_id:       student.id,
           academic_year_id: activeYear.id,
           class_id:         Number(enrollment.class_id),
@@ -186,6 +257,11 @@ export default function AddStudentForm() {
 
       setCreatedStudent(student);
       setCreatedEnroll(enroll);
+
+      // Upload photo now that we have the student id
+      if (photoFile) {
+        await uploadPhoto(student.id);
+      }
 
       setFeesLoading(true);
       try {
@@ -214,17 +290,14 @@ export default function AddStudentForm() {
     try {
       const yearEnd = activeYear?.end_date?.split("T")[0] || activeYear?.end_date || "";
 
-      // 1. Assign selected fee structures (with pro-ration + scholarship)
       for (const feeId of selectedFees) {
         const structure = feeStructures.find(f => f.id === feeId);
         if (!structure) continue;
         try {
-          const grossTotal    = calcFeeTotal(structure, form.admission_date, yearEnd);
-          const discountAmt   = scholarshipPct
+          const grossTotal  = calcFeeTotal(structure, form.admission_date, yearEnd);
+          const discountAmt = scholarshipPct
             ? Math.round(grossTotal * (scholarshipPct / 100) * 100) / 100
             : 0;
-          const netTotal      = grossTotal - discountAmt;
-
           const today   = new Date();
           const dueDate = structure.due_date_type === "fixed_day" && structure.due_day
             ? new Date(today.getFullYear(), today.getMonth(), structure.due_day)
@@ -232,7 +305,7 @@ export default function AddStudentForm() {
 
           await apiRequest("/fees/collections", {
             method: "POST",
-            body:   JSON.stringify({
+            body: JSON.stringify({
               student_id:       createdStudent.id,
               enrollment_id:    createdEnroll.id,
               fee_structure_id: feeId,
@@ -251,18 +324,17 @@ export default function AddStudentForm() {
         }
       }
 
-      // 2. Create miscellaneous items as one-time collections
       for (const item of miscItems) {
         if (!item.name.trim() || !item.price || item.qty < 1) continue;
         try {
-          const itemTotal = Math.round(item.price * item.qty * 100) / 100;
+          const itemTotal   = Math.round(item.price * item.qty * 100) / 100;
           const discountAmt = scholarshipPct
             ? Math.round(itemTotal * (scholarshipPct / 100) * 100) / 100
             : 0;
 
           await apiRequest("/fees/collections", {
             method: "POST",
-            body:   JSON.stringify({
+            body: JSON.stringify({
               student_id:       createdStudent.id,
               enrollment_id:    createdEnroll.id,
               fee_structure_id: null,
@@ -305,7 +377,6 @@ export default function AddStudentForm() {
     });
   };
 
-  /* ── Misc item helpers ── */
   const addMiscItem = () => {
     setMiscItems(prev => [...prev, { id: miscIdSeed, name: "", qty: 1, price: 0 }]);
     setMiscIdSeed(n => n + 1);
@@ -317,19 +388,18 @@ export default function AddStudentForm() {
 
   const miscTotal = miscItems.reduce((s, it) => s + it.price * it.qty, 0);
 
-  /* ── Fee totals (with pro-ration + scholarship) ── */
-  const yearEnd = activeYear?.end_date?.split("T")[0] || activeYear?.end_date || "";
+  const yearEnd            = activeYear?.end_date?.split("T")[0] || activeYear?.end_date || "";
   const selectedStructures = feeStructures.filter(f => selectedFees.has(f.id));
-  const feeGrossTotal  = selectedStructures.reduce((s, f) => s + calcFeeTotal(f, form.admission_date, yearEnd), 0);
-  const feeDiscountTot = scholarshipPct
+  const feeGrossTotal      = selectedStructures.reduce((s, f) => s + calcFeeTotal(f, form.admission_date, yearEnd), 0);
+  const feeDiscountTot     = scholarshipPct
     ? Math.round(feeGrossTotal * (scholarshipPct / 100) * 100) / 100
     : 0;
-  const feeNetTotal    = feeGrossTotal - feeDiscountTot;
-  const miscNetTotal   = scholarshipPct
+  const feeNetTotal        = feeGrossTotal - feeDiscountTot;
+  const miscNetTotal       = scholarshipPct
     ? Math.round(miscTotal * (1 - scholarshipPct / 100) * 100) / 100
     : miscTotal;
-  const grandNetTotal  = feeNetTotal + miscNetTotal;
-  const grandDiscount  = (feeDiscountTot + (miscTotal - miscNetTotal));
+  const grandNetTotal      = feeNetTotal + miscNetTotal;
+  const grandDiscount      = feeDiscountTot + (miscTotal - miscNetTotal);
 
   /* ── Step indicator ── */
   const steps = [
@@ -338,6 +408,16 @@ export default function AddStudentForm() {
     { key: "done",    label: "Complete"         },
   ];
   const stepIdx = steps.findIndex(s => s.key === step);
+
+  /* ── shared field style ── */
+  const inputStyle: React.CSSProperties = {
+    width: "100%", minHeight: 38, border: "1px solid #d4dde2", borderRadius: 7,
+    padding: "0 10px", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit",
+    background: "#fff",
+  };
+  const textareaStyle: React.CSSProperties = {
+    ...inputStyle, minHeight: 72, padding: "8px 10px", resize: "vertical",
+  };
 
   return (
     <>
@@ -369,12 +449,62 @@ export default function AddStudentForm() {
       {step === "details" && (
         <form onSubmit={handleSaveDetails}>
           <section className={s("form-grid")}>
-            {/* Personal info */}
+
+            {/* ── Left panel: Personal Information ── */}
             <article className={s("panel")}>
               <div className={s("panel-head")}>
-                <div><h2>Personal Information</h2><p className={s("muted")}>Basic details of the student</p></div>
+                <div>
+                  <h2>Personal Information</h2>
+                  <p className={s("muted")}>Basic details of the student</p>
+                </div>
               </div>
               <div className={s("form-body")}>
+
+                {/* Photo upload */}
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 4 }}>
+                  <div
+                    onClick={() => photoInputRef.current?.click()}
+                    style={{
+                      width: 72, height: 72, borderRadius: 12, flexShrink: 0,
+                      border: "2px dashed #d4dde2", background: "#f8fafc",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", overflow: "hidden", position: "relative",
+                    }}
+                  >
+                    {photoPreview
+                      ? <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <i className="fa-solid fa-camera" style={{ fontSize: 22, color: "#b0bec5" }} />
+                    }
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: "#25343f", margin: "0 0 4px" }}>Student Photo</p>
+                    <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600, margin: "0 0 6px" }}>
+                      Optional · JPEG / PNG / WebP · max 2 MB
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      style={{
+                        padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2",
+                        background: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      <i className="fa-solid fa-upload" style={{ marginRight: 5 }} />
+                      {photoFile ? "Change Photo" : "Upload Photo"}
+                    </button>
+                    {photoFile && (
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoFile(null); setPhotoPreview(null); if (photoInputRef.current) photoInputRef.current.value = ""; }}
+                        style={{ marginLeft: 8, padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handlePhotoChange} />
+                </div>
+
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>Admission Number *</span><input name="admission_number" required value={form.admission_number} onChange={handleChange} placeholder="e.g. 2082-001" /></label>
                   <label className={s("field")}><span>Full Name *</span><input name="full_name" required value={form.full_name} onChange={handleChange} placeholder="e.g. Ram Sharma" /></label>
@@ -384,14 +514,25 @@ export default function AddStudentForm() {
                   <label className={s("field")}><span>Date of Birth *</span><input name="date_of_birth" required type="date" value={form.date_of_birth} onChange={handleChange} /></label>
                 </div>
                 <div className={s("field-row")}>
-                  <label className={s("field")}><span>Blood Group</span><select name="blood_group" value={form.blood_group} onChange={handleChange}><option value="">Select</option>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <option key={bg} value={bg}>{bg}</option>)}</select></label>
+                  <label className={s("field")}>
+                    <span>Blood Group</span>
+                    <select name="blood_group" value={form.blood_group} onChange={handleChange}>
+                      <option value="">Select</option>
+                      {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <option key={bg} value={bg}>{bg}</option>)}
+                    </select>
+                  </label>
                   <label className={s("field")}><span>Nationality</span><input name="nationality" value={form.nationality} onChange={handleChange} /></label>
                 </div>
                 <div className={s("field-row")}>
-                  <label className={s("field")}><span>Email</span><input name="email" type="email" value={form.email} onChange={handleChange} placeholder="optional" /></label>
-                  <label className={s("field")}><span>Phone</span><input name="phone" type="tel" value={form.phone} onChange={handleChange} /></label>
+                  <label className={s("field")}><span>Religion</span><input name="religion" value={form.religion} onChange={handleChange} placeholder="Optional" /></label>
+                  <label className={s("field")}><span>Ethnicity</span><input name="ethnicity" value={form.ethnicity} onChange={handleChange} placeholder="Optional" /></label>
+                </div>
+                <div className={s("field-row")}>
+                  <label className={s("field")}><span>Email</span><input name="email" type="email" value={form.email} onChange={handleChange} placeholder="Optional" /></label>
+                  <label className={s("field")}><span>Phone</span><input name="phone" type="tel" value={form.phone} onChange={handleChange} placeholder="Optional" /></label>
                 </div>
                 <label className={s("field")}><span>Login Password *</span><input name="password" required type="password" value={form.password} onChange={handleChange} placeholder="Student portal login" /></label>
+                <label className={s("field")}><span>Previous School</span><input name="previous_school" value={form.previous_school} onChange={handleChange} placeholder="Optional" /></label>
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>City</span><input name="city" value={form.city} onChange={handleChange} /></label>
                   <label className={s("field")}><span>State</span><input name="state" value={form.state} onChange={handleChange} /></label>
@@ -400,24 +541,80 @@ export default function AddStudentForm() {
                   <label className={s("field")}><span>Country</span><input name="country" value={form.country} onChange={handleChange} /></label>
                   <label className={s("field")}><span>Admission Date *</span><input name="admission_date" required type="date" value={form.admission_date} onChange={handleChange} /></label>
                 </div>
+
+                {/* Disability */}
+                <div style={{ padding: "12px 14px", borderRadius: 10, background: form.disability ? "#fff7ed" : "#f8fafc", border: `1px solid ${form.disability ? "#fed7aa" : "#e2e8f0"}`, marginTop: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      onClick={handleDisabilityToggle}
+                      style={{
+                        width: 40, height: 22, borderRadius: 11, cursor: "pointer",
+                        background: form.disability ? "#ff9b51" : "#d1d5db",
+                        position: "relative", transition: "background 0.2s", flexShrink: 0,
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                        position: "absolute", top: 3,
+                        left: form.disability ? 21 : 3,
+                        transition: "left 0.2s",
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#25343f" }}>Student has a disability</span>
+                  </div>
+                  {form.disability && (
+                    <div style={{ marginTop: 10 }}>
+                      <label className={s("field")}>
+                        <span>Disability Description</span>
+                        <textarea
+                          name="disability_description"
+                          value={form.disability_description}
+                          onChange={handleChange}
+                          placeholder="Describe the disability (e.g. visual impairment, hearing loss, mobility aid required…)"
+                          style={textareaStyle}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
             </article>
 
-            {/* Guardian + Enrollment + Scholarship */}
+            {/* ── Right panel: Guardian, Scholarship, Enrollment ── */}
             <article className={s("panel")}>
               <div className={s("panel-head")}>
-                <div><h2>Guardian & Enrollment</h2><p className={s("muted")}>Guardian details and class assignment</p></div>
+                <div>
+                  <h2>Guardian & Enrollment</h2>
+                  <p className={s("muted")}>Guardian details and class assignment</p>
+                </div>
               </div>
               <div className={s("form-body")}>
+
+                {/* Guardian */}
                 <label className={s("field")}><span>Guardian Name *</span><input name="guardian_name" required value={form.guardian_name} onChange={handleChange} /></label>
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>Guardian Phone *</span><input name="guardian_phone" required type="tel" value={form.guardian_phone} onChange={handleChange} /></label>
-                  <label className={s("field")}><span>Relation *</span><select name="guardian_relation" value={form.guardian_relation} onChange={handleChange}><option value="Father">Father</option><option value="Mother">Mother</option><option value="Guardian">Guardian</option><option value="Other">Other</option></select></label>
+                  <label className={s("field")}>
+                    <span>Relation *</span>
+                    <select name="guardian_relation" value={form.guardian_relation} onChange={handleChange}>
+                      <option value="Father">Father</option>
+                      <option value="Mother">Mother</option>
+                      <option value="Guardian">Guardian</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
                 </div>
-                <label className={s("field")}><span>Guardian Email</span><input name="guardian_email" type="email" value={form.guardian_email} onChange={handleChange} placeholder="Optional" /></label>
+                <div className={s("field-row")}>
+                  <label className={s("field")}><span>Guardian Email</span><input name="guardian_email" type="email" value={form.guardian_email} onChange={handleChange} placeholder="Optional" /></label>
+                  <label className={s("field")}><span>Guardian Occupation</span><input name="guardian_occupation" value={form.guardian_occupation} onChange={handleChange} placeholder="Optional" /></label>
+                </div>
+                <label className={s("field")}>
+                  <span>Guardian Address</span>
+                  <textarea name="guardian_address" value={form.guardian_address} onChange={handleChange} placeholder="Optional" style={textareaStyle} />
+                </label>
 
                 {/* Scholarship */}
-                <div style={{ paddingTop: 4, borderTop: "1px solid #eef2f3" }}>
+                <div style={{ paddingTop: 12, borderTop: "1px solid #eef2f3" }}>
                   <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 8 }}>
                     <i className="fa-solid fa-graduation-cap" style={{ marginRight: 6, color: "#ff9b51" }} />
                     Scholarship (optional — applies discount to all assigned fees)
@@ -447,6 +644,12 @@ export default function AddStudentForm() {
                       />
                     </label>
                   </div>
+                  {form.scholarship_type && (
+                    <label className={s("field")} style={{ marginTop: 6 }}>
+                      <span>Scholarship Remarks</span>
+                      <textarea name="scholarship_remarks" value={form.scholarship_remarks} onChange={handleChange} placeholder="Optional notes on scholarship terms" style={textareaStyle} />
+                    </label>
+                  )}
                   {scholarshipPct && scholarshipPct > 0 && (
                     <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: "#dcfce7", border: "1px solid #bbf7d0", fontSize: 12, fontWeight: 700, color: "#15803d" }}>
                       <i className="fa-solid fa-tag" style={{ marginRight: 6 }} />
@@ -456,7 +659,7 @@ export default function AddStudentForm() {
                 </div>
 
                 {/* Class & Section */}
-                <div style={{ paddingTop: 4, borderTop: "1px solid #eef2f3" }}>
+                <div style={{ paddingTop: 12, borderTop: "1px solid #eef2f3" }}>
                   <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 8 }}>
                     <i className="fa-solid fa-school" style={{ marginRight: 6, color: "#ff9b51" }} />Class & Section *
                   </p>
@@ -470,7 +673,11 @@ export default function AddStudentForm() {
                     </label>
                     <label className={s("field")}>
                       <span>Section *</span>
-                      <select value={enrollment.section_id} onChange={e => setEnrollment({ ...enrollment, section_id: e.target.value })} disabled={!enrollment.class_id || sectionsLoading}>
+                      <select
+                        value={enrollment.section_id}
+                        onChange={e => setEnrollment({ ...enrollment, section_id: e.target.value })}
+                        disabled={!enrollment.class_id || sectionsLoading}
+                      >
                         <option value="">{sectionsLoading ? "Loading…" : "Select section"}</option>
                         {sections.map(sec => <option key={sec.id} value={sec.id}>Section {sec.name}</option>)}
                       </select>
@@ -478,7 +685,15 @@ export default function AddStudentForm() {
                   </div>
                   <div className={s("field-row")} style={{ marginTop: 8 }}>
                     <label className={s("field")}><span>Roll Number</span><input value={enrollment.roll_number} onChange={e => setEnrollment({ ...enrollment, roll_number: e.target.value })} placeholder="Optional" /></label>
-                    <label className={s("field")}><span>Stream</span><select value={enrollment.stream} onChange={e => setEnrollment({ ...enrollment, stream: e.target.value })}><option value="not_applicable">Not Applicable</option><option value="science">Science</option><option value="commerce">Commerce</option><option value="arts">Arts</option></select></label>
+                    <label className={s("field")}>
+                      <span>Stream</span>
+                      <select value={enrollment.stream} onChange={e => setEnrollment({ ...enrollment, stream: e.target.value })}>
+                        <option value="not_applicable">Not Applicable</option>
+                        <option value="science">Science</option>
+                        <option value="commerce">Commerce</option>
+                        <option value="arts">Arts</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -488,7 +703,9 @@ export default function AddStudentForm() {
           <div className={s("form-actions")} style={{ marginTop: "1.5rem", padding: "1rem 0", borderTop: "1px solid #eee" }}>
             <Link className={s("btn")} href="/students">Cancel</Link>
             <button type="submit" className={cx(s("btn"), s("btn-primary"))} disabled={isSubmitting}>
-              {isSubmitting ? <><Spinner size={16} /> Saving…</> : <>Next: Assign Fees <i className="fa-solid fa-arrow-right" /></>}
+              {isSubmitting
+                ? <><Spinner size={16} /> {photoFile ? "Saving & Uploading Photo…" : "Saving…"}</>
+                : <>Next: Assign Fees <i className="fa-solid fa-arrow-right" /></>}
             </button>
           </div>
         </form>
@@ -499,15 +716,22 @@ export default function AddStudentForm() {
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Student summary */}
           <div style={{ padding: "16px 20px", borderRadius: 12, background: "#fff", border: "1px solid rgba(191,201,209,0.7)", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 2px 12px rgba(37,52,63,0.08)" }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: "#ff9b51", color: "#25343f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, flexShrink: 0 }}>
-              {form.full_name.charAt(0)}
+            {/* Avatar / photo */}
+            <div style={{
+              width: 52, height: 52, borderRadius: 12, flexShrink: 0, overflow: "hidden",
+              background: "#ff9b51", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {uploadedPhotoUrl || photoPreview
+                ? <img src={uploadedPhotoUrl || photoPreview!} alt={form.full_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <span style={{ fontSize: 18, fontWeight: 900, color: "#25343f" }}>{form.full_name.charAt(0)}</span>
+              }
             </div>
             <div style={{ flex: 1 }}>
               <strong style={{ fontSize: 15, fontWeight: 900 }}>{form.full_name}</strong>
               <p style={{ fontSize: 12, color: "#6b7b86", fontWeight: 700, marginTop: 2 }}>
-                {classes?.find(c => c.id.toString() === enrollment.class_id)?.name} · Section {sections.find(s => s.id.toString() === enrollment.section_id)?.name} · {form.admission_number}
+                {classes?.find(c => c.id.toString() === enrollment.class_id)?.name} · Section {sections.find(sec => sec.id.toString() === enrollment.section_id)?.name} · {form.admission_number}
                 {form.admission_date && (
-                  <span style={{ marginLeft: 8, color: "#6b7b86" }}>
+                  <span style={{ marginLeft: 8 }}>
                     · Admission: {new Date(form.admission_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
                 )}
@@ -517,6 +741,11 @@ export default function AddStudentForm() {
               <span style={{ padding: "4px 12px", borderRadius: 999, background: "#dcfce7", color: "#15803d", fontSize: 12, fontWeight: 900 }}>
                 <i className="fa-solid fa-circle-check" style={{ marginRight: 5 }} />Student Created
               </span>
+              {uploadedPhotoUrl && (
+                <span style={{ padding: "4px 12px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontSize: 12, fontWeight: 900 }}>
+                  <i className="fa-solid fa-image" style={{ marginRight: 5 }} />Photo Uploaded
+                </span>
+              )}
               {scholarshipPct && scholarshipPct > 0 && (
                 <span style={{ padding: "4px 12px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontSize: 12, fontWeight: 900 }}>
                   <i className="fa-solid fa-tag" style={{ marginRight: 5 }} />
@@ -530,8 +759,8 @@ export default function AddStudentForm() {
           {form.admission_date && activeYear?.end_date && (
             <div style={{ padding: "10px 16px", borderRadius: 9, background: "#f0f9ff", border: "1px solid #bae6fd", fontSize: 12, fontWeight: 700, color: "#0284c7", display: "flex", alignItems: "center", gap: 8 }}>
               <i className="fa-solid fa-calendar-days" />
-              Monthly fees are calculated from <strong>{new Date(form.admission_date).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</strong> to <strong>{new Date(activeYear.end_date).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</strong>
-              {" "}({calcBillingPeriods("monthly", form.admission_date, yearEnd)} month{calcBillingPeriods("monthly", form.admission_date, yearEnd) !== 1 ? "s" : ""} remaining)
+              Monthly fees are calculated from <strong style={{ marginLeft: 4 }}>{new Date(form.admission_date).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</strong>&nbsp;to&nbsp;<strong>{new Date(activeYear.end_date).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</strong>
+              &nbsp;({calcBillingPeriods("monthly", form.admission_date, yearEnd)} month{calcBillingPeriods("monthly", form.admission_date, yearEnd) !== 1 ? "s" : ""} remaining)
             </div>
           )}
 
@@ -576,12 +805,9 @@ export default function AddStudentForm() {
                         onClick={() => toggleFee(fee.id)}
                         style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", border: `1.5px solid ${selected ? "#ff9b51" : "#d4dde2"}`, background: selected ? "#fff7ed" : "#f8fafc", display: "flex", alignItems: "flex-start", gap: 14, transition: "all 0.15s" }}
                       >
-                        {/* Checkbox */}
                         <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 2, border: `2px solid ${selected ? "#ff9b51" : "#c6d0d7"}`, background: selected ? "#ff9b51" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {selected && <i className="fa-solid fa-check" style={{ color: "#fff", fontSize: 10 }} />}
                         </div>
-
-                        {/* Fee info */}
                         <div style={{ flex: 1 }}>
                           <strong style={{ fontSize: 14, fontWeight: 900 }}>{fee.fee_name}</strong>
                           <p style={{ fontSize: 12, color: "#6b7b86", fontWeight: 700, marginTop: 2 }}>
@@ -592,8 +818,7 @@ export default function AddStudentForm() {
                           </p>
                           {isMulti && (
                             <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 700, marginTop: 3 }}>
-                              ₹{Number(fee.amount).toLocaleString()}{FREQ_LABEL[fee.frequency]} × {periods} {fee.frequency === "monthly" ? "months" : fee.frequency === "quarterly" ? "quarters" : "periods"}
-                              {" = "}₹{grossTotal.toLocaleString()}
+                              ₹{Number(fee.amount).toLocaleString()}{FREQ_LABEL[fee.frequency]} × {periods} {fee.frequency === "monthly" ? "months" : fee.frequency === "quarterly" ? "quarters" : "periods"} = ₹{grossTotal.toLocaleString()}
                             </p>
                           )}
                           {discountAmt > 0 && selected && (
@@ -603,8 +828,6 @@ export default function AddStudentForm() {
                             </p>
                           )}
                         </div>
-
-                        {/* Amount */}
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           {discountAmt > 0 ? (
                             <>
@@ -626,7 +849,7 @@ export default function AddStudentForm() {
             </div>
           </div>
 
-          {/* ── MISCELLANEOUS ITEMS ── */}
+          {/* Miscellaneous items */}
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid rgba(191,201,209,0.7)", overflow: "hidden", boxShadow: "0 2px 12px rgba(37,52,63,0.08)" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #eef2f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
@@ -654,44 +877,23 @@ export default function AddStudentForm() {
                 </div>
               ) : (
                 <>
-                  {/* Header row */}
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px 120px 80px auto", gap: 10, padding: "0 4px 6px", borderBottom: "1px solid #eef2f3" }}>
-                    {["Item Name", "Qty", "Unit Price (₹)", "", ""].map((h, i) => (
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 120px 80px auto", gap: 10, padding: "0 4px 6px", borderBottom: "1px solid #eef2f3" }}>
+                    {["Item Name","Qty","Unit Price (₹)","",""].map((h, i) => (
                       <span key={i} style={{ fontSize: 10, fontWeight: 900, color: "#6a7882", textTransform: "uppercase" }}>{h}</span>
                     ))}
                   </div>
-
                   {miscItems.map(item => {
                     const lineGross = item.price * item.qty;
                     const lineDisc  = scholarshipPct ? Math.round(lineGross * (scholarshipPct / 100) * 100) / 100 : 0;
                     return (
-                      <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px 120px 80px auto", gap: 10, padding: "10px 4px", borderBottom: "1px solid #f1f5f9", alignItems: "center" }}>
-                        <input
-                          value={item.name}
-                          onChange={e => updateMiscItem(item.id, "name", e.target.value)}
-                          placeholder="e.g. School Dress"
-                          style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", fontFamily: "inherit" }}
-                        />
-                        <input
-                          type="number" min="1" value={item.qty}
-                          onChange={e => updateMiscItem(item.id, "qty", Math.max(1, parseInt(e.target.value) || 1))}
-                          style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", textAlign: "center", fontFamily: "inherit" }}
-                        />
-                        <input
-                          type="number" min="0" step="0.01" value={item.price || ""}
-                          onChange={e => updateMiscItem(item.id, "price", parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", fontFamily: "inherit" }}
-                        />
+                      <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 120px 80px auto", gap: 10, padding: "10px 4px", borderBottom: "1px solid #f1f5f9", alignItems: "center" }}>
+                        <input value={item.name} onChange={e => updateMiscItem(item.id, "name", e.target.value)} placeholder="e.g. School Dress" style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", fontFamily: "inherit" }} />
+                        <input type="number" min="1" value={item.qty} onChange={e => updateMiscItem(item.id, "qty", Math.max(1, parseInt(e.target.value) || 1))} style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", textAlign: "center", fontFamily: "inherit" }} />
+                        <input type="number" min="0" step="0.01" value={item.price || ""} onChange={e => updateMiscItem(item.id, "price", parseFloat(e.target.value) || 0)} placeholder="0.00" style={{ minHeight: 36, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", fontFamily: "inherit" }} />
                         <div style={{ textAlign: "right" }}>
-                          {lineDisc > 0 ? (
-                            <>
-                              <div style={{ fontSize: 10, color: "#94a3b8", textDecoration: "line-through" }}>₹{lineGross.toLocaleString()}</div>
-                              <strong style={{ fontSize: 13, color: "#15803d" }}>₹{(lineGross - lineDisc).toLocaleString()}</strong>
-                            </>
-                          ) : (
-                            <strong style={{ fontSize: 13 }}>₹{lineGross.toLocaleString()}</strong>
-                          )}
+                          {lineDisc > 0
+                            ? <><div style={{ fontSize: 10, color: "#94a3b8", textDecoration: "line-through" }}>₹{lineGross.toLocaleString()}</div><strong style={{ fontSize: 13, color: "#15803d" }}>₹{(lineGross - lineDisc).toLocaleString()}</strong></>
+                            : <strong style={{ fontSize: 13 }}>₹{lineGross.toLocaleString()}</strong>}
                         </div>
                         <button onClick={() => removeMiscItem(item.id)} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>
                           <i className="fa-solid fa-xmark" />
@@ -701,7 +903,6 @@ export default function AddStudentForm() {
                   })}
                 </>
               )}
-
               {miscItems.length > 0 && (
                 <div style={{ padding: "12px 4px", display: "flex", justifyContent: "flex-end", gap: 8, fontSize: 13, fontWeight: 700, color: "#6a7882" }}>
                   <span>Misc subtotal:</span>
@@ -714,7 +915,7 @@ export default function AddStudentForm() {
             </div>
           </div>
 
-          {/* ── Grand total summary ── */}
+          {/* Grand total */}
           {(selectedFees.size > 0 || miscItems.length > 0) && (
             <div style={{ padding: "16px 20px", borderRadius: 12, background: "#25343f", color: "#eaecef" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
