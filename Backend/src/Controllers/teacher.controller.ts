@@ -90,4 +90,12 @@ export const getMyCoordinatorSections = catchAsync(async (req: Request, res: Res
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
   const sections = await getMyCoordinatorSectionsService(teacher_id, school_id);
   sendResponse(res, 200, true, 'Coordinator sections fetched successfully', sections);
+});
+
+export const getMySalaries = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
+  // Reuse the same admin service — teacher_id and school_id come from JWT
+  // so a teacher can only ever see their own records, never another teacher's.
+  const salaries = await getTeacherSalariesService(teacher_id, school_id);
+  sendResponse(res, 200, true, 'Your salary records fetched successfully', salaries);
 });

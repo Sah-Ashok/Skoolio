@@ -70,6 +70,12 @@ const teacherNav: NavSection[] = [
       { href: '/teacher/results',          icon: 'fa-pen-to-square',   label: 'Enter Results'       },
     ],
   },
+  {
+    label: 'Payroll',
+    links: [
+      { href: '/teacher/salary', icon: 'fa-money-bill-wave', label: 'My Salary' },
+    ],
+  },
 ]
 
 const studentNav: NavSection[] = [

@@ -199,10 +199,18 @@ export const createSalary = async (
   paid_by: number,
   data: ICreateSalary
 ): Promise<ITeacherSalary> => {
+  // Compute total deduction from breakdown
+  const tax          = data.tax_amount      || 0;
+  const pf           = data.provident_fund  || 0;
+  const other        = data.other_deduction || 0;
+  const totalDeduct  = data.deduction ?? (tax + pf + other);
+
   const result = await pool.query(
     `INSERT INTO teacher_salaries
-      (school_id, academic_year_id, teacher_id, basic_salary, bonus, deduction, month, year, payment_date, payment_method, status, paid_by, remarks)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      (school_id, academic_year_id, teacher_id, basic_salary, bonus, deduction,
+       tax_amount, provident_fund, other_deduction, deduction_remarks,
+       month, year, payment_date, payment_method, status, paid_by, remarks)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING *, net_salary`,
     [
       school_id,
@@ -210,14 +218,18 @@ export const createSalary = async (
       data.teacher_id,
       data.basic_salary,
       data.bonus || 0,
-      data.deduction || 0,
+      totalDeduct,
+      tax,
+      pf,
+      other,
+      data.deduction_remarks || null,
       data.month,
       data.year,
-      data.payment_date || null,
+      data.payment_date   || null,
       data.payment_method || null,
-      data.status || 'pending',
+      data.status         || 'pending',
       paid_by,
-      data.remarks || null,
+      data.remarks        || null,
     ]
   );
   return result.rows[0];
@@ -252,26 +264,43 @@ export const updateSalary = async (
   school_id: number,
   data: IUpdateSalary
 ): Promise<ITeacherSalary | null> => {
+  // Recompute total deduction if any breakdown field is being updated
+  const tax   = data.tax_amount      ?? undefined;
+  const pf    = data.provident_fund  ?? undefined;
+  const other = data.other_deduction ?? undefined;
+  // Only auto-sum if at least one breakdown field is being set
+  const totalDeduct = (tax !== undefined || pf !== undefined || other !== undefined)
+    ? (tax || 0) + (pf || 0) + (other || 0)
+    : data.deduction ?? undefined;
+
   const result = await pool.query(
     `UPDATE teacher_salaries SET
-      basic_salary   = COALESCE($1, basic_salary),
-      bonus          = COALESCE($2, bonus),
-      deduction      = COALESCE($3, deduction),
-      payment_date   = COALESCE($4, payment_date),
-      payment_method = COALESCE($5, payment_method),
-      status         = COALESCE($6, status),
-      remarks        = COALESCE($7, remarks),
-      updated_at     = NOW()
-     WHERE id = $8 AND school_id = $9
+      basic_salary      = COALESCE($1,  basic_salary),
+      bonus             = COALESCE($2,  bonus),
+      deduction         = COALESCE($3,  deduction),
+      tax_amount        = COALESCE($4,  tax_amount),
+      provident_fund    = COALESCE($5,  provident_fund),
+      other_deduction   = COALESCE($6,  other_deduction),
+      deduction_remarks = COALESCE($7,  deduction_remarks),
+      payment_date      = COALESCE($8,  payment_date),
+      payment_method    = COALESCE($9,  payment_method),
+      status            = COALESCE($10, status),
+      remarks           = COALESCE($11, remarks),
+      updated_at        = NOW()
+     WHERE id = $12 AND school_id = $13
      RETURNING *, net_salary`,
     [
-      data.basic_salary || null,
-      data.bonus || null,
-      data.deduction || null,
-      data.payment_date || null,
-      data.payment_method || null,
-      data.status || null,
-      data.remarks || null,
+      data.basic_salary      || null,
+      data.bonus             ?? null,
+      totalDeduct            ?? null,
+      tax                    ?? null,
+      pf                     ?? null,
+      other                  ?? null,
+      data.deduction_remarks ?? null,
+      data.payment_date      || null,
+      data.payment_method    || null,
+      data.status            || null,
+      data.remarks           || null,
       id,
       school_id,
     ]

@@ -20,6 +20,11 @@ export const createAttendance = catchAsync(async (req: Request, res: Response, n
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
 
+  // Always set marked_by from the JWT — never trust the client-sent value.
+  // For a teacher: user.id is the teacher's own DB row id.
+  // For an admin:  user.id is the admin's own id.
+  req.body.marked_by = user.id;
+
   // Block future-date attendance marking
   const today = new Date().toISOString().split('T')[0];
   if (req.body.date && String(req.body.date) > today) {

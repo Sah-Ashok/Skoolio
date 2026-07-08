@@ -65,7 +65,12 @@ export interface ITeacherSalary {
   teacher_id: number;
   basic_salary: number;
   bonus: number;
-  deduction: number;
+  deduction: number;           // total deduction = tax + pf + other
+  tax_amount: number;          // income tax / TDS
+  provident_fund: number;      // EPF / PF
+  other_deduction: number;     // loan, advance, etc.
+  deduction_remarks?: string;  // notes on deductions
+  net_salary: number;          // GENERATED column
   month: number;
   year: number;
   payment_date?: Date;
@@ -86,11 +91,15 @@ export type ICreateSalary = Pick<
   | 'year'
   | 'status'
 > & {
-  bonus?: number;
-  deduction?: number;
-  payment_date?: Date;
-  payment_method?: PaymentMethod;
-  remarks?: string;
+  bonus?:             number;
+  deduction?:         number;
+  tax_amount?:        number;
+  provident_fund?:    number;
+  other_deduction?:   number;
+  deduction_remarks?: string;
+  payment_date?:      Date;
+  payment_method?:    PaymentMethod;
+  remarks?:           string;
 };
 
 export type IUpdateSalary = Partial<ICreateSalary>;

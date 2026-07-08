@@ -5,13 +5,14 @@ import {
   createTeacher, getTeachers, getTeacherById, updateTeacher, deleteTeacher,
   assignSubjectToTeacher, getTeacherSubjects, removeTeacherSubject,
   createSalary, getTeacherSalaries, updateSalary,
-  getMyCoordinatorSections,
+  getMyCoordinatorSections, getMySalaries,
 } from '../Controllers/teacher.controller';
 
 const router = Router();
 
 // ── Faculty-accessible routes (before admin-only middleware) ──
 router.get('/me/sections', protect, restrictTo('faculty'), getMyCoordinatorSections);
+router.get('/me/salary',   protect, restrictTo('faculty'), getMySalaries);
 
 router.use(protect, restrictTo('admin', 'super_admin'));
 
