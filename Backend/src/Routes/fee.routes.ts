@@ -9,41 +9,50 @@ import {
   generateMonthlyFeeBills,
   generateTransportBills, getTransportFeeSummary,
   generateHostelBills, getHostelFeeSummary,
+  getPaymentReceipt,
 } from '../Controllers/fee.controller';
+import { generateReceipt, getReceiptStatus } from '../Controllers/receipt.controller';
 
 const router = Router();
 router.use(protect);
 
-// ── SELF-SERVICE (student's own fees) ──
+// ── SELF-SERVICE (student's own fees + receipts) — STATIC before dynamic ──
 router.get('/me/collections', restrictTo('student'), getMyFeeCollections);
 router.get('/me/payments',    restrictTo('student'), getMyPayments);
 
-// ── ACADEMIC MONTHLY BILLING ──
-router.post('/monthly/generate',  restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
+// ── BILLING ──
+router.post('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
+router.post('/transport/generate', restrictTo('admin', 'super_admin'), generateTransportBills);
+router.get ('/transport/summary',  restrictTo('admin', 'super_admin'), getTransportFeeSummary);
+router.post('/hostel/generate',    restrictTo('admin', 'super_admin'), generateHostelBills);
+router.get ('/hostel/summary',     restrictTo('admin', 'super_admin'), getHostelFeeSummary);
 
-// ── TRANSPORT BILLING ──
-router.post('/transport/generate',  restrictTo('admin', 'super_admin'), generateTransportBills);
-router.get('/transport/summary',    restrictTo('admin', 'super_admin'), getTransportFeeSummary);
+// ── FEE STRUCTURES ──
+router.post  ('/structures',       restrictTo('admin', 'super_admin'), createFeeStructure);
+router.get   ('/structures',       restrictTo('admin', 'super_admin'), getFeeStructures);
+router.patch ('/structures/:id',   restrictTo('admin', 'super_admin'), updateFeeStructure);
+router.delete('/structures/:id',   restrictTo('admin', 'super_admin'), deleteFeeStructure);
 
-// ── HOSTEL BILLING ──
-router.post('/hostel/generate',  restrictTo('admin', 'super_admin'), generateHostelBills);
-router.get('/hostel/summary',    restrictTo('admin', 'super_admin'), getHostelFeeSummary);
+// ── FEE COLLECTIONS ──
+router.post('/collections',            restrictTo('admin', 'super_admin'), createFeeCollection);
+router.get ('/collections',            restrictTo('admin', 'super_admin'), getFeeCollections);
+router.get ('/collections/student/:id',restrictTo('admin', 'super_admin'), getStudentFeeCollections);
+router.patch('/collections/:id',       restrictTo('admin', 'super_admin'), updateFeeCollection);
 
-// ── FEE STRUCTURE ROUTES (ADMIN) ──
-router.post('/structures', restrictTo('admin', 'super_admin'), createFeeStructure);
-router.get('/structures', restrictTo('admin', 'super_admin'), getFeeStructures);
-router.patch('/structures/:id', restrictTo('admin', 'super_admin'), updateFeeStructure);
-router.delete('/structures/:id', restrictTo('admin', 'super_admin'), deleteFeeStructure);
+// ── FEE PAYMENTS ──
+// Static paths BEFORE /:id to avoid Express matching 'collection' or 'student' as an id
+router.post('/payments',               restrictTo('admin', 'super_admin'), createFeePayment);
+router.get ('/payments/collection/:id',restrictTo('admin', 'super_admin'), getPaymentsByCollection);
+router.get ('/payments/student/:id',   restrictTo('admin', 'super_admin'), getStudentPayments);
 
-// ── FEE COLLECTION ROUTES (ADMIN) ──
-router.post('/collections', restrictTo('admin', 'super_admin'), createFeeCollection);
-router.get('/collections', restrictTo('admin', 'super_admin'), getFeeCollections);
-router.get('/collections/student/:id', restrictTo('admin', 'super_admin'), getStudentFeeCollections);
-router.patch('/collections/:id', restrictTo('admin', 'super_admin'), updateFeeCollection);
+// ── RECEIPT PDF (admin + student) ──
+// POST  → trigger background generation / return cached URL
+// GET   → poll for status (lightweight, no worker spawn)
+// All static paths above /:id so Express never mismatches them
+router.post('/payments/:id/generate-receipt', restrictTo('admin', 'super_admin', 'student'), generateReceipt);
+router.get ('/payments/:id/receipt-status',   restrictTo('admin', 'super_admin', 'student'), getReceiptStatus);
 
-// ── FEE PAYMENT ROUTES (ADMIN) ──
-router.post('/payments', restrictTo('admin', 'super_admin'), createFeePayment);
-router.get('/payments/collection/:id', restrictTo('admin', 'super_admin'), getPaymentsByCollection);
-router.get('/payments/student/:id', restrictTo('admin', 'super_admin'), getStudentPayments);
+// Generic payment detail (must be LAST — dynamic /:id)
+router.get('/payments/:id', restrictTo('admin', 'super_admin', 'student'), getPaymentReceipt);
 
 export default router;

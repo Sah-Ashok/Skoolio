@@ -86,6 +86,8 @@ export default function CollectFeePage() {
     c.status !== "paid" && new Date(c.due_date) < new Date()
   ).length;
 
+  const [lastReceipt, setLastReceipt] = useState<{ payment_id: number; receipt_number: string } | null>(null);
+
   // ── Payment handler ──────────────────────────────────────────────────────
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +107,16 @@ export default function CollectFeePage() {
         remarks:        remarks     || undefined,
       });
 
-      if (res) {
-        dispatch(showToast({ type: "success", title: "Payment Recorded", message: `Receipt generated successfully.` }));
-        refetchCollections();
-        setAmount(""); setSelectedCollectionId(""); setReferenceNo(""); setRemarks("");
+      // Store receipt info so we can show the print button
+      if (res?.payment?.id) {
+        setLastReceipt({ payment_id: res.payment.id, receipt_number: res.receipt_number });
+      } else if (res?.id) {
+        setLastReceipt({ payment_id: res.id, receipt_number: res.receipt_number });
       }
+
+      dispatch(showToast({ type: "success", title: "Payment Recorded", message: `Receipt ${res?.receipt_number || ''} generated.` }));
+      refetchCollections();
+      setAmount(""); setSelectedCollectionId(""); setReferenceNo(""); setRemarks("");
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Payment Failed", message: err.message || "Payment failed" }));
     }
@@ -190,6 +197,35 @@ export default function CollectFeePage() {
             </p>
           </div>
         </section>
+
+        {/* ── PRINT RECEIPT BANNER (shows after successful payment) ── */}
+        {lastReceipt && (
+          <section style={{ background: "#e2f6ee", border: "1px solid #bee8d6", borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <i className="fa-solid fa-circle-check" style={{ color: "#12805c", fontSize: 22 }} />
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 900, color: "#12805c", margin: 0 }}>Payment Recorded — {lastReceipt.receipt_number}</p>
+                <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, marginTop: 2 }}>Click to open or print the receipt for the parent/guardian.</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <a
+                href={`/fees/receipt/${lastReceipt.payment_id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 8, border: "none", background: "#12805c", color: "#fff", fontWeight: 900, fontSize: 13, textDecoration: "none" }}
+              >
+                <i className="fa-solid fa-print" /> Print Receipt
+              </a>
+              <button
+                onClick={() => setLastReceipt(null)}
+                style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid #bee8d6", background: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 12, color: "#6a7882" }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </section>
+        )}
 
         <form className={s("simple-collect-layout")} onSubmit={handlePayment}>
           {/* Student search */}

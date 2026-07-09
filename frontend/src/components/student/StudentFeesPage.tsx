@@ -1,241 +1,276 @@
 "use client";
 
+import { useState, useRef, useCallback } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 
-const formatINR = (amount: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount));
+// ── Receipt PDF button — calls backend Azure PDF generation ──────────────────
+type BtnState = 'idle' | 'generating' | 'ready' | 'error';
+
+function ReceiptButton({ paymentId }: { paymentId: number }) {
+  const [state, setState] = useState<BtnState>('idle');
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPoll = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  const openPdf = useCallback((url: string) => {
+    setPdfUrl(url);
+    setState('ready');
+    window.open(url, '_blank', 'noreferrer');
+  }, []);
+
+  const startPoll = useCallback((id: number) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/fees/payments/${id}/receipt-status`, { credentials: 'include' });
+        const json = await r.json();
+        const { status, url } = json?.data ?? {};
+        if (status === 'ready' && url) { stopPoll(); openPdf(url); }
+        else if (status === 'failed')  { stopPoll(); setState('error'); }
+      } catch { stopPoll(); setState('error'); }
+    }, 1500);
+  }, [openPdf]);
+
+  const handleClick = useCallback(async () => {
+    if (state === 'generating') return;
+    // If already ready, just open the cached URL
+    if (state === 'ready' && pdfUrl) { window.open(pdfUrl, '_blank', 'noreferrer'); return; }
+
+    setState('generating');
+    try {
+      const r = await fetch(`/api/fees/payments/${paymentId}/generate-receipt`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await r.json();
+      const { status, url } = json?.data ?? {};
+      if (status === 'ready' && url) { openPdf(url); }
+      else if (status === 'generating') { startPoll(paymentId); }
+      else { setState('error'); }
+    } catch { setState('error'); }
+  }, [state, pdfUrl, paymentId, openPdf, startPoll]);
+
+  const C_navy = '#1e3a5f';
+  const label =
+    state === 'generating' ? 'Generating…' :
+    state === 'ready'      ? 'Open PDF'    :
+    state === 'error'      ? 'Retry'       : 'PDF';
+  const icon =
+    state === 'generating' ? 'fa-spinner fa-spin' :
+    state === 'ready'      ? 'fa-file-pdf'         :
+    state === 'error'      ? 'fa-rotate-right'     : 'fa-cloud-arrow-down';
+  const bg =
+    state === 'error' ? '#b42318' :
+    state === 'ready' ? '#15803d' : C_navy;
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={state === 'generating'}
+      title={state === 'ready' ? 'Click to re-open PDF' : 'Generate & download receipt PDF from cloud'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '5px 11px', borderRadius: 7, border: 'none',
+        background: bg, color: '#fff',
+        fontWeight: 800, fontSize: 11, cursor: state === 'generating' ? 'not-allowed' : 'pointer',
+        opacity: state === 'generating' ? 0.75 : 1,
+        transition: 'background 0.2s',
+        fontFamily: 'inherit',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <i className={`fa-solid ${icon}`} style={{ fontSize: 10 }} />
+      {label}
+    </button>
+  );
+}
+
+const FONT = `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');`;
+
+const C = {
+  brand:   "#ff9b51",
+  dark:    "#1f2d36",
+  mid:     "#6a7882",
+  border:  "#dce5e9",
+  bg:      "#eef2f3",
+  white:   "#ffffff",
+  green:   "#059669",
+  greenBg: "#ecfdf5",
+  red:     "#dc2626",
+  redBg:   "#fef2f2",
+  light:   "#f8fafc",
+  navy:    "#1e3a5f",
+};
+
+const fmt = (n: number | string) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n));
+
+const fmtDate = (d: string | null | undefined) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
+
+function DonutChart({ paid, due, total }: { paid: number; due: number; total: number }) {
+  const r     = 48;
+  const cxcy  = 56;
+  const circ  = 2 * Math.PI * r;
+  const paidPct  = total > 0 ? paid / total : 0;
+  const duePct   = total > 0 ? due  / total : (due > 0 ? 1 : 0);
+  const paidDash = circ * paidPct;
+  const dueDash  = circ * duePct;
+  const dueOffset = circ * (1 - paidPct);
+  const pct = total > 0 ? Math.round((paid / total) * 100) : (due === 0 ? 100 : 0);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+      <svg width={112} height={112} viewBox="0 0 112 112" style={{ flexShrink: 0 }}>
+        <circle cx={cxcy} cy={cxcy} r={r} fill="none" stroke="#e9ecef" strokeWidth={13} />
+        {due > 0 && (
+          <circle cx={cxcy} cy={cxcy} r={r} fill="none"
+            stroke={C.red} strokeWidth={13}
+            strokeDasharray={`${dueDash} ${circ - dueDash}`}
+            strokeDashoffset={dueOffset}
+            strokeLinecap="butt"
+            style={{ transform: "rotate(-90deg)", transformOrigin: `${cxcy}px ${cxcy}px` }}
+          />
+        )}
+        {paid > 0 && (
+          <circle cx={cxcy} cy={cxcy} r={r} fill="none"
+            stroke={C.green} strokeWidth={13}
+            strokeDasharray={`${paidDash} ${circ - paidDash}`}
+            strokeDashoffset={0}
+            strokeLinecap="butt"
+            style={{ transform: "rotate(-90deg)", transformOrigin: `${cxcy}px ${cxcy}px` }}
+          />
+        )}
+        <text x={cxcy} y={cxcy - 5} textAnchor="middle" fill={C.dark} fontSize={18} fontWeight={900} fontFamily="Plus Jakarta Sans, sans-serif">{pct}%</text>
+        <text x={cxcy} y={cxcy + 11} textAnchor="middle" fill={C.mid} fontSize={9.5} fontWeight={700} fontFamily="Plus Jakarta Sans, sans-serif">paid</text>
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div style={{ width: 9, height: 9, borderRadius: "50%", background: C.green, flexShrink: 0 }} />
+          <div>
+            <span style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.mid, lineHeight: "1.2" }}>Paid</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: C.green, lineHeight: "1.3" }}>{fmt(paid)}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div style={{ width: 9, height: 9, borderRadius: "50%", background: C.red, flexShrink: 0 }} />
+          <div>
+            <span style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.mid, lineHeight: "1.2" }}>Pending</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: C.red, lineHeight: "1.3" }}>{fmt(due)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Badge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    paid:    { bg: C.greenBg, color: C.green   },
+    partial: { bg: "#fff7ed", color: "#c2410c" },
+    unpaid:  { bg: C.redBg,  color: C.red      },
+    waived:  { bg: "#eff6ff", color: "#1d4ed8" },
+  };
+  const st = map[status] ?? map.unpaid;
+  return (
+    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, background: st.bg, color: st.color, textTransform: "capitalize" }}>
+      {status}
+    </span>
+  );
+}
 
 export default function StudentFeesPage() {
-  const { data: collections, loading } = useApi<any[]>('/fees/me/collections');
-  const { data: payments } = useApi<any[]>('/fees/me/payments');
+  const { data: collections, loading: colLoading } = useApi<any[]>("/fees/me/collections");
+  const { data: payments,    loading: payLoading  } = useApi<any[]>("/fees/me/payments");
 
-  const totalDue = (collections || []).reduce((sum, c) => sum + Number(c.remaining_amount || 0), 0);
-  const totalPaid = (collections || []).reduce((sum, c) => sum + Number(c.paid_amount || 0), 0);
-  const totalCollections = collections?.length || 0;
+  const totalAmount = (collections ?? []).reduce((s, c) => s + Number(c.total_amount    ?? 0), 0);
+  const totalPaid   = (collections ?? []).reduce((s, c) => s + Number(c.paid_amount     ?? 0), 0);
+  const totalDue    = (collections ?? []).reduce((s, c) => s + Number(c.remaining_amount ?? 0), 0);
+  const count       = collections?.length ?? 0;
+  const paidCount   = (collections ?? []).filter(c => c.status === "paid").length;
+
+  const loading = colLoading || payLoading;
 
   return (
     <>
+      <style>{FONT}</style>
       <style>{`
-        .sf-page {
-          min-height: 100vh;
-          background: #f6f8fa;
-          padding-bottom: 60px;
-        }
-
-        .sf-content {
-          max-width: 1100px;
-          margin: 0 auto;
-          padding: 30px 24px;
-        }
-
-        /* ── Header ── */
-        .sf-header-wrap {
-          margin-bottom: 24px;
-        }
-        .sf-title {
-          font-size: 24px;
-          font-weight: 800;
-          color: #1f2d36;
-          margin: 0 0 4px 0;
-        }
-        .sf-subtitle {
-          font-size: 13px;
-          color: #6a7882;
-          margin: 0;
-          font-weight: 600;
-        }
-
-        /* ── Stats Grid ── */
-        .sf-stats {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-        .sf-stat-card {
-          background: #fff;
-          border-radius: 20px;
-          padding: 24px;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.03);
-          border: 1px solid #e2e8f0;
-        }
-        .sf-icon-wrap {
-          width: 56px;
-          height: 56px;
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          flex-shrink: 0;
-        }
-        
-        .sf-icon-orange { background: #fff3e0; color: #ff9b51; }
-        .sf-icon-green  { background: #e2f6ee; color: #12805c; }
-        .sf-icon-blue   { background: #e8edff; color: #4b8ff7; }
-        
-        .sf-stat-info p {
-          font-size: 12px;
-          color: #94a3b8;
-          font-weight: 700;
-          margin: 0 0 2px 0;
-          text-transform: uppercase;
-        }
-        .sf-stat-info h3 {
-          font-size: 24px;
-          font-weight: 800;
-          color: #1f2d36;
-          margin: 0;
-        }
-
-        /* ── Sections ── */
-        .sf-section {
-          background: #fff;
-          border-radius: 20px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.03);
-          overflow: hidden;
-          margin-bottom: 30px;
-        }
-        .sf-section-header {
-          padding: 20px 24px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .sf-section-title {
-          font-size: 16px;
-          font-weight: 800;
-          color: #1f2d36;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        
-        /* ── Tables ── */
-        .sf-table-wrap {
-          overflow-x: auto;
-        }
-        .sf-table {
-          width: 100%;
-          border-collapse: collapse;
-          text-align: left;
-        }
-        .sf-table th {
-          background: #f8fafc;
-          color: #6a7882;
-          font-size: 11px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 14px 24px;
-          border-bottom: 1px solid #e2e8f0;
-          white-space: nowrap;
-        }
-        .sf-table td {
-          padding: 16px 24px;
-          font-size: 13px;
-          color: #1f2d36;
-          border-bottom: 1px solid #f1f5f9;
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .sf-table tbody tr:last-child td {
-          border-bottom: none;
-        }
-        .sf-table tbody tr:hover {
-          background: #fdfefe;
-        }
-        .sf-fee-name {
-          font-weight: 800;
-          color: #1f2d36;
-        }
-        .sf-amount-bold {
-          font-weight: 800;
-          color: #1f2d36;
-        }
-        .sf-amount-due {
-          font-weight: 800;
-          color: #ff5252;
-        }
-
-        /* ── Badges ── */
-        .sf-badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 6px 12px;
-          border-radius: 8px;
-          font-size: 11px;
-          font-weight: 800;
-          text-transform: uppercase;
-        }
-        .sf-badge-paid { background: #e2f6ee; color: #12805c; }
-        .sf-badge-partial { background: #fff3e0; color: #e65100; }
-        .sf-badge-unpaid { background: #ffebee; color: #c62828; }
-        .sf-badge-waived { background: #e8edff; color: #283593; }
-
-        @media (max-width: 768px) {
-          .sf-content { padding: 20px 16px; }
-          .sf-stats { grid-template-columns: 1fr; gap: 16px; }
-          .sf-stat-card { padding: 16px; }
-          .sf-section-header { padding: 16px; }
-          .sf-table th, .sf-table td { padding: 14px 16px; }
-        }
+        .sf { min-height: 100vh; background: ${C.bg}; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; box-sizing: border-box; }
+        .sf *, .sf *::before, .sf *::after { box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif !important; }
+        .sf p { margin: 0 !important; font-size: 13px !important; font-weight: 600 !important; text-transform: none !important; letter-spacing: 0 !important; color: ${C.mid}; line-height: 1.4; }
+        .sf h1, .sf h2, .sf h3, .sf h4 { margin: 0 !important; font-size: 15px !important; font-weight: 800 !important; text-transform: none !important; letter-spacing: 0 !important; color: ${C.dark}; line-height: 1.3; }
+        .sf strong { font-weight: 900; text-transform: none !important; letter-spacing: 0 !important; }
+        .sf-main { padding: 14px; max-width: 960px; margin: 0 auto; }
+        @media (min-width: 640px) { .sf-main { padding: 22px 26px 44px; } }
+        .sf-hero { display: flex; flex-direction: column; gap: 14px; }
+        @media (min-width: 580px) { .sf-hero { flex-direction: row; align-items: center; } }
+        .sf-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; }
+        .sf-card { background: ${C.white}; border-radius: 14px; border: 1px solid ${C.border}; box-shadow: 0 1px 8px rgba(31,45,54,.05); overflow: hidden; }
+        .sf-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .sf-table { width: 100%; border-collapse: collapse; }
+        .sf-table th { background: ${C.light}; color: ${C.mid} !important; font-size: 11px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.4px !important; padding: 11px 14px; border-bottom: 1px solid ${C.border}; white-space: nowrap; }
+        .sf-table td { padding: 13px 14px; font-size: 13px !important; color: ${C.dark}; border-bottom: 1px solid ${C.border}; font-weight: 600 !important; text-transform: none !important; letter-spacing: 0 !important; }
+        .sf-table tbody tr:last-child td { border-bottom: none; }
+        .sf-table tbody tr:hover { background: ${C.light}; }
+        .sf-method { display: inline-block; padding: 2px 8px; border-radius: 6px; background: ${C.light}; color: ${C.mid} !important; font-size: 10px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.4px !important; white-space: nowrap; }
+        .sf-empty { padding: 2.5rem; text-align: center; color: ${C.mid}; font-size: 13px !important; font-weight: 600 !important; }
+        .print-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 7px; border: none; background: ${C.navy}; color: #fff !important; font-weight: 800 !important; font-size: 11px !important; text-decoration: none; cursor: pointer; text-transform: none !important; letter-spacing: 0 !important; }
+        .print-btn:hover { background: #2d5a8e; }
       `}</style>
-      
-      <div className="sf-page">
-        <Topbar title="My Fees" subtitle="Your fee collections and payment history" />
 
-        <main className="sf-content">
+      <div className="sf">
+        <Topbar title="My Fees" subtitle="Your fee records and payment receipts" />
+        <div className="sf-main">
           {loading ? (
-            <div style={{ padding: '4rem', textAlign: 'center' }}><Spinner size={40} color="#ff9b51" /></div>
+            <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color={C.brand} /></div>
           ) : (
-            <>
-              <div className="sf-header-wrap">
-                <h1 className="sf-title">Fee Management</h1>
-                <p className="sf-subtitle">Track your payments, upcoming dues, and past receipts.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* ── Hero ── */}
+              <div className="sf-hero">
+                <div style={{ flexShrink: 0, padding: "4px 0" }}>
+                  <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.mid, textTransform: "uppercase", letterSpacing: 0.4 }}>Fee Overview</span>
+                  <div style={{ marginTop: 12 }}>
+                    <DonutChart paid={totalPaid} due={totalDue} total={totalAmount || totalPaid + totalDue} />
+                  </div>
+                </div>
+                <div className="sf-stats">
+                  {[
+                    { icon: "fa-file-invoice-dollar", label: "Total Billed", val: fmt(totalAmount), iconBg: "#fff7ed", iconColor: C.brand   },
+                    { icon: "fa-circle-check",        label: "Total Paid",   val: fmt(totalPaid),   iconBg: C.greenBg, iconColor: C.green   },
+                    { icon: "fa-hourglass-half",      label: "Pending",      val: fmt(totalDue),    iconBg: C.redBg,   iconColor: C.red     },
+                    { icon: "fa-list-check",          label: "Records",      val: `${paidCount}/${count} paid`, iconBg: "#f0f9ff", iconColor: "#0284c7" },
+                  ].map(st => (
+                    <div key={st.label} className="sf-card" style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: st.iconBg, color: st.iconColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                        <i className={`fa-solid ${st.icon}`} />
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.mid, textTransform: "uppercase", letterSpacing: 0.4 }}>{st.label}</span>
+                        <span style={{ display: "block", fontSize: 14, fontWeight: 900, color: C.dark, marginTop: 2 }}>{st.val}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* ── Stats Section ── */}
-              <div className="sf-stats">
-                <div className="sf-stat-card">
-                  <div className="sf-icon-wrap sf-icon-orange"><i className="fa-solid fa-wallet" /></div>
-                  <div className="sf-stat-info">
-                    <p>Total Due</p>
-                    <h3>{formatINR(totalDue)}</h3>
-                  </div>
-                </div>
-                <div className="sf-stat-card">
-                  <div className="sf-icon-wrap sf-icon-green"><i className="fa-solid fa-circle-check" /></div>
-                  <div className="sf-stat-info">
-                    <p>Total Paid</p>
-                    <h3>{formatINR(totalPaid)}</h3>
-                  </div>
-                </div>
-                <div className="sf-stat-card">
-                  <div className="sf-icon-wrap sf-icon-blue"><i className="fa-solid fa-file-invoice-dollar" /></div>
-                  <div className="sf-stat-info">
-                    <p>Fee Records</p>
-                    <h3>{totalCollections}</h3>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Fee Records Section ── */}
-              <div className="sf-section">
-                <div className="sf-section-header">
-                  <h2 className="sf-section-title"><i className="fa-solid fa-list-check" style={{color: '#4b8ff7'}}></i> Fee Collections</h2>
+              {/* ── Fee Collections ── */}
+              <div className="sf-card">
+                <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: C.dark }}>Fee Collections</span>
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.mid, marginTop: 3 }}>{count} record{count !== 1 ? "s" : ""} this academic year</span>
                 </div>
                 <div className="sf-table-wrap">
                   <table className="sf-table">
                     <thead>
                       <tr>
                         <th>Fee Name</th>
-                        <th>Due Date</th>
                         <th>Total</th>
                         <th>Discount</th>
                         <th>Fine</th>
@@ -245,74 +280,104 @@ export default function StudentFeesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(collections || []).map((c) => {
-                        let badgeClass = 'sf-badge-waived';
-                        if (c.status === 'paid') badgeClass = 'sf-badge-paid';
-                        if (c.status === 'partial') badgeClass = 'sf-badge-partial';
-                        if (c.status === 'unpaid') badgeClass = 'sf-badge-unpaid';
-
-                        return (
-                          <tr key={c.id}>
-                            <td className="sf-fee-name">{c.fee_name}</td>
-                            <td>{new Date(c.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric'})}</td>
-                            <td className="sf-amount-bold">{formatINR(c.total_amount)}</td>
-                            <td style={{color: '#12805c'}}>{Number(c.discount_amount) > 0 ? `-${formatINR(c.discount_amount)}` : '-'}</td>
-                            <td style={{color: '#ff5252'}}>{Number(c.fine_amount) > 0 ? `+${formatINR(c.fine_amount)}` : '-'}</td>
-                            <td style={{color: '#12805c', fontWeight: 800}}>{formatINR(c.paid_amount)}</td>
-                            <td className="sf-amount-due">{formatINR(c.remaining_amount)}</td>
-                            <td><span className={`sf-badge ${badgeClass}`}>{c.status}</span></td>
-                          </tr>
-                        );
-                      })}
-                      {(!collections || collections.length === 0) && (
-                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: 13 }}>No fee records found for this academic year.</td></tr>
+                      {(collections ?? []).map(c => (
+                        <tr key={c.id}>
+                          <td style={{ fontWeight: 800, color: C.dark, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.fee_name}</td>
+                          <td style={{ fontWeight: 800 }}>{fmt(c.total_amount)}</td>
+                          <td style={{ color: C.green, fontWeight: 700 }}>{Number(c.discount_amount) > 0 ? `−${fmt(c.discount_amount)}` : "—"}</td>
+                          <td style={{ color: C.red, fontWeight: 700 }}>{Number(c.fine_amount) > 0 ? `+${fmt(c.fine_amount)}` : "—"}</td>
+                          <td style={{ color: C.green, fontWeight: 800 }}>{fmt(c.paid_amount)}</td>
+                          <td style={{ color: Number(c.remaining_amount) > 0 ? C.red : C.mid, fontWeight: 800 }}>{fmt(c.remaining_amount)}</td>
+                          <td><Badge status={c.status} /></td>
+                        </tr>
+                      ))}
+                      {count === 0 && (
+                        <tr><td colSpan={7} className="sf-empty">
+                          <i className="fa-solid fa-file-invoice-dollar" style={{ display: "block", fontSize: 26, marginBottom: 8, opacity: 0.25 }} />
+                          No fee records found.
+                        </td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* ── Payment History Section ── */}
-              <div className="sf-section">
-                <div className="sf-section-header">
-                  <h2 className="sf-section-title"><i className="fa-solid fa-clock-rotate-left" style={{color: '#12805c'}}></i> Payment History</h2>
+              {/* ── Payment History with Print Receipts ── */}
+              <div className="sf-card">
+                <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: C.dark }}>
+                      <i className="fa-solid fa-receipt" style={{ marginRight: 8, color: C.brand }} />
+                      Payment History
+                    </span>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.mid, marginTop: 3 }}>
+                      {payments?.length ?? 0} payment{(payments?.length ?? 0) !== 1 ? "s" : ""} — click Print to open a receipt
+                    </span>
+                  </div>
                 </div>
                 <div className="sf-table-wrap">
                   <table className="sf-table">
                     <thead>
                       <tr>
                         <th>Receipt No.</th>
-                        <th>Fee Reference</th>
-                        <th>Amount Paid</th>
+                        <th>Fee Name</th>
                         <th>Date</th>
-                        <th>Payment Method</th>
+                        <th>Amount Paid</th>
+                        <th>Method</th>
+                        <th>Receipt</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(payments || []).map((p) => (
+                      {(payments ?? []).map((p: any) => (
                         <tr key={p.id}>
-                          <td className="sf-fee-name" style={{fontFamily: 'monospace'}}>{p.receipt_number}</td>
-                          <td>{p.fee_name}</td>
-                          <td className="sf-amount-bold" style={{color: '#12805c'}}>{formatINR(p.paid_amount)}</td>
-                          <td>{new Date(p.payment_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'})}</td>
+                          <td style={{ fontWeight: 900, color: C.navy }}>{p.receipt_number}</td>
+                          <td style={{ fontWeight: 700, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fee_name || "—"}</td>
+                          <td style={{ color: C.mid, whiteSpace: "nowrap" }}>{fmtDate(p.payment_date)}</td>
+                          <td style={{ fontWeight: 900, color: C.green }}>{fmt(p.paid_amount)}</td>
                           <td>
-                            <span style={{background: '#f1f5f9', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, color: '#6a7882', textTransform: 'uppercase', letterSpacing: '0.5px'}}>
-                              {p.payment_method?.replace('_', ' ')}
-                            </span>
+                            {p.payment_method
+                              ? <span className="sf-method">{p.payment_method.replace(/_/g, " ")}</span>
+                              : <span style={{ color: C.mid, fontSize: 12 }}>—</span>}
                           </td>
+                          <td>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                               <ReceiptButton paymentId={p.id} />
+                               <a
+                                 className="print-btn"
+                                 href={`/student/fees/receipt/${p.id}`}
+                                 target="_blank"
+                                 rel="noreferrer"
+                                 title="Open printable HTML receipt"
+                               >
+                                 <i className="fa-solid fa-print" style={{ fontSize: 10 }} />
+                                 Print
+                               </a>
+                             </div>
+                           </td>
                         </tr>
                       ))}
-                      {(!payments || payments.length === 0) && (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: 13 }}>No payment history available.</td></tr>
+                      {!payments?.length && (
+                        <tr><td colSpan={6} className="sf-empty">
+                          <i className="fa-solid fa-receipt" style={{ display: "block", fontSize: 24, marginBottom: 8, opacity: 0.2 }} />
+                          No payments recorded yet.
+                        </td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-            </>
+              {/* Footer note */}
+              <div style={{ padding: "11px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", gap: 9, alignItems: "flex-start" }}>
+                <i className="fa-solid fa-circle-info" style={{ flexShrink: 0, color: "#c2410c", marginTop: 1, fontSize: 13 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>
+                  For any discrepancies in your fee records, please contact your school administration.
+                </span>
+              </div>
+
+            </div>
           )}
-        </main>
+        </div>
       </div>
     </>
   );

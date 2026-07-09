@@ -12,7 +12,11 @@ import {
   generateMonthlyFeeBillsService,
   generateTransportBillsService, getTransportFeeSummaryService,
   generateHostelBillsService, getHostelFeeSummaryService,
+  getPaymentReceiptService,
 } from '../Service/fee.service';
+
+const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
+  'school_id' in user ? user.school_id : user.id;
 
 // ── FEE STRUCTURE CONTROLLERS (ADMIN) ──
 
@@ -25,16 +29,10 @@ export const createFeeStructure = catchAsync(async (req: Request, res: Response,
 export const getFeeStructures = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { class_id, academic_year_id } = req.query;
-
   if (!class_id || !academic_year_id) {
     return sendResponse(res, 400, false, 'class_id and academic_year_id are required', null);
   }
-
-  const result = await getFeeStructuresService(
-    Number(class_id),
-    school_id,
-    Number(academic_year_id)
-  );
+  const result = await getFeeStructuresService(Number(class_id), school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Fee structures fetched successfully', result);
 });
 
@@ -61,11 +59,9 @@ export const createFeeCollection = catchAsync(async (req: Request, res: Response
 export const getFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-
   const result = await getFeeCollectionsService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Fee collections fetched successfully', result);
 });
@@ -102,7 +98,7 @@ export const getStudentPayments = catchAsync(async (req: Request, res: Response,
   sendResponse(res, 200, true, 'Student payments fetched successfully', result);
 });
 
-// ── SELF-SERVICE CONTROLLERS (STUDENT'S OWN FEES) ──
+// ── SELF-SERVICE CONTROLLERS (STUDENT) ──
 
 export const getMyFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id } = req.user as IJwtUserPayload;
@@ -116,83 +112,75 @@ export const getMyPayments = catchAsync(async (req: Request, res: Response, next
   sendResponse(res, 200, true, 'Your payments fetched successfully', result);
 });
 
-// ── ACADEMIC MONTHLY BILLING CONTROLLERS (ADMIN) ──
+// ── MONTHLY BILLING ──
 
 export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id, billing_month } = req.body;
-
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
   }
-
-  const result = await generateMonthlyFeeBillsService(
-    school_id, school_id, Number(academic_year_id), billing_month
-  );
-  sendResponse(res, 201, true,
-    `Academic monthly bills generated: ${result.created} created, ${result.skipped} skipped`,
-    result
-  );
+  const result = await generateMonthlyFeeBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  sendResponse(res, 201, true, `Bills generated: ${result.created} created, ${result.skipped} skipped`, result);
 });
 
-// ── TRANSPORT BILLING CONTROLLERS (ADMIN) ──
+// ── TRANSPORT BILLING ──
 
 export const generateTransportBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id, billing_month } = req.body;
-
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
   }
-
-  const result = await generateTransportBillsService(
-    school_id, school_id, Number(academic_year_id), billing_month
-  );
-  sendResponse(res, 201, true,
-    `Transport bills generated: ${result.created} created, ${result.skipped} skipped`,
-    result
-  );
+  const result = await generateTransportBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  sendResponse(res, 201, true, `Transport bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
 
 export const getTransportFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-
   const result = await getTransportFeeSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Transport fee summary fetched', result);
 });
 
-// ── HOSTEL BILLING CONTROLLERS (ADMIN) ──
+// ── HOSTEL BILLING ──
 
 export const generateHostelBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id, billing_month } = req.body;
-
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
   }
-
-  const result = await generateHostelBillsService(
-    school_id, school_id, Number(academic_year_id), billing_month
-  );
-  sendResponse(res, 201, true,
-    `Hostel bills generated: ${result.created} created, ${result.skipped} skipped`,
-    result
-  );
+  const result = await generateHostelBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  sendResponse(res, 201, true, `Hostel bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
 
 export const getHostelFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-
   const result = await getHostelFeeSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Hostel fee summary fetched', result);
+});
+
+// ── PAYMENT RECEIPT ──
+// Accessible by admin (any payment in their school) AND student (own payments only).
+export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const user       = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id  = resolveSchoolId(user);
+  const payment_id = Number(req.params.id);
+
+  const result = await getPaymentReceiptService(payment_id, school_id);
+
+  // Student: only their own receipts
+  if ('school_id' in user && result.student_id !== user.id) {
+    return sendResponse(res, 403, false, 'You do not have access to this receipt.', null);
+  }
+
+  sendResponse(res, 200, true, 'Payment receipt fetched', result);
 });

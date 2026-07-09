@@ -1,7 +1,7 @@
 import multer, { FileFilterCallback } from 'multer';
 import { Request } from 'express';
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE_BYTES     = 2 * 1024 * 1024; // 2 MB
 
 const fileFilter = (
@@ -12,18 +12,15 @@ const fileFilter = (
   if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPEG, PNG and WebP images are allowed.'));
+    cb(new Error('Only JPEG, PNG or WebP images are allowed.'));
   }
 };
 
-/**
- * Multer middleware — memory storage, 2 MB cap, images only.
- * Accepts a single file in the `photo` field.
- */
+// Memory storage — buffer is available as req.file.buffer
 const upload = multer({
-  storage:  multer.memoryStorage(),
-  limits:   { fileSize: MAX_SIZE_BYTES },
+  storage:   multer.memoryStorage(),
+  limits:    { fileSize: MAX_SIZE_BYTES },
   fileFilter,
 });
 
-export const uploadSingle = upload.single('photo');
+export default upload;

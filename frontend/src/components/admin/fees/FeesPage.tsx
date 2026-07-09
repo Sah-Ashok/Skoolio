@@ -24,24 +24,34 @@ export default function FeesPage() {
   const { data: collections, loading } = useApi<any[]>(activeYear?.id ? `/fees/collections?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
 
   const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [generating, setGenerating]     = useState(false);
+  const [generating, setGenerating]     = useState<string | false>(false);
 
-  const handleGenerateMonthlyBills = async () => {
+  const handleGenerateBills = async (type: 'academic' | 'transport' | 'hostel') => {
     if (!activeYear?.id || !billingMonth) return;
-    setGenerating(true);
+    setGenerating(type);
+    const ENDPOINTS: Record<string, string> = {
+      academic:  '/fees/monthly/generate',
+      transport: '/fees/transport/generate',
+      hostel:    '/fees/hostel/generate',
+    };
+    const LABELS: Record<string, string> = {
+      academic:  'Academic',
+      transport: 'Transport',
+      hostel:    'Hostel',
+    };
     try {
-      const res = await apiRequest<{ data: any }>('/fees/monthly/generate', {
+      const res = await apiRequest<{ data: any }>(ENDPOINTS[type], {
         method: 'POST',
         body: JSON.stringify({ academic_year_id: activeYear.id, billing_month: billingMonth }),
       });
-      const { created, skipped, errors } = res.data || {};
+      const { created, skipped, errors } = res.data ?? res;
       if (errors?.length) {
-        dispatch(showToast({ type: 'error', title: 'Partial Success', message: `${created} created, ${skipped} skipped, ${errors.length} errors.` }));
+        dispatch(showToast({ type: 'error', title: 'Partial Success', message: `${LABELS[type]}: ${created} created, ${skipped} skipped, ${errors.length} errors.` }));
       } else {
-        dispatch(showToast({ type: 'success', title: 'Monthly Bills Generated', message: `${created} new bills created, ${skipped} already existed.` }));
+        dispatch(showToast({ type: 'success', title: `${LABELS[type]} Bills Generated`, message: `${created} new bills created, ${skipped} already existed.` }));
       }
     } catch (err: any) {
-      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || 'Could not generate bills.' }));
+      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || `Could not generate ${LABELS[type].toLowerCase()} bills.` }));
     } finally {
       setGenerating(false);
     }
@@ -129,15 +139,15 @@ export default function FeesPage() {
           <QuickAction href="/fees/records" icon="fa-table-list" title="All Records" text="View all payments" />
         </section>
 
-        {/* ── GENERATE MONTHLY BILLS ── */}
+        {/* ── GENERATE BILLS PANEL ── */}
         <section className={s("card")} style={{ marginBottom: 0 }}>
           <div className={s("card-head")}>
             <div>
               <h3><i className="fa-solid fa-calendar-plus" style={{ color: "#ff9b51", marginRight: 8 }} />Generate Monthly Bills</h3>
-              <p>Batch-create academic fee collections for all enrolled students for a billing month. Applies scholarship discounts automatically. Skips already-billed students.</p>
+              <p>Batch-create fee collections for all enrolled students. Applies scholarship discounts. Skips already-billed students — safe to run multiple times.</p>
             </div>
           </div>
-          <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap", borderBottom: "1px solid #f0f4f5" }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 900 }}>Billing Month</label>
               <input
@@ -147,18 +157,38 @@ export default function FeesPage() {
                 style={{ minHeight: 40, padding: "0 12px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 13, fontWeight: 800, outline: "none" }}
               />
             </div>
-            <button
-              className={cx(s("btn"), s("btn-primary"))}
-              onClick={handleGenerateMonthlyBills}
-              disabled={generating || !activeYear?.id}
-            >
-              {generating
-                ? <><Spinner size={15} color="#fff" /> Generating…</>
-                : <><i className="fa-solid fa-bolt" /> Generate Bills</>}
-            </button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                className={cx(s("btn"), s("btn-primary"))}
+                onClick={() => handleGenerateBills('academic')}
+                disabled={generating || !activeYear?.id}
+              >
+                {generating === 'academic'
+                  ? <><Spinner size={15} color="#fff" /> Generating…</>
+                  : <><i className="fa-solid fa-graduation-cap" /> Academic Fees</>}
+              </button>
+              <button
+                className={cx(s("btn"), s("btn-soft"))}
+                onClick={() => handleGenerateBills('transport')}
+                disabled={!!generating || !activeYear?.id}
+              >
+                {generating === 'transport'
+                  ? <><Spinner size={15} /> Generating…</>
+                  : <><i className="fa-solid fa-bus" /> Transport Fees</>}
+              </button>
+              <button
+                className={cx(s("btn"), s("btn-soft"))}
+                onClick={() => handleGenerateBills('hostel')}
+                disabled={!!generating || !activeYear?.id}
+              >
+                {generating === 'hostel'
+                  ? <><Spinner size={15} /> Generating…</>
+                  : <><i className="fa-solid fa-building" /> Hostel Fees</>}
+              </button>
+            </div>
             <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, alignSelf: "center" }}>
               <i className="fa-solid fa-circle-info" style={{ marginRight: 5 }} />
-              Idempotent — safe to run multiple times. Scholarship discounts applied automatically.
+              Idempotent — scholarship discounts auto-applied on academic bills.
             </p>
           </div>
         </section>

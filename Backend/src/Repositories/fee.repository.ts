@@ -112,9 +112,6 @@ export const createFeeCollection = async (
   remaining_amount: number,
   fee_type:         FeeType = 'academic'
 ): Promise<IFeeCollection> => {
-  // fee_structure_id and enrollment_id may legitimately be null for
-  // transport / hostel collections (no fee_structure row exists for them).
-  // The DB column was migrated to allow NULL — always pass null, never 0.
   const result = await pool.query(
     `INSERT INTO fee_collections
       (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
@@ -126,8 +123,8 @@ export const createFeeCollection = async (
     [
       school_id,
       data.student_id,
-      data.enrollment_id   ?? null,   // null for transport/hostel
-      data.fee_structure_id ?? null,  // null for transport/hostel
+      data.enrollment_id   ?? null,
+      data.fee_structure_id ?? null,
       data.academic_year_id,
       fee_name,
       fee_type,
@@ -138,7 +135,7 @@ export const createFeeCollection = async (
       data.fine_amount     || 0,
       data.fine_reason     || null,
       net_amount,
-      0,                              // paid_amount starts at 0
+      0,
       remaining_amount,
       'unpaid',
       created_by,
@@ -248,7 +245,6 @@ export const updateCollectionPaidAmount = async (
   return result.rows[0] || null;
 };
 
-// ── ACADEMIC FEE DUPLICATE CHECK ──
 export const getAcademicFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
@@ -266,7 +262,6 @@ export const getAcademicFeeForPeriod = async (
   return result.rows[0] || null;
 };
 
-// ── TRANSPORT FEE DUPLICATE CHECK ──
 export const getTransportFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
@@ -285,7 +280,6 @@ export const getTransportFeeForPeriod = async (
   return result.rows[0] || null;
 };
 
-// ── HOSTEL FEE DUPLICATE CHECK ──
 export const getHostelFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
@@ -304,7 +298,6 @@ export const getHostelFeeForPeriod = async (
   return result.rows[0] || null;
 };
 
-// ── TRANSPORT FEE SUMMARY ──
 export const getTransportFeeSummary = async (
   school_id:        number,
   academic_year_id: number
@@ -326,7 +319,6 @@ export const getTransportFeeSummary = async (
   return result.rows[0];
 };
 
-// ── HOSTEL FEE SUMMARY ──
 export const getHostelFeeSummary = async (
   school_id:        number,
   academic_year_id: number
@@ -418,10 +410,70 @@ export const getLastReceiptNumber = async (
   return result.rows[0]?.receipt_number || null;
 };
 
+// ── PAYMENT WITH FULL DETAIL (for receipt printing) ──
+// FIX: added JOIN to sections table (sec) — student_enrollments has no 'name' column
+export const getPaymentWithDetails = async (
+  payment_id: number,
+  school_id:  number
+): Promise<any | null> => {
+  const result = await pool.query(
+    `SELECT
+       fp.id              AS payment_id,
+       fp.receipt_number,
+       fp.paid_amount,
+       fp.payment_date::text,
+       fp.payment_method,
+       fp.transaction_id,
+       fp.remarks         AS payment_remarks,
+       fp.created_at,
+
+       fc.id              AS collection_id,
+       fc.fee_name,
+       fc.fee_type,
+       fc.total_amount,
+       fc.discount_amount,
+       fc.discount_reason,
+       fc.fine_amount,
+       fc.fine_reason,
+       fc.net_amount,
+       fc.due_date::text,
+       fc.academic_year_id,
+
+       s.id               AS student_id,
+       s.full_name        AS student_name,
+       s.admission_number,
+
+       ay.year_name,
+
+       sc.school_name,
+       sc.email           AS school_email,
+       sc.phone           AS school_phone,
+       sc.city            AS school_city,
+       sc.logo            AS school_logo,
+
+       cl.name            AS class_name,
+       sec.name           AS section_name
+
+     FROM fee_payments fp
+     INNER JOIN fee_collections fc   ON fc.id  = fp.collection_id
+     INNER JOIN students s           ON s.id   = fp.student_id
+     INNER JOIN schools sc           ON sc.id  = fp.school_id
+     LEFT  JOIN academic_years ay    ON ay.id  = fc.academic_year_id
+     LEFT  JOIN student_enrollments se
+       ON se.student_id      = fp.student_id
+      AND se.school_id       = fp.school_id
+      AND se.academic_year_id = fc.academic_year_id
+      AND se.status          = 'active'
+     LEFT  JOIN classes cl   ON cl.id  = se.class_id
+     LEFT  JOIN sections sec ON sec.id = se.section_id
+     WHERE fp.id = $1 AND fp.school_id = $2
+     LIMIT 1`,
+    [payment_id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
 // ── ATOMIC PAYMENT TRANSACTION ──
-// Generates a receipt number and records the payment + collection update
-// inside a single transaction with SELECT ... FOR UPDATE to prevent
-// duplicate RCP numbers under concurrent requests.
 export const createFeePaymentAtomic = async (
   school_id:    number,
   collected_by: number,
@@ -437,8 +489,6 @@ export const createFeePaymentAtomic = async (
   try {
     await client.query('BEGIN');
 
-    // Lock the most-recent receipt row for this school so concurrent
-    // transactions queue here and can't both read the same last number.
     const lockResult = await client.query(
       `SELECT receipt_number FROM fee_payments
        WHERE school_id = $1
@@ -453,12 +503,10 @@ export const createFeePaymentAtomic = async (
     if (!last) {
       receipt_number = 'RCP-000001';
     } else {
-      // Parse the numeric portion after 'RCP-' — supports any width
       const lastNum = parseInt(last.replace('RCP-', ''), 10);
       receipt_number = `RCP-${String(lastNum + 1).padStart(6, '0')}`;
     }
 
-    // Insert payment record
     const paymentResult = await client.query(
       `INSERT INTO fee_payments
         (school_id, collection_id, student_id, receipt_number, paid_amount,
@@ -480,7 +528,6 @@ export const createFeePaymentAtomic = async (
     );
     const payment: IFeePayment = paymentResult.rows[0];
 
-    // Update collection totals atomically in the same transaction
     const new_paid      = Number(collection.paid_amount) + Number(data.paid_amount);
     const new_remaining = Number(collection.net_amount)  - new_paid;
     const new_status    = new_remaining <= 0 ? 'paid' : 'partial';

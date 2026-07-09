@@ -7,6 +7,7 @@ import {
   getTransportFeeForPeriod, getTransportFeeSummary,
   getHostelFeeForPeriod, getHostelFeeSummary,
   getAcademicFeeForPeriod,
+  getPaymentWithDetails,
 } from '../Repositories/fee.repository';
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
@@ -581,4 +582,14 @@ export const getHostelFeeSummaryService = async (
   academic_year_id: number
 ) => {
   return getHostelFeeSummary(school_id, academic_year_id);
+};
+
+// ── PAYMENT DETAIL FOR RECEIPT ──
+export const getPaymentReceiptService = async (
+  payment_id: number,
+  school_id:  number
+) => {
+  const receipt = await getPaymentWithDetails(payment_id, school_id);
+  if (!receipt) throw new AppError('Payment not found.', 404);
+  return receipt;
 };

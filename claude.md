@@ -1,6 +1,6 @@
 # SchoolPOS (Skoolio) — Project Coordination Notes
 
-> Last updated: July 2026 — Skoolio Project Manager
+> Last updated: July 2026 — Skoolio Project Manager (receipt/print module added)
 > **Every model must read this file at the start of every session.**
 > Read `schema.md` for full table structures, enum values, and common gotchas.
 
@@ -93,21 +93,27 @@ All migration files in `Backend/`. Run each once against your PostgreSQL DB.
 5. migration_scholarship.sql              ← scholarship_type/percent/remarks on students
 6. migration_transport_fee_collection.sql ← fee_type column + unique index on fee_collections
 7. migration_salary_deductions.sql        ← tax_amount/provident_fund/other_deduction on teacher_salaries
-8. migration_billing_start_rule.sql       ← billing_start_rule on fee_structures (WRITE THIS FILE)
-```
-
-**Migration 8 not yet written to disk — write this file:**
-```sql
--- Backend/migration_billing_start_rule.sql
-ALTER TABLE fee_structures
-  ADD COLUMN IF NOT EXISTS billing_start_rule VARCHAR(20) NOT NULL DEFAULT 'next_month';
--- Valid values: 'next_month' | 'skip_two_months' | 'academic_year'
--- 'next_month'      = first bill is the month after admission month (default, most common)
--- 'skip_two_months' = first bill is 2 months after admission (buffer for late joiners)
--- 'academic_year'   = bill from academic year start regardless of admission date
+8. migration_billing_start_rule.sql       ← billing_start_rule on fee_structures
+9. migration_receipt_pdf_columns.sql      ← receipt_pdf_url + receipt_pdf_status on fee_payments ← RUN THIS
 ```
 
 Also run `migration_class_subject_teachers.sql` at project root if not already done.
+
+**Migration 8 SQL (if file not yet on disk):**
+```sql
+ALTER TABLE fee_structures
+  ADD COLUMN IF NOT EXISTS billing_start_rule VARCHAR(20) NOT NULL DEFAULT 'next_month';
+```
+
+**Migration 9 SQL (file exists at Backend/migration_receipt_pdf_columns.sql):**
+```sql
+ALTER TABLE fee_payments
+  ADD COLUMN IF NOT EXISTS receipt_pdf_status VARCHAR(20) DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS receipt_pdf_url    TEXT        DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_fee_payments_receipt_status
+  ON fee_payments (id, school_id, receipt_pdf_status);
+```
 
 ---
 
@@ -121,6 +127,9 @@ Also run `migration_class_subject_teachers.sql` at project root if not already d
 /api/teachers          CRUD + salary (with deduction breakdown) + me/sections + me/salary
 /api/students          CRUD + enrollments + scholarship + subscription cap enforcement
 /api/fees              structures, collections, payments, transport auto-billing, monthly bill gen
+                       + POST /fees/payments/:id/generate-receipt (server-side PDF via worker thread)
+                       + GET  /fees/payments/:id/receipt-status   (poll for PDF ready)
+                       + GET  /fees/payments/:id                  (full payment detail for receipt)
 /api/attendance        mark (faculty/coordinator) + admin summary + student self-service
 /api/exams             CRUD + schedules + results + grade scales + publish flow
 /api/expenses          CRUD + categories + summary
@@ -132,6 +141,41 @@ Also run `migration_class_subject_teachers.sql` at project root if not already d
 /api/school            settings + change password + super-admin 2FA toggle + block/unblock
 ```
 
+### Receipt PDF system — FULLY BUILT (backend server-side, NOT browser print)
+
+**Architecture:**
+- `POST /fees/payments/:id/generate-receipt` — triggers background generation
+  - Checks DB: if `receipt_pdf_status = 'ready'` → returns cached Azure URL immediately (no re-generation)
+  - If `pending/failed/NULL` → claims slot atomically → spawns Worker thread → returns 202 `{ status: 'generating' }`
+  - If already `generating` → returns 202 immediately (no duplicate worker)
+- Worker thread (`Backend/src/workers/receipt-pdf.worker.ts`) — runs PDFKit off main loop
+  - Generates full PDF: school header, student details, fee breakdown, amount paid highlight, footer
+  - Posts Buffer back to main thread
+- Main thread uploads Buffer to Azure Blob (`school-receipts/School-Receipt/<school_id>/<receipt_number>.pdf`)
+- Saves URL + sets `receipt_pdf_status = 'ready'` in `fee_payments` table
+- `GET /fees/payments/:id/receipt-status` — lightweight poll, returns `{ status, url }`
+- Frontend polls every 1.5s until `status = 'ready'`, then opens PDF in new tab
+
+**Key files:**
+```
+Backend/src/Controllers/receipt.controller.ts    ← generateReceipt, getReceiptStatus
+Backend/src/Service/receipt.service.ts           ← generateReceiptPDFService, getReceiptStatusService
+Backend/src/Repositories/receipt.repository.ts  ← claimReceiptGeneration, saveReceiptUrl, markReceiptFailed, getReceiptPdfInfo
+Backend/src/workers/receipt-pdf.worker.ts        ← PDFKit PDF generation (Worker thread)
+Backend/src/utils/workerRunner.ts                ← runInWorker<T>() helper
+Backend/src/utils/tsWorkerBootstrap.js           ← ts-node bootstrap for Worker threads
+Backend/src/config/blob.ts                       ← uploadReceiptPDF, getReceiptURL, deleteReceiptPDF
+Backend/migration_receipt_pdf_columns.sql        ← adds receipt_pdf_status + receipt_pdf_url to fee_payments
+```
+
+**Idempotency guarantee:** Once a receipt is generated, the blob URL is stored in `fee_payments.receipt_pdf_url`.
+Subsequent clicks return the cached URL instantly — the worker never runs again for the same payment.
+
+**Frontend ReceiptButton component** (in `StudentFeesPage.tsx` + admin fee pages):
+- State machine: `idle → generating → ready` (or `error → retry`)
+- Shows spinner while polling, opens PDF when ready, shows "Open PDF" on subsequent clicks
+- Also has a "Print" link that opens `/student/fees/receipt/:id` (browser print fallback — HTML only)
+
 ### Frontend — all pages built and wired to real APIs
 **Admin**: Dashboard, Students (list/add wizard/profile/edit+scholarship), Teachers
 (list/add/profile/edit), Classes, Sections, Subjects, Academic Years, Calendar,
@@ -142,7 +186,7 @@ Transport, Hostel, My Subscription, Upgrade Plan, Settings.
 **Teacher**: Dashboard, Profile, Attendance Overview, Mark Attendance (coordinator-only),
 Results Entry (assigned subjects only), My Salary.
 
-**Student**: Dashboard, Profile, My Attendance, My Results, My Fees.
+**Student**: Dashboard, Profile, My Attendance, My Results, My Fees (with PDF receipt button).
 
 **Super Admin**: Dashboard, Schools (block/unblock + 2FA toggle), Subscriptions (plan editor),
 Settings (maintenance mode, platform name, support email).
@@ -186,8 +230,6 @@ cd Backend && npm install @azure/storage-blob multer @types/multer
 **Step 2 — Create `Backend/src/utils/azureStorage.ts`:**
 ```ts
 import { BlobServiceClient } from '@azure/storage-blob';
-import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
 
 const blobServiceClient = BlobServiceClient.fromConnectionString(
   process.env.AZURE_STORAGE_CONNECTION_STRING!
@@ -195,7 +237,7 @@ const blobServiceClient = BlobServiceClient.fromConnectionString(
 
 export const uploadToAzure = async (
   containerName: string,
-  blobName: string,       // e.g. "teachers/42/7.jpg"
+  blobName: string,
   buffer: Buffer,
   mimeType: string
 ): Promise<string> => {
@@ -207,49 +249,30 @@ export const uploadToAzure = async (
   return blockBlob.url;
 };
 
-export const deleteFromAzure = async (
-  containerName: string,
-  blobName: string
-): Promise<void> => {
+export const deleteFromAzure = async (containerName: string, blobName: string): Promise<void> => {
   const container = blobServiceClient.getContainerClient(containerName);
-  const blockBlob = container.getBlockBlobClient(blobName);
-  await blockBlob.deleteIfExists();
+  await container.getBlockBlobClient(blobName).deleteIfExists();
 };
 
-export const getLogoBlob   = (school_id: number, ext: string) => `${school_id}.${ext}`;
+export const getLogoBlob    = (school_id: number, ext: string) => `${school_id}.${ext}`;
 export const getTeacherBlob = (school_id: number, teacher_id: number, ext: string) => `teachers/${school_id}/${teacher_id}.${ext}`;
 export const getStudentBlob = (school_id: number, student_id: number, ext: string) => `students/${school_id}/${student_id}.${ext}`;
 ```
 
 **Step 3 — Create `Backend/src/Controllers/upload.controller.ts`:**
-Three endpoints, one per upload type:
+Three endpoints:
 - `POST /upload/logo` — admin only, uploads to `skoolio-logos`, updates `schools.logo`
 - `POST /upload/teacher-photo/:id` — admin only, uploads to `skoolio-profiles`, updates `teachers.photo`
 - `POST /upload/student-photo/:id` — admin only, uploads to `skoolio-profiles`, updates `students.photo`
 
-Each endpoint:
-1. Accepts `multipart/form-data` via `multer` (memory storage, 2MB limit, images only)
-2. Validates file type: `image/jpeg`, `image/png`, `image/webp` only
-3. Derives blob name from IDs (no random UUIDs — deterministic overwrites)
-4. Uploads to Azure via `uploadToAzure`
-5. Updates the relevant DB column with the returned URL
-6. Returns `{ url: '...' }` to the frontend
+Each: multer memory storage, 2MB limit, jpeg/png/webp only, deterministic blob name, returns `{ url }`.
 
-**Step 4 — Create `Backend/src/Routes/upload.routes.ts`:**
-```ts
-router.use(protect, restrictTo('admin', 'super_admin'));
-router.post('/logo',                multerMiddleware, uploadLogo);
-router.post('/teacher-photo/:id',   multerMiddleware, uploadTeacherPhoto);
-router.post('/student-photo/:id',   multerMiddleware, uploadStudentPhoto);
-```
-Register in `app.ts` as `/api/upload`.
+**Step 4 — Register in `app.ts` as `/api/upload`.**
 
 **Step 5 — Frontend wiring:**
-- School Settings page: file input → `POST /upload/logo` → update logo preview + Redux user.logo
-- Add/Edit Teacher form: file input → `POST /upload/teacher-photo/:id` → show preview
-- Add/Edit Student form: file input → `POST /upload/student-photo/:id` → show preview
-- Display: everywhere a photo/logo is shown, use `<img src={photo || defaultAvatar} />`
-- File input UX: show current photo as preview, click to change, show upload progress
+- School Settings: file input → `POST /upload/logo` → update logo preview + Redux user.logo
+- Add/Edit Teacher: file input → `POST /upload/teacher-photo/:id` → show preview
+- Add/Edit Student: file input → `POST /upload/student-photo/:id` → show preview
 
 ---
 
@@ -264,32 +287,21 @@ Register in `app.ts` as `/api/upload`.
 | `skip_two_months` | 2 months after admission month |
 | `academic_year` | Academic year start month regardless of admission |
 
-### Mid-month rule (applies to ALL rules)
+### Mid-month rule
 ```
-Generating bills for current month:
-  Student admitted day ≤ 15 → include this month
-  Student admitted day > 15 → skip this month, start next
+Student admitted day ≤ 15 → include this month
+Student admitted day > 15 → skip this month, start next
 ```
-
-### Bill generation logic
-- Admin clicks "Generate Monthly Bills" → generates current month ONLY
-- Idempotent — skips students who already have a bill for this month
-- Applies `billing_start_rule` to skip ineligible students
-- Applies `scholarship_percent`: `net = amount × (1 - pct/100)`
-- Creates `fee_collections` rows with `fee_type = 'academic'`
-- Never generates future months
 
 ### What to build
 1. `billing_start_rule` dropdown in fee structure add/edit form
-2. `generateMonthlyFeeBillsService` in `fee.service.ts` with rules above
+2. `generateMonthlyFeeBillsService` with rules above (applies scholarship_percent)
 3. `POST /fees/monthly/generate` with `{ academic_year_id, billing_month: 'YYYY-MM' }`
 4. "Generate Monthly Bills" button in Fee Management with month picker
 
 ---
 
 ## 🔴 P3 — Scholarship not applied to fees
-
-**Schema exists. Logic missing. Build after P1 and P2.**
 
 `students.scholarship_percent` exists in DB but is never used. Needs:
 - Applied in `generateMonthlyFeeBillsService` (auto-discount on bill creation)
@@ -301,12 +313,9 @@ Generating bills for current month:
 
 ## 🔴 P4 — Miscellaneous / Store items fee
 
-**No backend changes needed. Frontend only.**
-
 Schools need to bill for dress, tie, belt, books etc.
 Already supported via `fee_structures.frequency = 'one_time'`.
-Just needs clear UI: add a "Store / Miscellaneous Item" option in the fee structure form
-that sets `frequency = 'one_time'` and lets admin enter any custom name.
+Just needs clear UI: add a "Store / Miscellaneous Item" option in the fee structure form.
 
 ---
 
@@ -331,8 +340,7 @@ Fix: `SUM(amount_paid)` across all rows per school, not just the latest one.
 
 ## 🟡 P7 — Stale `.bak` files in teacher route group
 
-`(teacher)/attendance/page.tsx.bak` and `(teacher)/attendance/class/page.tsx.bak` still
-exist on disk. Duplicates of correct files under `(teacher)/teacher/attendance/`.
+`(teacher)/attendance/page.tsx.bak` and `(teacher)/attendance/class/page.tsx.bak` still exist.
 Safe to delete — don't affect builds but clutter the repo.
 
 ---
