@@ -18,6 +18,7 @@ import platformRoutes from './Routes/platform.routes';
 import transportRoutes from './Routes/transport.routes';
 import hostelRoutes from './Routes/hostel.routes';
 import uploadRoutes from './Routes/upload.routes';
+import staffRoutes from './Routes/staff.routes';
 
 
 const app:Application = express();
@@ -46,6 +47,7 @@ app.use('/api/platform', platformRoutes);
 app.use('/api/transport', transportRoutes);
 app.use('/api/hostel', hostelRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/staff', staffRoutes);
 
 app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})

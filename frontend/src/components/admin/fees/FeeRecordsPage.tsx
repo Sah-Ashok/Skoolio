@@ -36,7 +36,7 @@ function PaymentsModal({
   onClose: () => void;
 }) {
   const { data: payments, loading } = useApi<any[]>(
-    collection ? `/fees/payments/collection/${collection.id}` : ""
+    collection ? `{process.env.BackendUrl}/fees/payments/collection/${collection.id}` : ""
   );
 
   return (

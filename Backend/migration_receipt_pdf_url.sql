@@ -13,3 +13,7 @@ COMMENT ON COLUMN fee_payments.receipt_pdf_status IS 'pending → generating →
 -- Index for fast lookup when checking if a receipt is already generated
 CREATE INDEX IF NOT EXISTS idx_fee_payments_receipt_pdf_status
   ON fee_payments (school_id, receipt_pdf_status);
+
+
+ALTER TABLE fee_payments
+ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();

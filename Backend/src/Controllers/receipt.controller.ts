@@ -11,16 +11,9 @@ const resolveSchoolId = (u: IJwtAdminPayload | IJwtUserPayload): number =>
 const resolveUserId = (u: IJwtAdminPayload | IJwtUserPayload): number =>
   'school_id' in u ? u.id : u.id;
 
-/**
- * POST /fees/payments/:id/generate-receipt
- *
- * Kicks off background PDF generation for a payment.
- * Returns 200 { status: 'ready', url } if already generated.
- * Returns 202 { status: 'generating' }  if worker just started.
- *
- * Accessible by admin (any school payment) + student (own payments only).
- */
+
 export const generateReceipt = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  console.log("Came to generate bill")
   const user       = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id  = resolveSchoolId(user);
   const payment_id = Number(req.params.id);

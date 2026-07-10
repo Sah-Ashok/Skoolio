@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { amountToWords } from "@/lib/amountToWords";
@@ -8,12 +8,26 @@ import { amountToWords } from "@/lib/amountToWords";
 // ── Azure PDF download button ───────────────────────────────────────────────
 type AzureBtnState = 'idle' | 'generating' | 'ready' | 'error';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 function AzureReceiptButton({ paymentId }: { paymentId: string | number }) {
   const [st, setSt]       = useState<AzureBtnState>('idle');
   const [url, setUrl]     = useState<string | null>(null);
   const pollRef           = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  const stopPoll = useCallback(() => { 
+    if (pollRef.current) { 
+      clearInterval(pollRef.current); 
+      pollRef.current = null; 
+    } 
+  }, []);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      stopPoll();
+    };
+  }, [stopPoll]);
 
   const openPdf = useCallback((pdfUrl: string) => {
     setUrl(pdfUrl); setSt('ready');
@@ -23,27 +37,51 @@ function AzureReceiptButton({ paymentId }: { paymentId: string | number }) {
   const startPoll = useCallback((id: string | number) => {
     pollRef.current = setInterval(async () => {
       try {
-        const r    = await fetch(`/api/fees/payments/${id}/receipt-status`, { credentials: 'include' });
+        const r = await fetch(`${API_BASE_URL}/api/fees/payments/${id}/receipt-status`, { 
+          credentials: 'include' 
+        });
+
+        if (!r.ok) {
+          stopPoll(); 
+          setSt('error'); 
+          return;
+        }
+
         const json = await r.json();
         const { status, url: pdfUrl } = json?.data ?? {};
         if (status === 'ready' && pdfUrl) { stopPoll(); openPdf(pdfUrl); }
         else if (status === 'failed')     { stopPoll(); setSt('error'); }
-      } catch { stopPoll(); setSt('error'); }
+      } catch { 
+        stopPoll(); 
+        setSt('error'); 
+      }
     }, 1500);
-  }, [openPdf]);
+  }, [openPdf, stopPoll]);
 
   const handleClick = useCallback(async () => {
     if (st === 'generating') return;
     if (st === 'ready' && url) { window.open(url, '_blank', 'noreferrer'); return; }
+    
     setSt('generating');
     try {
-      const r    = await fetch(`/api/fees/payments/${paymentId}/generate-receipt`, { method: 'POST', credentials: 'include' });
+      const r = await fetch(`${API_BASE_URL}/api/fees/payments/${paymentId}/generate-receipt`, { 
+        method: 'POST', 
+        credentials: 'include' 
+      });
+
+      if (!r.ok) {
+        setSt('error');
+        return;
+      }
+
       const json = await r.json();
       const { status, url: pdfUrl } = json?.data ?? {};
       if (status === 'ready' && pdfUrl) { openPdf(pdfUrl); }
       else if (status === 'generating') { startPoll(paymentId); }
       else { setSt('error'); }
-    } catch { setSt('error'); }
+    } catch { 
+      setSt('error'); 
+    }
   }, [st, url, paymentId, openPdf, startPoll]);
 
   const label = st === 'generating' ? 'Generating…' : st === 'ready' ? 'Open PDF Again' : st === 'error' ? 'Retry PDF' : 'Download PDF';

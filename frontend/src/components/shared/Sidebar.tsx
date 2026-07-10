@@ -27,9 +27,10 @@ const adminNav: NavSection[] = [
   {
     label: 'Finance',
     links: [
-      { href: '/fees',     icon: 'fa-file-invoice-dollar', label: 'Fee Management' },
-      { href: '/expenses', icon: 'fa-wallet',              label: 'Expenses'       },
-      { href: '/salary',   icon: 'fa-money-bill-wave',     label: 'Faculty Salary' },
+      { href: '/fees',          icon: 'fa-file-invoice-dollar', label: 'Fee Management' },
+      { href: '/expenses',      icon: 'fa-wallet',              label: 'Expenses'       },
+      { href: '/salary',        icon: 'fa-money-bill-wave',     label: 'Faculty Salary' },
+      { href: '/staff/salary',  icon: 'fa-coins',               label: 'Staff Salary'   },
     ],
   },
   {
@@ -50,6 +51,13 @@ const adminNav: NavSection[] = [
     links: [
       { href: '/transport', icon: 'fa-bus',      label: 'Transport' },
       { href: '/hostel',    icon: 'fa-building', label: 'Hostel'    },
+    ],
+  },
+  {
+    label: 'Staff',
+    links: [
+      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'    },
+      { href: '/staff/attendance', icon: 'fa-clipboard-check',  label: 'Staff Attendance' },
     ],
   },
 ]
@@ -183,7 +191,7 @@ export default function Sidebar({ role }: SidebarProps) {
       ══════════════════════════════════════ */}
       <aside className="sidebar">
 
-        {/* ── Logo block: centered and large ── */}
+        {/* ── Logo block ── */}
         <div
           className="sidebar-logo"
           style={{
