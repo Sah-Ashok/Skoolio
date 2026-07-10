@@ -11,8 +11,8 @@ import {
 import {
   storeOTP, consumeOTP,
 } from '../Repositories/otp.repository';
-import { findTeacherByEmailGlobal }  from '../Repositories/teacher.repository';
-import { findStudentByEmailGlobal }  from '../Repositories/student.repository';
+import { findTeacherByEmailGlobal, getTeacherByIdWithPassword, updateTeacherPassword }  from '../Repositories/teacher.repository';
+import { findStudentByEmailGlobal, getStudentByIdWithPassword, updateStudentPassword }  from '../Repositories/student.repository';
 import { getTeacherByIdService }     from './teacher.service';
 import { getStudentByIdService, getStudentProfileService }     from './student.service';
 import { isMaintenanceModeActive }   from './platform.service';
@@ -367,6 +367,48 @@ export const blockUnblockSchoolService = async (
   if (school.role === 'super_admin')
     throw new AppError('Cannot block a super admin account.', 403);
   await blockUnblockSchool(schoolId, action);
+};
+
+// ── CHANGE PASSWORD (teacher) ───────────────────────────────────────────────
+
+export const changeTeacherPasswordService = async (
+  teacherId: number,
+  schoolId: number,
+  current_password: string,
+  new_password: string
+): Promise<void> => {
+  const teacher = await getTeacherByIdWithPassword(teacherId, schoolId);
+  if (!teacher) throw new AppError('Account not found.', 404);
+
+  const isMatch = await bcrypt.compare(current_password, teacher.password);
+  if (!isMatch) throw new AppError('Current password is incorrect.', 400);
+
+  if (!new_password || new_password.length < 6)
+    throw new AppError('New password must be at least 6 characters.', 400);
+
+  const hashed = await bcrypt.hash(new_password, 10);
+  await updateTeacherPassword(teacherId, schoolId, hashed);
+};
+
+// ── CHANGE PASSWORD (student) ────────────────────────────────────────────────
+
+export const changeStudentPasswordService = async (
+  studentId: number,
+  schoolId: number,
+  current_password: string,
+  new_password: string
+): Promise<void> => {
+  const student = await getStudentByIdWithPassword(studentId, schoolId);
+  if (!student) throw new AppError('Account not found.', 404);
+
+  const isMatch = await bcrypt.compare(current_password, student.password);
+  if (!isMatch) throw new AppError('Current password is incorrect.', 400);
+
+  if (!new_password || new_password.length < 6)
+    throw new AppError('New password must be at least 6 characters.', 400);
+
+  const hashed = await bcrypt.hash(new_password, 10);
+  await updateStudentPassword(studentId, schoolId, hashed);
 };
 
 // re-export for auth.controller

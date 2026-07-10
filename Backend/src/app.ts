@@ -19,6 +19,10 @@ import transportRoutes from './Routes/transport.routes';
 import hostelRoutes from './Routes/hostel.routes';
 import uploadRoutes from './Routes/upload.routes';
 import staffRoutes from './Routes/staff.routes';
+import noticeRoutes from './Routes/notice.routes';
+import promotionRoutes from './Routes/promotion.routes';
+import historyRoutes from './Routes/history.routes';
+import { globalHistoryMiddleware } from './middlewares/history.middleware';
 
 
 const app:Application = express();
@@ -31,6 +35,11 @@ app.use(cors({
 ))
 app.use(express.json());
 app.use(cookieParser())
+
+// Global activity logger — fire-and-forget, never blocks main loop
+// Logs all successful POST/PUT/PATCH/DELETE requests for authenticated users
+app.use(globalHistoryMiddleware);
+
 app.use('/api/academic-years', academicRoutes);
 app.use('/api/auth' , authRoutes);
 app.use('/api/school', schoolRoutes);
@@ -48,6 +57,9 @@ app.use('/api/transport', transportRoutes);
 app.use('/api/hostel', hostelRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/notices', noticeRoutes);
+app.use('/api/promotion', promotionRoutes);
+app.use('/api/history', historyRoutes);
 
 app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})

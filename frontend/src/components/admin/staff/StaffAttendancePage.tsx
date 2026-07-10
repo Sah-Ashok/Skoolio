@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
@@ -13,10 +13,10 @@ type Staff = { id: number; full_name: string; role_name?: string; status: string
 type AttRecord = { id: number; staff_id: number; date: string; status: string };
 
 const ATT_STATUSES = [
-  { key: "present", label: "Present", cls: "attPresent" },
-  { key: "absent",  label: "Absent",  cls: "attAbsent"  },
-  { key: "leave",   label: "Leave",   cls: "attLeave"   },
-  { key: "half_day",label: "Half",    cls: "attHalf"    },
+  { key: "present",  label: "Present", cls: "attPresent" },
+  { key: "absent",   label: "Absent",  cls: "attAbsent"  },
+  { key: "leave",    label: "Leave",   cls: "attLeave"   },
+  { key: "half_day", label: "Half",    cls: "attHalf"    },
 ];
 
 const today = () => new Date().toISOString().split("T")[0];
@@ -25,14 +25,15 @@ export function StaffAttendancePage() {
   const { data: staff, loading: loadingStaff } = useApi<Staff[]>("/staff");
   const [date, setDate] = useState(today());
 
+  // Endpoint changes when date changes — no extra deps array needed
   const { data: existing, loading: loadingAtt, refetch } =
-    useApi<AttRecord[]>(`/staff/attendance?date=${date}`, [date]);
+    useApi<AttRecord[]>(`/staff/attendance?date=${date}`);
 
   // Local draft: staff_id → status
   const [draft, setDraft] = useState<Record<number, string>>({});
 
-  // Merge existing records into draft when they load
-  useMemo(() => {
+  // useEffect (not useMemo) because we're calling setState as a side effect
+  useEffect(() => {
     if (existing) {
       const map: Record<number, string> = {};
       existing.forEach(r => { map[r.staff_id] = r.status; });
@@ -42,7 +43,10 @@ export function StaffAttendancePage() {
 
   const { execute: bulkMark, loading: saving } = useMutation("/staff/attendance/bulk", "POST");
 
-  const activeStaff = (staff ?? []).filter(m => m.status !== "terminated");
+  const activeStaff = useMemo(
+    () => (staff ?? []).filter(m => m.status !== "terminated"),
+    [staff]
+  );
 
   const setStatus = (staff_id: number, status: string) =>
     setDraft(d => ({ ...d, [staff_id]: status }));
@@ -75,7 +79,7 @@ export function StaffAttendancePage() {
         <section className={s("head")}>
           <div>
             <h1>Daily Attendance</h1>
-            <p>Mark or update attendance for any date. Changes auto-save per row.</p>
+            <p>Mark or update attendance for any date. Changes are saved when you click Save All.</p>
           </div>
           <div className={s("actions")}>
             <input
@@ -91,20 +95,23 @@ export function StaffAttendancePage() {
             <button
               className={cx(s("btn"), s("btnPrimary"))}
               onClick={handleSave}
-              disabled={saving || loadingStaff || loadingAtt}
+              disabled={saving || loadingStaff || loadingAtt || activeStaff.length === 0}
             >
-              {saving ? <Spinner size={14} color="#fff" /> : <><i className="fa-solid fa-floppy-disk" /> Save All</>}
+              {saving
+                ? <><Spinner size={14} color="#fff" /> Saving…</>
+                : <><i className="fa-solid fa-floppy-disk" /> Save All</>
+              }
             </button>
           </div>
         </section>
 
-        {/* Stats bar */}
+        {/* Stats */}
         <section className={s("stats")}>
           {[
-            { label: "Present",  value: summary.present,  cls: "green",  icon: "fa-circle-check" },
-            { label: "Absent",   value: summary.absent,   cls: "red",    icon: "fa-circle-xmark" },
-            { label: "On Leave", value: summary.leave,    cls: "blue",   icon: "fa-circle-pause" },
-            { label: "Half Day", value: summary.half_day, cls: "orange", icon: "fa-circle-half-stroke" },
+            { label: "Present",  value: summary.present,  cls: "green",  icon: "fa-circle-check"        },
+            { label: "Absent",   value: summary.absent,   cls: "red",    icon: "fa-circle-xmark"        },
+            { label: "On Leave", value: summary.leave,    cls: "blue",   icon: "fa-circle-pause"        },
+            { label: "Half Day", value: summary.half_day, cls: "orange", icon: "fa-circle-half-stroke"  },
           ].map(({ label, value, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
               <div><i className={`fa-solid ${icon}`} /></div>
@@ -121,12 +128,15 @@ export function StaffAttendancePage() {
             <div>
               <h3><i className="fa-solid fa-clipboard-check" />Attendance Sheet</h3>
               <p>
-                {new Date(date).toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                {new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
+                  weekday: "long", day: "2-digit", month: "long", year: "numeric",
+                })}
               </p>
             </div>
+            {loadingAtt && <Spinner size={18} color="#FF9B51" />}
           </div>
 
-          {loadingStaff || loadingAtt ? (
+          {loadingStaff ? (
             <div className={s("empty")}><Spinner size={28} color="#FF9B51" /></div>
           ) : activeStaff.length === 0 ? (
             <div className={s("empty")}>
@@ -140,7 +150,9 @@ export function StaffAttendancePage() {
               <div className={cx(s("attRow"), s("attHead"))}>
                 <div className={s("attCell")}>Staff Member</div>
                 {ATT_STATUSES.map(a => (
-                  <div key={a.key} className={s("attCell")} style={{ textAlign: "center" }}>{a.label}</div>
+                  <div key={a.key} className={s("attCell")} style={{ textAlign: "center" }}>
+                    {a.label}
+                  </div>
                 ))}
               </div>
 
@@ -151,14 +163,12 @@ export function StaffAttendancePage() {
                   <div key={m.id} className={s("attRow")}>
                     <div className={s("attCell")}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div
-                          style={{
-                            width: 32, height: 32, borderRadius: 8,
-                            background: "#fff1df", color: "#c46a14",
-                            display: "grid", placeItems: "center",
-                            fontSize: 11, fontWeight: 900, flexShrink: 0,
-                          }}
-                        >
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8,
+                          background: "#fff1df", color: "#c46a14",
+                          display: "grid", placeItems: "center",
+                          fontSize: 11, fontWeight: 900, flexShrink: 0,
+                        }}>
                           {m.full_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -172,10 +182,15 @@ export function StaffAttendancePage() {
                     {ATT_STATUSES.map(a => (
                       <div key={a.key} className={s("attCell")} style={{ textAlign: "center" }}>
                         <button
-                          className={cx(s("attBtn"), current === a.key && cx(s("attBtnActive"), s(a.cls)))}
+                          className={cx(
+                            s("attBtn"),
+                            current === a.key && cx(s("attBtnActive"), s(a.cls))
+                          )}
                           onClick={() => setStatus(m.id, a.key)}
                         >
-                          {current === a.key && <i className="fa-solid fa-check" style={{ marginRight: 4 }} />}
+                          {current === a.key && (
+                            <i className="fa-solid fa-check" style={{ marginRight: 4 }} />
+                          )}
                           {a.label}
                         </button>
                       </div>

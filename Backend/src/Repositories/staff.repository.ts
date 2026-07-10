@@ -12,9 +12,7 @@ import {
 
 export const createStaffRole = async (school_id: number, data: ICreateStaffRole): Promise<IStaffRole> => {
   const result = await pool.query(
-    `INSERT INTO staff_roles (school_id, role_name)
-     VALUES ($1, $2)
-     RETURNING *`,
+    `INSERT INTO staff_roles (school_id, role_name) VALUES ($1, $2) RETURNING *`,
     [school_id, data.role_name]
   );
   return result.rows[0];
@@ -38,10 +36,8 @@ export const getStaffRoleById = async (id: number, school_id: number): Promise<I
 
 export const updateStaffRole = async (id: number, school_id: number, data: IUpdateStaffRole): Promise<IStaffRole | null> => {
   const result = await pool.query(
-    `UPDATE staff_roles
-     SET role_name = COALESCE($1, role_name), updated_at = NOW()
-     WHERE id = $2 AND school_id = $3
-     RETURNING *`,
+    `UPDATE staff_roles SET role_name = COALESCE($1, role_name), updated_at = NOW()
+     WHERE id = $2 AND school_id = $3 RETURNING *`,
     [data.role_name || null, id, school_id]
   );
   return result.rows[0] || null;
@@ -58,9 +54,10 @@ export const deleteStaffRole = async (id: number, school_id: number): Promise<bo
 // ── STAFF MEMBERS ─────────────────────────────────────────────────────────────
 
 const STAFF_COLS = `
-  id, school_id, staff_role_id, full_name, phone, address, gender,
-  date_of_birth::text, joined_date::text, status, photo,
-  citizen_id, license_number, created_at, updated_at
+  s.id, s.school_id, s.staff_role_id, s.full_name, s.phone, s.address, s.gender,
+  s.date_of_birth::text, s.joined_date::text, s.status, s.photo,
+  s.citizen_id, s.license_number, s.created_at, s.updated_at,
+  sr.role_name
 `;
 
 export const createStaff = async (school_id: number, data: ICreateStaff): Promise<IStaff> => {
@@ -69,32 +66,35 @@ export const createStaff = async (school_id: number, data: ICreateStaff): Promis
        (school_id, staff_role_id, full_name, phone, address, gender,
         date_of_birth, joined_date, status, photo, citizen_id, license_number)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     RETURNING ${STAFF_COLS}`,
+     RETURNING
+       id, school_id, staff_role_id, full_name, phone, address, gender,
+       date_of_birth::text, joined_date::text, status, photo,
+       citizen_id, license_number, created_at, updated_at`,
     [
       school_id,
       data.staff_role_id,
       data.full_name,
-      data.phone         || null,
-      data.address       || null,
-      data.gender        || null,
-      data.date_of_birth || null,
+      data.phone          || null,
+      data.address        || null,
+      data.gender         || null,
+      data.date_of_birth  || null,
       data.joined_date,
-      data.status        || 'active',
-      data.photo         || null,
-      data.citizen_id    || null,
+      data.status         || 'active',
+      data.photo          || null,
+      data.citizen_id     || null,
       data.license_number || null,
     ]
   );
   return result.rows[0];
 };
 
+/**
+ * Returns all staff for the school including role_name.
+ * Use getStaffWithSalary() for the list endpoint — it adds current_salary in one query.
+ */
 export const getStaffBySchool = async (school_id: number): Promise<IStaff[]> => {
   const result = await pool.query(
-    `SELECT
-       s.id, s.school_id, s.staff_role_id, s.full_name, s.phone, s.address, s.gender,
-       s.date_of_birth::text, s.joined_date::text, s.status, s.photo,
-       s.citizen_id, s.license_number, s.created_at, s.updated_at,
-       sr.role_name
+    `SELECT ${STAFF_COLS}
      FROM staff s
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE s.school_id = $1
@@ -104,13 +104,43 @@ export const getStaffBySchool = async (school_id: number): Promise<IStaff[]> => 
   return result.rows;
 };
 
-export const getStaffById = async (id: number, school_id: number): Promise<IStaff | null> => {
+/**
+ * Single-query version that also attaches current_salary via a LATERAL join.
+ * Eliminates the N+1 pattern of calling getLatestSalaryStructure per staff member.
+ */
+export const getStaffWithSalary = async (school_id: number): Promise<any[]> => {
   const result = await pool.query(
     `SELECT
-       s.id, s.school_id, s.staff_role_id, s.full_name, s.phone, s.address, s.gender,
-       s.date_of_birth::text, s.joined_date::text, s.status, s.photo,
-       s.citizen_id, s.license_number, s.created_at, s.updated_at,
-       sr.role_name
+       ${STAFF_COLS},
+       sal.basic_salary,
+       sal.effective_from::text AS salary_effective_from
+     FROM staff s
+     LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
+     LEFT JOIN LATERAL (
+       SELECT basic_salary, effective_from
+       FROM   staff_salary_structure ss
+       WHERE  ss.staff_id   = s.id
+         AND  ss.school_id  = s.school_id
+         AND  ss.effective_from <= CURRENT_DATE
+       ORDER BY ss.effective_from DESC
+       LIMIT 1
+     ) sal ON true
+     WHERE s.school_id = $1
+     ORDER BY sr.role_name ASC, s.full_name ASC`,
+    [school_id]
+  );
+
+  return result.rows.map(r => ({
+    ...r,
+    current_salary: r.basic_salary != null
+      ? { basic_salary: Number(r.basic_salary), effective_from: r.salary_effective_from }
+      : null,
+  }));
+};
+
+export const getStaffById = async (id: number, school_id: number): Promise<IStaff | null> => {
+  const result = await pool.query(
+    `SELECT ${STAFF_COLS}
      FROM staff s
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE s.id = $1 AND s.school_id = $2`,
@@ -135,7 +165,10 @@ export const updateStaff = async (id: number, school_id: number, data: IUpdateSt
        license_number  = COALESCE($11, license_number),
        updated_at      = NOW()
      WHERE id = $12 AND school_id = $13
-     RETURNING ${STAFF_COLS}`,
+     RETURNING
+       id, school_id, staff_role_id, full_name, phone, address, gender,
+       date_of_birth::text, joined_date::text, status, photo,
+       citizen_id, license_number, created_at, updated_at`,
     [
       data.staff_role_id  || null,
       data.full_name      || null,
@@ -168,8 +201,7 @@ export const deleteStaff = async (id: number, school_id: number): Promise<boolea
 export const createSalaryStructure = async (school_id: number, data: ICreateSalaryStructure): Promise<IStaffSalaryStructure> => {
   const result = await pool.query(
     `INSERT INTO staff_salary_structure (school_id, staff_id, basic_salary, effective_from)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
+     VALUES ($1, $2, $3, $4) RETURNING *`,
     [school_id, data.staff_id, data.basic_salary, data.effective_from || new Date()]
   );
   return result.rows[0];
@@ -201,8 +233,7 @@ export const updateSalaryStructure = async (id: number, school_id: number, data:
        basic_salary   = COALESCE($1, basic_salary),
        effective_from = COALESCE($2, effective_from),
        updated_at     = NOW()
-     WHERE id = $3 AND school_id = $4
-     RETURNING *`,
+     WHERE id = $3 AND school_id = $4 RETURNING *`,
     [data.basic_salary ?? null, data.effective_from || null, id, school_id]
   );
   return result.rows[0] || null;
@@ -215,23 +246,20 @@ export const createSalaryPayment = async (school_id: number, data: ICreateSalary
     ? `${data.salary_month}-01`
     : data.salary_month;
 
-  const totalDeductions = data.total_deductions ?? 0;
-
   const result = await pool.query(
     `INSERT INTO staff_salary_payments
-       (school_id, staff_id, salary_month, gross_amount, total_deductions, payment_method, paid_on, status, remarks)
+       (school_id, staff_id, salary_month, gross_amount, total_deductions,
+        payment_method, paid_on, status, remarks)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     RETURNING *, net_amount`,
+     RETURNING *,
+       net_amount,
+       TO_CHAR(salary_month, 'YYYY-MM') AS salary_month_str,
+       paid_on::text AS paid_on_str`,
     [
-      school_id,
-      data.staff_id,
-      monthDate,
-      data.gross_amount,
-      totalDeductions,
-      data.payment_method || null,
-      data.paid_on        || null,
-      data.status         || 'pending',
-      data.remarks        || null,
+      school_id, data.staff_id, monthDate,
+      data.gross_amount, data.total_deductions ?? 0,
+      data.payment_method || null, data.paid_on || null,
+      data.status || 'pending', data.remarks || null,
     ]
   );
   return result.rows[0];
@@ -239,7 +267,11 @@ export const createSalaryPayment = async (school_id: number, data: ICreateSalary
 
 export const getSalaryPaymentsByStaff = async (staff_id: number, school_id: number): Promise<IStaffSalaryPayment[]> => {
   const result = await pool.query(
-    `SELECT *, net_amount FROM staff_salary_payments
+    `SELECT *,
+       net_amount,
+       TO_CHAR(salary_month, 'YYYY-MM') AS salary_month_str,
+       paid_on::text AS paid_on_str
+     FROM staff_salary_payments
      WHERE staff_id = $1 AND school_id = $2
      ORDER BY salary_month DESC`,
     [staff_id, school_id]
@@ -249,17 +281,23 @@ export const getSalaryPaymentsByStaff = async (staff_id: number, school_id: numb
 
 export const getAllSalaryPayments = async (school_id: number, month?: string): Promise<IStaffSalaryPayment[]> => {
   const params: any[] = [school_id];
-  let where = 'WHERE sp.school_id = $1';
+  let monthFilter = '';
   if (month) {
     params.push(`${month}-01`);
-    where += ` AND sp.salary_month = $2`;
+    monthFilter = `AND sp.salary_month = $2`;
   }
   const result = await pool.query(
-    `SELECT sp.*, sp.net_amount, s.full_name, sr.role_name
+    `SELECT
+       sp.*,
+       sp.net_amount,
+       TO_CHAR(sp.salary_month, 'YYYY-MM') AS salary_month_str,
+       sp.paid_on::text AS paid_on_str,
+       s.full_name,
+       sr.role_name
      FROM staff_salary_payments sp
-     LEFT JOIN staff s  ON s.id  = sp.staff_id
+     LEFT JOIN staff s       ON s.id  = sp.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
-     ${where}
+     WHERE sp.school_id = $1 ${monthFilter}
      ORDER BY sp.salary_month DESC, s.full_name ASC`,
     params
   );
@@ -268,9 +306,15 @@ export const getAllSalaryPayments = async (school_id: number, month?: string): P
 
 export const getPendingSalaries = async (school_id: number): Promise<any[]> => {
   const result = await pool.query(
-    `SELECT sp.*, sp.net_amount, s.full_name, sr.role_name
+    `SELECT
+       sp.*,
+       sp.net_amount,
+       TO_CHAR(sp.salary_month, 'YYYY-MM') AS salary_month_str,
+       sp.paid_on::text AS paid_on_str,
+       s.full_name,
+       sr.role_name
      FROM staff_salary_payments sp
-     LEFT JOIN staff s  ON s.id  = sp.staff_id
+     LEFT JOIN staff s       ON s.id  = sp.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sp.school_id = $1 AND sp.status = 'pending'
      ORDER BY sp.salary_month DESC`,
@@ -280,8 +324,19 @@ export const getPendingSalaries = async (school_id: number): Promise<any[]> => {
 };
 
 export const getSalaryPaymentById = async (id: number, school_id: number): Promise<IStaffSalaryPayment | null> => {
+  // Also joins staff + role so salary slip modal has full_name and role_name
   const result = await pool.query(
-    `SELECT *, net_amount FROM staff_salary_payments WHERE id = $1 AND school_id = $2`,
+    `SELECT
+       sp.*,
+       sp.net_amount,
+       TO_CHAR(sp.salary_month, 'YYYY-MM') AS salary_month_str,
+       sp.paid_on::text AS paid_on_str,
+       s.full_name,
+       sr.role_name
+     FROM staff_salary_payments sp
+     LEFT JOIN staff s       ON s.id  = sp.staff_id
+     LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
+     WHERE sp.id = $1 AND sp.school_id = $2`,
     [id, school_id]
   );
   return result.rows[0] || null;
@@ -298,16 +353,18 @@ export const updateSalaryPayment = async (id: number, school_id: number, data: I
        remarks          = COALESCE($6, remarks),
        updated_at       = NOW()
      WHERE id = $7 AND school_id = $8
-     RETURNING *, net_amount`,
+     RETURNING *,
+       net_amount,
+       TO_CHAR(salary_month, 'YYYY-MM') AS salary_month_str,
+       paid_on::text AS paid_on_str`,
     [
-      data.gross_amount      ?? null,
-      data.total_deductions  ?? null,
-      data.payment_method    || null,
-      data.paid_on           || null,
-      data.status            || null,
-      data.remarks           || null,
-      id,
-      school_id,
+      data.gross_amount     ?? null,
+      data.total_deductions ?? null,
+      data.payment_method   || null,
+      data.paid_on          || null,
+      data.status           || null,
+      data.remarks          || null,
+      id, school_id,
     ]
   );
   return result.rows[0] || null;
@@ -352,10 +409,14 @@ export const markAttendance = async (school_id: number, data: ICreateAttendance)
     `INSERT INTO staff_attendance (school_id, staff_id, date, status, check_in, check_out, note)
      VALUES ($1,$2,$3,$4,$5,$6,$7)
      ON CONFLICT (school_id, staff_id, date)
-     DO UPDATE SET status = EXCLUDED.status, check_in = EXCLUDED.check_in,
-                   check_out = EXCLUDED.check_out, note = EXCLUDED.note
+     DO UPDATE SET
+       status    = EXCLUDED.status,
+       check_in  = EXCLUDED.check_in,
+       check_out = EXCLUDED.check_out,
+       note      = EXCLUDED.note
      RETURNING *`,
-    [school_id, data.staff_id, data.date, data.status, data.check_in || null, data.check_out || null, data.note || null]
+    [school_id, data.staff_id, data.date, data.status,
+     data.check_in || null, data.check_out || null, data.note || null]
   );
   return result.rows[0];
 };
@@ -364,7 +425,7 @@ export const getAttendanceByDate = async (school_id: number, date: string): Prom
   const result = await pool.query(
     `SELECT sa.*, s.full_name, sr.role_name
      FROM staff_attendance sa
-     LEFT JOIN staff s ON s.id = sa.staff_id
+     LEFT JOIN staff s       ON s.id  = sa.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sa.school_id = $1 AND sa.date = $2
      ORDER BY sr.role_name ASC, s.full_name ASC`,

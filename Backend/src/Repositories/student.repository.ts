@@ -211,6 +211,28 @@ export const updateStudent = async (
   return result.rows[0] || null;
 };
 
+export const getStudentByIdWithPassword = async (
+  id: number,
+  school_id: number
+): Promise<IStudent | null> => {
+  const result = await pool.query(
+    `SELECT * FROM students WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const updateStudentPassword = async (
+  id: number,
+  school_id: number,
+  hashedPassword: string
+): Promise<void> => {
+  await pool.query(
+    `UPDATE students SET password = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
+    [hashedPassword, id, school_id]
+  );
+};
+
 export const deleteStudent = async (
   id: number,
   school_id: number

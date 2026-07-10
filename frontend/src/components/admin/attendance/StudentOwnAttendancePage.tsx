@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
@@ -8,9 +8,9 @@ import { Spinner } from "@/components/shared/Loader";
 /* ── Font ─────────────────────────────────────────────────────────── */
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');`;
 
-/* ── Design tokens — two-tone palette ────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────────────────── */
 const C = {
-  brand:      "#ff9b51",   // Skoolio orange
+  brand:      "#ff9b51",
   brandLight: "#fff7ed",
   brandDark:  "#c2410c",
   dark:       "#1f2d36",
@@ -24,31 +24,109 @@ const C = {
   redBg:      "#fef2f2",
   amber:      "#d97706",
   amberBg:    "#fffbeb",
-  slate:      "#64748b",
-  slateBg:    "#f8fafc",
 };
 
-/* ── Status config — minimal, two accents each ───────────────────── */
+/* ── Status config ────────────────────────────────────────────────── */
 const STATUS: Record<string, { label: string; color: string; bg: string; border: string; short: string }> = {
-  present: { label: "Present", color: C.green,  bg: C.greenBg, border: "#bbf7d0", short: "P" },
-  absent:  { label: "Absent",  color: C.red,    bg: C.redBg,   border: "#fecaca", short: "A" },
-  late:    { label: "Late",    color: C.amber,  bg: C.amberBg, border: "#fde68a", short: "L" },
-  leave:   { label: "Leave",   color: C.mid,    bg: C.light,   border: C.border,  short: "Lv"},
-  off:     { label: "—",       color: "#b0bec5",bg: "#f8fafc",  border: "#e9ecef", short: "–" },
+  present:    { label: "Present",    color: C.green,   bg: C.greenBg, border: "#bbf7d0", short: "P"  },
+  absent:     { label: "Absent",     color: C.red,     bg: C.redBg,   border: "#fecaca", short: "A"  },
+  late:       { label: "Late",       color: C.amber,   bg: C.amberBg, border: "#fde68a", short: "L"  },
+  leave:      { label: "Leave",      color: C.mid,     bg: C.light,   border: C.border,  short: "Lv" },
+  weekly_off: { label: "Weekly Off", color: "#94a3b8", bg: "#f1f5f9", border: "#cbd5e1", short: "–"  },
+  holiday:    { label: "Holiday",    color: C.red,     bg: "#fff0f0", border: "#fca5a5", short: "H"  },
+  off:        { label: "—",          color: "#b0bec5", bg: "#f8fafc", border: "#e9ecef", short: "–"  },
 };
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS     = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTH_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const DAYS = ["M","T","W","T","F","S","S"];
+const DAYS       = ["M","T","W","T","F","S","S"];
+type WeekPattern = "all" | "1st" | "2nd" | "3rd" | "4th" | "5th";
 
+/* ── Helpers ──────────────────────────────────────────────────────── */
 function grade(pct: number) {
-  if (pct >= 90) return { label: "Excellent", color: C.green,  bg: C.greenBg };
-  if (pct >= 75) return { label: "Good",       color: C.brand,  bg: C.brandLight };
-  if (pct >= 60) return { label: "Average",    color: C.amber,  bg: C.amberBg };
-  return               { label: "Low",         color: C.red,    bg: C.redBg };
+  if (pct >= 90) return { label: "Excellent", color: C.green,  bg: C.greenBg   };
+  if (pct >= 75) return { label: "Good",      color: C.brand,  bg: C.brandLight };
+  if (pct >= 60) return { label: "Average",   color: C.amber,  bg: C.amberBg   };
+  return               { label: "Low",        color: C.red,    bg: C.redBg     };
 }
 
-/* ── Reusable card wrapper ───────────────────────────────────────── */
+function nthWeekdayOfMonth(date: Date): WeekPattern {
+  const ordinals: WeekPattern[] = ["1st","2nd","3rd","4th","5th"];
+  return ordinals[Math.ceil(date.getDate() / 7) - 1] ?? "5th";
+}
+
+function isWeeklyOffDay(
+  date: Date,
+  weeklyOffs: { day_of_week: number; week_pattern: WeekPattern }[],
+  weekendType: string
+): boolean {
+  const day = date.getDay(); // 0=Sun … 6=Sat
+  if (weeklyOffs.length > 0) {
+    const nth = nthWeekdayOfMonth(date);
+    return weeklyOffs.some(w => w.day_of_week === day && (w.week_pattern === "all" || w.week_pattern === nth));
+  }
+  if (weekendType === "sunday_only")   return day === 0;
+  if (weekendType === "saturday_only") return day === 6;
+  return day === 0 || day === 6; // saturday_sunday
+}
+
+/* ── Donut chart (same style as student dashboard) ────────────────── */
+function DonutChart({ pct, present, absent, total }: { pct: number; present: number; absent: number; total: number }) {
+  const r       = 52;
+  const circ    = 2 * Math.PI * r;
+  const presArc = (pct / 100) * circ;
+  const absArc  = circ - presArc;
+  const hasData = total > 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+      <div style={{ flexShrink: 0, position: "relative" }}>
+        <svg viewBox="0 0 140 140" width={110} height={110} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="18" />
+          {hasData && (
+            <>
+              <circle cx="70" cy="70" r={r} fill="none" stroke="#ff9a9e" strokeWidth="18"
+                strokeDasharray={`${absArc} ${presArc}`}
+                strokeDashoffset={-presArc} strokeLinecap="round" />
+              <circle cx="70" cy="70" r={r} fill="none" stroke="#4b8ff7" strokeWidth="18"
+                strokeDasharray={`${presArc} ${absArc}`}
+                strokeDashoffset={0} strokeLinecap="round" />
+            </>
+          )}
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          {hasData ? (
+            <>
+              <span style={{ fontSize: 20, fontWeight: 900, color: C.dark, lineHeight: 1 }}>{pct}%</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: C.mid, marginTop: 2 }}>present</span>
+            </>
+          ) : (
+            <span style={{ fontSize: 9, fontWeight: 700, color: C.mid, textAlign: "center", padding: "0 8px" }}>No data yet</span>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {[
+          { color: "#4b8ff7", label: "Present", value: `${present} days` },
+          { color: "#ff9a9e", label: "Absent",  value: `${absent} days`  },
+        ].map(item => (
+          <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: item.color, flexShrink: 0, marginTop: 3 }} />
+            <div>
+              <div style={{ fontSize: 11, color: C.mid, fontWeight: 600 }}>{item.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.dark, marginTop: 1 }}>{item.value}</div>
+            </div>
+          </div>
+        ))}
+        <div style={{ fontSize: 11, color: C.mid, fontWeight: 500 }}>
+          {total > 0 ? `Out of ${total} working days` : "Attendance not marked yet"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Card wrappers ────────────────────────────────────────────────── */
 function Card({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -72,6 +150,7 @@ function CardHead({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════ */
 export default function StudentOwnAttendancePage() {
   const now   = new Date();
   const [year,  setYear]  = useState(now.getFullYear());
@@ -83,6 +162,7 @@ export default function StudentOwnAttendancePage() {
   const startOfYear = activeYear?.start_date ?? `${year}-01-01`;
   const today       = now.toISOString().split("T")[0];
 
+  /* ── Attendance data ── */
   const { data: summary, loading: summaryLoading } = useApi<any>(
     activeYear?.id
       ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${startOfYear}&end_date=${today}`
@@ -95,40 +175,106 @@ export default function StudentOwnAttendancePage() {
     [year, month]
   );
 
-  /* ── Data ── */
-  const attPct  = Number(summary?.attendance_percentage ?? 100);
+  /* ── Calendar data ── */
+  const { data: calendarData } = useApi<any>(
+    activeYear?.id ? `/calendars?academic_year_id=${activeYear.id}` : "",
+    [activeYear?.id]
+  );
+
+  const calendarId  = calendarData?.id ?? null;
+  const weekendType = calendarData?.weekend_type ?? "sunday_only";
+
+  const { data: weeklyOffsRaw } = useApi<any[]>(
+    calendarId ? `/calendars/${calendarId}/weekly-offs` : "",
+    [calendarId]
+  );
+
+  const { data: eventsRaw } = useApi<any[]>(
+    calendarId ? `/calendars/${calendarId}/events` : "",
+    [calendarId]
+  );
+
+  /* ── Normalise weekly offs ── */
+  const weeklyOffs: { day_of_week: number; week_pattern: WeekPattern }[] = useMemo(
+    () => (weeklyOffsRaw ?? []).map(w => ({ day_of_week: w.day_of_week, week_pattern: w.week_pattern as WeekPattern })),
+    [weeklyOffsRaw]
+  );
+
+  /* ── Expand holiday events into a date→title map ── */
+  const holidayTitles = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    (eventsRaw ?? [])
+      .filter(e => e.affects_attendance === true || e.affects_attendance === "true")
+      .forEach(e => {
+        const start = new Date(e.event_date + "T00:00:00");
+        const end   = e.end_date ? new Date(e.end_date + "T00:00:00") : new Date(start);
+        const cur   = new Date(start);
+        while (cur <= end) {
+          const ds = cur.toISOString().split("T")[0];
+          if (!map.has(ds)) map.set(ds, e.title);
+          cur.setDate(cur.getDate() + 1);
+        }
+      });
+    return map;
+  }, [eventsRaw]);
+
+  /* ── Attendance stats ── */
+  const attPct  = Number(summary?.attendance_percentage ?? 0);
   const present = Number(summary?.total_present ?? 0);
   const absent  = Number(summary?.total_absent  ?? 0);
   const late    = Number(summary?.total_late    ?? 0);
   const leave   = Number(summary?.total_leave   ?? 0);
   const wDays   = Number(summary?.total_working_days ?? 0);
-  const g       = grade(attPct);
+  const hasAtt  = wDays > 0 && (present + absent + late + leave) > 0;
+  const g       = grade(hasAtt ? attPct : 100); // don't show "Low" when nothing is marked yet
 
-  const recordsByDay = new Map<number, string>();
-  (monthly ?? []).forEach(r => {
-    recordsByDay.set(new Date(r.date + "T00:00:00").getDate(), r.status);
-  });
+  const recordsByDay = useMemo(() => {
+    const m = new Map<number, string>();
+    (monthly ?? []).forEach(r => m.set(new Date(r.date + "T00:00:00").getDate(), r.status));
+    return m;
+  }, [monthly]);
 
   const monthPresent = (monthly ?? []).filter(r => r.status === "present").length;
   const monthAbsent  = (monthly ?? []).filter(r => r.status === "absent").length;
   const monthTotal   = (monthly ?? []).length;
   const monthPct     = monthTotal > 0 ? Math.round((monthPresent / monthTotal) * 100) : 0;
 
-  /* ── Calendar cells ── */
-  const daysInMonth   = new Date(year, month, 0).getDate();
-  const firstDow      = new Date(year, month - 1, 1).getDay();
-  const leadingBlanks = (firstDow + 6) % 7;
-  const cells: { day: number | null; status?: string }[] = [
-    ...Array(leadingBlanks).fill({ day: null }),
-    ...Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, status: recordsByDay.get(i + 1) })),
-  ];
-  while (cells.length % 7 !== 0) cells.push({ day: null });
+  /* ── Calendar cells — depends on weeklyOffs + holidayTitles + weekendType ── */
+  type Cell = { day: number | null; status?: string; isWeeklyOff?: boolean; isHoliday?: boolean; holidayName?: string };
 
-  const todayDay    = now.getMonth() + 1 === month ? now.getDate() : null;
-  const todayStatus = todayDay ? (recordsByDay.get(todayDay) ?? "off") : null;
+  const cells = useMemo<Cell[]>(() => {
+    const daysInMonth   = new Date(year, month, 0).getDate();
+    const firstDow      = new Date(year, month - 1, 1).getDay();
+    const leadingBlanks = (firstDow + 6) % 7; // Monday-first grid
 
-  /* ── Month options ── */
-  const monthOptions = (() => {
+    const result: Cell[] = Array(leadingBlanks).fill({ day: null });
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const wOff    = isWeeklyOffDay(dateObj, weeklyOffs, weekendType);
+      const hName   = !wOff ? holidayTitles.get(dateStr) : undefined;
+      result.push({
+        day:         d,
+        status:      recordsByDay.get(d),
+        isWeeklyOff: wOff,
+        isHoliday:   !!hName,
+        holidayName: hName,
+      });
+    }
+
+    while (result.length % 7 !== 0) result.push({ day: null });
+    return result;
+  }, [year, month, weeklyOffs, weekendType, holidayTitles, recordsByDay]);
+
+  const todayDay  = now.getMonth() + 1 === month ? now.getDate() : null;
+  const todayCell = todayDay ? cells.find(c => c.day === todayDay) : null;
+  const todayStatus = todayCell
+    ? (todayCell.isWeeklyOff ? "weekly_off" : todayCell.isHoliday ? "holiday" : (todayCell.status ?? null))
+    : null;
+
+  /* ── Month dropdown options ── */
+  const monthOptions = useMemo(() => {
     if (!activeYear) return [];
     const opts: { label: string; value: string }[] = [];
     const d = new Date(activeYear.start_date);
@@ -138,7 +284,15 @@ export default function StudentOwnAttendancePage() {
       d.setMonth(d.getMonth() + 1);
     }
     return opts.reverse();
-  })();
+  }, [activeYear]);
+
+  /* ── Cell display resolver ── */
+  function getCellCfg(cell: Cell) {
+    if (cell.isWeeklyOff) return STATUS.weekly_off;
+    if (cell.isHoliday)   return STATUS.holiday;
+    if (cell.status)      return STATUS[cell.status] ?? STATUS.off;
+    return STATUS.off;
+  }
 
   const initials = me?.full_name
     ? me.full_name.split(" ").map((p: string) => p[0]).join("").substring(0, 2).toUpperCase()
@@ -153,22 +307,17 @@ export default function StudentOwnAttendancePage() {
         .att-main { padding: 16px; max-width: 960px; margin: 0 auto; }
         @media (min-width: 640px) { .att-main { padding: 24px 28px 48px; } }
 
-        /* Hero */
         .att-hero { display: flex; align-items: center; gap: 16px; }
 
-        /* Stats row — 2 cols on mobile, 4 on desktop */
         .att-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         @media (min-width: 540px) { .att-stats { grid-template-columns: repeat(4, 1fr); } }
 
-        /* Main layout — single col mobile, 2-col desktop */
         .att-body { display: grid; grid-template-columns: 1fr; gap: 16px; }
         @media (min-width: 780px) { .att-body { grid-template-columns: 1fr 260px; align-items: start; } }
 
-        /* Calendar grid */
         .att-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 12px; }
         @media (min-width: 420px) { .att-cal { gap: 6px; padding: 14px; } }
 
-        /* Day cell */
         .att-day {
           aspect-ratio: 1;
           border-radius: 8px;
@@ -178,33 +327,39 @@ export default function StudentOwnAttendancePage() {
           transition: transform 0.1s;
           cursor: default;
           min-height: 36px;
+          position: relative;
         }
         @media (min-width: 420px) { .att-day { font-size: 13px; min-height: 44px; } }
         .att-day:active { transform: scale(0.94); }
 
-        /* Sidebar stacks below on mobile */
+        .att-day[data-holiday]:hover::after {
+          content: attr(data-holiday);
+          position: absolute;
+          bottom: calc(100% + 6px);
+          left: 50%;
+          transform: translateX(-50%);
+          background: #1f2d36;
+          color: #fff;
+          font-size: 10px;
+          font-weight: 700;
+          white-space: nowrap;
+          padding: 4px 8px;
+          border-radius: 6px;
+          z-index: 10;
+          pointer-events: none;
+        }
+
         .att-side { display: flex; flex-direction: column; gap: 14px; }
 
-        /* Today status row */
         .att-today-status {
           display: flex; align-items: center; gap: 12px;
           padding: 14px 16px; border-radius: 10px;
         }
 
-        /* Year stat rows */
-        .att-stat-row {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 10px 0; border-bottom: 1px solid ${C.border};
-          gap: 8px;
-        }
-        .att-stat-row:last-child { border-bottom: none; }
-
-        /* Legend grid 2-col */
-        .att-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 18px; }
-
-        /* Progress bar */
         .att-bar { height: 8px; border-radius: 999px; background: #e9ecef; overflow: hidden; }
         .att-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+
+        .att-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 18px; }
       `}</style>
 
       <div className="att-root">
@@ -216,7 +371,7 @@ export default function StudentOwnAttendancePage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* ── Hero ── */}
+              {/* ── Hero card ── */}
               <Card>
                 <div style={{ padding: "18px 18px 14px" }}>
                   <div className="att-hero">
@@ -229,7 +384,8 @@ export default function StudentOwnAttendancePage() {
                     }}>
                       {initials}
                     </div>
-                    {/* Name */}
+
+                    {/* Name + badge */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.mid, letterSpacing: 0.5, textTransform: "uppercase" }}>My Attendance</p>
                       <h1 style={{ margin: "3px 0 4px", fontSize: 18, fontWeight: 900, color: C.dark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -239,32 +395,47 @@ export default function StudentOwnAttendancePage() {
                         {me?.admission_number && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: C.mid }}>{me.admission_number}</span>
                         )}
-                        <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 800, background: g.bg, color: g.color }}>
-                          {g.label}
-                        </span>
+                        {hasAtt && (
+                          <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 800, background: g.bg, color: g.color }}>
+                            {g.label}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {/* Big % */}
-                    <div style={{
-                      width: 62, height: 62, borderRadius: "50%", flexShrink: 0,
-                      background: `conic-gradient(${C.brand} ${attPct * 3.6}deg, ${C.border} ${attPct * 3.6}deg)`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+
+                    {/* Conic % — only when there is data */}
+                    {hasAtt ? (
                       <div style={{
-                        width: 46, height: 46, borderRadius: "50%",
-                        background: C.white,
+                        width: 62, height: 62, borderRadius: "50%", flexShrink: 0,
+                        background: `conic-gradient(${C.brand} ${attPct * 3.6}deg, ${C.border} ${attPct * 3.6}deg)`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <div style={{
+                          width: 46, height: 46, borderRadius: "50%", background: C.white,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                        }}>
+                          <strong style={{ fontSize: 13, fontWeight: 900, color: C.dark, lineHeight: 1 }}>{attPct}%</strong>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: C.mid }}>overall</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        width: 62, height: 62, borderRadius: "50%", flexShrink: 0,
+                        background: C.light, border: `2px dashed ${C.border}`,
                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                       }}>
-                        <strong style={{ fontSize: 13, fontWeight: 900, color: C.dark, lineHeight: 1 }}>{attPct}%</strong>
-                        <span style={{ fontSize: 8, fontWeight: 700, color: C.mid }}>overall</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: C.mid, textAlign: "center", padding: "0 6px" }}>No data</span>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Progress bar */}
                   <div style={{ marginTop: 14 }}>
                     <div className="att-bar">
-                      <div className="att-bar-fill" style={{ width: `${attPct}%`, background: attPct >= 75 ? C.green : attPct >= 60 ? C.amber : C.red }} />
+                      <div className="att-bar-fill" style={{
+                        width: `${hasAtt ? attPct : 0}%`,
+                        background: attPct >= 75 ? C.green : attPct >= 60 ? C.amber : C.red,
+                      }} />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: C.mid }}>0%</span>
@@ -274,13 +445,13 @@ export default function StudentOwnAttendancePage() {
                   </div>
                 </div>
 
-                {/* Stats grid */}
+                {/* Stats strip */}
                 <div style={{ padding: "0 18px 16px" }}>
                   <div className="att-stats">
                     {[
-                      { label: "Working Days", val: wDays,   color: C.dark  },
-                      { label: "Present",      val: present, color: C.green  },
-                      { label: "Absent",       val: absent,  color: C.red   },
+                      { label: "Working Days", val: wDays,              color: C.dark  },
+                      { label: "Present",      val: present,            color: C.green  },
+                      { label: "Absent",       val: absent,             color: C.red   },
                       { label: "Late / Leave", val: `${late}/${leave}`, color: C.amber },
                     ].map(st => (
                       <div key={st.label} style={{
@@ -299,7 +470,7 @@ export default function StudentOwnAttendancePage() {
               {/* ── Body: Calendar + Sidebar ── */}
               <div className="att-body">
 
-                {/* Calendar */}
+                {/* ── Calendar ── */}
                 <Card>
                   {/* Header */}
                   <div style={{
@@ -311,7 +482,7 @@ export default function StudentOwnAttendancePage() {
                     </p>
                     <select
                       value={`${year}-${month}`}
-                      onChange={e => { const [y,m] = e.target.value.split("-").map(Number); setYear(y); setMonth(m); }}
+                      onChange={e => { const [y, m] = e.target.value.split("-").map(Number); setYear(y); setMonth(m); }}
                       style={{
                         padding: "6px 10px", borderRadius: 8,
                         border: `1px solid ${C.border}`, background: C.light,
@@ -324,45 +495,43 @@ export default function StudentOwnAttendancePage() {
                   </div>
 
                   {/* Day headers */}
-                  <div style={{
-                    display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
-                    background: C.light, borderBottom: `1px solid ${C.border}`,
-                  }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: C.light, borderBottom: `1px solid ${C.border}` }}>
                     {DAYS.map((d, i) => (
-                      <div key={i} style={{ padding: "8px 0", textAlign: "center", fontSize: 10, fontWeight: 800, color: C.mid }}>
-                        {d}
-                      </div>
+                      <div key={i} style={{ padding: "8px 0", textAlign: "center", fontSize: 10, fontWeight: 800, color: C.mid }}>{d}</div>
                     ))}
                   </div>
 
                   {/* Cells */}
                   {monthlyLoading ? (
-                    <div style={{ padding: "2.5rem", textAlign: "center" }}>
-                      <Spinner size={24} color={C.brand} />
-                    </div>
+                    <div style={{ padding: "2.5rem", textAlign: "center" }}><Spinner size={24} color={C.brand} /></div>
                   ) : (
                     <div className="att-cal">
                       {cells.map((cell, i) => {
                         if (!cell.day) return <div key={`b${i}`} style={{ aspectRatio: "1", minHeight: 36 }} />;
-                        const st  = cell.status ?? "off";
-                        const cfg = STATUS[st] ?? STATUS.off;
                         const isToday = cell.day === todayDay;
+                        const cfg     = getCellCfg(cell);
                         return (
                           <div
                             key={cell.day}
                             className="att-day"
+                            data-holiday={cell.isHoliday ? cell.holidayName : undefined}
                             style={{
-                              background: isToday ? C.brandLight : cfg.bg,
-                              borderColor: isToday ? C.brand : cfg.border,
-                              color: isToday ? C.brandDark : cfg.color,
-                              fontWeight: isToday ? 900 : 700,
-                              outline: isToday ? `2px solid ${C.brand}` : "none",
+                              background:  isToday ? C.brandLight : cfg.bg,
+                              borderColor: isToday ? C.brand      : cfg.border,
+                              color:       isToday ? C.brandDark  : cfg.color,
+                              fontWeight:  isToday ? 900          : 700,
+                              outline:     isToday ? `2px solid ${C.brand}` : "none",
                               outlineOffset: 1,
+                              backgroundImage: cell.isWeeklyOff
+                                ? "repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(148,163,184,0.18) 4px, rgba(148,163,184,0.18) 5px)"
+                                : undefined,
                             }}
                           >
                             <span style={{ fontSize: 12, fontWeight: isToday ? 900 : 700 }}>{cell.day}</span>
-                            {cell.status && (
-                              <span style={{ fontSize: 8, fontWeight: 900, marginTop: 1 }}>{cfg.short}</span>
+                            {(cell.status || cell.isWeeklyOff || cell.isHoliday) && (
+                              <span style={{ fontSize: 8, fontWeight: 900, marginTop: 1 }}>
+                                {cell.isWeeklyOff ? "–" : cell.isHoliday ? "H" : (STATUS[cell.status!]?.short ?? "")}
+                              </span>
                             )}
                           </div>
                         );
@@ -371,15 +540,11 @@ export default function StudentOwnAttendancePage() {
                   )}
 
                   {/* Month footer */}
-                  <div style={{
-                    borderTop: `1px solid ${C.border}`,
-                    padding: "12px 16px",
-                    display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8,
-                  }}>
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                     {[
-                      { label: "Present", val: monthPresent, color: C.green  },
-                      { label: "Absent",  val: monthAbsent,  color: C.red    },
-                      { label: "Marked",  val: monthTotal,   color: C.dark   },
+                      { label: "Present", val: monthPresent,   color: C.green  },
+                      { label: "Absent",  val: monthAbsent,    color: C.red    },
+                      { label: "Marked",  val: monthTotal,     color: C.dark   },
                       { label: "Rate",    val: `${monthPct}%`, color: attPct >= 75 ? C.green : C.amber },
                     ].map(s => (
                       <div key={s.label} style={{ textAlign: "center" }}>
@@ -390,7 +555,7 @@ export default function StudentOwnAttendancePage() {
                   </div>
                 </Card>
 
-                {/* Sidebar */}
+                {/* ── Sidebar ── */}
                 <div className="att-side">
 
                   {/* Today */}
@@ -413,7 +578,11 @@ export default function StudentOwnAttendancePage() {
                               {cfg.short}
                             </div>
                             <div>
-                              <strong style={{ display: "block", fontSize: 14, fontWeight: 900, color: cfg.color }}>{cfg.label}</strong>
+                              <strong style={{ display: "block", fontSize: 14, fontWeight: 900, color: cfg.color }}>
+                                {todayStatus === "holiday" && todayCell?.holidayName
+                                  ? todayCell.holidayName
+                                  : cfg.label}
+                              </strong>
                               <span style={{ fontSize: 11, fontWeight: 600, color: C.mid }}>Today's status</span>
                             </div>
                           </div>
@@ -426,49 +595,46 @@ export default function StudentOwnAttendancePage() {
                     </div>
                   </Card>
 
-                  {/* Full year stats */}
+                  {/* Year Summary — donut chart style */}
                   <Card>
                     <CardHead title="Year Summary" sub={activeYear?.year_name ?? "Current year"} />
-                    <div style={{ padding: "6px 18px 14px" }}>
-                      {[
-                        { label: "Working Days", val: wDays,   color: C.dark,  note: "Total"     },
-                        { label: "Present",      val: present, color: C.green,  note: "Attended"  },
-                        { label: "Absent",       val: absent,  color: C.red,   note: "Missed"    },
-                        { label: "Late",         val: late,    color: C.amber, note: "Arrivals"  },
-                        { label: "Leave",        val: leave,   color: C.mid,   note: "Approved"  },
-                      ].map(row => (
-                        <div key={row.label} className="att-stat-row">
-                          <div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{row.label}</span>
-                            <span style={{ display: "block", fontSize: 10, fontWeight: 600, color: C.mid }}>{row.note}</span>
-                          </div>
-                          <strong style={{ fontSize: 17, fontWeight: 900, color: row.color }}>{row.val}</strong>
-                        </div>
-                      ))}
+                    <div style={{ padding: "18px" }}>
+                      <DonutChart
+                        pct={hasAtt ? attPct : 0}
+                        present={present}
+                        absent={absent}
+                        total={wDays}
+                      />
                     </div>
                   </Card>
 
-                  {/* Legend */}
+                  {/* Color guide */}
                   <Card>
                     <CardHead title="Color Guide" />
                     <div className="att-legend">
-                      {Object.entries(STATUS).map(([key, cfg]) => (
-                        <div key={key} style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "8px 10px", borderRadius: 8,
-                          background: cfg.bg, border: `1px solid ${cfg.border}`,
-                        }}>
-                          <div style={{
-                            width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                            background: C.white, border: `1px solid ${cfg.border}`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 10, fontWeight: 900, color: cfg.color,
+                      {(["present","absent","late","leave","weekly_off","holiday"] as const).map(key => {
+                        const cfg = STATUS[key];
+                        return (
+                          <div key={key} style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "8px 10px", borderRadius: 8,
+                            background: cfg.bg, border: `1px solid ${cfg.border}`,
+                            backgroundImage: key === "weekly_off"
+                              ? "repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(148,163,184,0.2) 4px, rgba(148,163,184,0.2) 5px)"
+                              : undefined,
                           }}>
-                            {cfg.short}
+                            <div style={{
+                              width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                              background: C.white, border: `1px solid ${cfg.border}`,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 10, fontWeight: 900, color: cfg.color,
+                            }}>
+                              {cfg.short}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </Card>
 

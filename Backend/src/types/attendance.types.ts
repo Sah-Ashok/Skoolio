@@ -9,7 +9,7 @@ export interface IAttendance {
   academic_year_id: number;
   class_id: number;
   section_id: number;
-  date: Date;
+  date: string;          // BUG-12 FIX: req.body sends a string; DB returns date::text
   marked_by: number;
   total_present: number;
   total_absent: number;
@@ -48,8 +48,8 @@ export interface IAttendanceDetail {
   student_id: number;
   enrollment_id: number;
   status: StudentAttendanceStatus;
-  check_in_time?: string;
-  remarks?: string;
+  check_in_time?: string | null;
+  remarks?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -58,14 +58,17 @@ export type ICreateAttendanceDetail = Pick<
   IAttendanceDetail,
   'student_id' | 'enrollment_id' | 'status'
 > & {
-  check_in_time?: string;
-  remarks?: string;
+  check_in_time?: string | null;
+  remarks?: string | null;
 };
 
-export type IUpdateAttendanceDetail = Partial<Pick<
-  IAttendanceDetail,
-  'status' | 'check_in_time' | 'remarks'
->>;
+// BUG-08 FIX: fields typed as `T | null | undefined` so the repository
+// can distinguish "not sent" (undefined = skip) from "clear it" (null = set NULL).
+export type IUpdateAttendanceDetail = {
+  status?:        StudentAttendanceStatus | undefined;
+  check_in_time?: string | null | undefined;
+  remarks?:       string | null | undefined;
+};
 
 // ── SECTION TEACHER HISTORY ──
 export interface ISectionTeacherHistory {
@@ -74,8 +77,8 @@ export interface ISectionTeacherHistory {
   section_id: number;
   teacher_id: number;
   academic_year_id: number;
-  from_date: Date;
-  to_date?: Date;
+  from_date: string;
+  to_date?: string;
   reason?: string;
   created_at: Date;
 }
@@ -87,7 +90,7 @@ export type ICreateSectionTeacherHistory = Pick<
   | 'academic_year_id'
   | 'from_date'
 > & {
-  to_date?: Date;
+  to_date?: string;
   reason?: string;
 };
 

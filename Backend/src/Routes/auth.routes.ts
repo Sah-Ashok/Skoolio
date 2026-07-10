@@ -2,8 +2,10 @@ import { Router } from 'express';
 import {
   registerSchool, loginSchool, loginTeacher, loginStudent,
   logout, getMe, forgotPassword, verifyResetOTP, resetPassword, verify2FA,
+  changeTeacherPassword, changeStudentPassword,
 } from '../Controllers/auth.controller';
-import protect from '../middlewares/auth.middleware';
+import protect     from '../middlewares/auth.middleware';
+import restrictTo  from '../middlewares/role.middleware';
 
 const router = Router();
 
@@ -21,5 +23,9 @@ router.post('/reset-password',     resetPassword);
 
 // ── 2FA verification (after admin login with 2FA enabled) ──
 router.post('/verify-2fa',         verify2FA);
+
+// ── Self-service password change (teacher / student) ──
+router.post('/change-password/teacher', protect, restrictTo('faculty'), changeTeacherPassword);
+router.post('/change-password/student', protect, restrictTo('student'), changeStudentPassword);
 
 export default router;

@@ -21,15 +21,7 @@ export const createAttendance = catchAsync(async (req: Request, res: Response, n
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
 
   // Always set marked_by from the JWT — never trust the client-sent value.
-  // For a teacher: user.id is the teacher's own DB row id.
-  // For an admin:  user.id is the admin's own id.
   req.body.marked_by = user.id;
-
-  // Block future-date attendance marking
-  const today = new Date().toISOString().split('T')[0];
-  if (req.body.date && String(req.body.date) > today) {
-    return sendResponse(res, 400, false, 'Cannot mark attendance for a future date.', null);
-  }
 
   const result = await createAttendanceService(school_id, req.body, teacherId);
   sendResponse(res, 201, true, 'Attendance marked successfully', result);
@@ -68,10 +60,17 @@ export const submitAttendance = catchAsync(async (req: Request, res: Response, n
   sendResponse(res, 200, true, 'Attendance submitted successfully', result);
 });
 
+// BUG-06 FIX: validate attendance_id is present and numeric before proceeding.
 export const updateAttendanceDetail = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
+
   const { attendance_id } = req.body;
+
+  if (!attendance_id || isNaN(Number(attendance_id))) {
+    return sendResponse(res, 400, false, 'attendance_id is required and must be a valid number', null);
+  }
+
   const result = await updateAttendanceDetailService(
     Number(req.params.id),
     school_id,
@@ -220,9 +219,7 @@ export const getAdminSectionSummary = catchAsync(async (req: Request, res: Respo
   sendResponse(res, 200, true, 'Section attendance summary fetched successfully', result);
 });
 
-// ── SECTION REGISTER (single-query register endpoint) ─────────────────────
-// Returns flat rows for the register grid in one SQL round-trip.
-// GET /attendance/section/:sectionId/register?year=2026&month=7&academic_year_id=3
+// ── SECTION REGISTER ──
 export const getSectionRegister = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;

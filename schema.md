@@ -804,7 +804,39 @@ One row per student per academic year. One student = one route.
 
 ---
 
-### 37. hostel_assignments
+### 37. notices
+
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| school_id | INTEGER FK → schools | |
+| created_by_role | VARCHAR | `admin` or `faculty` |
+| created_by_id | INTEGER | school.id for admin, teachers.id for faculty |
+| created_by_name | VARCHAR | denormalised display name at time of creation |
+| title | VARCHAR | |
+| content | TEXT | |
+| target_type | VARCHAR | `section` or NULL (NULL = school-wide) |
+| target_section_id | INTEGER FK → sections | optional; only when target_type = 'section' |
+| is_pinned | BOOLEAN | default false — pinned notices sort to top |
+| expires_at | DATE | optional — NULL = never expires |
+| status | ENUM | `active` `archived` |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+> **Visibility rules:**
+> - `target_type IS NULL` → visible to everyone (school-wide, admin only)
+> - `target_type = 'section'` → visible only to coordinator of that section + admin
+> - Teachers can only post to sections where they are `sections.coordinator_id`
+> - Teachers can only edit/delete their own notices; admin can edit/delete all
+> - Expired notices (expires_at < today) still exist but are flagged; admin sees all
+
+> **Joined fields returned by API:** `section_name`, `class_name`
+
+> **Migration file:** `migration_notice_board.sql`
+
+---
+
+### 38. hostel_assignments
 
 One row per student per academic year.
 

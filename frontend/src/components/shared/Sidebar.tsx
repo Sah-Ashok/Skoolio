@@ -18,10 +18,12 @@ const adminNav: NavSection[] = [
     label: 'Main',
     links: [
       { href: '/dashboard',    icon: 'fa-gauge-high',          label: 'Dashboard'       },
-      { href: '/students',     icon: 'fa-user-graduate',       label: 'Students'        },
+      { href: '/students',          icon: 'fa-user-graduate',       label: 'Students'        },
+      { href: '/students/promote',   icon: 'fa-arrow-up-from-bracket', label: 'Promote Students' },
       { href: '/teachers',     icon: 'fa-chalkboard-user',     label: 'Faculty'         },
       { href: '/subscription', icon: 'fa-id-card-clip',        label: 'My Subscription' },
       { href: '/settings',     icon: 'fa-gear',                label: 'Settings'        },
+      { href: '/history',      icon: 'fa-clock-rotate-left',   label: 'History'         },
     ],
   },
   {
@@ -44,6 +46,12 @@ const adminNav: NavSection[] = [
       { href: '/calendar',       icon: 'fa-calendar-days',    label: 'Calendar'        },
       { href: '/attendance',     icon: 'fa-chart-column',     label: 'Attendance'      },
       { href: '/exams',          icon: 'fa-pen-to-square',    label: 'Exams & Results' },
+    ],
+  },
+  {
+    label: 'Communication',
+    links: [
+      { href: '/notices', icon: 'fa-bullhorn', label: 'Notice Board' },
     ],
   },
   {
@@ -87,7 +95,8 @@ const teacherNav: NavSection[] = [
   {
     label: 'School',
     links: [
-      { href: '/teacher/calendar', icon: 'fa-calendar-days',   label: 'Calendar'   },
+      { href: '/teacher/calendar', icon: 'fa-calendar-days',   label: 'Calendar'      },
+      { href: '/teacher/notices',  icon: 'fa-bullhorn',        label: 'Notice Board'  },
     ],
   },
 ]

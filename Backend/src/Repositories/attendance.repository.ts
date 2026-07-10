@@ -51,31 +51,6 @@ export const getAttendanceBySection = async (
 };
 
 // ── REGISTER QUERY — the core scalability fix ──────────────────────────────
-//
-// This replaces the N+1 pattern (1 call per day) with a SINGLE SQL query.
-//
-// What it does in one pass:
-//   1. Joins attendance + attendance_details + students for the target month only
-//   2. For each (student, day) pair, returns the status directly
-//   3. Returns one row per student — the register-shaped output the frontend needs
-//
-// Performance characteristics:
-//   - Filters by (section_id, school_id, academic_year_id, month) before any join
-//   - The idx_attendance_details_student index (migration_attendance_index.sql)
-//     covers the inner join on attendance_details
-//   - Result set: at most (students_in_section × working_days_in_month) rows
-//     e.g. 40 students × 22 days = 880 rows — trivially fast
-//   - Year totals are computed in the SAME query via a second aggregation window
-//     over all submitted attendance for the year — no second round-trip needed
-//
-// Response shape per row:
-//   { student_id, full_name, admission_number,
-//     date, status,                             ← one row per (student, day)
-//     year_present, year_absent, year_late, year_leave, year_total }
-//
-// The frontend pivots these rows into a keyed object: dayMap[student_id][date] = status
-// This is O(n) in JS — much cheaper than 22 API calls.
-//
 export const getSectionRegister = async (
   section_id: number,
   school_id: number,
@@ -83,10 +58,9 @@ export const getSectionRegister = async (
   year: number,
   month: number           // 1-indexed
 ): Promise<any[]> => {
-  // Build the month boundary strings once — PostgreSQL BETWEEN is inclusive
   const pad = (n: number) => String(n).padStart(2, '0');
   const monthStart = `${year}-${pad(month)}-01`;
-  const lastDay    = new Date(year, month, 0).getDate();    // month is 1-indexed, so month+0 = last day of target month
+  const lastDay    = new Date(year, month, 0).getDate();
   const monthEnd   = `${year}-${pad(month)}-${pad(lastDay)}`;
 
   const result = await pool.query(
@@ -94,19 +68,15 @@ export const getSectionRegister = async (
        s.id                                                      AS student_id,
        s.full_name,
        s.admission_number,
-       -- Per-day status (one row per student per marked day this month)
        a.date::text                                              AS date,
        ad.status,
-       -- Year totals aggregated in same query — no second round-trip
        yt.year_present,
        yt.year_absent,
        yt.year_late,
        yt.year_leave,
        yt.year_total
      FROM student_enrollments se
-     -- Enrolled students for this section+year
      INNER JOIN students s ON s.id = se.student_id
-     -- LEFT: students appear even on days where attendance wasn't marked
      LEFT JOIN attendance a
        ON a.section_id        = $1
       AND a.school_id         = $2
@@ -116,7 +86,6 @@ export const getSectionRegister = async (
        ON ad.attendance_id = a.id
       AND ad.student_id    = s.id
       AND ad.school_id     = $2
-     -- Year totals CTE joined per student — computed once, reused across all their rows
      LEFT JOIN (
        SELECT
          ad2.student_id,
@@ -145,10 +114,6 @@ export const getSectionRegister = async (
   return result.rows;
 };
 
-// ── Month headers only (lightweight — for the records table at bottom of register) ──
-// Returns header rows for a specific month — no details.
-// Used separately from getSectionRegister so the register itself doesn't
-// need the status column on headers (those come from the register query above).
 export const getAttendanceBySectionAndMonth = async (
   section_id: number,
   school_id: number,
@@ -251,6 +216,7 @@ export const updateAttendanceCounts = async (
 
 // ── ATTENDANCE DETAIL QUERIES ──
 
+// BUG-07 FIX: remarks is now included as the 7th column in the batch INSERT.
 export const createAttendanceDetails = async (
   school_id: number,
   attendance_id: number,
@@ -259,8 +225,8 @@ export const createAttendanceDetails = async (
   if (!details || details.length === 0) return [];
 
   const values = details.map((_, i) => {
-    const base = i * 6;
-    return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
+    const base = i * 7;
+    return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`;
   }).join(', ');
 
   const params = details.flatMap(d => [
@@ -270,11 +236,12 @@ export const createAttendanceDetails = async (
     d.enrollment_id,
     d.status,
     d.check_in_time || null,
+    d.remarks       || null,   // BUG-07: was missing
   ]);
 
   const result = await pool.query(
     `INSERT INTO attendance_details
-      (school_id, attendance_id, student_id, enrollment_id, status, check_in_time)
+      (school_id, attendance_id, student_id, enrollment_id, status, check_in_time, remarks)
      VALUES ${values}
      RETURNING *`,
     params
@@ -300,26 +267,52 @@ export const getAttendanceDetails = async (
   return result.rows;
 };
 
+// BUG-08 FIX: Use explicit UPDATE with NULL-capable fields instead of COALESCE,
+// so passing null actually clears the value. We only update fields that are
+// explicitly included in the payload (undefined = skip, null = clear).
 export const updateAttendanceDetail = async (
   id: number,
   school_id: number,
   data: IUpdateAttendanceDetail
 ): Promise<IAttendanceDetail | null> => {
+  // Build SET clause dynamically — only include fields that were explicitly sent.
+  // 'undefined' means the caller didn't touch the field → skip it (preserve DB value).
+  // 'null'      means the caller wants to clear it → set to NULL.
+  const setClauses: string[] = [];
+  const params: any[]        = [];
+  let   idx = 1;
+
+  if (data.status !== undefined) {
+    setClauses.push(`status = $${idx++}`);
+    params.push(data.status);
+  }
+  if (data.check_in_time !== undefined) {
+    setClauses.push(`check_in_time = $${idx++}`);
+    params.push(data.check_in_time ?? null);
+  }
+  if (data.remarks !== undefined) {
+    setClauses.push(`remarks = $${idx++}`);
+    params.push(data.remarks ?? null);
+  }
+
+  if (setClauses.length === 0) {
+    // Nothing to update — just return the current row
+    const cur = await pool.query(
+      `SELECT * FROM attendance_details WHERE id = $1 AND school_id = $2`,
+      [id, school_id]
+    );
+    return cur.rows[0] || null;
+  }
+
+  setClauses.push(`updated_at = NOW()`);
+  params.push(id, school_id);
+
   const result = await pool.query(
-    `UPDATE attendance_details SET
-      status        = COALESCE($1, status),
-      check_in_time = COALESCE($2, check_in_time),
-      remarks       = COALESCE($3, remarks),
-      updated_at    = NOW()
-     WHERE id = $4 AND school_id = $5
+    `UPDATE attendance_details
+     SET ${setClauses.join(', ')}
+     WHERE id = $${idx++} AND school_id = $${idx++}
      RETURNING *`,
-    [
-      data.status        ?? null,
-      data.check_in_time ?? null,
-      data.remarks       ?? null,
-      id,
-      school_id,
-    ]
+    params
   );
   return result.rows[0] || null;
 };
@@ -381,6 +374,8 @@ export const getStudentAttendanceSummary = async (
   return result.rows[0];
 };
 
+// BUG-09 FIX: Only return submitted attendance in monthly view so the
+// calendar matches the summary count. Draft rows are no longer shown.
 export const getStudentMonthlyAttendance = async (
   student_id: number,
   school_id: number,
@@ -395,6 +390,7 @@ export const getStudentMonthlyAttendance = async (
        AND ad.school_id  = $2
        AND EXTRACT(YEAR  FROM a.date) = $3
        AND EXTRACT(MONTH FROM a.date) = $4
+       AND a.status = 'submitted'
      ORDER BY a.date ASC`,
     [student_id, school_id, year, month]
   );
@@ -539,7 +535,9 @@ export const updateSectionTeacherHistory = async (
 };
 
 // ── ADMIN SECTION ATTENDANCE SUMMARY ──
-
+// P2 FIX: CTE was using `day` (text) column which doesn't exist.
+// calendar_weekly_offs has `day_of_week` (SMALLINT 0=Sun…6=Sat).
+// Fixed both cur_working and prev_working CTEs.
 export const getAdminSectionSummary = async (
   school_id: number,
   academic_year_id: number,
@@ -553,28 +551,26 @@ export const getAdminSectionSummary = async (
       cur_working AS (
         SELECT COUNT(*) AS days
         FROM generate_series($3::date, $4::date, '1 day'::interval) AS d
-        WHERE EXTRACT(DOW FROM d) NOT IN (
-            SELECT CASE day
-              WHEN 'sunday' THEN 0 WHEN 'monday' THEN 1 WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3 WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5 WHEN 'saturday' THEN 6 END
-            FROM calendar_weekly_offs WHERE school_id = $1 AND academic_year_id = $2)
+        WHERE EXTRACT(DOW FROM d)::int NOT IN (
+            SELECT day_of_week FROM calendar_weekly_offs
+            WHERE school_id = $1
+          )
           AND d::date NOT IN (
             SELECT event_date::date FROM calendar_events
-            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true)
+            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true
+          )
       ),
       prev_working AS (
         SELECT COUNT(*) AS days
         FROM generate_series($5::date, $6::date, '1 day'::interval) AS d
-        WHERE EXTRACT(DOW FROM d) NOT IN (
-            SELECT CASE day
-              WHEN 'sunday' THEN 0 WHEN 'monday' THEN 1 WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3 WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5 WHEN 'saturday' THEN 6 END
-            FROM calendar_weekly_offs WHERE school_id = $1 AND academic_year_id = $2)
+        WHERE EXTRACT(DOW FROM d)::int NOT IN (
+            SELECT day_of_week FROM calendar_weekly_offs
+            WHERE school_id = $1
+          )
           AND d::date NOT IN (
             SELECT event_date::date FROM calendar_events
-            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true)
+            WHERE school_id = $1 AND academic_year_id = $2 AND affects_attendance = true
+          )
       ),
       cur_present AS (
         SELECT a.section_id, SUM(a.total_present) AS total_present

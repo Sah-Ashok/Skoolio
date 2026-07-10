@@ -21,13 +21,17 @@ type Staff = {
   status: "active" | "on_leave" | "terminated";
   staff_role_id: number;
   role_name?: string;
+  address?: string;
+  date_of_birth?: string;
+  citizen_id?: string;
+  license_number?: string;
   current_salary?: { basic_salary: number };
 };
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  active:      { bg: "#e2f6ee", color: "#12805c" },
-  on_leave:    { bg: "#fff1df", color: "#a85f12" },
-  terminated:  { bg: "#fde7e7", color: "#b42318" },
+  active:     { bg: "#e2f6ee", color: "#12805c" },
+  on_leave:   { bg: "#fff1df", color: "#a85f12" },
+  terminated: { bg: "#fde7e7", color: "#b42318" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,25 +44,122 @@ const fmt = (n: number | string) =>
 const initials = (name: string) =>
   name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
 
-// ── Add Staff Modal ───────────────────────────────────────────────────────────
-function AddStaffModal({
-  roles,
-  onClose,
-  onSaved,
+// ── Shared Staff Form Fields ──────────────────────────────────────────────────
+type StaffForm = {
+  full_name: string; phone: string; gender: string; status: string;
+  staff_role_id: string; joined_date: string; address: string;
+  date_of_birth: string; citizen_id: string; license_number: string;
+};
+
+const emptyForm = (): StaffForm => ({
+  full_name: "", phone: "", gender: "", status: "active",
+  staff_role_id: "", joined_date: new Date().toISOString().split("T")[0],
+  address: "", date_of_birth: "", citizen_id: "", license_number: "",
+});
+
+function StaffFormFields({
+  form, set, roles,
 }: {
+  form: StaffForm;
+  set: (k: keyof StaffForm, v: string) => void;
   roles: StaffRole[];
-  onClose: () => void;
-  onSaved: () => void;
 }) {
-  const [form, setForm] = useState({
-    full_name: "", phone: "", gender: "", status: "active",
-    staff_role_id: "", joined_date: new Date().toISOString().split("T")[0],
-    address: "", date_of_birth: "",
-  });
-  const [err, setErr] = useState("");
+  return (
+    <>
+      <div className={cx(s("field"), s("full"))}>
+        <label>Full Name *</label>
+        <input value={form.full_name} onChange={e => set("full_name", e.target.value)} placeholder="e.g. Ram Bahadur Thapa" />
+      </div>
+
+      <div className={s("field")}>
+        <label>Role *</label>
+        <select value={form.staff_role_id} onChange={e => set("staff_role_id", e.target.value)}>
+          <option value="">Select role…</option>
+          {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
+        </select>
+      </div>
+
+      <div className={s("field")}>
+        <label>Phone</label>
+        <input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="98XXXXXXXX" />
+      </div>
+
+      <div className={s("field")}>
+        <label>Gender</label>
+        <select value={form.gender} onChange={e => set("gender", e.target.value)}>
+          <option value="">Select…</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div className={s("field")}>
+        <label>Joined Date *</label>
+        <input type="date" value={form.joined_date} onChange={e => set("joined_date", e.target.value)} />
+      </div>
+
+      <div className={s("field")}>
+        <label>Date of Birth</label>
+        <input type="date" value={form.date_of_birth} onChange={e => set("date_of_birth", e.target.value)} />
+      </div>
+
+      <div className={s("field")}>
+        <label>Status</label>
+        <select value={form.status} onChange={e => set("status", e.target.value)}>
+          <option value="active">Active</option>
+          <option value="on_leave">On Leave</option>
+          <option value="terminated">Terminated</option>
+        </select>
+      </div>
+
+      {/* Documents section */}
+      <div className={s("full")}>
+        <p style={{ margin: "4px 0 10px", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: 1 }}>
+          <i className="fa-solid fa-id-card" style={{ marginRight: 6, color: "#ff9b51" }} />
+          Documents (Optional)
+        </p>
+      </div>
+
+      <div className={s("field")}>
+        <label>
+          <i className="fa-solid fa-id-card" style={{ marginRight: 5, color: "#3b5bdb", fontSize: 11 }} />
+          Citizenship / National ID No.
+        </label>
+        <input
+          value={form.citizen_id}
+          onChange={e => set("citizen_id", e.target.value)}
+          placeholder="e.g. 12-34-56-78901"
+        />
+      </div>
+
+      <div className={s("field")}>
+        <label>
+          <i className="fa-solid fa-car" style={{ marginRight: 5, color: "#7c3aed", fontSize: 11 }} />
+          Driving Licence No.
+        </label>
+        <input
+          value={form.license_number}
+          onChange={e => set("license_number", e.target.value)}
+          placeholder="e.g. 03-01-0123456"
+        />
+      </div>
+
+      <div className={cx(s("field"), s("full"))}>
+        <label>Address</label>
+        <textarea value={form.address} onChange={e => set("address", e.target.value)} placeholder="Home address…" />
+      </div>
+    </>
+  );
+}
+
+// ── Add Staff Modal ───────────────────────────────────────────────────────────
+function AddStaffModal({ roles, onClose, onSaved }: { roles: StaffRole[]; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<StaffForm>(emptyForm());
+  const [err,  setErr]  = useState("");
   const { execute, loading } = useMutation("/staff", "POST");
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: keyof StaffForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
     if (!form.full_name.trim()) return setErr("Full name is required.");
@@ -82,71 +183,16 @@ function AddStaffModal({
             <h2>Add Staff Member</h2>
             <p>Fill in the details for the new staff member.</p>
           </div>
-          <button className={s("closeBtn")} onClick={onClose}>
-            <i className="fa-solid fa-xmark" />
-          </button>
+          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
         </div>
-
         <div className={s("formGrid")}>
-          <div className={cx(s("field"), s("full"))}>
-            <label>Full Name *</label>
-            <input value={form.full_name} onChange={e => set("full_name", e.target.value)} placeholder="e.g. Ram Bahadur Thapa" />
-          </div>
-
-          <div className={s("field")}>
-            <label>Role *</label>
-            <select value={form.staff_role_id} onChange={e => set("staff_role_id", e.target.value)}>
-              <option value="">Select role…</option>
-              {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
-            </select>
-          </div>
-
-          <div className={s("field")}>
-            <label>Phone</label>
-            <input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="98XXXXXXXX" />
-          </div>
-
-          <div className={s("field")}>
-            <label>Gender</label>
-            <select value={form.gender} onChange={e => set("gender", e.target.value)}>
-              <option value="">Select…</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div className={s("field")}>
-            <label>Joined Date *</label>
-            <input type="date" value={form.joined_date} onChange={e => set("joined_date", e.target.value)} />
-          </div>
-
-          <div className={s("field")}>
-            <label>Date of Birth</label>
-            <input type="date" value={form.date_of_birth} onChange={e => set("date_of_birth", e.target.value)} />
-          </div>
-
-          <div className={s("field")}>
-            <label>Status</label>
-            <select value={form.status} onChange={e => set("status", e.target.value)}>
-              <option value="active">Active</option>
-              <option value="on_leave">On Leave</option>
-              <option value="terminated">Terminated</option>
-            </select>
-          </div>
-
-          <div className={cx(s("field"), s("full"))}>
-            <label>Address</label>
-            <textarea value={form.address} onChange={e => set("address", e.target.value)} placeholder="Home address…" />
-          </div>
-
+          <StaffFormFields form={form} set={set} roles={roles} />
           {err && (
             <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>
               <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{err}
             </p>
           )}
         </div>
-
         <div className={s("modalFoot")}>
           <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Cancel</button>
           <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSubmit} disabled={loading}>
@@ -158,10 +204,191 @@ function AddStaffModal({
   );
 }
 
+// ── Edit Staff Modal ──────────────────────────────────────────────────────────
+function EditStaffModal({ staff, roles, onClose, onSaved }: { staff: Staff; roles: StaffRole[]; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<StaffForm>({
+    full_name:      staff.full_name,
+    phone:          staff.phone          ?? "",
+    gender:         staff.gender         ?? "",
+    status:         staff.status,
+    staff_role_id:  String(staff.staff_role_id),
+    joined_date:    staff.joined_date?.split("T")[0] ?? "",
+    address:        staff.address        ?? "",
+    date_of_birth:  staff.date_of_birth?.split("T")[0] ?? "",
+    citizen_id:     staff.citizen_id     ?? "",
+    license_number: staff.license_number ?? "",
+  });
+  const [err, setErr] = useState("");
+  const { execute, loading } = useMutation(`/staff/${staff.id}`, "PATCH");
+
+  const set = (k: keyof StaffForm, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!form.full_name.trim()) return setErr("Full name is required.");
+    if (!form.staff_role_id)    return setErr("Please select a role.");
+    setErr("");
+    try {
+      await execute({ ...form, staff_role_id: Number(form.staff_role_id) });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      setErr(e.message || "Failed to update staff member.");
+    }
+  };
+
+  return (
+    <div className={s("overlay")} onClick={onClose}>
+      <div className={s("modal")} onClick={e => e.stopPropagation()}>
+        <div className={s("modalHead")}>
+          <div>
+            <h2>Edit Staff Member</h2>
+            <p>Update details for <strong>{staff.full_name}</strong></p>
+          </div>
+          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
+        </div>
+        <div className={s("formGrid")}>
+          <StaffFormFields form={form} set={set} roles={roles} />
+          {err && (
+            <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>
+              <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{err}
+            </p>
+          )}
+        </div>
+        <div className={s("modalFoot")}>
+          <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Cancel</button>
+          <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size={14} color="#fff" /> : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Staff Detail Panel ────────────────────────────────────────────────────────
+function StaffDetailPanel({ staff, onClose, onEdit }: { staff: Staff; onClose: () => void; onEdit: () => void }) {
+  return (
+    <div className={s("overlay")} onClick={onClose}>
+      <div className={s("modal")} style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <div className={s("modalHead")}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div
+              style={{
+                width: 48, height: 48, borderRadius: 12,
+                background: "#fff1df", color: "#c46a14",
+                display: "grid", placeItems: "center",
+                fontSize: 18, fontWeight: 900, flexShrink: 0,
+              }}
+            >
+              {initials(staff.full_name)}
+            </div>
+            <div>
+              <h2 style={{ marginBottom: 2 }}>{staff.full_name}</h2>
+              <p style={{ margin: 0 }}>
+                {staff.role_name ?? "Staff"} · #{staff.id}
+              </p>
+            </div>
+          </div>
+          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
+        </div>
+
+        <div style={{ padding: "16px 22px", display: "grid", gap: 10 }}>
+          {/* Status badge */}
+          <div style={{ marginBottom: 4 }}>
+            <span
+              className={s("badge")}
+              style={{ background: STATUS_STYLE[staff.status]?.bg, color: STATUS_STYLE[staff.status]?.color }}
+            >
+              {STATUS_LABELS[staff.status] ?? staff.status}
+            </span>
+          </div>
+
+          {/* Info grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[
+              { icon: "fa-phone",        label: "Phone",         value: staff.phone ?? "—" },
+              { icon: "fa-venus-mars",   label: "Gender",        value: staff.gender ? staff.gender.charAt(0).toUpperCase() + staff.gender.slice(1) : "—" },
+              { icon: "fa-calendar",     label: "Joined",        value: staff.joined_date ? new Date(staff.joined_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+              { icon: "fa-cake-candles", label: "Date of Birth", value: staff.date_of_birth ? new Date(staff.date_of_birth).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+            ].map(({ icon, label, value }) => (
+              <div key={label} style={{ padding: 12, border: "1px solid #e1e8eb", borderRadius: 9, background: "#f8fbfc" }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>
+                  <i className={`fa-solid ${icon}`} style={{ marginRight: 5 }} />{label}
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 900, color: "#1f2d36" }}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Monthly salary */}
+          {staff.current_salary && (
+            <div style={{ padding: 12, border: "1px solid #bee8d6", borderRadius: 9, background: "#f6fdf9" }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>
+                <i className="fa-solid fa-money-bill-wave" style={{ marginRight: 5 }} />Monthly Salary
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 900, color: "#12805c" }}>
+                {fmt(staff.current_salary.basic_salary)}
+              </p>
+            </div>
+          )}
+
+          {/* Documents */}
+          {(staff.citizen_id || staff.license_number) && (
+            <>
+              <p style={{ margin: "6px 0 4px", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: 1 }}>
+                <i className="fa-solid fa-id-card" style={{ marginRight: 6, color: "#ff9b51" }} />Documents
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {staff.citizen_id && (
+                  <div style={{ padding: 12, border: "1px solid #dce5ff", borderRadius: 9, background: "#f0f4ff" }}>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#3b5bdb" }}>
+                      <i className="fa-solid fa-id-card" style={{ marginRight: 5 }} />Citizenship ID
+                    </p>
+                    <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 900, color: "#1f2d36", wordBreak: "break-all" }}>
+                      {staff.citizen_id}
+                    </p>
+                  </div>
+                )}
+                {staff.license_number && (
+                  <div style={{ padding: 12, border: "1px solid #e8deff", borderRadius: 9, background: "#f5f0ff" }}>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#7c3aed" }}>
+                      <i className="fa-solid fa-car" style={{ marginRight: 5 }} />Licence No.
+                    </p>
+                    <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 900, color: "#1f2d36", wordBreak: "break-all" }}>
+                      {staff.license_number}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Address */}
+          {staff.address && (
+            <div style={{ padding: 12, border: "1px solid #e1e8eb", borderRadius: 9, background: "#f8fbfc" }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>
+                <i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />Address
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 700, color: "#1f2d36" }}>{staff.address}</p>
+            </div>
+          )}
+        </div>
+
+        <div className={s("modalFoot")}>
+          <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Close</button>
+          <button className={cx(s("btn"), s("btnPrimary"))} onClick={onEdit}>
+            <i className="fa-solid fa-pen" /> Edit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Add Role Modal ────────────────────────────────────────────────────────────
 function AddRoleModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState("");
-  const [err, setErr]   = useState("");
+  const [err,  setErr]  = useState("");
   const { execute, loading } = useMutation("/staff/roles", "POST");
 
   const handleSubmit = async () => {
@@ -202,27 +429,32 @@ function AddRoleModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-export function StaffPage() {
-  const { data: staff,   loading: loadingStaff,  refetch: refetchStaff }  = useApi<Staff[]>("/staff");
-  const { data: roles,   loading: loadingRoles,  refetch: refetchRoles }  = useApi<StaffRole[]>("/staff/roles");
+type ModalState =
+  | { type: "add_staff" }
+  | { type: "add_role" }
+  | { type: "view";   staff: Staff }
+  | { type: "edit";   staff: Staff }
+  | null;
 
-  const [search,     setSearch]     = useState("");
-  const [filterRole, setFilterRole] = useState("");
+export function StaffPage() {
+  const { data: staff,  loading: loadingStaff, refetch: refetchStaff } = useApi<Staff[]>("/staff");
+  const { data: roles,  loading: loadingRoles, refetch: refetchRoles } = useApi<StaffRole[]>("/staff/roles");
+
+  const [search,       setSearch]       = useState("");
+  const [filterRole,   setFilterRole]   = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [modal,      setModal]      = useState<"add_staff" | "add_role" | null>(null);
+  const [modal,        setModal]        = useState<ModalState>(null);
 
   const filtered = useMemo(() => {
     return (staff ?? []).filter(m => {
-      const matchSearch = !search || m.full_name.toLowerCase().includes(search.toLowerCase()) || (m.phone ?? "").includes(search);
+      const matchSearch = !search       || m.full_name.toLowerCase().includes(search.toLowerCase()) || (m.phone ?? "").includes(search);
       const matchRole   = !filterRole   || String(m.staff_role_id) === filterRole;
       const matchStatus = !filterStatus || m.status === filterStatus;
       return matchSearch && matchRole && matchStatus;
     });
   }, [staff, search, filterRole, filterStatus]);
 
-  const totalActive     = (staff ?? []).filter(m => m.status === "active").length;
-  const totalOnLeave    = (staff ?? []).filter(m => m.status === "on_leave").length;
-  const totalTerminated = (staff ?? []).filter(m => m.status === "terminated").length;
+  const totalOnLeave = (staff ?? []).filter(m => m.status === "on_leave").length;
 
   return (
     <div className={s("page")}>
@@ -236,10 +468,10 @@ export function StaffPage() {
             <p>Manage all non-teaching staff, their attendance and salary.</p>
           </div>
           <div className={s("actions")}>
-            <button className={cx(s("btn"), s("btnOutline"))} onClick={() => setModal("add_role")}>
+            <button className={cx(s("btn"), s("btnOutline"))} onClick={() => setModal({ type: "add_role" })}>
               <i className="fa-solid fa-tag" /> New Role
             </button>
-            <button className={cx(s("btn"), s("btnPrimary"))} onClick={() => setModal("add_staff")}>
+            <button className={cx(s("btn"), s("btnPrimary"))} onClick={() => setModal({ type: "add_staff" })}>
               <i className="fa-solid fa-plus" /> Add Staff
             </button>
           </div>
@@ -248,10 +480,10 @@ export function StaffPage() {
         {/* Stats */}
         <section className={s("stats")}>
           {[
-            { label: "Total Staff",   value: (staff ?? []).length, sub: "All roles",       cls: "blue",   icon: "fa-users" },
-            { label: "Active",        value: totalActive,          sub: "Currently working", cls: "green",  icon: "fa-circle-check" },
-            { label: "On Leave",      value: totalOnLeave,         sub: "Temporary absence", cls: "orange", icon: "fa-circle-pause" },
-            { label: "Staff Roles",   value: (roles ?? []).length, sub: "Defined categories", cls: "purple", icon: "fa-tag" },
+            { label: "Total Staff",   value: (staff ?? []).length,                                          sub: "All roles",           cls: "blue",   icon: "fa-users"         },
+            { label: "Active",        value: (staff ?? []).filter(m => m.status === "active").length,       sub: "Currently working",   cls: "green",  icon: "fa-circle-check"  },
+            { label: "On Leave",      value: totalOnLeave,                                                  sub: "Temporary absence",   cls: "orange", icon: "fa-circle-pause"  },
+            { label: "Staff Roles",   value: (roles ?? []).length,                                          sub: "Defined categories",  cls: "purple", icon: "fa-tag"           },
           ].map(({ label, value, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
               <div><i className={`fa-solid ${icon}`} /></div>
@@ -309,15 +541,20 @@ export function StaffPage() {
                     <th>Name</th>
                     <th>Role</th>
                     <th>Phone</th>
-                    <th>Gender</th>
                     <th>Joined</th>
                     <th>Monthly Salary</th>
+                    <th>Documents</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map(m => (
-                    <tr key={m.id}>
+                    <tr
+                      key={m.id}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setModal({ type: "view", staff: m })}
+                    >
                       <td>
                         <div className={s("staffCell")}>
                           <div className={s("avatar")}>{initials(m.full_name)}</div>
@@ -329,13 +566,31 @@ export function StaffPage() {
                       </td>
                       <td>{m.role_name ?? "—"}</td>
                       <td>{m.phone ?? <span style={{ color: "#aab5bb" }}>—</span>}</td>
-                      <td style={{ textTransform: "capitalize" }}>{m.gender ?? <span style={{ color: "#aab5bb" }}>—</span>}</td>
-                      <td>{m.joined_date ? new Date(m.joined_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                      <td>
+                        {m.joined_date
+                          ? new Date(m.joined_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          : "—"}
+                      </td>
                       <td>
                         {m.current_salary
                           ? <strong style={{ color: "#12805c" }}>{fmt(m.current_salary.basic_salary)}</strong>
                           : <span style={{ color: "#c46a14", fontWeight: 900, fontSize: 12 }}>Not set</span>
                         }
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {m.citizen_id && (
+                            <span title={`Citizenship: ${m.citizen_id}`} style={{ padding: "3px 8px", borderRadius: 6, background: "#f0f4ff", color: "#3b5bdb", fontSize: 11, fontWeight: 900, border: "1px solid #dce5ff" }}>
+                              <i className="fa-solid fa-id-card" style={{ marginRight: 4 }} />ID
+                            </span>
+                          )}
+                          {m.license_number && (
+                            <span title={`Licence: ${m.license_number}`} style={{ padding: "3px 8px", borderRadius: 6, background: "#f5f0ff", color: "#7c3aed", fontSize: 11, fontWeight: 900, border: "1px solid #e8deff" }}>
+                              <i className="fa-solid fa-car" style={{ marginRight: 4 }} />Lic
+                            </span>
+                          )}
+                          {!m.citizen_id && !m.license_number && <span style={{ color: "#aab5bb" }}>—</span>}
+                        </div>
                       </td>
                       <td>
                         <span
@@ -347,6 +602,15 @@ export function StaffPage() {
                         >
                           {STATUS_LABELS[m.status] ?? m.status}
                         </span>
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <button
+                          className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
+                          onClick={() => setModal({ type: "edit", staff: m })}
+                          title="Edit staff member"
+                        >
+                          <i className="fa-solid fa-pen" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -370,13 +634,9 @@ export function StaffPage() {
                 <span
                   key={r.id}
                   style={{
-                    padding: "6px 14px",
-                    border: "1px solid #dce5e9",
-                    borderRadius: 8,
-                    background: "#f8fbfc",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    color: "#1f2d36",
+                    padding: "6px 14px", border: "1px solid #dce5e9",
+                    borderRadius: 8, background: "#f8fbfc",
+                    fontSize: 13, fontWeight: 900, color: "#1f2d36",
                   }}
                 >
                   <i className="fa-solid fa-circle-dot" style={{ color: "#ff9148", marginRight: 7, fontSize: 9 }} />
@@ -391,17 +651,36 @@ export function StaffPage() {
         )}
       </main>
 
-      {modal === "add_staff" && (
+      {/* ── Modals ── */}
+      {modal?.type === "add_staff" && (
         <AddStaffModal
           roles={roles ?? []}
           onClose={() => setModal(null)}
           onSaved={() => refetchStaff()}
         />
       )}
-      {modal === "add_role" && (
+
+      {modal?.type === "add_role" && (
         <AddRoleModal
           onClose={() => setModal(null)}
           onSaved={() => refetchRoles()}
+        />
+      )}
+
+      {modal?.type === "view" && (
+        <StaffDetailPanel
+          staff={modal.staff}
+          onClose={() => setModal(null)}
+          onEdit={() => setModal({ type: "edit", staff: modal.staff })}
+        />
+      )}
+
+      {modal?.type === "edit" && (
+        <EditStaffModal
+          staff={modal.staff}
+          roles={roles ?? []}
+          onClose={() => setModal(null)}
+          onSaved={() => refetchStaff()}
         />
       )}
     </div>

@@ -8,7 +8,7 @@ import {
   createSectionTeacherHistory, getSectionTeacherHistory, updateSectionTeacherHistory,
   getAdminSectionSummary,
 } from '../Repositories/attendance.repository';
-import { calculateWorkingDays } from './calendar.service';
+import { calculateWorkingDays, isWorkingDayService } from './calendar.service';
 import {
   ICreateAttendance, IUpdateAttendance,
   IUpdateAttendanceDetail, ICreateSectionTeacherHistory,
@@ -26,7 +26,7 @@ const assertCoordinator = async (section_id: number, school_id: number, teacherI
     throw new AppError('Access denied. You are not the coordinator of this section.', 403);
 };
 
-// ── Helper: reject future dates and too-old dates ────────────────────────────
+// ── Helper: reject future dates ───────────────────────────────────────────────
 const assertAttendanceDate = (date: string | Date) => {
   const d     = new Date(date);
   const today = new Date();
@@ -35,6 +35,15 @@ const assertAttendanceDate = (date: string | Date) => {
   if (d > today) {
     throw new AppError('Cannot mark attendance for a future date.', 400);
   }
+};
+
+// ── Helper: normalise any date value to 'YYYY-MM-DD' string ──────────────────
+const toDateString = (date: string | Date): string => {
+  if (typeof date === 'string') {
+    // Already a plain date string — return as-is
+    return date.slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
 };
 
 // ── CREATE ATTENDANCE ─────────────────────────────────────────────────────────
@@ -47,12 +56,29 @@ export const createAttendanceService = async (
   if (!data.students || data.students.length === 0)
     throw new AppError('No students provided for attendance.', 400);
 
-  // Reject future dates
+  // 1. Reject future dates
   assertAttendanceDate(data.date);
 
+  // 2. Block weekly offs and holidays
+  const dateStr = toDateString(data.date);
+  const { isWorking, reason } = await isWorkingDayService(
+    school_id,
+    data.academic_year_id,
+    dateStr
+  );
+  if (!isWorking) {
+    const msg =
+      reason === 'weekly_off'
+        ? `Cannot mark attendance on a weekly off day (${dateStr}).`
+        : `Cannot mark attendance on a holiday (${dateStr}).`;
+    throw new AppError(msg, 400);
+  }
+
+  // 3. Coordinator check
   await assertCoordinator(data.section_id, school_id, teacherId);
 
-  const existing = await getAttendanceByDate(data.section_id, school_id, String(data.date));
+  // 4. Duplicate check
+  const existing = await getAttendanceByDate(data.section_id, school_id, dateStr);
   if (existing) {
     throw new AppError('Attendance already marked for this section on this date.', 400);
   }

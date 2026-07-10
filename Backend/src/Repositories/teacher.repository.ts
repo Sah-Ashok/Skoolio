@@ -138,6 +138,28 @@ export const updateTeacher = async (
   return result.rows[0] || null;
 };
 
+export const getTeacherByIdWithPassword = async (
+  id: number,
+  school_id: number
+): Promise<ITeacher | null> => {
+  const result = await pool.query(
+    `SELECT * FROM teachers WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const updateTeacherPassword = async (
+  id: number,
+  school_id: number,
+  hashedPassword: string
+): Promise<void> => {
+  await pool.query(
+    `UPDATE teachers SET password = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
+    [hashedPassword, id, school_id]
+  );
+};
+
 export const deleteTeacher = async (
   id: number,
   school_id: number

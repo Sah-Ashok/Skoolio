@@ -4,6 +4,7 @@ import {
   loginStudentService, getMeService, forgotPasswordService,
   verifyResetOTPService, resetPasswordService, verify2FAService,
   blockUnblockSchoolService,
+  changeTeacherPasswordService, changeStudentPasswordService,
 } from '../Service/auth.service';
 import { IRegisterSchool, ILoginSchool, IJwtPayload } from '../types/auth.types';
 import catchAsync  from '../utils/catchAsync';
@@ -120,6 +121,30 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
 });
 
 // ── SUPER ADMIN: BLOCK / UNBLOCK SCHOOL ─────────────────────────────────
+
+// ── CHANGE PASSWORD (teacher self-service) ────────────────────────────────────
+
+export const changeTeacherPassword = catchAsync(async (req: Request, res: Response) => {
+  const { id, school_id } = req.user as any;
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    throw { message: 'current_password and new_password are required.', statusCode: 400 };
+  await changeTeacherPasswordService(id, school_id, current_password, new_password);
+  sendResponse(res, 200, true, 'Password changed successfully.', null);
+});
+
+// ── CHANGE PASSWORD (student self-service) ────────────────────────────────────
+
+export const changeStudentPassword = catchAsync(async (req: Request, res: Response) => {
+  const { id, school_id } = req.user as any;
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    throw { message: 'current_password and new_password are required.', statusCode: 400 };
+  await changeStudentPasswordService(id, school_id, current_password, new_password);
+  sendResponse(res, 200, true, 'Password changed successfully.', null);
+});
+
+// ── SUPER ADMIN: BLOCK / UNBLOCK SCHOOL ───────────────────────────────────
 
 export const blockSchool = catchAsync(async (req: Request, res: Response) => {
   const { schoolId } = req.params;

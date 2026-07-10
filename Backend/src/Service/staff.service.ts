@@ -9,7 +9,7 @@ import {
 } from '../types/staff.types';
 import {
   createStaffRole, getStaffRolesBySchool, getStaffRoleById, updateStaffRole, deleteStaffRole,
-  createStaff, getStaffBySchool, getStaffById, updateStaff, deleteStaff,
+  createStaff, getStaffWithSalary, getStaffById, updateStaff, deleteStaff,
   createSalaryStructure, getSalaryStructureByStaff, getLatestSalaryStructure, updateSalaryStructure,
   createSalaryPayment, getSalaryPaymentsByStaff, getAllSalaryPayments, getPendingSalaries,
   getSalaryPaymentById, updateSalaryPayment,
@@ -34,9 +34,16 @@ export const updateStaffRoleService = async (id: number, school_id: number, data
 };
 
 export const deleteStaffRoleService = async (id: number, school_id: number) => {
-  // Guard: role in use?
-  const deleted = await deleteStaffRole(id, school_id);
-  if (!deleted) throw new AppError('Staff role not found or is still assigned to staff members.', 404);
+  try {
+    const deleted = await deleteStaffRole(id, school_id);
+    if (!deleted) throw new AppError('Staff role not found.', 404);
+  } catch (err: any) {
+    // PostgreSQL FK violation 23503 = a staff member is still assigned this role
+    if (err.code === '23503') {
+      throw new AppError('Cannot delete this role — it is still assigned to one or more staff members.', 400);
+    }
+    throw err;
+  }
 };
 
 // ── STAFF MEMBERS ─────────────────────────────────────────────────────────────
@@ -47,14 +54,14 @@ export const createStaffService = async (school_id: number, data: ICreateStaff) 
   return createStaff(school_id, data);
 };
 
+// Uses a single LATERAL JOIN query — no N+1
 export const getStaffService = async (school_id: number) => {
-  return getStaffBySchool(school_id);
+  return getStaffWithSalary(school_id);
 };
 
 export const getStaffByIdService = async (id: number, school_id: number) => {
   const staff = await getStaffById(id, school_id);
   if (!staff) throw new AppError('Staff member not found.', 404);
-
   const salary  = await getLatestSalaryStructure(id, school_id);
   const history = await getSalaryStructureByStaff(id, school_id);
   return { ...staff, current_salary: salary, salary_history: history };
@@ -102,14 +109,12 @@ export const createSalaryPaymentService = async (school_id: number, data: ICreat
   const staff = await getStaffById(data.staff_id, school_id);
   if (!staff) throw new AppError('Staff member not found.', 404);
 
-  // Sum deduction line items if provided
   const deductionItems: ICreateDeduction[] = data.deductions ?? [];
-  const computedTotal = deductionItems.reduce((acc, d) => acc + (d.amount || 0), 0);
+  const computedTotal    = deductionItems.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
   const total_deductions = data.total_deductions ?? computedTotal;
 
   const payment = await createSalaryPayment(school_id, { ...data, total_deductions });
 
-  // Insert deduction line items
   if (deductionItems.length) {
     await createDeductions(school_id, payment.id, deductionItems);
   }
@@ -145,21 +150,22 @@ export const updateSalaryPaymentService = async (
   data: IUpdateSalaryPayment,
   newDeductions?: ICreateDeduction[]
 ) => {
-  const payment = await updateSalaryPayment(id, school_id, data);
-  if (!payment) throw new AppError('Salary payment not found.', 404);
+  // Compute new total first so we do a single update call — no race condition
+  let finalData = { ...data };
 
-  // Replace deductions if provided
-  if (newDeductions) {
+  if (newDeductions !== undefined) {
     await deleteDeductionsByPayment(id, school_id);
-    const total = newDeductions.reduce((acc, d) => acc + (d.amount || 0), 0);
-    await createDeductions(school_id, id, newDeductions);
-    // Sync total_deductions
-    await updateSalaryPayment(id, school_id, { total_deductions: total });
+    if (newDeductions.length) {
+      await createDeductions(school_id, id, newDeductions);
+    }
+    finalData.total_deductions = newDeductions.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
   }
 
+  const payment = await updateSalaryPayment(id, school_id, finalData);
+  if (!payment) throw new AppError('Salary payment not found.', 404);
+
   const deductions = await getDeductionsByPayment(id, school_id);
-  const fresh = await getSalaryPaymentById(id, school_id);
-  return { ...fresh, deductions };
+  return { ...payment, deductions };
 };
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
@@ -196,12 +202,8 @@ export const getStaffAttendanceService = async (
 
   const records = await getAttendanceByStaff(staff_id, school_id, from, to);
 
-  // Summary counts
   const summary = records.reduce(
-    (acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1;
-      return acc;
-    },
+    (acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; },
     {} as Record<string, number>
   );
 

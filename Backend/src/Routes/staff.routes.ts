@@ -13,41 +13,46 @@ import {
 
 const router = Router();
 
-// All routes require admin / super_admin
 router.use(protect, restrictTo('admin', 'super_admin'));
 
 // ── Staff Roles ───────────────────────────────────────────────────────────────
-router.post('/roles',        createStaffRole);
-router.get('/roles',         getStaffRoles);
-router.patch('/roles/:id',   updateStaffRole);
-router.delete('/roles/:id',  deleteStaffRole);
-
-// ── Staff Members ─────────────────────────────────────────────────────────────
-router.post('/',       createStaff);
-router.get('/',        getStaff);
-router.get('/:id',     getStaffById);
-router.patch('/:id',   updateStaff);
-router.delete('/:id',  deleteStaff);
+router.post  ('/roles',       createStaffRole);
+router.get   ('/roles',       getStaffRoles);
+router.patch ('/roles/:id',   updateStaffRole);
+router.delete('/roles/:id',   deleteStaffRole);
 
 // ── Salary Structure ──────────────────────────────────────────────────────────
-router.post('/salary/structure',       setSalaryStructure);
-router.get('/:id/salary/structure',    getSalaryStructure);
-router.patch('/salary/structure/:id',  updateSalaryStructure);
+// NOTE: these must come BEFORE /:id routes to avoid param collision
+router.post  ('/salary/structure',      setSalaryStructure);
+router.patch ('/salary/structure/:id',  updateSalaryStructure);
 
 // ── Salary Payments ───────────────────────────────────────────────────────────
-router.post('/salary/payments',           createSalaryPayment);
-router.get('/salary/payments',            getAllSalaryPayments);    // ?month=YYYY-MM
-router.get('/salary/payments/pending',    getPendingSalaries);
-router.get('/salary/payments/:id',        getSalaryPaymentDetail);
-router.patch('/salary/payments/:id',      updateSalaryPayment);
-router.get('/:id/salary/payments',        getStaffSalaryPayments);
+// IMPORTANT: static segments (/pending) must be registered BEFORE dynamic /:id
+router.post  ('/salary/payments',          createSalaryPayment);
+router.get   ('/salary/payments/pending',  getPendingSalaries);     // ← BEFORE /:id
+router.get   ('/salary/payments',          getAllSalaryPayments);    // ?month=YYYY-MM
+router.get   ('/salary/payments/:id',      getSalaryPaymentDetail);
+router.patch ('/salary/payments/:id',      updateSalaryPayment);
 
 // ── Attendance ────────────────────────────────────────────────────────────────
-router.post('/attendance',           markAttendance);
-router.post('/attendance/bulk',      bulkMarkAttendance);
-router.get('/attendance',            getAttendanceByDate);          // ?date=YYYY-MM-DD
-router.patch('/attendance/:id',      updateAttendance);
-router.get('/:id/attendance',        getStaffAttendance);           // ?from=&to=
-router.get('/:id/attendance/absents', getMonthlyAbsents);           // ?year=&month=
+// static /bulk and /attendance must come BEFORE /:id
+router.post('/attendance/bulk',  bulkMarkAttendance);
+router.post('/attendance',       markAttendance);
+router.get ('/attendance',       getAttendanceByDate);   // ?date=YYYY-MM-DD
+router.patch('/attendance/:id',  updateAttendance);
+
+// ── Staff Members ─────────────────────────────────────────────────────────────
+// NOTE: these /:id routes come LAST — they would swallow /roles, /salary, /attendance
+router.post  ('/',      createStaff);
+router.get   ('/',      getStaff);
+router.get   ('/:id',   getStaffById);
+router.patch ('/:id',   updateStaff);
+router.delete('/:id',   deleteStaff);
+
+// ── Per-staff sub-resources (nested under /:id) ───────────────────────────────
+router.get('/:id/salary/structure',   getSalaryStructure);
+router.get('/:id/salary/payments',    getStaffSalaryPayments);
+router.get('/:id/attendance',         getStaffAttendance);        // ?from=&to=
+router.get('/:id/attendance/absents', getMonthlyAbsents);         // ?year=&month=
 
 export default router;
