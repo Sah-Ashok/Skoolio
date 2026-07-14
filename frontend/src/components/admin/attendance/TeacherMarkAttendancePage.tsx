@@ -61,6 +61,7 @@ export default function TeacherMarkAttendancePage() {
   const [dataLoading, setDataLoading]         = useState(false);
 
   const { execute: createAttendance, loading: saving } = useMutation("/attendance", "POST");
+  const [submitting, setSubmitting] = useState(false);
 
   // Auto-select first section
   useEffect(() => {
@@ -170,23 +171,54 @@ export default function TeacherMarkAttendancePage() {
     }));
 
     try {
-      await createAttendance({
-        academic_year_id: activeYear.id,
-        class_id:  selectedSection?.class_id,
-        section_id: Number(sectionId),
-        date:       selectedDate,
-        marked_by:  markedBy,
-        students,
-      });
-      dispatch(showToast({
-        type: "success",
-        title: "Attendance saved",
-        message: `${presentCount}P · ${absentCount}A · ${leaveCount}L saved.`,
-      }));
-      // Re-run the load to reflect the saved record
+      if (existingRecord && existingRecord.status === "draft") {
+        // Draft exists — patch each detail then submit so students can see it
+        setSubmitting(true);
+        const detRes = await apiRequest<{ data: any }>(`/attendance/${existingRecord.id}`);
+        const details: any[] = detRes.data?.details ?? [];
+
+        // Update each student detail whose status has changed
+        await Promise.all(
+          details.map((d: any) => {
+            const newStatus = statusMap[d.student_id] || "present";
+            if (d.status === newStatus) return Promise.resolve();
+            return apiRequest(`/attendance/details/${d.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ status: newStatus, attendance_id: existingRecord.id }),
+            });
+          })
+        );
+
+        // Flip draft → submitted so students can see it
+        await apiRequest(`/attendance/${existingRecord.id}/submit`, { method: "PATCH" });
+
+        dispatch(showToast({
+          type: "success",
+          title: "Attendance submitted",
+          message: `${presentCount}P \u00b7 ${absentCount}A \u00b7 ${leaveCount}L \u2014 now visible to students.`,
+        }));
+      } else {
+        // No existing record — create fresh (backend always marks as submitted)
+        await createAttendance({
+          academic_year_id: activeYear.id,
+          class_id:  selectedSection?.class_id,
+          section_id: Number(sectionId),
+          date:       selectedDate,
+          marked_by:  markedBy,
+          students,
+        });
+        dispatch(showToast({
+          type: "success",
+          title: "Attendance saved",
+          message: `${presentCount}P \u00b7 ${absentCount}A \u00b7 ${leaveCount}L saved.`,
+        }));
+      }
+      // Reload to reflect submitted state
       setSectionId((v) => { setTimeout(() => setSectionId(v), 10); return v; });
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save attendance." }));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -430,9 +462,13 @@ export default function TeacherMarkAttendancePage() {
               className={cx(s("btn"), s("btnPrimary"))}
               type="button"
               onClick={saveAttendance}
-              disabled={saving || dataLoading}
+              disabled={saving || submitting || dataLoading}
             >
-              {saving ? <Spinner size={16} /> : <><i className="fa-solid fa-floppy-disk" /> {existingRecord ? "Update Attendance" : "Save Attendance"}</>}
+              {(saving || submitting) ? <Spinner size={16} /> : (
+                existingRecord?.status === "draft"
+                  ? <><i className="fa-solid fa-paper-plane" /> Submit Attendance</>
+                  : <><i className="fa-solid fa-floppy-disk" /> Save Attendance</>
+              )}
             </button>
           </div>
         )}

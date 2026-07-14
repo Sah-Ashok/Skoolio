@@ -120,7 +120,8 @@ const studentNav: NavSection[] = [
   {
     label: 'School',
     links: [
-      { href: '/student/calendar',   icon: 'fa-calendar-days',       label: 'Calendar'      },
+      { href: '/student/calendar', icon: 'fa-calendar-days', label: 'Calendar'     },
+      { href: '/student/notices',  icon: 'fa-bullhorn',      label: 'Notice Board' },
     ],
   },
 ]

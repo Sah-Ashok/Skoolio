@@ -20,6 +20,7 @@ import hostelRoutes from './Routes/hostel.routes';
 import uploadRoutes from './Routes/upload.routes';
 import staffRoutes from './Routes/staff.routes';
 import noticeRoutes from './Routes/notice.routes';
+import dashboardRoutes from './Routes/dashboard.routes';
 import promotionRoutes from './Routes/promotion.routes';
 import historyRoutes from './Routes/history.routes';
 import { globalHistoryMiddleware } from './middlewares/history.middleware';
@@ -57,7 +58,8 @@ app.use('/api/transport', transportRoutes);
 app.use('/api/hostel', hostelRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/staff', staffRoutes);
-app.use('/api/notices', noticeRoutes);
+app.use('/api/notices',   noticeRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/history', historyRoutes);
 

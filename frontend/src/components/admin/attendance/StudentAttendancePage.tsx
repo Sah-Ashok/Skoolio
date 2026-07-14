@@ -50,12 +50,10 @@ export default function StudentAttendancePage() {
   );
   const { data: activeYear } = useApi<any>("/academic-years/active");
 
-  const startOfYear = activeYear?.start_date || `${year}-01-01`;
-  const today       = now.toISOString().split("T")[0];
-
+  // Summary: only academic_year_id needed — backend fetches admission_date internally
   const { data: summary, loading: summaryLoading } = useApi<any>(
     activeYear?.id && studentId
-      ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}&start_date=${startOfYear}&end_date=${today}`
+      ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}`
       : "",
     [activeYear?.id, studentId]
   );
@@ -101,6 +99,8 @@ export default function StudentAttendancePage() {
     return { year: d.getFullYear(), month: d.getMonth() + 1, label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` };
   });
 
+  const remaining = Number(summary?.total_remaining ?? 0);
+
   return (
     <div className={s("page")}>
       <Topbar title="Student Attendance" subtitle="Monthly calendar and attendance summary" />
@@ -135,19 +135,32 @@ export default function StudentAttendancePage() {
               </div>
               <div className={s("profileMetrics")}>
                 {[
-                  ["Year %",   `${summary?.attendance_percentage ?? 0}%`, ""],
-                  ["Present",  summary?.total_present ?? 0, "successText"],
-                  ["Absent",   summary?.total_absent  ?? 0, "dangerText"],
-                  ["Late",     summary?.total_late    ?? 0, "warningText"],
-                  ["On Leave", summary?.total_leave   ?? 0, ""],
+                  ["Year %",     `${summary?.attendance_percentage ?? 0}%`, ""],
+                  ["Present",    summary?.total_present   ?? 0,             "successText"],
+                  ["Absent",     summary?.total_absent    ?? 0,             "dangerText"],
+                  ["Late",       summary?.total_late      ?? 0,             "warningText"],
+                  ["On Leave",   summary?.total_leave     ?? 0,             ""],
+                  ["Remaining",  remaining,                                  ""],
                 ].map(([label, val, cls]) => (
-                  <span key={label}>
+                  <span key={label as string}>
                     <b>{label}</b>
                     <strong className={cls ? s(cls as string) : undefined}>{val}</strong>
                   </span>
                 ))}
               </div>
             </section>
+
+            {/* Remaining notice */}
+            {remaining > 0 && (
+              <div style={{
+                margin: "0 0 12px",
+                padding: "10px 16px", borderRadius: 10,
+                background: "#eff6ff", border: "1px solid #bfdbfe",
+                fontSize: 13, fontWeight: 600, color: "#3b82f6",
+              }}>
+                ⏳ <strong>{remaining}</strong> working day{remaining !== 1 ? "s" : ""} in this academic year have not yet been marked by the teacher — these are excluded from the attendance percentage.
+              </div>
+            )}
 
             {/* ── Calendar + sidebar ── */}
             <section className={s("layout")}>
@@ -214,7 +227,7 @@ export default function StudentAttendancePage() {
                       ["On Leave",     mCounts.leave   || 0,          ""],
                       ["Monthly Rate", `${monthlyRate}%`,             ""],
                     ].map(([label, val, cls]) => (
-                      <span key={label}>
+                      <span key={label as string}>
                         <b>{label}</b>
                         <strong className={cls ? s(cls as string) : undefined}>{val}</strong>
                       </span>

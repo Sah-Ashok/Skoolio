@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { uploadChunked } from "@/lib/uploadChunked";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -53,6 +54,7 @@ export default function EditStudentForm() {
   const [photoPreview,   setPhotoPreview]   = useState<string | null>(null);
   const [photoFile,      setPhotoFile]      = useState<File | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [uploadProgress,  setUploadProgress]  = useState(0);
 
   const [form, setForm] = useState({
     full_name:              "",
@@ -137,8 +139,8 @@ export default function EditStudentForm() {
       dispatch(showToast({ type: "error", title: "Invalid File", message: "Only JPEG, PNG or WebP images are allowed." }));
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 2 MB." }));
+    if (file.size > 4 * 1024 * 1024) {
+      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 4 MB." }));
       return;
     }
     setPhotoFile(file);
@@ -150,17 +152,18 @@ export default function EditStudentForm() {
   const handlePhotoUpload = async () => {
     if (!photoFile || !id) return;
     setPhotoUploading(true);
+    setUploadProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("photo", photoFile);
-      const res = await apiRequest<any>(`/upload/student-photo/${id}`, {
-        method: "POST",
-        body:   fd,
-      });
-      const url = res?.url || res?.data?.url || null;
+      const res = await uploadChunked(
+        photoFile,
+        `/upload/student-photo/${id}/chunk`,
+        (pct) => setUploadProgress(pct),
+      );
+      const url = res?.data?.url || res?.url || null;
       if (url) setPhotoPreview(url);
       dispatch(showToast({ type: "success", title: "Photo Updated", message: "Student photo has been uploaded." }));
       setPhotoFile(null);
+      setUploadProgress(0);
       if (photoInputRef.current) photoInputRef.current.value = "";
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Upload Failed", message: err.message || "Could not upload photo." }));
@@ -361,7 +364,7 @@ export default function EditStudentForm() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 12, fontWeight: 800, color: "#25343f", margin: "0 0 4px" }}>Student Photo</p>
-                  <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600, margin: "0 0 6px" }}>JPEG / PNG / WebP · max 2 MB</p>
+                  <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600, margin: "0 0 6px" }}>JPEG / PNG / WebP · max 4 MB</p>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button
                       type="button"
@@ -379,16 +382,38 @@ export default function EditStudentForm() {
                           disabled={photoUploading}
                           style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #bbf7d0", background: "#dcfce7", color: "#15803d", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
                         >
-                          {photoUploading ? <><Spinner size={11} /> Uploading…</> : <><i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 4 }} />Save Photo</>}
+                          {photoUploading
+                            ? <><Spinner size={11} /> {uploadProgress}%</>
+                            : <><i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 4 }} />Save Photo</>}
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setPhotoFile(null); setPhotoPreview(student?.photo || null); if (photoInputRef.current) photoInputRef.current.value = ""; }}
-                          style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+                          onClick={() => { setPhotoFile(null); setPhotoPreview(student?.photo || null); setUploadProgress(0); if (photoInputRef.current) photoInputRef.current.value = ""; }}
+                          disabled={photoUploading}
+                          style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: photoUploading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: photoUploading ? 0.5 : 1 }}
                         >
                           Cancel
                         </button>
                       </>
+                    )}
+                    {/* Progress bar — only visible while uploading */}
+                    {photoUploading && (
+                      <div style={{ width: "100%", marginTop: 6 }}>
+                        <div style={{ height: 5, borderRadius: 99, background: "#e2e8f0", overflow: "hidden" }}>
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${uploadProgress}%`,
+                              background: "#22c55e",
+                              borderRadius: 99,
+                              transition: "width 0.2s ease",
+                            }}
+                          />
+                        </div>
+                        <p style={{ fontSize: 10, color: "#6b7b86", fontWeight: 700, marginTop: 3 }}>
+                          Uploading… {uploadProgress}%
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

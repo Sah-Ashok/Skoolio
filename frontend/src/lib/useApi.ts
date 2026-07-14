@@ -15,11 +15,11 @@ interface UseApiResult<T> {
  * Usage: const { data, loading, error, refetch } = useApi<MyType[]>('/endpoint');
  */
 export function useApi<T = any>(
-  endpoint: string,
+  endpoint: string | null | undefined,
   deps: any[] = []
 ): UseApiResult<T> {
   const [data, setData]       = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!endpoint); // don't show loading if no endpoint yet
   const [error, setError]     = useState<string | null>(null);
   const [tick, setTick]       = useState(0);
 

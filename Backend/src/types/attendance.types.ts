@@ -96,10 +96,12 @@ export type ICreateSectionTeacherHistory = Pick<
 
 // ── ATTENDANCE SUMMARY ──
 export interface IAttendanceSummary {
-  total_working_days: number;
-  total_present: number;
-  total_absent: number;
-  total_late: number;
-  total_leave: number;
+  total_working_days:    number;
+  total_marked_days:     number;   // days teacher has submitted attendance
+  total_remaining:       number;   // working days teacher hasn't filled yet
+  total_present:         number;
+  total_absent:          number;
+  total_late:            number;
+  total_leave:           number;
   attendance_percentage: number;
 }

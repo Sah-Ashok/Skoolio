@@ -3,7 +3,8 @@ import protect from '../middlewares/auth.middleware';
 import restrictTo from '../middlewares/role.middleware';
 import {
   createFeeStructure, getFeeStructures, updateFeeStructure, deleteFeeStructure,
-  createFeeCollection, getFeeCollections, getStudentFeeCollections, updateFeeCollection,
+  createFeeCollection, createMiscFeeCollection,
+  getFeeCollections, getStudentFeeCollections, updateFeeCollection,
   createFeePayment, getPaymentsByCollection, getStudentPayments,
   getMyFeeCollections, getMyPayments,
   generateMonthlyFeeBills,
@@ -34,21 +35,19 @@ router.patch ('/structures/:id',   restrictTo('admin', 'super_admin'), updateFee
 router.delete('/structures/:id',   restrictTo('admin', 'super_admin'), deleteFeeStructure);
 
 // ── FEE COLLECTIONS ──
-router.post('/collections',            restrictTo('admin', 'super_admin'), createFeeCollection);
-router.get ('/collections',            restrictTo('admin', 'super_admin'), getFeeCollections);
-router.get ('/collections/student/:id',restrictTo('admin', 'super_admin'), getStudentFeeCollections);
-router.patch('/collections/:id',       restrictTo('admin', 'super_admin'), updateFeeCollection);
+// P3 FIX: /collections/misc must be BEFORE /collections to avoid route conflict
+router.post('/collections/misc',          restrictTo('admin', 'super_admin'), createMiscFeeCollection);
+router.post('/collections',               restrictTo('admin', 'super_admin'), createFeeCollection);
+router.get ('/collections',               restrictTo('admin', 'super_admin'), getFeeCollections);
+router.get ('/collections/student/:id',   restrictTo('admin', 'super_admin'), getStudentFeeCollections);
+router.patch('/collections/:id',          restrictTo('admin', 'super_admin'), updateFeeCollection);
 
 // ── FEE PAYMENTS ──
-// Static paths BEFORE /:id to avoid Express matching 'collection' or 'student' as an id
 router.post('/payments',               restrictTo('admin', 'super_admin'), createFeePayment);
 router.get ('/payments/collection/:id',restrictTo('admin', 'super_admin'), getPaymentsByCollection);
 router.get ('/payments/student/:id',   restrictTo('admin', 'super_admin'), getStudentPayments);
 
-// ── RECEIPT PDF (admin + student) ──
-// POST  → trigger background generation / return cached URL
-// GET   → poll for status (lightweight, no worker spawn)
-// All static paths above /:id so Express never mismatches them
+// ── RECEIPT PDF ──
 router.post('/payments/:id/generate-receipt', restrictTo('admin', 'super_admin', 'student'), generateReceipt);
 router.get ('/payments/:id/receipt-status',   restrictTo('admin', 'super_admin', 'student'), getReceiptStatus);
 

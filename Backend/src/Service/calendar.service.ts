@@ -103,21 +103,10 @@ export const deleteCalendarEventService = async (
 };
 
 // ── EXAM ↔ CALENDAR SYNC ──
-// Called from exam.service.ts on exam create/update so exam dates show up on
-// the school calendar automatically — admin never has to enter them twice.
-// Idempotent (create-or-update): looks up any existing linked event by
-// exam_id first, updates it in place if found, otherwise creates a new one.
-//
-// affects_attendance is always false here — exam days are still working
-// days (students attend, attendance gets marked), so they shouldn't be
-// excluded from the working-days count the way real holidays are.
-// class_id is left null — exams are school-wide at this level; per-class
-// scheduling detail lives in exam_schedules, not the calendar.
 export const syncExamCalendarEventService = async (
   school_id: number,
   exam: { id: number; academic_year_id: number; name: string; start_date: Date | string; end_date: Date | string }
 ) => {
-  // Ensure a calendar exists for this academic year (auto-creates if missing)
   const calendar = await getCalendarService(school_id, exam.academic_year_id);
 
   const existing = await getEventByExamId(exam.id, school_id);
@@ -168,8 +157,6 @@ export const setWeeklyOffsService = async (
     throw new AppError('Select at least one weekly off day.', 400);
   }
 
-  // Fail fast with a clear message — the DB CHECK/enum also guards this,
-  // but a 400 here is far more useful to the frontend than a raw DB error.
   for (const off of offs) {
     if (off.day_of_week < 0 || off.day_of_week > 6) {
       throw new AppError('day_of_week must be between 0 (Sunday) and 6 (Saturday).', 400);
@@ -184,16 +171,12 @@ export const setWeeklyOffsService = async (
 
 // ── SHARED HELPERS ──
 
-// Which "occurrence in the month" a date's weekday is — 1st Saturday, 2nd
-// Saturday, etc. Used to match week_pattern values other than 'all'.
 const nthWeekdayOfMonth = (date: Date): WeekPattern => {
   const ordinals: WeekPattern[] = ['1st', '2nd', '3rd', '4th', '5th'];
-  const n = Math.ceil(date.getDate() / 7); // 1-5
+  const n = Math.ceil(date.getDate() / 7);
   return ordinals[n - 1] ?? '5th';
 };
 
-// Checks if a given day (0=Sun…6=Sat) on a specific date matches the
-// weekly-off config — reused by both calculateWorkingDays and isWorkingDayService.
 const isWeekendDay = (
   date: Date,
   weeklyOffs: { day_of_week: number; week_pattern: WeekPattern }[],
@@ -208,22 +191,20 @@ const isWeekendDay = (
     );
   }
 
-  // Legacy fallback
-  if (weekendType === 'sunday_only')        return day === 0;
-  if (weekendType === 'saturday_only')      return day === 6;
-  /* saturday_sunday */                     return day === 0 || day === 6;
+  if (weekendType === 'sunday_only')   return day === 0;
+  if (weekendType === 'saturday_only') return day === 6;
+  return day === 0 || day === 6;
 };
 
 // ── IS WORKING DAY ──
-// Returns { isWorking, reason } for a single date.
-// Used by attendance service to block marking on weekly offs and holidays.
+// Uses getCalendarService (auto-creates) so attendance marking never crashes
+// with 404 for schools that haven't manually set up a calendar yet.
 export const isWorkingDayService = async (
   school_id: number,
   academic_year_id: number,
-  date: string // 'YYYY-MM-DD'
+  date: string
 ): Promise<{ isWorking: boolean; reason?: string }> => {
-  const calendar = await getCalendarByAcademicYear(school_id, academic_year_id);
-  if (!calendar) throw new AppError('Calendar not found for this academic year.', 404);
+  const calendar = await getCalendarService(school_id, academic_year_id);
 
   const weeklyOffs = await getWeeklyOffsByCalendar(calendar.id, school_id);
   const d = new Date(date);
@@ -232,7 +213,6 @@ export const isWorkingDayService = async (
     return { isWorking: false, reason: 'weekly_off' };
   }
 
-  // Check if this specific date falls within any holiday event
   const holidays = await getHolidayDates(school_id, academic_year_id, date, date);
   if (holidays.length > 0) {
     return { isWorking: false, reason: 'holiday' };
@@ -242,21 +222,19 @@ export const isWorkingDayService = async (
 };
 
 // ── WORKING DAYS CALCULATION ──
-
+// Uses getCalendarService (auto-creates default calendar if missing) so this
+// never throws "Calendar not found" for schools that haven't set one up yet.
 export const calculateWorkingDays = async (
   school_id: number,
   academic_year_id: number,
   start_date: string,
   end_date: string
 ): Promise<IWorkingDaysResult> => {
-  // 1. Get calendar (needed for legacy weekend_type fallback)
-  const calendar = await getCalendarByAcademicYear(school_id, academic_year_id);
-  if (!calendar) throw new AppError('Calendar not found.', 404);
+  // Auto-create calendar if missing — prevents 404 crashing attendance summary
+  const calendar = await getCalendarService(school_id, academic_year_id);
 
-  // 2. Get explicit weekly-off rows for this calendar, if configured
   const weeklyOffs = await getWeeklyOffsByCalendar(calendar.id, school_id);
 
-  // 3. Get all holiday dates in range
   const holidayDates = await getHolidayDates(
     school_id,
     academic_year_id,
@@ -264,22 +242,19 @@ export const calculateWorkingDays = async (
     end_date
   );
 
-  // 4. Loop through all days and count
-  let total_days = 0;
+  let total_days   = 0;
   let weekend_days = 0;
   let holiday_days = 0;
   let working_days = 0;
 
   const current = new Date(start_date);
-  const end = new Date(end_date);
+  const end     = new Date(end_date);
 
   while (current <= end) {
     total_days++;
     const dateStr = current.toISOString().split('T')[0];
 
     const isWeekend = isWeekendDay(current, weeklyOffs, calendar.weekend_type);
-
-    // Only non-weekend days can be holidays — avoids double-counting
     const isHoliday = !isWeekend && holidayDates.includes(dateStr);
 
     if (isWeekend) {

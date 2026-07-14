@@ -15,39 +15,43 @@ import {
   IAttendanceSummary,
 } from '../types/attendance.types';
 import { getSectionById } from '../Repositories/class.repository';
+import { getStudentById } from '../Repositories/student.repository';
+import { getAcademicYearById } from '../Repositories/academic.repository';
+import { findSchoolById } from '../Repositories/auth.repository';
 import AppError from '../utils/AppError';
+
+// ── Helper: get today's date in the school's local timezone ─────────────────
+const getTodayInTimezone = (timezone: string): string => {
+  try {
+    return new Date().toLocaleDateString('en-CA', { timeZone: timezone }); // 'en-CA' gives YYYY-MM-DD
+  } catch {
+    // Fallback: use UTC if timezone string is invalid
+    return new Date().toISOString().split('T')[0];
+  }
+};
 
 // ── Helper: enforce section coordinator for faculty ──────────────────────────
 const assertCoordinator = async (section_id: number, school_id: number, teacherId?: number) => {
-  if (!teacherId) return; // admin — skip check
+  if (!teacherId) return;
   const section = await getSectionById(section_id, school_id);
   if (!section) throw new AppError('Section not found.', 404);
   if (section.coordinator_id !== teacherId)
     throw new AppError('Access denied. You are not the coordinator of this section.', 403);
 };
 
-// ── Helper: reject future dates ───────────────────────────────────────────────
+// ── Helper: reject future dates ──────────────────────────────────────────────
 const assertAttendanceDate = (date: string | Date) => {
   const d     = new Date(date);
   const today = new Date();
-  today.setHours(23, 59, 59, 999); // end of today
-
-  if (d > today) {
-    throw new AppError('Cannot mark attendance for a future date.', 400);
-  }
+  today.setHours(23, 59, 59, 999);
+  if (d > today) throw new AppError('Cannot mark attendance for a future date.', 400);
 };
 
-// ── Helper: normalise any date value to 'YYYY-MM-DD' string ──────────────────
-const toDateString = (date: string | Date): string => {
-  if (typeof date === 'string') {
-    // Already a plain date string — return as-is
-    return date.slice(0, 10);
-  }
-  return date.toISOString().slice(0, 10);
-};
+// ── Helper: normalise date to 'YYYY-MM-DD' ──────────────────────────────────
+const toDateString = (date: string | Date): string =>
+  typeof date === 'string' ? date.slice(0, 10) : date.toISOString().slice(0, 10);
 
-// ── CREATE ATTENDANCE ─────────────────────────────────────────────────────────
-
+// ── CREATE ATTENDANCE ────────────────────────────────────────────────────────
 export const createAttendanceService = async (
   school_id: number,
   data: ICreateAttendance,
@@ -56,56 +60,38 @@ export const createAttendanceService = async (
   if (!data.students || data.students.length === 0)
     throw new AppError('No students provided for attendance.', 400);
 
-  // 1. Reject future dates
   assertAttendanceDate(data.date);
 
-  // 2. Block weekly offs and holidays
   const dateStr = toDateString(data.date);
-  const { isWorking, reason } = await isWorkingDayService(
-    school_id,
-    data.academic_year_id,
-    dateStr
-  );
+  const { isWorking, reason } = await isWorkingDayService(school_id, data.academic_year_id, dateStr);
   if (!isWorking) {
-    const msg =
+    throw new AppError(
       reason === 'weekly_off'
         ? `Cannot mark attendance on a weekly off day (${dateStr}).`
-        : `Cannot mark attendance on a holiday (${dateStr}).`;
-    throw new AppError(msg, 400);
+        : `Cannot mark attendance on a holiday (${dateStr}).`,
+      400
+    );
   }
 
-  // 3. Coordinator check
   await assertCoordinator(data.section_id, school_id, teacherId);
 
-  // 4. Duplicate check
   const existing = await getAttendanceByDate(data.section_id, school_id, dateStr);
-  if (existing) {
-    throw new AppError('Attendance already marked for this section on this date.', 400);
-  }
+  if (existing) throw new AppError('Attendance already marked for this section on this date.', 400);
 
   const attendance = await createAttendance(school_id, data);
-
-  const details = await createAttendanceDetails(
-    school_id,
-    attendance.id,
-    data.students
-  );
+  const details    = await createAttendanceDetails(school_id, attendance.id, data.students);
 
   const total_present = details.filter(d => d.status === 'present').length;
   const total_absent  = details.filter(d => d.status === 'absent').length;
   const total_late    = details.filter(d => d.status === 'late').length;
   const total_leave   = details.filter(d => d.status === 'leave').length;
 
-  await updateAttendanceCounts(
-    attendance.id, school_id,
-    total_present, total_absent, total_late, total_leave
-  );
+  await updateAttendanceCounts(attendance.id, school_id, total_present, total_absent, total_late, total_leave);
 
   return { ...attendance, total_present, total_absent, total_late, total_leave, details };
 };
 
-// ── GET BY SECTION ────────────────────────────────────────────────────────────
-
+// ── GET BY SECTION ───────────────────────────────────────────────────────────
 export const getAttendanceBySectionService = async (
   section_id: number,
   school_id: number,
@@ -116,54 +102,31 @@ export const getAttendanceBySectionService = async (
   return getAttendanceBySection(section_id, school_id, academic_year_id);
 };
 
-// ── GET BY ID ─────────────────────────────────────────────────────────────────
-
-export const getAttendanceByIdService = async (
-  id: number,
-  school_id: number
-) => {
+// ── GET BY ID ────────────────────────────────────────────────────────────────
+export const getAttendanceByIdService = async (id: number, school_id: number) => {
   const attendance = await getAttendanceById(id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
   const details = await getAttendanceDetails(id, school_id);
   return { ...attendance, details };
 };
 
-// ── UPDATE ATTENDANCE ─────────────────────────────────────────────────────────
-
-export const updateAttendanceService = async (
-  id: number,
-  school_id: number,
-  data: IUpdateAttendance
-) => {
+// ── UPDATE ATTENDANCE ────────────────────────────────────────────────────────
+export const updateAttendanceService = async (id: number, school_id: number, data: IUpdateAttendance) => {
   const attendance = await getAttendanceById(id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
-
-  if (attendance.status === 'submitted') {
-    throw new AppError('Cannot edit submitted attendance.', 400);
-  }
-
-  const updated = await updateAttendance(id, school_id, data);
-  return updated;
+  if (attendance.status === 'submitted') throw new AppError('Cannot edit submitted attendance.', 400);
+  return updateAttendance(id, school_id, data);
 };
 
-// ── SUBMIT ATTENDANCE ─────────────────────────────────────────────────────────
-
-export const submitAttendanceService = async (
-  id: number,
-  school_id: number
-) => {
+// ── SUBMIT ATTENDANCE ────────────────────────────────────────────────────────
+export const submitAttendanceService = async (id: number, school_id: number) => {
   const attendance = await getAttendanceById(id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
-
-  if (attendance.status === 'submitted') {
-    throw new AppError('Attendance already submitted.', 400);
-  }
-
+  if (attendance.status === 'submitted') throw new AppError('Attendance already submitted.', 400);
   return updateAttendance(id, school_id, { status: 'submitted' });
 };
 
-// ── UPDATE DETAIL ─────────────────────────────────────────────────────────────
-
+// ── UPDATE DETAIL ────────────────────────────────────────────────────────────
 export const updateAttendanceDetailService = async (
   id: number,
   school_id: number,
@@ -172,17 +135,12 @@ export const updateAttendanceDetailService = async (
 ) => {
   const attendance = await getAttendanceById(attendance_id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
+  if (attendance.status === 'submitted') throw new AppError('Cannot edit a submitted attendance record.', 400);
 
-  if (attendance.status === 'submitted') {
-    throw new AppError('Cannot edit a submitted attendance record.', 400);
-  }
-
-  // ── Date lock: cannot edit attendance before the 1st of the previous month ──
   const recordDate = new Date(attendance.date);
   const now        = new Date();
   const prevMonth1 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   prevMonth1.setHours(0, 0, 0, 0);
-
   if (recordDate < prevMonth1) {
     throw new AppError(
       `Cannot edit attendance older than ${prevMonth1.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} 1st.`,
@@ -198,25 +156,79 @@ export const updateAttendanceDetailService = async (
   const total_absent  = allDetails.filter(d => d.status === 'absent').length;
   const total_late    = allDetails.filter(d => d.status === 'late').length;
   const total_leave   = allDetails.filter(d => d.status === 'leave').length;
-
-  await updateAttendanceCounts(
-    attendance_id, school_id,
-    total_present, total_absent, total_late, total_leave
-  );
+  await updateAttendanceCounts(attendance_id, school_id, total_present, total_absent, total_late, total_leave);
 
   return detail;
 };
 
 // ── STUDENT ATTENDANCE SUMMARY ────────────────────────────────────────────────
-
+//
+// LOGIC (Ashok's spec):
+//   • start_date  = max(student.admission_date, academic_year.start_date)
+//   • end_date    = min(today, academic_year.end_date)
+//   • working_days = calendar working days in [start, end]
+//   • marked_days  = submitted attendance days in [start, end]
+//   • remaining   = working_days - marked_days  (teacher hasn't filled yet → neutral)
+//   • effective   = present + late + absent      (leave & remaining excluded from both sides)
+//   • percentage  = (present + late) / effective * 100
+//                   → 100% when effective = 0 (nothing marked or all on leave)
+//
+//  present   → counts ✅ (increases %)
+//  late      → counts ✅ (same as present)
+//  absent    → decreases ❌
+//  leave     → neutral ➖ (excluded from both sides)
+//  remaining → neutral ➖ (teacher not yet filled → excluded)
+// ─────────────────────────────────────────────────────────────────────────────
 export const getStudentAttendanceSummaryService = async (
-  student_id: number,
-  school_id: number,
+  student_id:       number,
+  school_id:        number,
   academic_year_id: number,
-  start_date: string,
-  end_date: string
+  timezone:         string = 'UTC',
 ): Promise<IAttendanceSummary> => {
-  const [summary, workingDays] = await Promise.all([
+
+  // Fetch student and academic year in parallel (no extra school lookup needed
+  // — timezone is passed in from the JWT payload via the controller)
+  const [student, academicYear] = await Promise.all([
+    getStudentById(student_id, school_id),
+    getAcademicYearById(academic_year_id, school_id),
+  ]);
+
+  if (!student)      throw new AppError('Student not found.', 404);
+  if (!academicYear) throw new AppError('Academic year not found.', 404);
+
+  // DB returns date::text strings but IAcademicYear types them as Date — cast to string
+  const yearStart  = String(academicYear.start_date).slice(0, 10);
+  const yearEnd    = String(academicYear.end_date).slice(0, 10);
+  const admDate    = student.admission_date
+    ? String(student.admission_date).slice(0, 10)
+    : yearStart;
+
+  // Use the school's local timezone so “today” matches attendance dates stored in local time.
+  // Without this, a school in UTC+5:45 (Nepal) sees UTC date which can be yesterday,
+  // causing start_date > end_date early-return and all-zero summaries.
+  const today = getTodayInTimezone(timezone);
+
+  // Effective start = later of admission_date and year start
+  const start_date = admDate > yearStart ? admDate : yearStart;
+
+  // Effective end = earlier of today and year end
+  const end_date = today < yearEnd ? today : yearEnd;
+
+  // Student admitted after today or year hasn't started yet → 100%
+  if (start_date > end_date) {
+    return {
+      total_working_days:    0,
+      total_marked_days:     0,
+      total_remaining:       0,
+      total_present:         0,
+      total_absent:          0,
+      total_late:            0,
+      total_leave:           0,
+      attendance_percentage: 100,
+    };
+  }
+
+  const [summary, workingDaysResult] = await Promise.all([
     getStudentAttendanceSummary(student_id, school_id, academic_year_id, start_date, end_date),
     calculateWorkingDays(school_id, academic_year_id, start_date, end_date),
   ]);
@@ -225,13 +237,24 @@ export const getStudentAttendanceSummaryService = async (
   const total_absent  = Number(summary.total_absent  || 0);
   const total_late    = Number(summary.total_late    || 0);
   const total_leave   = Number(summary.total_leave   || 0);
+  const total_marked  = Number(summary.total_marked  || 0);
 
-  const attendance_percentage = workingDays.working_days > 0
-    ? Math.min(100, Math.round((total_present / workingDays.working_days) * 10000) / 100)
+  const total_working_days = workingDaysResult.working_days;
+
+  // Remaining = working days where teacher hasn't submitted attendance yet
+  const total_remaining = Math.max(0, total_working_days - total_marked);
+
+  // Effective = days where teacher marked something countable (present/late/absent)
+  const effective = total_present + total_late + total_absent;
+
+  const attendance_percentage = effective > 0
+    ? Math.round(((total_present + total_late) / effective) * 10000) / 100
     : 100;
 
   return {
-    total_working_days: workingDays.working_days,
+    total_working_days,
+    total_marked_days: total_marked,
+    total_remaining,
     total_present,
     total_absent,
     total_late,
@@ -241,22 +264,22 @@ export const getStudentAttendanceSummaryService = async (
 };
 
 export const getStudentMonthlyAttendanceService = async (
-  student_id: number,
-  school_id: number,
-  year: number,
-  month: number
+  student_id:       number,
+  school_id:        number,
+  year:             number,
+  month:            number,
+  academic_year_id?: number
 ) => {
-  return getStudentMonthlyAttendance(student_id, school_id, year, month);
+  return getStudentMonthlyAttendance(student_id, school_id, year, month, academic_year_id);
 };
 
-// ── CLASS ATTENDANCE OVERVIEW ─────────────────────────────────────────────────
-
+// ── CLASS ATTENDANCE OVERVIEW ────────────────────────────────────────────────
 export const getClassAttendanceOverviewService = async (
-  school_id: number,
-  class_id: number,
+  school_id:        number,
+  class_id:         number,
   academic_year_id: number,
-  start_date: string,
-  end_date: string
+  start_date:       string,
+  end_date:         string
 ) => {
   const [sections, workingDays] = await Promise.all([
     getClassAttendanceOverview(school_id, class_id, academic_year_id, start_date, end_date),
@@ -292,10 +315,9 @@ export const getClassAttendanceOverviewService = async (
   };
 };
 
-// ── ALL-CLASSES OVERVIEW ──────────────────────────────────────────────────────
-
+// ── ALL-CLASSES OVERVIEW ─────────────────────────────────────────────────────
 export const getAllClassesAttendanceOverviewService = async (
-  school_id: number,
+  school_id:        number,
   academic_year_id: number
 ) => {
   const now   = new Date();
@@ -314,13 +336,9 @@ export const getAllClassesAttendanceOverviewService = async (
   const prev_end   = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(prevLast).padStart(2, '0')}`;
 
   const [classes, currentWD, prevWD] = await Promise.all([
-    getAllClassesAttendanceOverview(
-      school_id, academic_year_id,
-      current_start, current_end,
-      prev_start, prev_end
-    ),
+    getAllClassesAttendanceOverview(school_id, academic_year_id, current_start, current_end, prev_start, prev_end),
     calculateWorkingDays(school_id, academic_year_id, current_start, current_end),
-    calculateWorkingDays(school_id, academic_year_id, prev_start,    prev_end),
+    calculateWorkingDays(school_id, academic_year_id, prev_start, prev_end),
   ]);
 
   return {
@@ -330,36 +348,22 @@ export const getAllClassesAttendanceOverviewService = async (
   };
 };
 
-// ── SECTION TEACHER HISTORY ───────────────────────────────────────────────────
-
-export const assignSectionTeacherService = async (
-  school_id: number,
-  data: ICreateSectionTeacherHistory
-) => {
+// ── SECTION TEACHER HISTORY ──────────────────────────────────────────────────
+export const assignSectionTeacherService = async (school_id: number, data: ICreateSectionTeacherHistory) => {
   const history = await getSectionTeacherHistory(data.section_id, school_id);
   const current = history.find(h => !h.to_date);
-
   if (current) {
     const today = new Date().toISOString().split('T')[0];
     await updateSectionTeacherHistory(current.id, school_id, today);
   }
-
   return createSectionTeacherHistory(school_id, data);
 };
 
-export const getSectionTeacherHistoryService = async (
-  section_id: number,
-  school_id: number
-) => {
-  return getSectionTeacherHistory(section_id, school_id);
-};
+export const getSectionTeacherHistoryService = async (section_id: number, school_id: number) =>
+  getSectionTeacherHistory(section_id, school_id);
 
-// ── ADMIN SECTION SUMMARY ─────────────────────────────────────────────────────
-
-export const getAdminSectionSummaryService = async (
-  school_id: number,
-  academic_year_id: number
-) => {
+// ── ADMIN SECTION SUMMARY ────────────────────────────────────────────────────
+export const getAdminSectionSummaryService = async (school_id: number, academic_year_id: number) => {
   const now   = new Date();
   const year  = now.getFullYear();
   const month = now.getMonth();
@@ -375,11 +379,7 @@ export const getAdminSectionSummaryService = async (
   const prevLast   = new Date(prevYear, prevMonth + 1, 0).getDate();
   const prev_end   = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(prevLast).padStart(2, '0')}`;
 
-  const sections = await getAdminSectionSummary(
-    school_id, academic_year_id,
-    cur_start, cur_end,
-    prev_start, prev_end
-  );
+  const sections = await getAdminSectionSummary(school_id, academic_year_id, cur_start, cur_end, prev_start, prev_end);
 
   return {
     sections,
@@ -388,17 +388,13 @@ export const getAdminSectionSummaryService = async (
   };
 };
 
-// ── SECTION REGISTER — single-query scalable endpoint ───────────────────────
-// Replaces the N+1 pattern (1 call per day) on the frontend register page.
-// Returns flat rows: { student_id, full_name, admission_number, date, status,
-//                      year_present, year_absent, year_late, year_leave, year_total }
-// The frontend pivots these into the register grid in O(n) JS — zero serial calls.
+// ── SECTION REGISTER ─────────────────────────────────────────────────────────
 export const getSectionRegisterService = async (
   section_id:       number,
   school_id:        number,
   academic_year_id: number,
   year:             number,
-  month:            number,    // 1-indexed
+  month:            number,
   teacherId?:       number
 ) => {
   await assertCoordinator(section_id, school_id, teacherId);

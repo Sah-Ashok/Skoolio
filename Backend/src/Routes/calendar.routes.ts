@@ -20,10 +20,10 @@ router.get('/:calendarId/weekly-offs',  protect, restrictTo('admin','super_admin
 router.put('/:calendarId/weekly-offs',  protect, restrictTo('admin'),                                    setCalendarWeeklyOffs);
 
 // ── CALENDAR EVENT ROUTES ──
-router.post('/events',          protect, restrictTo('admin'),                                    createCalendarEvent);
+router.post('/events',            protect, restrictTo('admin'),                                    createCalendarEvent);
 router.get('/:calendarId/events', protect, restrictTo('admin','super_admin','faculty','student'), getCalendarEvents);
-router.patch('/events/:id',     protect, restrictTo('admin'),                                    updateCalendarEvent);
-router.delete('/events/:id',    protect, restrictTo('admin'),                                    deleteCalendarEvent);
+router.patch('/events/:id',       protect, restrictTo('admin'),                                    updateCalendarEvent);
+router.delete('/events/:id',      protect, restrictTo('admin'),                                    deleteCalendarEvent);
 
 // ── WORKING DAYS ROUTE ──
 router.get('/working-days', protect, restrictTo('admin','super_admin','faculty','student'),     getWorkingDays);

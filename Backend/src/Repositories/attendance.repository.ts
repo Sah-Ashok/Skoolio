@@ -14,8 +14,8 @@ export const createAttendance = async (
   const result = await pool.query(
     `INSERT INTO attendance
       (school_id, academic_year_id, class_id, section_id, date,
-       marked_by, is_holiday, remarks)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       marked_by, is_holiday, remarks, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'submitted')
      RETURNING id, school_id, academic_year_id, class_id, section_id,
        date::text, marked_by, total_present, total_absent, total_late,
        total_leave, status, is_holiday, remarks, created_at, updated_at`,
@@ -216,7 +216,6 @@ export const updateAttendanceCounts = async (
 
 // ── ATTENDANCE DETAIL QUERIES ──
 
-// BUG-07 FIX: remarks is now included as the 7th column in the batch INSERT.
 export const createAttendanceDetails = async (
   school_id: number,
   attendance_id: number,
@@ -236,7 +235,7 @@ export const createAttendanceDetails = async (
     d.enrollment_id,
     d.status,
     d.check_in_time || null,
-    d.remarks       || null,   // BUG-07: was missing
+    d.remarks       || null,
   ]);
 
   const result = await pool.query(
@@ -267,17 +266,11 @@ export const getAttendanceDetails = async (
   return result.rows;
 };
 
-// BUG-08 FIX: Use explicit UPDATE with NULL-capable fields instead of COALESCE,
-// so passing null actually clears the value. We only update fields that are
-// explicitly included in the payload (undefined = skip, null = clear).
 export const updateAttendanceDetail = async (
   id: number,
   school_id: number,
   data: IUpdateAttendanceDetail
 ): Promise<IAttendanceDetail | null> => {
-  // Build SET clause dynamically — only include fields that were explicitly sent.
-  // 'undefined' means the caller didn't touch the field → skip it (preserve DB value).
-  // 'null'      means the caller wants to clear it → set to NULL.
   const setClauses: string[] = [];
   const params: any[]        = [];
   let   idx = 1;
@@ -296,7 +289,6 @@ export const updateAttendanceDetail = async (
   }
 
   if (setClauses.length === 0) {
-    // Nothing to update — just return the current row
     const cur = await pool.query(
       `SELECT * FROM attendance_details WHERE id = $1 AND school_id = $2`,
       [id, school_id]
@@ -374,16 +366,20 @@ export const getStudentAttendanceSummary = async (
   return result.rows[0];
 };
 
-// BUG-09 FIX: Only return submitted attendance in monthly view so the
-// calendar matches the summary count. Draft rows are no longer shown.
 export const getStudentMonthlyAttendance = async (
   student_id: number,
   school_id: number,
   year: number,
-  month: number
+  month: number,
+  academic_year_id?: number
 ): Promise<any[]> => {
+  const params: any[] = [student_id, school_id, year, month];
+  const yearFilter = academic_year_id
+    ? `AND a.academic_year_id = $${params.push(academic_year_id)}`
+    : '';
+
   const result = await pool.query(
-    `SELECT ad.*, a.date::text, a.section_id
+    `SELECT ad.*, a.date::text, a.section_id, a.academic_year_id
      FROM attendance_details ad
      INNER JOIN attendance a ON a.id = ad.attendance_id
      WHERE ad.student_id = $1
@@ -391,8 +387,9 @@ export const getStudentMonthlyAttendance = async (
        AND EXTRACT(YEAR  FROM a.date) = $3
        AND EXTRACT(MONTH FROM a.date) = $4
        AND a.status = 'submitted'
+       ${yearFilter}
      ORDER BY a.date ASC`,
-    [student_id, school_id, year, month]
+    params
   );
   return result.rows;
 };
@@ -535,9 +532,7 @@ export const updateSectionTeacherHistory = async (
 };
 
 // ── ADMIN SECTION ATTENDANCE SUMMARY ──
-// P2 FIX: CTE was using `day` (text) column which doesn't exist.
-// calendar_weekly_offs has `day_of_week` (SMALLINT 0=Sun…6=Sat).
-// Fixed both cur_working and prev_working CTEs.
+
 export const getAdminSectionSummary = async (
   school_id: number,
   academic_year_id: number,

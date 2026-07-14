@@ -4,6 +4,8 @@ import {
   createNotice,
   getAllNoticesForSchool,
   getNoticesForTeacher,
+  getNoticesForStudent,
+  getStudentActiveSectionId,
   getNoticeById,
   updateNotice,
   deleteNotice,
@@ -132,4 +134,14 @@ export const deleteNoticeService = async (
 
   const deleted = await deleteNotice(id, school_id);
   if (!deleted) throw new AppError('Notice not found.', 404);
+};
+
+// ── GET: Student — visible notices (school-wide + own section) ──
+
+export const getNoticesStudentService = async (
+  school_id: number,
+  student_id: number
+): Promise<INotice[]> => {
+  const section_id = await getStudentActiveSectionId(student_id, school_id);
+  return getNoticesForStudent(school_id, section_id);
 };

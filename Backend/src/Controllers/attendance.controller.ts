@@ -81,28 +81,27 @@ export const updateAttendanceDetail = catchAsync(async (req: Request, res: Respo
 });
 
 // ── STUDENT ATTENDANCE SUMMARY (ADMIN) ──
-
+// Only academic_year_id needed; start/end dates are computed from student's
+// admission_date and academic year boundaries in the service layer.
 export const getStudentAttendanceSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, start_date, end_date } = req.query;
+  const { academic_year_id } = req.query;
 
-  if (!academic_year_id || !start_date || !end_date) {
-    return sendResponse(res, 400, false, 'academic_year_id, start_date and end_date are required', null);
+  if (!academic_year_id) {
+    return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
 
   const result = await getStudentAttendanceSummaryService(
     Number(req.params.id),
     school_id,
     Number(academic_year_id),
-    String(start_date),
-    String(end_date)
   );
   sendResponse(res, 200, true, 'Attendance summary fetched successfully', result);
 });
 
 export const getStudentMonthlyAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { year, month } = req.query;
+  const { year, month, academic_year_id } = req.query;
 
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);
@@ -112,7 +111,8 @@ export const getStudentMonthlyAttendance = catchAsync(async (req: Request, res: 
     Number(req.params.id),
     school_id,
     Number(year),
-    Number(month)
+    Number(month),
+    academic_year_id ? Number(academic_year_id) : undefined
   );
   sendResponse(res, 200, true, 'Monthly attendance fetched successfully', result);
 });
@@ -171,28 +171,27 @@ export const getSectionTeacherHistory = catchAsync(async (req: Request, res: Res
 });
 
 // ── SELF-SERVICE CONTROLLERS (STUDENT'S OWN ATTENDANCE) ──
-
+// academic_year_id is the only required param; dates computed from admission_date
 export const getMyAttendanceSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id, school_id } = req.user as IJwtUserPayload;
-  const { academic_year_id, start_date, end_date } = req.query;
+  const { id, school_id, timezone } = req.user as IJwtUserPayload;
+  const { academic_year_id } = req.query;
 
-  if (!academic_year_id || !start_date || !end_date) {
-    return sendResponse(res, 400, false, 'academic_year_id, start_date and end_date are required', null);
+  if (!academic_year_id) {
+    return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
 
   const result = await getStudentAttendanceSummaryService(
     id,
     school_id,
     Number(academic_year_id),
-    String(start_date),
-    String(end_date)
+    timezone,
   );
   sendResponse(res, 200, true, 'Your attendance summary fetched successfully', result);
 });
 
 export const getMyMonthlyAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id } = req.user as IJwtUserPayload;
-  const { year, month } = req.query;
+  const { year, month, academic_year_id } = req.query;
 
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);
@@ -202,7 +201,8 @@ export const getMyMonthlyAttendance = catchAsync(async (req: Request, res: Respo
     id,
     school_id,
     Number(year),
-    Number(month)
+    Number(month),
+    academic_year_id ? Number(academic_year_id) : undefined
   );
   sendResponse(res, 200, true, 'Your monthly attendance fetched successfully', result);
 });

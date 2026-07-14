@@ -21,13 +21,15 @@ type SalaryPayment = {
   staff_id: number;
   full_name?: string;
   role_name?: string;
-  salary_month: string;
+  salary_month: string;      // raw postgres date e.g. "2026-07-01T00:00:00.000Z"
+  salary_month_str?: string; // TO_CHAR result e.g. "2026-07" — use this for display
   gross_amount: number;
   total_deductions: number;
   net_amount: number;
   status: "paid" | "pending" | "cancelled";
   payment_method?: string;
   paid_on?: string;
+  paid_on_str?: string;      // date::text from backend
   remarks?: string;
 };
 
@@ -239,7 +241,9 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
   const d = detail ?? payment;
 
   const monthLabel = (() => {
-    const [y, m] = d.salary_month?.split("-") ?? [];
+    // prefer TO_CHAR result ("YYYY-MM"), fall back to slicing raw date
+    const raw = d.salary_month_str ?? (d.salary_month ?? "").slice(0, 7);
+    const [y, m] = raw.split("-");
     return `${MONTHS[Number(m) - 1] ?? ""} ${y ?? ""}`;
   })();
 
@@ -298,7 +302,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
           {d.status === "paid" && (
             <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: "Paid On",        value: d.paid_on ? new Date(d.paid_on).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                { label: "Paid On",        value: (d.paid_on_str ?? d.paid_on) ? new Date(d.paid_on_str ?? d.paid_on).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
                 { label: "Method",         value: d.payment_method?.replace("_", " ") ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} style={{ padding: 12, border: "1px solid #dce5e9", borderRadius: 9, background: "#f8fbfc" }}>
@@ -325,16 +329,87 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
   );
 }
 
+// ── Mark as Paid Modal ───────────────────────────────────────────────────────
+function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; onClose: () => void; onSaved: () => void }) {
+  const now = new Date();
+  const [form, setForm] = useState({
+    payment_method: "cash",
+    paid_on: now.toISOString().split("T")[0],
+    remarks: payment.remarks ?? "",
+  });
+  const [err, setErr] = useState("");
+  const { execute, loading } = useMutation(`/staff/salary/payments/${payment.id}`, "PATCH");
+
+  const handleSubmit = async () => {
+    setErr("");
+    try {
+      await execute({ status: "paid", payment_method: form.payment_method, paid_on: form.paid_on, remarks: form.remarks || undefined });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      setErr(e.message || "Failed to mark as paid.");
+    }
+  };
+
+  const monthStr = (() => {
+    const raw = payment.salary_month_str ?? payment.salary_month?.slice(0, 7) ?? "";
+    const [y, m] = raw.split("-");
+    return `${MONTHS[Number(m) - 1] ?? ""} ${y ?? ""}`;
+  })();
+
+  return (
+    <div className={s("overlay")} onClick={onClose}>
+      <div className={s("modal")} style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+        <div className={s("modalHead")}>
+          <div>
+            <h2>Mark as Paid</h2>
+            <p>{payment.full_name} · {monthStr} · {fmt(payment.net_amount)}</p>
+          </div>
+          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
+        </div>
+        <div className={s("formGrid")}>
+          <div className={s("field")}>
+            <label>Payment Method</label>
+            <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}>
+              <option value="cash">Cash</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          </div>
+          <div className={s("field")}>
+            <label>Paid On</label>
+            <input type="date" value={form.paid_on} onChange={e => setForm(f => ({ ...f, paid_on: e.target.value }))} />
+          </div>
+          <div className={cx(s("field"), s("full"))}>
+            <label>Remarks</label>
+            <textarea value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} placeholder="Optional notes…" />
+          </div>
+          {err && <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>{err}</p>}
+        </div>
+        <div className={s("modalFoot")}>
+          <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Cancel</button>
+          <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size={14} color="#fff" /> : <><i className="fa-solid fa-check" /> Confirm Payment</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export function StaffSalaryPage() {
   const { data: staff }    = useApi<Staff[]>("/staff");
-  const { data: allPay, loading, refetch } = useApi<SalaryPayment[]>("/staff/salary/payments");
-  const { data: pending }  = useApi<SalaryPayment[]>("/staff/salary/payments/pending");
+  const { data: allPay, loading, refetch: refetchAll } = useApi<SalaryPayment[]>("/staff/salary/payments");
+  const { data: pending, refetch: refetchPending }  = useApi<SalaryPayment[]>("/staff/salary/payments/pending");
 
   const [tab,      setTab]      = useState<"all" | "pending">("all");
   const [modal,    setModal]    = useState<"pay" | null>(null);
   const [selected, setSelected] = useState<SalaryPayment | null>(null);
+  const [markPaid, setMarkPaid] = useState<SalaryPayment | null>(null);
   const [filterMonth, setFilterMonth] = useState("");
+
+  const refetch = () => { refetchAll(); refetchPending(); };
 
   const payments = tab === "pending" ? (pending ?? []) : (allPay ?? []);
 
@@ -348,8 +423,10 @@ export function StaffSalaryPage() {
   const totalPending   = (pending ?? []).reduce((a, p) => a + Number(p.net_amount), 0);
   const totalDeducted  = (allPay ?? []).reduce((a, p) => a + Number(p.total_deductions), 0);
 
-  const monthLabel = (d: string) => {
-    const [y, m] = d?.split("-") ?? [];
+  // salary_month_str is "YYYY-MM" from TO_CHAR; fall back to slicing the raw date
+  const monthLabel = (p: SalaryPayment) => {
+    const raw = p.salary_month_str ?? p.salary_month?.slice(0, 7) ?? "";
+    const [y, m] = raw.split("-");
     return `${MONTHS[Number(m) - 1] ?? ""} ${y ?? ""}`;
   };
 
@@ -433,6 +510,7 @@ export function StaffSalaryPage() {
                     <th>Status</th>
                     <th>Paid On</th>
                     <th>Method</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -451,7 +529,7 @@ export function StaffSalaryPage() {
                           </div>
                         </div>
                       </td>
-                      <td><strong style={{ fontWeight: 900 }}>{monthLabel(p.salary_month)}</strong></td>
+                      <td><strong style={{ fontWeight: 900 }}>{monthLabel(p)}</strong></td>
                       <td>{fmt(p.gross_amount)}</td>
                       <td>
                         {Number(p.total_deductions) > 0
@@ -469,12 +547,23 @@ export function StaffSalaryPage() {
                         </span>
                       </td>
                       <td>
-                        {p.paid_on
-                          ? new Date(p.paid_on).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                        {(p.paid_on_str ?? p.paid_on)
+                          ? new Date((p.paid_on_str ?? p.paid_on)!).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>
                       <td style={{ textTransform: "capitalize" }}>{p.payment_method?.replace("_", " ") ?? <span style={{ color: "#aab5bb" }}>—</span>}</td>
+                      <td onClick={e => e.stopPropagation()}>
+                        {p.status === "pending" && (
+                          <button
+                            className={cx(s("btn"), s("btnSm"))}
+                            style={{ background: "#e2f6ee", color: "#12805c", border: "1px solid #a7e1c8", whiteSpace: "nowrap" }}
+                            onClick={() => setMarkPaid(p)}
+                          >
+                            <i className="fa-solid fa-check" /> Mark Paid
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -496,6 +585,14 @@ export function StaffSalaryPage() {
         <SalarySlipModal
           payment={selected}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {markPaid && (
+        <MarkPaidModal
+          payment={markPaid}
+          onClose={() => setMarkPaid(null)}
+          onSaved={() => { refetch(); setMarkPaid(null); }}
         />
       )}
     </div>

@@ -92,7 +92,46 @@ export const getNoticesForTeacher = async (
   return result.rows;
 };
 
-// ── GET BY ID ─────────────────────────────────────────────────
+// ── GET FOR STUDENT (school-wide + their enrolled section) ──
+
+export const getNoticesForStudent = async (
+  school_id: number,
+  section_id: number | null
+): Promise<INotice[]> => {
+  const result = await pool.query(
+    `SELECT ${SELECT_COLS}
+     ${JOIN_FRAGMENT}
+     WHERE n.school_id = $1
+       AND n.status = 'active'
+       AND (n.expires_at IS NULL OR n.expires_at >= CURRENT_DATE)
+       AND (
+         n.target_type IS NULL
+         OR ($2::int IS NOT NULL AND n.target_section_id = $2)
+       )
+     ORDER BY n.is_pinned DESC, n.created_at DESC`,
+    [school_id, section_id]
+  );
+  return result.rows;
+};
+
+// Get student's active section_id from enrollments
+export const getStudentActiveSectionId = async (
+  student_id: number,
+  school_id: number
+): Promise<number | null> => {
+  const result = await pool.query(
+    `SELECT section_id
+     FROM student_enrollments
+     WHERE student_id = $1
+       AND school_id  = $2
+       AND status     = 'active'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [student_id, school_id]
+  );
+  return result.rows[0]?.section_id ?? null;
+};
+
 
 export const getNoticeById = async (id: number, school_id: number): Promise<INotice | null> => {
   const result = await pool.query(

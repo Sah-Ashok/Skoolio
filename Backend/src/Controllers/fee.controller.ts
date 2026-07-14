@@ -5,7 +5,8 @@ import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 import {
   createFeeStructureService, getFeeStructuresService,
   updateFeeStructureService, deleteFeeStructureService,
-  createFeeCollectionService, getFeeCollectionsService,
+  createFeeCollectionService, createMiscFeeCollectionService,
+  getFeeCollectionsService,
   getStudentFeeCollectionsService, updateFeeCollectionService,
   createFeePaymentService, getPaymentsByCollectionService,
   getStudentPaymentsService,
@@ -54,6 +55,28 @@ export const createFeeCollection = catchAsync(async (req: Request, res: Response
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await createFeeCollectionService(school_id, school_id, req.body);
   sendResponse(res, 201, true, 'Fee collection created successfully', result);
+});
+
+// P3 FIX: Miscellaneous / one-time fee (no fee_structure required)
+export const createMiscFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { student_id, enrollment_id, academic_year_id, fee_name, due_date, total_amount, discount_amount, discount_reason } = req.body;
+
+  if (!student_id || !academic_year_id || !fee_name || !due_date || !total_amount) {
+    return sendResponse(res, 400, false, 'student_id, academic_year_id, fee_name, due_date and total_amount are required', null);
+  }
+
+  const result = await createMiscFeeCollectionService(school_id, school_id, {
+    student_id:       Number(student_id),
+    enrollment_id:    enrollment_id ? Number(enrollment_id) : null,
+    academic_year_id: Number(academic_year_id),
+    fee_name,
+    due_date,
+    total_amount:     Number(total_amount),
+    discount_amount:  discount_amount ? Number(discount_amount) : undefined,
+    discount_reason:  discount_reason || undefined,
+  });
+  sendResponse(res, 201, true, 'Miscellaneous fee collection created successfully', result);
 });
 
 export const getFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -139,9 +162,7 @@ export const generateTransportBills = catchAsync(async (req: Request, res: Respo
 export const getTransportFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-  if (!academic_year_id) {
-    return sendResponse(res, 400, false, 'academic_year_id is required', null);
-  }
+  if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getTransportFeeSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Transport fee summary fetched', result);
 });
@@ -161,15 +182,13 @@ export const generateHostelBills = catchAsync(async (req: Request, res: Response
 export const getHostelFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-  if (!academic_year_id) {
-    return sendResponse(res, 400, false, 'academic_year_id is required', null);
-  }
+  if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getHostelFeeSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Hostel fee summary fetched', result);
 });
 
 // ── PAYMENT RECEIPT ──
-// Accessible by admin (any payment in their school) AND student (own payments only).
+
 export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user       = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id  = resolveSchoolId(user);
@@ -177,7 +196,6 @@ export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, 
 
   const result = await getPaymentReceiptService(payment_id, school_id);
 
-  // Student: only their own receipts
   if ('school_id' in user && result.student_id !== user.id) {
     return sendResponse(res, 403, false, 'You do not have access to this receipt.', null);
   }

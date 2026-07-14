@@ -12,6 +12,7 @@ function DonutChart({ pct, present, absent, total }: { pct: number; present: num
   const circ     = 2 * Math.PI * r;
   const presArc  = (pct / 100) * circ;
   const absArc   = circ - presArc;
+  const hasData  = total > 0;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -20,19 +21,29 @@ function DonutChart({ pct, present, absent, total }: { pct: number; present: num
         <svg viewBox="0 0 140 140" width={120} height={120} style={{ transform: "rotate(-90deg)" }}>
           {/* track */}
           <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="18" />
-          {/* absent */}
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#ff9a9e" strokeWidth="18"
-            strokeDasharray={`${absArc} ${presArc}`}
-            strokeDashoffset={-presArc} strokeLinecap="round" />
-          {/* present */}
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#4b8ff7" strokeWidth="18"
-            strokeDasharray={`${presArc} ${absArc}`}
-            strokeDashoffset={0} strokeLinecap="round" />
+          {hasData && (
+            <>
+              {/* absent */}
+              <circle cx="70" cy="70" r={r} fill="none" stroke="#ff9a9e" strokeWidth="18"
+                strokeDasharray={`${absArc} ${presArc}`}
+                strokeDashoffset={-presArc} strokeLinecap="round" />
+              {/* present */}
+              <circle cx="70" cy="70" r={r} fill="none" stroke="#4b8ff7" strokeWidth="18"
+                strokeDasharray={`${presArc} ${absArc}`}
+                strokeDashoffset={0} strokeLinecap="round" />
+            </>
+          )}
         </svg>
-        {/* centre text — not rotated */}
+        {/* centre text */}
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <span style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", lineHeight: 1 }}>{pct}%</span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", marginTop: 2 }}>present</span>
+          {hasData ? (
+            <>
+              <span style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", lineHeight: 1 }}>{pct}%</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", marginTop: 2 }}>present</span>
+            </>
+          ) : (
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textAlign: "center", padding: "0 8px" }}>No data yet</span>
+          )}
         </div>
       </div>
 
@@ -50,7 +61,9 @@ function DonutChart({ pct, present, absent, total }: { pct: number; present: num
             </div>
           </div>
         ))}
-        <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>Out of {total} working days</div>
+        <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>
+          {total > 0 ? `Out of ${total} working days` : "Attendance not marked yet"}
+        </div>
       </div>
     </div>
   );
@@ -67,24 +80,33 @@ export default function StudentDashboardPage() {
   const today    = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
-  const thisMonthStart  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
-  const lastMonthStart  = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().split("T")[0];
-  const lastMonthEnd    = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split("T")[0];
-  const yearStart       = activeYear?.start_date || `${today.getFullYear()}-04-01`;
+  const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().split("T")[0];
+  const lastMonthEnd   = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split("T")[0];
+  const yearStart      = activeYear?.start_date || `${today.getFullYear()}-04-01`;
 
-  const { data: attThis, loading: loadThis } = useApi<any>(activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${thisMonthStart}&end_date=${todayStr}` : "", [activeYear?.id]);
-  const { data: attLast, loading: loadLast } = useApi<any>(activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${lastMonthStart}&end_date=${lastMonthEnd}` : "", [activeYear?.id]);
-  const { data: attYear, loading: loadYear } = useApi<any>(activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${yearStart}&end_date=${todayStr}` : "", [activeYear?.id]);
+  const { data: attThis, loading: loadThis } = useApi<any>(
+    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${thisMonthStart}&end_date=${todayStr}` : "",
+    [activeYear?.id]
+  );
+  const { data: attLast, loading: loadLast } = useApi<any>(
+    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${lastMonthStart}&end_date=${lastMonthEnd}` : "",
+    [activeYear?.id]
+  );
+  const { data: attYear, loading: loadYear } = useApi<any>(
+    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${yearStart}&end_date=${todayStr}` : "",
+    [activeYear?.id]
+  );
 
   const { data: feeCollections } = useApi<any[]>("/fees/me/collections");
   const pendingFees = (feeCollections || []).filter(f => f.status !== "paid");
   const totalDue    = pendingFees.reduce((s, f) => s + Number(f.remaining_amount || 0), 0);
   const fmtINR      = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
-  const hour      = today.getHours();
-  const greetWord = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-  const greetIcon = hour < 12 ? "⛅" : hour < 17 ? "☀️" : "🌙";
-  const firstName = (me?.full_name || user?.full_name || "Student").split(" ")[0];
+  const hour       = today.getHours();
+  const greetWord  = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  const greetIcon  = hour < 12 ? "⛅" : hour < 17 ? "☀️" : "🌙";
+  const firstName  = (me?.full_name || user?.full_name || "Student").split(" ")[0];
   const schoolName = me?.school_name || user?.school_name || "Your School";
   const schoolLogo = (me as any)?.school_logo || (user as any)?.school_logo || null;
 
@@ -96,10 +118,12 @@ export default function StudentDashboardPage() {
     full_year:  { data: attYear, loading: loadYear },
   };
   const { data: curAtt, loading: curLoading } = attMap[period];
-  const pct     = Math.round(curAtt?.attendance_percentage ?? 0);
-  const present = curAtt?.present_days       ?? 0;
-  const absent  = curAtt?.absent_days        ?? 0;
-  const total   = curAtt?.total_working_days ?? (present + absent);
+
+  // ── FIXED: correct field names from the API response ──
+  const pct     = Math.round(Number(curAtt?.attendance_percentage ?? 0));
+  const present = Number(curAtt?.total_present      ?? 0);
+  const absent  = Number(curAtt?.total_absent       ?? 0);
+  const total   = Number(curAtt?.total_working_days ?? 0);
 
   const quickCards = [
     {
@@ -140,41 +164,32 @@ export default function StudentDashboardPage() {
   return (
     <>
       <style>{`
-        /* ── Student dashboard scoped styles ── */
         .sd-page { min-height:100vh; background:#f6f8fa; font-family:'Nunito','Inter',sans-serif; display:flex; flex-direction:column; }
 
-        /* Desktop topbar */
         .sd-topbar { background:#fff; height:64px; display:flex; align-items:center; justify-content:space-between; padding:0 28px; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:50; box-shadow:0 1px 6px rgba(37,52,63,0.06); }
         .sd-topbar-greeting { font-size:16px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
 
-        /* Desktop school bar (below topbar) */
         .sd-school-bar { background:#fff; border-bottom:1px solid #e2e8f0; padding:10px 28px; display:flex; align-items:center; gap:12px; }
         .sd-school-bar-logo { width:36px; height:36px; border-radius:50%; object-fit:cover; background:#f1f5f9; border:1px solid #e2e8f0; flex-shrink:0; }
         .sd-school-bar-name { font-size:14px; font-weight:800; color:#1e293b; }
         .sd-school-bar-fallback { width:36px; height:36px; border-radius:50%; background:#fff1df; color:#c2410c; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:900; flex-shrink:0; }
 
-        /* Mobile topbar — hidden on desktop */
         .sd-mobile-topbar { display:none; }
         .sd-mobile-logo-img { height:30px; object-fit:contain; }
         .sd-mobile-logo-text { font-size:22px; font-weight:900; color:#25343F; letter-spacing:-0.5px; }
         .sd-mobile-logo-text em { font-style:normal; color:#FF9B51; }
 
-        /* Content */
         .sd-content { padding:24px; flex:1; display:flex; flex-direction:column; gap:20px; max-width:600px; margin:0 auto; width:100%; }
 
-        /* Mobile greeting — hidden on desktop */
         .sd-mobile-greeting { display:none; font-size:18px; font-weight:800; color:#0f172a; align-items:center; gap:8px; }
 
-        /* School info block (mobile) */
         .sd-school-block { display:none; align-items:center; gap:14px; }
         .sd-school-logo  { width:68px; height:68px; border-radius:50%; object-fit:cover; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
         .sd-school-logo-fallback { width:68px; height:68px; border-radius:50%; background:#fff1df; color:#c2410c; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:900; flex-shrink:0; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
         .sd-school-name { font-family:'Playfair Display',Georgia,serif; font-size:26px; font-weight:700; color:#0f172a; line-height:1.2; }
 
-        /* Section label */
         .sd-section-label { font-size:10px; font-weight:900; letter-spacing:1.5px; text-transform:uppercase; color:#94a3b8; margin-bottom:12px; }
 
-        /* Quick grid */
         .sd-quick-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
         .sd-quick-card { background:#fff; border-radius:16px; padding:18px; text-decoration:none; display:flex; flex-direction:column; gap:14px; box-shadow:0 2px 12px rgba(0,0,0,0.04); transition:transform 0.2s,box-shadow 0.2s; }
         .sd-quick-card:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.07); }
@@ -182,20 +197,15 @@ export default function StudentDashboardPage() {
         .sd-quick-label { font-size:14px; font-weight:800; color:#334155; }
         .sd-quick-badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; display:inline-block; width:fit-content; margin-top:3px; }
 
-        /* Attendance card */
         .sd-att-card { background:#fff; border-radius:16px; padding:20px; box-shadow:0 2px 12px rgba(0,0,0,0.04); }
         .sd-tabs { display:flex; gap:8px; margin-bottom:20px; }
         .sd-tab { flex:1; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; color:#64748b; border:1px solid #e2e8f0; background:#fff; cursor:pointer; text-align:center; transition:all 0.18s; font-family:'Nunito','Inter',sans-serif; }
         .sd-tab.sd-tab-active { background:#1e293b; color:#fff; border-color:#1e293b; }
 
-        /* Avatar */
         .sd-topbar-avatar { width:36px; height:36px; border-radius:50%; background:#f1f5f9; color:#64748b; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
 
-        /* ═══════════════════
-           MOBILE — ≤768px
-        ═══════════════════ */
         @media (max-width: 768px) {
-          .sd-topbar   { display:none; }
+          .sd-topbar    { display:none; }
           .sd-school-bar { display:none; }
 
           .sd-mobile-topbar {
@@ -206,13 +216,10 @@ export default function StudentDashboardPage() {
           }
 
           .sd-content { padding:20px; gap:18px; }
-
           .sd-mobile-greeting { display:flex; }
           .sd-school-block    { display:flex; }
-
           .sd-quick-grid { gap:10px; }
           .sd-quick-card { padding:14px; gap:10px; }
-
           .sd-att-card { padding:16px; }
           .sd-tabs { gap:6px; }
           .sd-tab  { font-size:11px; padding:7px 0; }
@@ -226,7 +233,7 @@ export default function StudentDashboardPage() {
 
       <div className="sd-page">
 
-        {/* ══ DESKTOP TOPBAR ══ */}
+        {/* ── DESKTOP TOPBAR ── */}
         <header className="sd-topbar">
           <div className="sd-topbar-greeting">
             <span>{greetIcon}</span>
@@ -237,7 +244,7 @@ export default function StudentDashboardPage() {
           </div>
         </header>
 
-        {/* ══ DESKTOP SCHOOL BAR (below topbar) ══ */}
+        {/* ── DESKTOP SCHOOL BAR ── */}
         <div className="sd-school-bar">
           {schoolLogo
             ? <img src={schoolLogo} alt="School" className="sd-school-bar-logo" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -246,7 +253,7 @@ export default function StudentDashboardPage() {
           <span className="sd-school-bar-name">{schoolName}</span>
         </div>
 
-        {/* ══ MOBILE TOPBAR — Skoolio logo ══ */}
+        {/* ── MOBILE TOPBAR ── */}
         <header className="sd-mobile-topbar">
           <img
             src="/Logo.png"
@@ -257,13 +264,11 @@ export default function StudentDashboardPage() {
               (e.currentTarget.nextElementSibling as HTMLElement).style.display = "block";
             }}
           />
-          {/* Fallback text logo if image missing */}
           <span className="sd-mobile-logo-text" style={{ display: "none" }}>
             <em>Skoo</em>lio
           </span>
         </header>
 
-        {/* ══ PAGE CONTENT ══ */}
         {meLoading ? (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
             <Spinner size={32} color="#4b8ff7" />
@@ -277,7 +282,7 @@ export default function StudentDashboardPage() {
               {greetWord} , {firstName}
             </div>
 
-            {/* School logo + name (mobile only) */}
+            {/* School logo + name (mobile) */}
             <div className="sd-school-block">
               {schoolLogo
                 ? <img src={schoolLogo} alt="School" className="sd-school-logo" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -317,7 +322,6 @@ export default function StudentDashboardPage() {
             <div>
               <div className="sd-section-label">Attendance</div>
               <div className="sd-att-card">
-                {/* Period tabs */}
                 <div className="sd-tabs">
                   {([
                     ["this_month", "This month"],

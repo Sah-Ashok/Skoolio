@@ -428,12 +428,64 @@ function AddRoleModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   );
 }
 
+// ── Set Salary Modal ────────────────────────────────────────────────────────
+function SetSalaryModal({ staff, onClose, onSaved }: { staff: Staff; onClose: () => void; onSaved: () => void }) {
+  const [basic_salary, setBasicSalary] = useState(String(staff.current_salary?.basic_salary ?? ""));
+  const [effective_from, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
+  const [err, setErr] = useState("");
+  const { execute, loading } = useMutation("/staff/salary/structure", "POST");
+
+  const handleSubmit = async () => {
+    if (!basic_salary || isNaN(Number(basic_salary))) return setErr("Enter a valid salary amount.");
+    setErr("");
+    try {
+      await execute({ staff_id: staff.id, basic_salary: Number(basic_salary), effective_from });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      setErr(e.message || "Failed to set salary.");
+    }
+  };
+
+  return (
+    <div className={s("overlay")} onClick={onClose}>
+      <div className={s("modal")} style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+        <div className={s("modalHead")}>
+          <div>
+            <h2>Set Salary</h2>
+            <p>{staff.full_name} · {staff.role_name ?? "Staff"}</p>
+          </div>
+          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
+        </div>
+        <div className={s("formGrid")}>
+          <div className={s("field")}>
+            <label>Basic Salary (NPR) *</label>
+            <input type="number" min="0" value={basic_salary} onChange={e => setBasicSalary(e.target.value)} placeholder="e.g. 15000" autoFocus />
+          </div>
+          <div className={s("field")}>
+            <label>Effective From</label>
+            <input type="date" value={effective_from} onChange={e => setEffectiveFrom(e.target.value)} />
+          </div>
+          {err && <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>{err}</p>}
+        </div>
+        <div className={s("modalFoot")}>
+          <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Cancel</button>
+          <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size={14} color="#fff" /> : <><i className="fa-solid fa-floppy-disk" /> Save Salary</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 type ModalState =
   | { type: "add_staff" }
   | { type: "add_role" }
-  | { type: "view";   staff: Staff }
-  | { type: "edit";   staff: Staff }
+  | { type: "view";       staff: Staff }
+  | { type: "edit";       staff: Staff }
+  | { type: "set_salary"; staff: Staff }
   | null;
 
 export function StaffPage() {
@@ -604,13 +656,23 @@ export function StaffPage() {
                         </span>
                       </td>
                       <td onClick={e => e.stopPropagation()}>
-                        <button
-                          className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
-                          onClick={() => setModal({ type: "edit", staff: m })}
-                          title="Edit staff member"
-                        >
-                          <i className="fa-solid fa-pen" />
-                        </button>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
+                            onClick={() => setModal({ type: "edit", staff: m })}
+                            title="Edit staff member"
+                          >
+                            <i className="fa-solid fa-pen" />
+                          </button>
+                          <button
+                            className={cx(s("btn"), s("btnSm"))}
+                            style={{ background: "#e2f6ee", color: "#12805c", border: "1px solid #a7e1c8" }}
+                            onClick={() => setModal({ type: "set_salary", staff: m })}
+                            title="Set monthly salary"
+                          >
+                            <i className="fa-solid fa-money-bill" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -679,6 +741,14 @@ export function StaffPage() {
         <EditStaffModal
           staff={modal.staff}
           roles={roles ?? []}
+          onClose={() => setModal(null)}
+          onSaved={() => refetchStaff()}
+        />
+      )}
+
+      {modal?.type === "set_salary" && (
+        <SetSalaryModal
+          staff={modal.staff}
           onClose={() => setModal(null)}
           onSaved={() => refetchStaff()}
         />

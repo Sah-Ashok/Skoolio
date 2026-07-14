@@ -7,6 +7,7 @@ import {
   createNoticeTeacherService,
   getNoticesAdminService,
   getNoticesTeacherService,
+  getNoticesStudentService,
   updateNoticeService,
   deleteNoticeService,
 } from '../Service/notice.service';
@@ -80,4 +81,12 @@ export const deleteNotice = catchAsync(async (req: Request, res: Response, next:
 
   await deleteNoticeService(Number(req.params.id), school_id, role, requester_id);
   sendResponse(res, 200, true, 'Notice deleted successfully', null);
+});
+
+// ── STUDENT: Get visible notices ──────────────────────────────
+
+export const getNoticesStudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const student = req.user as IJwtUserPayload;
+  const notices = await getNoticesStudentService(student.school_id, student.id);
+  sendResponse(res, 200, true, 'Notices fetched successfully', notices);
 });

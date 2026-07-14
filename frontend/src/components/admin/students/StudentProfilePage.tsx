@@ -9,27 +9,73 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 
-const s = (className: string) => styles[className] || className;
-const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
+const s  = (c: string) => styles[c] || c;
+const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-function getInitials(name: string) {
-  if (!name) return "";
-  return name.split(" ").map(p => p[0]).join("").substring(0, 2).toUpperCase();
+function fmt(n: number) { return n.toLocaleString("en-IN"); }
+function pctColor(p: number) { return p >= 85 ? "#16a34a" : p >= 70 ? "#d97706" : "#dc2626"; }
+const ATT_CLS: Record<string, string> = { present: "present", absent: "absent", late: "late", leave: "off" };
+
+/* ─── HERO STAT BOX ────────────────────────────────────────────────────────── */
+function StatBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className={s("sp-stat")}>
+      <span className={s("sp-stat-label")}>{label}</span>
+      <strong className={s("sp-stat-val")}>{value}</strong>
+      {sub && <span className={s("sp-stat-sub")}>{sub}</span>}
+    </div>
+  );
 }
 
-function pctColor(pct: number) {
-  if (pct >= 85) return "#12805c";
-  if (pct >= 70) return "#c46a14";
-  return "#b42318";
+/* ─── DETAIL LIST ROW ──────────────────────────────────────────────────────── */
+function DRow({ label, value, cap }: { label: string; value: string; cap?: boolean }) {
+  return (
+    <div className={s("sp-drow")}>
+      <span>{label}</span>
+      <strong style={{ textTransform: cap ? "capitalize" : "none" }}>{value || "—"}</strong>
+    </div>
+  );
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  present: "present",
-  absent:  "absent",
-  late:    "late",
-  leave:   "off",
-};
+/* ─── SECTION HEADER ───────────────────────────────────────────────────────── */
+function SecHead({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
+  return (
+    <div className={s("sp-sechead")}>
+      <div>
+        <h3 className={s("sp-sectitle")}>{title}</h3>
+        {sub && <p className={s("sp-secsub")}>{sub}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
 
+/* ─── SERVICE ROW (transport / hostel) ─────────────────────────────────────── */
+function SvcRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <div className={s("sp-svcrow")}>
+      <i className={`${icon} ${s("sp-svcicon")}`} />
+      <div>
+        <span className={s("sp-svclabel")}>{label}</span>
+        <strong className={s("sp-svcval")}>{value || "—"}</strong>
+      </div>
+    </div>
+  );
+}
+
+/* ─── FEE LINE ──────────────────────────────────────────────────────────────── */
+function FeeRow({ label, value, muted, accent }: { label: string; value: string; muted?: boolean; accent?: string }) {
+  return (
+    <div className={s("sp-feerow")}>
+      <span style={{ color: muted ? "#94a3b8" : "#64748b" }}>{label}</span>
+      <strong style={{ color: accent || "#1e293b" }}>{value}</strong>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+══════════════════════════════════════════════════════════════════════════════ */
 export default function StudentProfilePage() {
   const searchParams = useSearchParams();
   const id = searchParams?.get("id");
@@ -37,354 +83,366 @@ export default function StudentProfilePage() {
   const { data: activeYear } = useApi<any>("/academic-years/active");
   const { data: student, loading } = useApi<any>(id ? `/students/${id}` : "");
   const { data: enrollments } = useApi<any[]>(id ? `/students/${id}/enrollments` : "");
-  const { data: fees } = useApi<any[]>(id ? `/fees/collections/student/${id}` : "");
+  const { data: fees }        = useApi<any[]>(id ? `/fees/collections/student/${id}` : "");
 
-  // ── Attendance state ──
-  const [attendanceSummary, setAttendanceSummary] = useState<any>(null);
-  const [monthlyAttendance, setMonthlyAttendance] = useState<any[]>([]);
-  const [attendanceMonth, setAttendanceMonth] = useState(() => {
+  const [transport, setTransport]         = useState<any>(null);
+  const [hostel,    setHostel]            = useState<any>(null);
+  const [loadingSvc, setLoadingSvc]       = useState(true);
+  const [attSummary, setAttSummary]       = useState<any>(null);
+  const [monthlyAtt, setMonthlyAtt]       = useState<any[]>([]);
+  const [attMonth,   setAttMonth]         = useState(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [loadingAttendance, setLoadingAttendance] = useState(false);
 
-  // Load summary for active year (full year range)
+  /* fetch transport + hostel */
   useEffect(() => {
     if (!id || !activeYear?.id) return;
-    const start = activeYear.start_date?.split("T")[0] || activeYear.start_date;
-    const end   = activeYear.end_date?.split("T")[0]   || activeYear.end_date;
-    setLoadingAttendance(true);
-    apiRequest<{ data: any }>(
-      `/attendance/student/${id}/summary?academic_year_id=${activeYear.id}&start_date=${start}&end_date=${end}`
-    )
-      .then((res) => setAttendanceSummary(res.data))
-      .catch(() => setAttendanceSummary(null))
-      .finally(() => setLoadingAttendance(false));
+    setLoadingSvc(true);
+    Promise.allSettled([
+      apiRequest<{ data: any }>(`/transport/students/${id}?academic_year_id=${activeYear.id}`),
+      apiRequest<{ data: any }>(`/hostel/students/${id}?academic_year_id=${activeYear.id}`),
+    ]).then(([t, h]) => {
+      setTransport(t.status === "fulfilled" ? t.value?.data : null);
+      setHostel(   h.status === "fulfilled" ? h.value?.data : null);
+    }).finally(() => setLoadingSvc(false));
   }, [id, activeYear?.id]);
 
-  // Load monthly calendar when month tab changes
+  /* fetch attendance summary */
+  useEffect(() => {
+    if (!id || !activeYear?.id) return;
+    const s = activeYear.start_date?.split("T")[0];
+    const e = activeYear.end_date?.split("T")[0];
+    apiRequest<{ data: any }>(
+      `/attendance/student/${id}/summary?academic_year_id=${activeYear.id}&start_date=${s}&end_date=${e}`
+    ).then(r => setAttSummary(r.data)).catch(() => setAttSummary(null));
+  }, [id, activeYear?.id]);
+
+  /* fetch monthly calendar */
   useEffect(() => {
     if (!id) return;
-    const [yr, mo] = attendanceMonth.split("-");
-    apiRequest<{ data: any[] }>(
-      `/attendance/student/${id}/monthly?year=${yr}&month=${parseInt(mo)}`
-    )
-      .then((res) => setMonthlyAttendance(res.data || []))
-      .catch(() => setMonthlyAttendance([]));
-  }, [id, attendanceMonth]);
+    const [yr, mo] = attMonth.split("-");
+    apiRequest<{ data: any[] }>(`/attendance/student/${id}/monthly?year=${yr}&month=${parseInt(mo)}`)
+      .then(r => setMonthlyAtt(r.data || [])).catch(() => setMonthlyAtt([]));
+  }, [id, attMonth]);
 
-  if (!id)      return <div>No student selected</div>;
-  if (loading)  return <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>;
-  if (!student) return <div>Student not found</div>;
+  if (!id)      return <div className={s("sp-empty")}>No student selected.</div>;
+  if (loading)  return <div className={s("sp-loading")}><Spinner size={32} color="#ff9b51" /></div>;
+  if (!student) return <div className={s("sp-empty")}>Student not found.</div>;
 
-  const currentEnrollment  = enrollments?.[0];
-  const totalFeeAssigned   = fees?.reduce((sum, f) => sum + parseFloat(f.total_amount), 0) || 0;
-  const totalFeePaid       = fees?.reduce((sum, f) => sum + parseFloat(f.paid_amount || "0"), 0) || 0;
-  const pendingFee         = totalFeeAssigned - totalFeePaid;
+  /* ── derived numbers ── */
+  const tuitionTotal   = fees?.reduce((a, f) => a + parseFloat(f.total_amount || "0"), 0) || 0;
+  const tuitionPaid    = fees?.reduce((a, f) => a + parseFloat(f.paid_amount  || "0"), 0) || 0;
+  const tuitionPending = tuitionTotal - tuitionPaid;
+  const transportAnn   = transport ? parseFloat(transport.monthly_fee || "0") * 12 : 0;
+  const hostelAnn      = hostel    ? parseFloat(hostel.monthly_fee    || "0") * 12 : 0;
+  const grandTotal     = tuitionTotal + transportAnn + hostelAnn;
+  const grandPaid      = tuitionPaid;
+  const grandPending   = grandTotal - grandPaid;
+  const paidPct        = grandTotal > 0 ? (grandPaid / grandTotal) * 100 : 0;
 
-  // Attendance numbers — start at 100%, decrease on absences
-  const attPct     = attendanceSummary?.attendance_percentage ?? 100;
-  const attPresent = attendanceSummary?.total_present ?? 0;
-  const attAbsent  = attendanceSummary?.total_absent  ?? 0;
-  const attLate    = attendanceSummary?.total_late    ?? 0;
-  const attLeave   = attendanceSummary?.total_leave   ?? 0;
-  const attWDays   = attendanceSummary?.total_working_days ?? 0;
+  const attPct     = attSummary?.attendance_percentage ?? 0;
+  const attPresent = attSummary?.total_present         ?? 0;
+  const attAbsent  = attSummary?.total_absent          ?? 0;
+  const attLate    = attSummary?.total_late            ?? 0;
+  const attLeave   = attSummary?.total_leave           ?? 0;
+  const attWork    = attSummary?.total_working_days    ?? 0;
 
-  // Build calendar grid for selected month
-  const [yr, mo] = attendanceMonth.split("-").map(Number);
-  const firstDay  = new Date(yr, mo - 1, 1);
+  /* ── calendar ── */
+  const [yr, mo] = attMonth.split("-").map(Number);
   const totalDays = new Date(yr, mo, 0).getDate();
-  let leading     = firstDay.getDay() - 1;
+  let leading = new Date(yr, mo - 1, 1).getDay() - 1;
   if (leading < 0) leading = 6;
-
-  // Map date string → status
   const dayMap: Record<string, string> = {};
-  monthlyAttendance.forEach((rec) => {
-    if (rec.date) dayMap[rec.date.split("T")[0]] = rec.status;
-  });
+  monthlyAtt.forEach(r => { if (r.date) dayMap[r.date.split("T")[0]] = r.status; });
+  const calCells: { day: number | null; status?: string }[] = [
+    ...Array(leading).fill({ day: null }),
+    ...Array.from({ length: totalDays }, (_, i) => {
+      const d = i + 1;
+      const ds = `${yr}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      return { day: d, status: dayMap[ds] };
+    }),
+  ];
+  while (calCells.length % 7) calCells.push({ day: null });
 
-  const calDays: { day: number | null; status?: string; dateStr?: string }[] = [];
-  for (let i = 0; i < leading; i++) calDays.push({ day: null });
-  for (let d = 1; d <= totalDays; d++) {
-    const dateStr = `${yr}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    calDays.push({ day: d, status: dayMap[dateStr], dateStr });
-  }
-  while (calDays.length % 7 !== 0) calDays.push({ day: null });
-
-  const monthOptions = (() => {
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthOpts = (() => {
     if (!activeYear) return [];
-    const opts = [];
-    const start = new Date(activeYear.start_date);
-    const end   = new Date(activeYear.end_date);
-    const d     = new Date(start.getFullYear(), start.getMonth(), 1);
-    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const opts: { value: string; label: string }[] = [];
+    const d = new Date(activeYear.start_date); d.setDate(1);
+    const end = new Date(activeYear.end_date);
     while (d <= end) {
-      opts.push({
-        value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
-      });
+      opts.push({ value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` });
       d.setMonth(d.getMonth() + 1);
     }
     return opts;
   })();
 
-  const info = [
-    ["Date of Birth",      student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : "—"],
-    ["Gender",             student.gender],
-    ["Blood Group",        student.blood_group || "—"],
-    ["Email",              student.email || "—"],
-    ["Phone",              student.phone || "—"],
-    ["Address",            [student.city, student.state, student.country].filter(Boolean).join(", ") || "—"],
-    ["Guardian Name",      student.guardian_name || "—"],
-    ["Guardian Relation",  student.guardian_relation || "—"],
-    ["Guardian Phone",     student.guardian_phone || "—"],
-    ["Joined Date",        student.admission_date ? new Date(student.admission_date).toLocaleDateString() : "—"],
-  ];
+  const enr = enrollments?.[0];
+  const initials = (student.full_name || "").split(" ").map((p: string) => p[0]).join("").substring(0,2).toUpperCase();
 
   return (
     <div className={s("students-page")}>
       <Topbar title="Student Profile" subtitle="Student records and details" />
       <main className={s("page-content")}>
 
+        {/* PAGE HEAD */}
         <section className={s("page-head")}>
           <div>
             <h1>Student Profile</h1>
-            <p>Record for {student.admission_number}</p>
+            <p>{student.admission_number}</p>
           </div>
           <div className={s("head-actions")}>
             <Link className={cx(s("btn"), s("btn-outline"))} href="/students">
               <i className="fa-solid fa-arrow-left" /> Back
             </Link>
             <Link className={cx(s("btn"), s("btn-primary"))} href={`/students/${id}/edit`}>
-              <i className="fa-solid fa-pen-to-square" /> Edit Record
+              <i className="fa-solid fa-pen-to-square" /> Edit
             </Link>
           </div>
         </section>
 
-        {/* Hero */}
-        <section className={cx(s("profile-hero"), s("profile-hero-polished"))}>
-          <div className={s("profile-main")}>
-            <div className={s("profile-avatar")}>{getInitials(student.full_name)}</div>
-            <div>
-              <div className={s("profile-kicker")} style={{ textTransform: "capitalize" }}>{student.status} Student</div>
-              <h1>{student.full_name}</h1>
-              <p>
-                {currentEnrollment ? `Class ${currentEnrollment.class_name || currentEnrollment.class_id} - Section ${currentEnrollment.section_name || currentEnrollment.section_id} | ` : ""}
+        {/* HERO */}
+        <section className={s("sp-hero")}>
+          <div className={s("sp-hero-left")}>
+            {student.photo
+              ? <img src={student.photo} alt="" className={s("sp-avatar-img")} />
+              : <div className={s("sp-avatar")}>{initials}</div>
+            }
+            <div className={s("sp-hero-info")}>
+              <p className={s("sp-kicker")}>
+                <span className={cx(s("sp-dot"), student.status === "active" ? s("sp-dot-green") : s("sp-dot-yellow"))} />
+                {student.status} student
+              </p>
+              <h2 className={s("sp-name")}>{student.full_name}</h2>
+              <p className={s("sp-sub")}>
+                {enr ? `Class ${enr.class_name || enr.class_id} · Section ${enr.section_name || enr.section_id} · ` : ""}
                 Admitted {student.admission_date ? new Date(student.admission_date).toLocaleDateString() : "—"}
               </p>
-              <div className={s("profile-meta")}>
-                <span className={cx(s("badge"), s(student.status === "active" ? "badge-green" : "badge-yellow"))} style={{ textTransform: "capitalize" }}>{student.status}</span>
-                <span className={cx(s("badge"), s(pendingFee > 0 ? "badge-red" : "badge-green"))}>
-                  {pendingFee > 0 ? "Fee Pending" : "Fee Cleared"}
-                </span>
+              <div className={s("sp-tags")}>
+                {grandPending > 0
+                  ? <span className={cx(s("badge"), s("badge-red"))}>Fee Due ₹{fmt(grandPending)}</span>
+                  : <span className={cx(s("badge"), s("badge-green"))}>Fee Cleared</span>
+                }
+                {!loadingSvc && transport && <span className={cx(s("badge"), s("badge-blue"))}><i className="fa-solid fa-bus" /> {transport.route_name}</span>}
+                {!loadingSvc && hostel    && <span className={cx(s("badge"), s("badge-yellow"))}><i className="fa-solid fa-building" /> {hostel.hostel_name}</span>}
               </div>
             </div>
           </div>
-          <div className={s("profile-score-panel")}>
-            <div>
-              <span>Attendance</span>
-              <strong style={{ color: pctColor(attPct) }}>{loadingAttendance ? "…" : `${attPct}%`}</strong>
-            </div>
-            <div><span>Final Result</span><strong>—</strong></div>
-            <div><span>Status</span><strong style={{ textTransform: "capitalize" }}>{student.status}</strong></div>
+          <div className={s("sp-hero-stats")}>
+            <StatBox label="Attendance" value={`${attPct}%`} sub={`${attPresent} / ${attWork} days`} />
+            <StatBox label="Fee Paid"   value={`₹${fmt(grandPaid)}`} sub={`of ₹${fmt(grandTotal)}`} />
+            <StatBox label="Enrollments" value={String(enrollments?.length || 0)} sub="academic years" />
           </div>
         </section>
 
-        {/* Metrics */}
-        <section className={s("profile-metrics")}>
-          <article className={s("metric-card")}>
-            <div className={cx(s("metric-icon"), s("green"))}><i className="fa-solid fa-calendar-check" /></div>
-            <div>
-              <span>Present Days</span>
-              <strong style={{ color: "#12805c" }}>{attPresent}</strong>
-            </div>
-          </article>
-          <article className={s("metric-card")}>
-            <div className={cx(s("metric-icon"), s("rose"))}><i className="fa-solid fa-calendar-xmark" /></div>
-            <div>
-              <span>Absent Days</span>
-              <strong style={{ color: "#b42318" }}>{attAbsent}</strong>
-            </div>
-          </article>
-          <article className={s("metric-card")}>
-            <div className={cx(s("metric-icon"), s("blue"))}><i className="fa-solid fa-folder-open" /></div>
-            <div>
-              <span>Enrollments</span>
-              <strong>{enrollments?.length || 0} Years</strong>
-            </div>
-          </article>
-          <article className={s("metric-card")}>
-            <div className={cx(s("metric-icon"), s("orange"))}><i className="fa-solid fa-receipt" /></div>
-            <div>
-              <span>Fee Paid</span>
-              <strong>₹{totalFeePaid}</strong>
-            </div>
-          </article>
-        </section>
+        {/* MAIN GRID */}
+        <div className={s("sp-grid")}>
 
-        <div className={s("profile-grid")}>
-          {/* Left — Student info */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <section className={cx(s("card"), s("profile-card-main"))}>
-              <div className={s("card-header")}>
-                <div><h3>Student Information</h3><p>Personal and guardian details</p></div>
-              </div>
-              <div className={s("profile-info-list")}>
-                {info.map(([label, value]) => (
-                  <div className={s("info-row")} key={label}>
-                    <span>{label}</span>
-                    <strong style={{ textTransform: label === "Gender" ? "capitalize" : "none" }}>{value}</strong>
-                  </div>
-                ))}
+          {/* ── LEFT ── */}
+          <div className={s("sp-col")}>
+
+            {/* Student info */}
+            <section className={s("card")}>
+              <SecHead title="Personal Information" sub="Identity, contact and guardian" />
+              <div className={s("sp-dlist")}>
+                <DRow label="Date of Birth"     value={student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : ""} />
+                <DRow label="Gender"            value={student.gender}         cap />
+                <DRow label="Blood Group"       value={student.blood_group} />
+                <DRow label="Email"             value={student.email} />
+                <DRow label="Phone"             value={student.phone} />
+                <DRow label="Address"           value={[student.city, student.state, student.country].filter(Boolean).join(", ")} />
+                <DRow label="Guardian Name"     value={student.guardian_name} />
+                <DRow label="Guardian Relation" value={student.guardian_relation} cap />
+                <DRow label="Guardian Phone"    value={student.guardian_phone} />
+                <DRow label="Admission Date"    value={student.admission_date ? new Date(student.admission_date).toLocaleDateString() : ""} />
               </div>
 
-              {/* ── SCHOLARSHIP ── */}
               {student.scholarship_type && (
-                <div style={{ margin: "0 18px 18px", padding: "14px 16px", borderRadius: 10, background: "#fefce8", border: "1px solid #fde68a" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <i className="fa-solid fa-graduation-cap" style={{ color: "#b45309", fontSize: 16 }} />
-                    <strong style={{ fontSize: 13, color: "#92400e" }}>Scholarship Awarded</strong>
+                <div className={s("sp-schol")}>
+                  <div className={s("sp-schol-head")}>
+                    <i className="fa-solid fa-graduation-cap" />
+                    <strong>Scholarship — {student.scholarship_percent}% discount</strong>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Type</p>
-                      <strong style={{ textTransform: "capitalize" }}>{student.scholarship_type.replace(/_/g, " ")}</strong>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Discount</p>
-                      <strong style={{ color: "#92400e", fontSize: 15 }}>{student.scholarship_percent}% off fees</strong>
-                    </div>
-                    {student.scholarship_remarks && (
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <p style={{ fontSize: 11, fontWeight: 900, color: "#78350f" }}>Remarks</p>
-                        <strong style={{ fontWeight: 700 }}>{student.scholarship_remarks}</strong>
-                      </div>
-                    )}
-                  </div>
+                  <p className={s("sp-schol-type")}>{(student.scholarship_type || "").replace(/_/g, " ")}</p>
+                  {student.scholarship_remarks && <p className={s("sp-schol-rem")}>{student.scholarship_remarks}</p>}
                 </div>
               )}
             </section>
 
-            {/* ── ATTENDANCE CARD ── */}
+            {/* Attendance */}
             <section className={s("card")}>
-              <div className={s("card-header")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <h3>Attendance</h3>
-                  <p>Starts at 100% — decreases per absent day</p>
-                </div>
-                <select
-                  value={attendanceMonth}
-                  onChange={(e) => setAttendanceMonth(e.target.value)}
-                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #c6d0d7", fontSize: 13, fontWeight: 800, color: "#1f2d36", background: "#fff", fontFamily: "inherit" }}
-                >
-                  {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
+              <SecHead
+                title="Attendance"
+                sub={`${new Date(yr, mo - 1).toLocaleString("default", { month: "long", year: "numeric" })}`}
+                right={
+                  <select
+                    value={attMonth}
+                    onChange={e => setAttMonth(e.target.value)}
+                    className={s("sp-select")}
+                  >
+                    {monthOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                }
+              />
 
-              {/* Summary bar */}
-              <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef2f3", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+              {/* Stats strip */}
+              <div className={s("sp-att-strip")}>
                 {[
-                  { label: "Attendance",    val: `${attPct}%`,   color: pctColor(attPct) },
-                  { label: "Working Days",  val: attWDays,        color: "#1f2d36" },
-                  { label: "Present",       val: attPresent,      color: "#12805c" },
-                  { label: "Absent",        val: attAbsent,       color: "#b42318" },
-                  { label: "Late / Leave",  val: `${attLate} / ${attLeave}`, color: "#c46a14" },
-                ].map((m) => (
-                  <div key={m.label} style={{ padding: "10px 12px", border: "1px solid #dce5e9", borderRadius: 9, background: "#f8fbfc" }}>
-                    <p style={{ fontSize: 11, fontWeight: 900, color: "#6a7882", margin: 0 }}>{m.label}</p>
-                    <strong style={{ fontSize: 16, fontWeight: 900, color: m.color }}>{m.val}</strong>
+                  { l: "Rate",    v: `${attPct}%`,          c: pctColor(attPct) },
+                  { l: "Working", v: attWork,                 c: "#1e293b" },
+                  { l: "Present", v: attPresent,              c: "#16a34a" },
+                  { l: "Absent",  v: attAbsent,               c: "#dc2626" },
+                  { l: "Late",    v: attLate,                 c: "#d97706" },
+                  { l: "Leave",   v: attLeave,                c: "#64748b" },
+                ].map(m => (
+                  <div key={m.l} className={s("sp-att-stat")}>
+                    <span>{m.l}</span>
+                    <strong style={{ color: m.c }}>{m.v}</strong>
                   </div>
                 ))}
               </div>
 
               {/* Progress bar */}
-              <div style={{ padding: "12px 18px", borderBottom: "1px solid #eef2f3" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12, fontWeight: 900, color: "#6a7882" }}>
-                  <span>Attendance Rate (full year)</span>
-                  <strong style={{ color: pctColor(attPct) }}>{attPct}%</strong>
-                </div>
-                <div style={{ height: 10, borderRadius: 999, background: "#e1e8eb", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${attPct}%`, background: pctColor(attPct), borderRadius: 999, transition: "width 0.5s" }} />
+              <div className={s("sp-att-bar-wrap")}>
+                <div className={s("sp-att-bar-track")}>
+                  <div className={s("sp-att-bar-fill")} style={{ width: `${attPct}%`, background: pctColor(attPct) }} />
                 </div>
               </div>
 
-              {/* Monthly calendar grid */}
-              <div style={{ padding: "16px 18px" }}>
-                <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 10 }}>
-                  {new Date(yr, mo - 1).toLocaleString("default", { month: "long", year: "numeric" })} — day-by-day
-                </p>
-                <div className={s("studentCalendar")}>
-                  {["M","T","W","T","F","S","S"].map((d, i) => (
-                    <div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 900, color: "#6a7882", paddingBottom: 6 }}>{d}</div>
-                  ))}
-                  {calDays.map((cell, i) => (
+              {/* Calendar */}
+              <div className={s("sp-cal-wrap")}>
+                <div className={s("sp-cal")}>
+                  {["M","T","W","T","F","S","S"].map((d, i) => <div key={i} className={s("sp-cal-hdr")}>{d}</div>)}
+                  {calCells.map((c, i) => (
                     <div
                       key={i}
-                      className={cx(
-                        s("studentDay"),
-                        cell.status ? s(STATUS_STYLE[cell.status] || "off") : (cell.day ? undefined : s("off"))
-                      )}
-                      style={{ opacity: cell.day ? 1 : 0.25 }}
+                      className={cx(s("sp-cal-day"), c.status ? s(ATT_CLS[c.status] || "off") : c.day ? "" : s("off"))}
+                      style={{ opacity: c.day ? 1 : 0 }}
                     >
-                      <strong>{cell.day ?? ""}</strong>
-                      {cell.status && (
-                        <span className={s(STATUS_STYLE[cell.status] || "off")} style={{ fontSize: 9 }}>
-                          {cell.status}
-                        </span>
-                      )}
+                      {c.day}
                     </div>
                   ))}
                 </div>
-
-                {/* Legend */}
-                <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
-                  {[
-                    { label: "Present", color: "#12805c", bg: "#e2f6ee" },
-                    { label: "Absent",  color: "#b42318", bg: "#fde7e7" },
-                    { label: "Late",    color: "#c46a14", bg: "#fff1df" },
-                    { label: "Leave",   color: "#6a7882", bg: "#eef2f3" },
-                  ].map((l) => (
-                    <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 900, color: l.color }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: l.bg, border: `1.5px solid ${l.color}` }} />
-                      {l.label}
-                    </div>
+                <div className={s("sp-cal-legend")}>
+                  {[["Present","#16a34a"],["Absent","#dc2626"],["Late","#d97706"],["Leave","#94a3b8"]].map(([l, c]) => (
+                    <span key={l} className={s("sp-leg")} style={{ color: c as string }}>
+                      <i style={{ background: c as string }} />{l}
+                    </span>
                   ))}
                 </div>
               </div>
             </section>
           </div>
 
-          {/* Right sidebar */}
-          <aside className={s("profile-side-stack")}>
+          {/* ── RIGHT ── */}
+          <aside className={s("sp-side")}>
+
+            {/* Fee summary */}
             <section className={s("card")}>
-              <div className={s("card-header")}>
-                <div><h3>Fee Summary</h3><p>Lifetime fee collections</p></div>
-                <span className={cx(s("badge"), s(pendingFee > 0 ? "badge-red" : "badge-green"))}>
-                  {pendingFee > 0 ? "Pending" : "Cleared"}
-                </span>
-              </div>
-              <div className={s("fee-card")}>
-                <div className={s("fee-row")}><span>Total Assigned</span><strong>₹{totalFeeAssigned}</strong></div>
-                <div className={s("fee-row")}><span>Total Paid</span><strong className={s("text-success")}>₹{totalFeePaid}</strong></div>
-                <div className={s("fee-row")}><span>Pending</span><strong className={s("text-danger")}>₹{pendingFee}</strong></div>
-                <div className={s("progress")}>
-                  <span style={{ width: totalFeeAssigned > 0 ? `${(totalFeePaid / totalFeeAssigned) * 100}%` : "0%" }} />
+              <SecHead
+                title="Fee Summary"
+                sub="Tuition · Transport · Hostel"
+                right={
+                  <span className={cx(s("badge"), grandPending > 0 ? s("badge-red") : s("badge-green"))}>
+                    {grandPending > 0 ? "Pending" : "Cleared"}
+                  </span>
+                }
+              />
+              <div className={s("sp-feebody")}>
+                <FeeRow label="Tuition (assigned)"  value={`₹${fmt(tuitionTotal)}`} />
+                <FeeRow label="Transport (annual)"   value={transport ? `₹${fmt(transportAnn)}` : "—"} muted={!transport} />
+                <FeeRow label="Hostel (annual)"      value={hostel    ? `₹${fmt(hostelAnn)}`    : "—"} muted={!hostel} />
+                <div className={s("sp-fee-divider")} />
+                <FeeRow label="Grand Total"    value={`₹${fmt(grandTotal)}`} />
+                <FeeRow label="Paid"           value={`₹${fmt(grandPaid)}`}    accent="#16a34a" />
+                <FeeRow label="Outstanding"    value={`₹${fmt(grandPending)}`} accent={grandPending > 0 ? "#dc2626" : "#16a34a"} />
+                <div className={s("sp-fee-progress-wrap")}>
+                  <div className={s("sp-fee-progress-track")}>
+                    <div className={s("sp-fee-progress-fill")} style={{ width: `${paidPct}%` }} />
+                  </div>
+                  <span className={s("sp-fee-pct")}>{paidPct.toFixed(0)}% paid</span>
                 </div>
               </div>
             </section>
 
+            {/* Transport */}
             <section className={s("card")}>
-              <div className={s("card-header")}><div><h3>Enrollment History</h3><p>Academic years studied</p></div></div>
-              <div className={s("quick-detail-list")}>
-                {enrollments?.map((en) => (
-                  <div key={en.id}>
-                    <i className="fa-solid fa-school" />
-                    <span>{en.academic_year_name || "Year"} — Class {en.class_name || en.class_id} (Sec {en.section_name || en.section_id})</span>
+              <SecHead
+                title="Transport"
+                sub="Current year"
+                right={
+                  loadingSvc ? undefined :
+                  transport
+                    ? <span className={cx(s("badge"), s("badge-green"))}>Assigned</span>
+                    : <span className={cx(s("badge"))}>Not Assigned</span>
+                }
+              />
+              {loadingSvc
+                ? <div className={s("sp-svcload")}><Spinner size={18} color="#94a3b8" /></div>
+                : transport ? (
+                  <div className={s("sp-svcbody")}>
+                    <SvcRow icon="fa-solid fa-route"       label="Route"    value={transport.route_name} />
+                    <SvcRow icon="fa-solid fa-bus"         label="Vehicle"  value={transport.vehicle_number} />
+                    <SvcRow icon="fa-solid fa-map-pin"     label="Stop"     value={transport.stop_name} />
+                    <SvcRow icon="fa-regular fa-clock"     label="Pick-up"  value={transport.pickup_time} />
+                    <SvcRow icon="fa-regular fa-clock"     label="Drop"     value={transport.drop_time} />
+                    {transport.driver_name && <SvcRow icon="fa-solid fa-id-badge" label="Driver" value={`${transport.driver_name}${transport.driver_phone ? " · " + transport.driver_phone : ""}`} />}
+                    <div className={s("sp-fee-divider")} />
+                    <FeeRow label="Monthly fee" value={`₹${fmt(parseFloat(transport.monthly_fee || "0"))}`} />
+                    <FeeRow label="Annual fee"  value={`₹${fmt(transportAnn)}`} accent="#1e293b" />
                   </div>
-                ))}
-                {!enrollments?.length && <div><i className="fa-solid fa-ban" /><span>No enrollments</span></div>}
+                ) : (
+                  <p className={s("sp-svcempty")}>Not assigned for this academic year.</p>
+                )
+              }
+            </section>
+
+            {/* Hostel */}
+            <section className={s("card")}>
+              <SecHead
+                title="Hostel"
+                sub="Current year"
+                right={
+                  loadingSvc ? undefined :
+                  hostel
+                    ? <span className={cx(s("badge"), s("badge-green"))}>Assigned</span>
+                    : <span className={cx(s("badge"))}>Not Assigned</span>
+                }
+              />
+              {loadingSvc
+                ? <div className={s("sp-svcload")}><Spinner size={18} color="#94a3b8" /></div>
+                : hostel ? (
+                  <div className={s("sp-svcbody")}>
+                    <SvcRow icon="fa-solid fa-building"     label="Hostel"    value={hostel.hostel_name} />
+                    <SvcRow icon="fa-solid fa-venus-mars"   label="Type"      value={(hostel.hostel_type || "").replace(/_/g," ")} />
+                    <SvcRow icon="fa-solid fa-door-open"    label="Room"      value={`Room ${hostel.room_number} · Floor ${hostel.floor}`} />
+                    <SvcRow icon="fa-solid fa-bed"          label="Room Type" value={(hostel.room_type || "").replace(/_/g," ")} />
+                    <SvcRow icon="fa-solid fa-users"        label="Capacity"  value={hostel.capacity ? `${hostel.capacity} beds` : "—"} />
+                    {hostel.warden_name && <SvcRow icon="fa-solid fa-user-shield" label="Warden" value={`${hostel.warden_name}${hostel.warden_phone ? " · " + hostel.warden_phone : ""}`} />}
+                    <div className={s("sp-fee-divider")} />
+                    <FeeRow label="Monthly fee" value={`₹${fmt(parseFloat(hostel.monthly_fee || "0"))}`} />
+                    <FeeRow label="Annual fee"  value={`₹${fmt(hostelAnn)}`} accent="#1e293b" />
+                  </div>
+                ) : (
+                  <p className={s("sp-svcempty")}>Not assigned for this academic year.</p>
+                )
+              }
+            </section>
+
+            {/* Enrollment history */}
+            <section className={s("card")}>
+              <SecHead title="Enrollment History" sub="Academic years" />
+              <div className={s("sp-enrlist")}>
+                {enrollments?.length ? enrollments.map(en => (
+                  <div key={en.id} className={s("sp-enrrow")}>
+                    <i className="fa-solid fa-circle-dot" />
+                    <span>{en.academic_year_name || "Year"} — Class {en.class_name || en.class_id}, Sec {en.section_name || en.section_id}</span>
+                  </div>
+                )) : <p className={s("sp-svcempty")}>No enrollments found.</p>}
               </div>
             </section>
+
           </aside>
         </div>
       </main>
