@@ -216,6 +216,17 @@
   position: relative;
 }
 
+/* TODAY highlight — orange border + light bg */
+.today {
+  border: 2px solid #ff9b51 !important;
+  background: #fff7ed !important;
+}
+
+.today span {
+  color: #ff9b51 !important;
+  font-size: 15px !important;
+}
+
 /* Reveal the delete button on hover */
 .day:hover .day-delete-btn {
   opacity: 1 !important;

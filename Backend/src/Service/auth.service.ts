@@ -233,7 +233,15 @@ export const loginTeacherService = async (data: ILoginSchool) => {
 
   const token = generateToken(payload);
   const { password, ...safeTeacher } = teacher;
-  return { user: safeTeacher, token };
+  return {
+    user: {
+      ...safeTeacher,
+      calendar_system: teacher.school_calendar_system ?? 'AD',
+      timezone:        teacher.school_timezone,
+      logo:            teacher.school_logo,
+    },
+    token,
+  };
 };
 
 // ── STUDENT LOGIN ─────────────────────────────────────────────────────────────
@@ -268,7 +276,15 @@ export const loginStudentService = async (data: ILoginSchool) => {
 
   const token = generateToken(payload);
   const { password, ...safeStudent } = student;
-  return { user: safeStudent, token };
+  return {
+    user: {
+      ...safeStudent,
+      calendar_system: student.school_calendar_system ?? 'AD',
+      timezone:        student.school_timezone,
+      logo:            student.school_logo,
+    },
+    token,
+  };
 };
 
 // ── GET ME ────────────────────────────────────────────────────────────────────
