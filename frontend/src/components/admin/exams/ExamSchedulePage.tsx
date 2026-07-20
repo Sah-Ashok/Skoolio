@@ -8,7 +8,9 @@ import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -27,9 +29,9 @@ export default function ExamSchedulePage() {
 
   const { data: exam,      loading: examLoading } = useApi<any>(`/exams/${examId}`);
   const { data: schedules, refetch }               = useApi<any[]>(`/exams/${examId}/schedules`);
-  const { data: activeYear }                        = useApi<any>("/academic-years/active");
+  const { academicYearId }                          = useAcademicYear();
   const { data: classes }                           = useApi<any[]>(
-    activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "", [activeYear?.id]
+    academicYearId ? `/classes?academic_year_id=${academicYearId}` : "", [academicYearId]
   );
 
   const { execute: saveSchedule, loading: saving } = useMutation("/exams/schedules", "POST");
@@ -167,7 +169,7 @@ export default function ExamSchedulePage() {
 
                 <label className={s("field")}>
                   <span>Exam Date <b>*</b></span>
-                  <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
+                  <DateInput value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
                 </label>
 
                 <label className={s("field")}>

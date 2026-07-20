@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import styles from "./academic.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
@@ -27,7 +28,7 @@ export default function AddClassForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const { data: activeYear }  = useApi<{ id: number }>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
   const { data: dbSubjects }  = useApi<any[]>("/classes/subjects");
   const { data: teachers }    = useApi<any[]>("/teachers");
 
@@ -86,7 +87,7 @@ export default function AddClassForm() {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!activeYear?.id) {
+    if (!academicYearId) {
       dispatch(showToast({ type: "error", title: "Error", message: "No active academic year found." }));
       return;
     }
@@ -114,7 +115,7 @@ export default function AddClassForm() {
       const classRes = await apiRequest<{ data: any }>("/classes", {
         method: "POST",
         body: JSON.stringify({
-          academic_year_id: activeYear.id,
+          academic_year_id: academicYearId,
           name:    className,
           status:  "active",
           sections: trimmedSections.map((sec) => ({
@@ -140,14 +141,14 @@ export default function AddClassForm() {
 
         // Assign teacher to this subject in this class (creates class_subject_teachers row)
         // This is what the P1 exam result guard checks — without this, faculty get 403
-        if (sub.teacherId && activeYear?.id) {
+        if (sub.teacherId && academicYearId) {
           await apiRequest("/classes/assign-subject-teacher", {
             method: "POST",
             body: JSON.stringify({
               class_id:         classId,
               subject_id:       sub.id,
               teacher_id:       Number(sub.teacherId),
-              academic_year_id: activeYear.id,
+              academic_year_id: academicYearId,
             }),
           });
         }

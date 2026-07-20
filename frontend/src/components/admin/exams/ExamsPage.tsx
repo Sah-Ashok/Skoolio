@@ -7,6 +7,7 @@ import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
 const s  = (c: string) => styles[c] || c;
@@ -46,12 +47,12 @@ function ExamTypePill({ type }: { type: string }) {
 
 export default function ExamsPage() {
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
   const {
     data: exams,
     loading,
     refetch,
-  } = useApi<any[]>(activeYear ? `/exams?academic_year_id=${activeYear.id}` : "");
+  } = useApi<any[]>(academicYearId ? `/exams?academic_year_id=${academicYearId}` : "");
   const { execute: deleteExam } = useMutation("/exams", "DELETE");
 
   const [search, setSearch]   = useState("");

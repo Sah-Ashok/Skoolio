@@ -23,6 +23,8 @@ export interface AuthUser {
   admission_number?: string;
   // P5 fix: country is returned by /auth/me for admin schools — used for pricing currency
   country?:         string;
+  // Date system used by this school: 'AD' = Gregorian (default), 'BS' = Bikram Sambat
+  calendar_system?: 'AD' | 'BS';
 }
 
 interface AuthState {
@@ -77,7 +79,6 @@ export const loginThunk = createAsyncThunk(
         body: JSON.stringify({ email: credentials.email, password: credentials.password }),
       });
 
-      // 2FA required for admin login
       if (data.data?.requires_2fa) {
         return { requires_2fa: true, twofa_session: data.data.twofa_session };
       }
@@ -174,16 +175,11 @@ const authSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // Login
     builder
-      .addCase(loginThunk.pending, (state) => {
-        state.loading = true;
-        state.error   = null;
-      })
+      .addCase(loginThunk.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(loginThunk.fulfilled, (state, action) => {
         state.loading = false;
         if ((action.payload as any)?.requires_2fa) {
-          // 2FA flow — don't set user yet, store pending session
           state.twofaPending = true;
           state.twofaSession = (action.payload as any).twofa_session;
         } else {
@@ -193,72 +189,28 @@ const authSlice = createSlice({
           state.twofaSession    = null;
         }
       })
-      .addCase(loginThunk.rejected, (state, action) => {
-        state.loading = false;
-        state.error   = action.payload as string;
-      });
+      .addCase(loginThunk.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-    // Verify 2FA
     builder
-      .addCase(verify2FAThunk.pending, (state) => {
-        state.loading = true;
-        state.error   = null;
-      })
+      .addCase(verify2FAThunk.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(verify2FAThunk.fulfilled, (state, action) => {
-        state.loading         = false;
-        state.user            = action.payload;
-        state.isAuthenticated = true;
-        state.twofaPending    = false;
-        state.twofaSession    = null;
+        state.loading = false; state.user = action.payload; state.isAuthenticated = true;
+        state.twofaPending = false; state.twofaSession = null;
       })
-      .addCase(verify2FAThunk.rejected, (state, action) => {
-        state.loading = false;
-        state.error   = action.payload as string;
-      });
+      .addCase(verify2FAThunk.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-    // Register
     builder
-      .addCase(registerThunk.pending, (state) => {
-        state.loading = true;
-        state.error   = null;
-      })
-      .addCase(registerThunk.fulfilled, (state, action) => {
-        state.loading         = false;
-        state.user            = action.payload;
-        state.isAuthenticated = true;
-      })
-      .addCase(registerThunk.rejected, (state, action) => {
-        state.loading = false;
-        state.error   = action.payload as string;
-      });
+      .addCase(registerThunk.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(registerThunk.fulfilled, (state, action) => { state.loading = false; state.user = action.payload; state.isAuthenticated = true; })
+      .addCase(registerThunk.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-    // Logout
     builder
-      .addCase(logoutThunk.fulfilled, (state) => {
-        state.user            = null;
-        state.isAuthenticated = false;
-        state.error           = null;
-        state.twofaPending    = false;
-        state.twofaSession    = null;
-      })
-      .addCase(logoutThunk.rejected, (state) => {
-        state.user            = null;
-        state.isAuthenticated = false;
-        state.error           = null;
-      });
+      .addCase(logoutThunk.fulfilled, (state) => { state.user = null; state.isAuthenticated = false; state.error = null; state.twofaPending = false; state.twofaSession = null; })
+      .addCase(logoutThunk.rejected,  (state) => { state.user = null; state.isAuthenticated = false; state.error = null; });
 
-    // Me (session bootstrap)
     builder
-      .addCase(meThunk.fulfilled, (state, action) => {
-        state.user            = action.payload;
-        state.isAuthenticated = true;
-        state.bootstrapped    = true;
-      })
-      .addCase(meThunk.rejected, (state) => {
-        state.user            = null;
-        state.isAuthenticated = false;
-        state.bootstrapped    = true;
-      });
+      .addCase(meThunk.fulfilled, (state, action) => { state.user = action.payload; state.isAuthenticated = true; state.bootstrapped = true; })
+      .addCase(meThunk.rejected,  (state) => { state.user = null; state.isAuthenticated = false; state.bootstrapped = true; });
   },
 });
 

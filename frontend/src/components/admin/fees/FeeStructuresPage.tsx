@@ -9,6 +9,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
 const s = (className: string) => styles[className] || className;
@@ -19,8 +20,8 @@ const formatINR = (amount: number | string) => new Intl.NumberFormat("en-IN", { 
 export default function FeeStructuresPage() {
   const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
-  const { data: activeYear } = useApi<any>('/academic-years/active');
-  const { data: classes } = useApi<any[]>(activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
+  const { activeYear, academicYearId } = useAcademicYear();
+  const { data: classes } = useApi<any[]>(academicYearId ? `/classes?academic_year_id=${academicYearId}` : '', [academicYearId]);
   const { execute: deleteStructure } = useMutation('/fees/structures', 'DELETE');
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -29,12 +30,12 @@ export default function FeeStructuresPage() {
   const [loadTick, setLoadTick] = useState(0);
 
   const loadAllStructures = async () => {
-    if (!classes || !activeYear?.id) return;
+    if (!classes || !academicYearId) return;
     setLoading(true);
     try {
       const results = await Promise.all(
         classes.map((c) =>
-          apiRequest<{ data: any[] }>(`/fees/structures?class_id=${c.id}&academic_year_id=${activeYear.id}`)
+          apiRequest<{ data: any[] }>(`/fees/structures?class_id=${c.id}&academic_year_id=${academicYearId}`)
             .then((res) => (res.data || []).map((st: any) => ({ ...st, class_name: c.name })))
             .catch(() => [])
         )

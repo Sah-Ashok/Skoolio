@@ -9,6 +9,9 @@ export type SchoolType = 'Primary' | 'Secondary' | 'Higher_Secondary';
 // Account Status
 export type AccountStatus = 'active' | 'blocked';
 
+// Calendar system: AD = Gregorian (default), BS = Bikram Sambat
+export type CalendarSystem = 'AD' | 'BS';
+
 // Base School Interface
 export interface ISchool {
   id: number;
@@ -29,6 +32,7 @@ export interface ISchool {
   is_account: AccountStatus;
   is_verified: boolean;
   timezone: string;
+  calendar_system: CalendarSystem;
   subscription_id?: number;
   created_at: Date;
   updated_at: Date;
@@ -51,6 +55,7 @@ export type IRegisterSchool = Pick<
   pincode?: string;
   logo?: string;
   established_year?: number;
+  calendar_system?: CalendarSystem;
 };
 
 // Login Type
@@ -65,6 +70,8 @@ export type IJwtAdminPayload = {
   school_code: string;
   logo?: string;
   timezone: string;
+  country: string;
+  calendar_system: CalendarSystem;
   is_verified: boolean;
   is_account: AccountStatus;
 };
@@ -78,6 +85,7 @@ export type IJwtUserPayload = {
   school_name: string;
   logo?: string;
   timezone: string;
+  calendar_system: CalendarSystem;
   is_account: AccountStatus;
 };
 

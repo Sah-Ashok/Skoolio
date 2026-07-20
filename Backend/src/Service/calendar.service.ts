@@ -207,9 +207,12 @@ export const isWorkingDayService = async (
   const calendar = await getCalendarService(school_id, academic_year_id);
 
   const weeklyOffs = await getWeeklyOffsByCalendar(calendar.id, school_id);
-  const d = new Date(date);
 
-  if (isWeekendDay(d, weeklyOffs, calendar.weekend_type)) {
+  // Parse as LOCAL date to avoid UTC timezone shift (e.g. Nepal UTC+5:45)
+  const [y, m, d] = date.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, d);
+
+  if (isWeekendDay(dateObj, weeklyOffs, calendar.weekend_type)) {
     return { isWorking: false, reason: 'weekly_off' };
   }
 
@@ -247,12 +250,24 @@ export const calculateWorkingDays = async (
   let holiday_days = 0;
   let working_days = 0;
 
-  const current = new Date(start_date);
-  const end     = new Date(end_date);
+  // Parse YYYY-MM-DD as LOCAL date (not UTC) to avoid timezone shift.
+  // new Date("2026-07-01") in UTC+5:45 gives June 30 via toISOString().
+  // Parsing parts directly keeps the date in local wall-clock time.
+  const parseLocalDate = (s: string): Date => {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d); // local midnight
+  };
+
+  // Format a local Date back to YYYY-MM-DD without UTC conversion.
+  const toLocalDateStr = (dt: Date): string =>
+    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+  const current = parseLocalDate(start_date);
+  const end     = parseLocalDate(end_date);
 
   while (current <= end) {
     total_days++;
-    const dateStr = current.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(current); // stays in local time — no UTC shift
 
     const isWeekend = isWeekendDay(current, weeklyOffs, calendar.weekend_type);
     const isHoliday = !isWeekend && holidayDates.includes(dateStr);

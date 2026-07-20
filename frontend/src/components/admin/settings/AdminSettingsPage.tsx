@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi, useMutation } from "@/lib/useApi";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { setUser } from "@/store/authSlice";
 import { Spinner } from "@/components/shared/Loader";
 import styles from "./settings.module.css";
 
@@ -58,13 +59,8 @@ function InfoChip({ icon, label, value, tone = "default" }: {
 }) {
   return (
     <div className={cx(s("chip"), s(`chip-${tone}`))}>
-      <div className={s("chip-icon")}>
-        <i className={`fa-solid ${icon}`} />
-      </div>
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
+      <div className={s("chip-icon")}><i className={`fa-solid ${icon}`} /></div>
+      <div><span>{label}</span><strong>{value}</strong></div>
     </div>
   );
 }
@@ -73,10 +69,7 @@ function InfoChip({ icon, label, value, tone = "default" }: {
 function ToggleRow({ label, desc, on }: { label: string; desc: string; on: boolean }) {
   return (
     <div className={s("toggle-row")}>
-      <div>
-        <strong>{label}</strong>
-        <span>{desc}</span>
-      </div>
+      <div><strong>{label}</strong><span>{desc}</span></div>
       <div className={cx(s("toggle"), on ? s("toggle-on") : s("toggle-off"))} />
     </div>
   );
@@ -87,6 +80,7 @@ function ToggleRow({ label, desc, on }: { label: string; desc: string; on: boole
 ══════════════════════════════════════════════════════════════════════════ */
 export default function AdminSettingsPage() {
   const dispatch = useAppDispatch();
+  const authUser = useAppSelector(s => s.auth.user);
   const [tab,      setTab]      = useState<Tab>("general");
   const [showPass, setShowPass] = useState(false);
 
@@ -97,6 +91,7 @@ export default function AdminSettingsPage() {
     school_name: "", email: "", phone: "", website: "",
     address: "", city: "", state: "", country: "Nepal",
     timezone: "Asia/Kathmandu", currency: "NPR", language: "en",
+    calendar_system: "AD" as "AD" | "BS",
   });
 
   /* Password form state */
@@ -108,17 +103,18 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (!settings) return;
     setG({
-      school_name: settings.school_name ?? "",
-      email:       settings.email       ?? "",
-      phone:       settings.phone       ?? "",
-      website:     settings.website     ?? "",
-      address:     settings.address     ?? "",
-      city:        settings.city        ?? "",
-      state:       settings.state       ?? "",
-      country:     settings.country     ?? "Nepal",
-      timezone:    settings.timezone    ?? "Asia/Kathmandu",
-      currency:    settings.currency    ?? "NPR",
-      language:    settings.language    ?? "en",
+      school_name:     settings.school_name     ?? "",
+      email:           settings.email           ?? "",
+      phone:           settings.phone           ?? "",
+      website:         settings.website         ?? "",
+      address:         settings.address         ?? "",
+      city:            settings.city            ?? "",
+      state:           settings.state           ?? "",
+      country:         settings.country         ?? "Nepal",
+      timezone:        settings.timezone        ?? "Asia/Kathmandu",
+      currency:        settings.currency        ?? "NPR",
+      language:        settings.language        ?? "en",
+      calendar_system: (settings.calendar_system ?? "AD") as "AD" | "BS",
     });
   }, [settings]);
 
@@ -138,22 +134,23 @@ export default function AdminSettingsPage() {
     const res = await saveG(g);
     if (res !== null) {
       dispatch(showToast({ type: "success", title: "Saved", message: "Settings updated successfully." }));
+      // Update calendar_system in Redux so useDateFormat picks it up immediately
+      if (authUser) {
+        dispatch(setUser({ ...authUser, calendar_system: g.calendar_system }));
+      }
       refetch();
     }
   };
 
   const handlePw = async () => {
     if (!pw.current_password || !pw.new_password || !pw.confirm_password) {
-      dispatch(showToast({ type: "error", title: "Required", message: "All fields are required." }));
-      return;
+      dispatch(showToast({ type: "error", title: "Required", message: "All fields are required." })); return;
     }
     if (pw.new_password.length < 6) {
-      dispatch(showToast({ type: "error", title: "Too Short", message: "Password must be at least 6 characters." }));
-      return;
+      dispatch(showToast({ type: "error", title: "Too Short", message: "Password must be at least 6 characters." })); return;
     }
     if (pw.new_password !== pw.confirm_password) {
-      dispatch(showToast({ type: "error", title: "Mismatch", message: "New passwords do not match." }));
-      return;
+      dispatch(showToast({ type: "error", title: "Mismatch", message: "New passwords do not match." })); return;
     }
     const res = await savePw({ current_password: pw.current_password, new_password: pw.new_password });
     if (res !== null) {
@@ -162,8 +159,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  /* Derived values */
-  const initials = g.school_name
+  const initials  = g.school_name
     ? g.school_name.split(" ").map(p => p[0]).join("").substring(0, 2).toUpperCase()
     : "SC";
   const pwMatch    = pw.new_password && pw.confirm_password && pw.new_password === pw.confirm_password;
@@ -178,7 +174,7 @@ export default function AdminSettingsPage() {
 
       <main className={s("content")}>
 
-        {/* ── Hero banner ──────────────────────────────────────────────── */}
+        {/* Hero */}
         <div className={s("hero")}>
           <div className={s("hero-left")}>
             <div className={s("hero-avatar")}>{initials}</div>
@@ -188,127 +184,165 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <div className={s("hero-chips")}>
-            <InfoChip icon="fa-id-badge"     label="School Code" value={settings?.school_code || "—"}              tone="blue"    />
-            <InfoChip icon="fa-circle-check" label="Verified"    value={settings?.is_verified ? "Yes" : "No"}      tone={settings?.is_verified ? "green" : "default"} />
-            <InfoChip icon="fa-user-shield"  label="2FA"         value={settings?.two_fa_enabled ? "On" : "Off"}   tone={settings?.two_fa_enabled ? "green" : "amber"} />
-            <InfoChip icon="fa-globe"        label="Timezone"    value={g.timezone}                                 tone="default" />
+            <InfoChip icon="fa-id-badge"     label="School Code" value={settings?.school_code || "—"}             tone="blue"    />
+            <InfoChip icon="fa-circle-check" label="Verified"    value={settings?.is_verified ? "Yes" : "No"}     tone={settings?.is_verified ? "green" : "default"} />
+            <InfoChip icon="fa-user-shield"  label="2FA"         value={settings?.two_fa_enabled ? "On" : "Off"}  tone={settings?.two_fa_enabled ? "green" : "amber"} />
+            <InfoChip icon="fa-calendar"     label="Calendar"    value={g.calendar_system === "BS" ? "BS (Bikram Sambat)" : "AD (Gregorian)"} tone={g.calendar_system === "BS" ? "green" : "default"} />
           </div>
         </div>
 
-        {/* ── Tab bar ──────────────────────────────────────────────────── */}
+        {/* Tab bar */}
         <div className={s("tabbar")}>
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cx(s("tabbar-item"), tab === t.key ? s("tabbar-active") : undefined)}
-              id={`settings-tab-${t.key}`}
             >
-              <div className={s("tabbar-icon")}>
-                <i className={`fa-solid ${t.icon}`} />
-              </div>
-              <div className={s("tabbar-label")}>
-                <strong>{t.label}</strong>
-                <span>{t.desc}</span>
-              </div>
+              <div className={s("tabbar-icon")}><i className={`fa-solid ${t.icon}`} /></div>
+              <div className={s("tabbar-label")}><strong>{t.label}</strong><span>{t.desc}</span></div>
             </button>
           ))}
         </div>
 
-        {/* ── Panel ────────────────────────────────────────────────────── */}
+        {/* Panel */}
         {loading ? (
-          <div className={s("loading")}>
-            <Spinner size={32} color="#FF9B51" />
-            <p>Loading settings…</p>
-          </div>
+          <div className={s("loading")}><Spinner size={32} color="#FF9B51" /><p>Loading settings…</p></div>
         ) : (
-          <div className={s("panel")} id="settings-panel">
+          <div className={s("panel")}>
 
             {/* ════════ GENERAL ════════ */}
             {tab === "general" && (
               <>
                 <div className={s("panel-head")}>
                   <div className={s("ph-icon")}><i className="fa-solid fa-sliders" /></div>
-                  <div>
-                    <h2>General Settings</h2>
-                    <p>Contact information, address and regional preferences</p>
-                  </div>
-                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG} id="btn-save-general">
+                  <div><h2>General Settings</h2><p>Contact information, address and regional preferences</p></div>
+                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG}>
                     {savingG ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />} Save Changes
                   </button>
                 </div>
 
                 {/* Contact */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-address-card" /> Contact Information
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-address-card" /> Contact Information</div>
                   <div className={s("grid")}>
                     <Field label="School Name" required>
-                      <input id="input-school_name" name="school_name" value={g.school_name} onChange={setGField} placeholder="e.g. Sunrise Academy" />
+                      <input name="school_name" value={g.school_name} onChange={setGField} placeholder="e.g. Sunrise Academy" />
                     </Field>
                     <Field label="Email Address" required>
-                      <input id="input-email" name="email" type="email" value={g.email} onChange={setGField} placeholder="admin@school.edu.np" />
+                      <input name="email" type="email" value={g.email} onChange={setGField} placeholder="admin@school.edu.np" />
                     </Field>
                     <Field label="Phone Number">
-                      <input id="input-phone" name="phone" type="tel" value={g.phone} onChange={setGField} placeholder="98XXXXXXXX" />
+                      <input name="phone" type="tel" value={g.phone} onChange={setGField} placeholder="98XXXXXXXX" />
                     </Field>
                     <Field label="Website">
-                      <input id="input-website" name="website" value={g.website} onChange={setGField} placeholder="https://yourschool.edu.np" />
+                      <input name="website" value={g.website} onChange={setGField} placeholder="https://yourschool.edu.np" />
                     </Field>
                   </div>
                 </div>
 
                 {/* Address */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-location-dot" /> Address
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-location-dot" /> Address</div>
                   <div className={s("grid")}>
                     <Field label="Street Address" full>
-                      <input id="input-address" name="address" value={g.address} onChange={setGField} placeholder="e.g. Baneshwor, Kathmandu" />
+                      <input name="address" value={g.address} onChange={setGField} placeholder="e.g. Baneshwor, Kathmandu" />
                     </Field>
                     <Field label="City">
-                      <input id="input-city" name="city" value={g.city} onChange={setGField} placeholder="e.g. Kathmandu" />
+                      <input name="city" value={g.city} onChange={setGField} placeholder="e.g. Kathmandu" />
                     </Field>
                     <Field label="State / Province">
-                      <input id="input-state" name="state" value={g.state} onChange={setGField} placeholder="e.g. Bagmati" />
+                      <input name="state" value={g.state} onChange={setGField} placeholder="e.g. Bagmati" />
                     </Field>
                     <Field label="Country">
-                      <input id="input-country" name="country" value={g.country} onChange={setGField} placeholder="Nepal" />
+                      <input name="country" value={g.country} onChange={setGField} placeholder="Nepal" />
                     </Field>
                   </div>
                 </div>
 
-                {/* Regional */}
+                {/* Regional — including calendar system */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-earth-asia" /> Regional Preferences
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-earth-asia" /> Regional Preferences</div>
                   <div className={s("grid3")}>
                     <Field label="Timezone">
-                      <select id="select-timezone" name="timezone" value={g.timezone} onChange={setGField}>
+                      <select name="timezone" value={g.timezone} onChange={setGField}>
                         {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                       </select>
                     </Field>
                     <Field label="Currency">
-                      <select id="select-currency" name="currency" value={g.currency} onChange={setGField}>
+                      <select name="currency" value={g.currency} onChange={setGField}>
                         {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </Field>
                     <Field label="Language">
-                      <select id="select-language" name="language" value={g.language} onChange={setGField}>
+                      <select name="language" value={g.language} onChange={setGField}>
                         {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                       </select>
                     </Field>
                   </div>
+
+                  {/* Calendar system picker */}
+                  <div style={{
+                    marginTop: 16, padding: "16px 18px", borderRadius: 12,
+                    border: "1px solid #dce5e9", background: "#f8fafc",
+                  }}>
+                    <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 800, color: "#25343f" }}>
+                      <i className="fa-solid fa-calendar" style={{ color: "#ff9b51", marginRight: 8 }} />
+                      Date Display System
+                    </p>
+                    <p style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 600, color: "#6a7882" }}>
+                      Choose how dates are shown throughout the app. Dates are always stored in AD — this is display-only and affects date pickers, forms, calendars, and reports.
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      {[
+                        { value: "AD", label: "AD — Gregorian", sub: "January 1, 2024 · Used internationally", flag: "🌐" },
+                        { value: "BS", label: "BS — Bikram Sambat", sub: "1 Baishakh 2081 · Used in Nepal", flag: "🇳🇵" },
+                      ].map(opt => (
+                        <div
+                          key={opt.value}
+                          onClick={() => setG(f => ({ ...f, calendar_system: opt.value as "AD" | "BS" }))}
+                          style={{
+                            padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+                            border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#dce5e9"}`,
+                            background: g.calendar_system === opt.value ? "#fff7ed" : "#fff",
+                            display: "flex", alignItems: "center", gap: 12, transition: "all 0.15s",
+                          }}
+                        >
+                          <div style={{
+                            width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                            border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#c8d6de"}`,
+                            background: g.calendar_system === opt.value ? "#ff9b51" : "#fff",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {g.calendar_system === opt.value && (
+                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#25343f" }}>
+                              {opt.flag} {opt.label}
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: "#6a7882", marginTop: 2 }}>
+                              {opt.sub}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {g.calendar_system === "BS" && (
+                      <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#ecfdf5", border: "1px solid #bbf7d0", fontSize: 12, fontWeight: 700, color: "#059669" }}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 6 }} />
+                        All date inputs, calendars, and date displays across the app will switch to Bikram Sambat. Save to apply.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className={s("panel-footer")}>
-                  <button className={cx(s("btn"), s("btn-ghost"))} onClick={() => refetch()} id="btn-reset-general">
+                  <button className={cx(s("btn"), s("btn-ghost"))} onClick={() => refetch()}>
                     <i className="fa-solid fa-rotate-left" /> Reset
                   </button>
-                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG} id="btn-save-general-2">
+                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG}>
                     {savingG ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />} Save Changes
                   </button>
                 </div>
@@ -320,74 +354,48 @@ export default function AdminSettingsPage() {
               <>
                 <div className={s("panel-head")}>
                   <div className={s("ph-icon")}><i className="fa-solid fa-school" /></div>
-                  <div>
-                    <h2>School Profile</h2>
-                    <p>Public-facing identity and branding details</p>
-                  </div>
-                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG} id="btn-save-profile">
+                  <div><h2>School Profile</h2><p>Public-facing identity and branding details</p></div>
+                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG}>
                     {savingG ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />} Save Profile
                   </button>
                 </div>
-
-                {/* Profile banner */}
                 <div style={{ padding: "24px 28px 0" }}>
                   <div className={s("profile-banner")}>
                     <div className={s("profile-avatar-wrap")}>
                       <div className={s("profile-avatar")}>{initials}</div>
-                      <div className={s("profile-avatar-badge")}>
-                        <i className="fa-solid fa-camera" />
-                      </div>
+                      <div className={s("profile-avatar-badge")}><i className="fa-solid fa-camera" /></div>
                     </div>
                     <div className={s("profile-banner-info")}>
                       <h3>{g.school_name || "Your School Name"}</h3>
                       <p>{g.email || "—"}{g.phone ? ` · ${g.phone}` : ""}</p>
-                      <p style={{ fontSize: 11, color: "#8a9daa", marginTop: 6 }}>
-                        Logo upload coming soon · Avatar auto-generated from school name
-                      </p>
+                      <p style={{ fontSize: 11, color: "#8a9daa", marginTop: 6 }}>Logo upload coming soon</p>
                     </div>
                     <div className={s("profile-banner-stats")}>
                       {[
-                        { label: "Code",     value: settings?.school_code || "—"         },
+                        { label: "Code",     value: settings?.school_code || "—" },
                         { label: "Verified", value: settings?.is_verified ? "✓ Yes" : "✗ No" },
-                        { label: "Plan",     value: settings?.plan_name   || "Free"       },
+                        { label: "Calendar", value: g.calendar_system === "BS" ? "🇳🇵 BS" : "🌐 AD" },
                       ].map(stat => (
                         <div key={stat.label} className={s("pb-stat")}>
-                          <span>{stat.label}</span>
-                          <strong>{stat.value}</strong>
+                          <span>{stat.label}</span><strong>{stat.value}</strong>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
-
                 <div className={s("section-group")} style={{ marginTop: 24 }}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-pen-to-square" /> Edit Identity
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-pen-to-square" /> Edit Identity</div>
                   <div className={s("grid")}>
-                    <Field label="School Name" required>
-                      <input id="profile-school_name" name="school_name" value={g.school_name} onChange={setGField} />
-                    </Field>
-                    <Field label="Email">
-                      <input id="profile-email" name="email" type="email" value={g.email} onChange={setGField} />
-                    </Field>
-                    <Field label="Phone">
-                      <input id="profile-phone" name="phone" value={g.phone} onChange={setGField} />
-                    </Field>
-                    <Field label="Website">
-                      <input id="profile-website" name="website" value={g.website} onChange={setGField} />
-                    </Field>
-                    <Field label="City">
-                      <input id="profile-city" name="city" value={g.city} onChange={setGField} />
-                    </Field>
-                    <Field label="Country">
-                      <input id="profile-country" name="country" value={g.country} onChange={setGField} />
-                    </Field>
+                    <Field label="School Name" required><input name="school_name" value={g.school_name} onChange={setGField} /></Field>
+                    <Field label="Email"><input name="email" type="email" value={g.email} onChange={setGField} /></Field>
+                    <Field label="Phone"><input name="phone" value={g.phone} onChange={setGField} /></Field>
+                    <Field label="Website"><input name="website" value={g.website} onChange={setGField} /></Field>
+                    <Field label="City"><input name="city" value={g.city} onChange={setGField} /></Field>
+                    <Field label="Country"><input name="country" value={g.country} onChange={setGField} /></Field>
                   </div>
                 </div>
-
                 <div className={s("panel-footer")}>
-                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG} id="btn-save-profile-2">
+                  <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG}>
                     {savingG ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />} Save Profile
                   </button>
                 </div>
@@ -398,20 +406,11 @@ export default function AdminSettingsPage() {
             {tab === "security" && (
               <>
                 <div className={s("panel-head")}>
-                  <div className={cx(s("ph-icon"), s("ph-icon-red"))}>
-                    <i className="fa-solid fa-shield-halved" />
-                  </div>
-                  <div>
-                    <h2>Security</h2>
-                    <p>Manage your password and authentication settings</p>
-                  </div>
+                  <div className={cx(s("ph-icon"), s("ph-icon-red"))}><i className="fa-solid fa-shield-halved" /></div>
+                  <div><h2>Security</h2><p>Manage your password and authentication settings</p></div>
                 </div>
-
-                {/* Change password */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-lock" /> Change Password
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-lock" /> Change Password</div>
                   <div className={s("pw-card")}>
                     <div className={s("pw-strength-row")}>
                       <i className="fa-solid fa-circle-info" />
@@ -421,35 +420,17 @@ export default function AdminSettingsPage() {
                       <div>
                         <Field label="Current Password" required>
                           <div className={s("pw-wrap")}>
-                            <input
-                              id="input-current_password"
-                              name="current_password"
-                              type={showPass ? "text" : "password"}
-                              value={pw.current_password}
-                              onChange={setPwField}
-                              placeholder="Your current password"
-                            />
-                            <button type="button" onClick={() => setShowPass(v => !v)} aria-label={showPass ? "Hide password" : "Show password"}>
-                              <i className={`fa-solid ${showPass ? "fa-eye-slash" : "fa-eye"}`} />
-                            </button>
+                            <input name="current_password" type={showPass ? "text" : "password"} value={pw.current_password} onChange={setPwField} placeholder="Your current password" />
+                            <button type="button" onClick={() => setShowPass(v => !v)}><i className={`fa-solid ${showPass ? "fa-eye-slash" : "fa-eye"}`} /></button>
                           </div>
                         </Field>
                       </div>
                       <div>
                         <Field label="New Password" required>
-                          <input
-                            id="input-new_password"
-                            name="new_password"
-                            type={showPass ? "text" : "password"}
-                            value={pw.new_password}
-                            onChange={setPwField}
-                            placeholder="Min. 6 characters"
-                          />
+                          <input name="new_password" type={showPass ? "text" : "password"} value={pw.new_password} onChange={setPwField} placeholder="Min. 6 characters" />
                           {pw.new_password && (
                             <>
-                              <div className={s("strength-bar")}>
-                                <div className={cx(s("strength-fill"), pwStrengthClass)} style={{ width: pwWidth }} />
-                              </div>
+                              <div className={s("strength-bar")}><div className={cx(s("strength-fill"), pwStrengthClass)} style={{ width: pwWidth }} /></div>
                               <span className={s("strength-label")}>{pwStrength}</span>
                             </>
                           )}
@@ -457,52 +438,26 @@ export default function AdminSettingsPage() {
                       </div>
                       <div>
                         <Field label="Confirm New Password" required>
-                          <input
-                            id="input-confirm_password"
-                            name="confirm_password"
-                            type={showPass ? "text" : "password"}
-                            value={pw.confirm_password}
-                            onChange={setPwField}
-                            placeholder="Repeat new password"
-                          />
-                          {pwMismatch && (
-                            <span className={s("err-msg")}>
-                              <i className="fa-solid fa-circle-exclamation" /> Passwords do not match
-                            </span>
-                          )}
-                          {pwMatch && (
-                            <span className={s("ok-msg")}>
-                              <i className="fa-solid fa-circle-check" /> Passwords match
-                            </span>
-                          )}
+                          <input name="confirm_password" type={showPass ? "text" : "password"} value={pw.confirm_password} onChange={setPwField} placeholder="Repeat new password" />
+                          {pwMismatch && <span className={s("err-msg")}><i className="fa-solid fa-circle-exclamation" /> Passwords do not match</span>}
+                          {pwMatch    && <span className={s("ok-msg")}><i className="fa-solid fa-circle-check" /> Passwords match</span>}
                         </Field>
                       </div>
                     </div>
                     <div style={{ padding: "16px 18px" }}>
-                      <button
-                        className={cx(s("btn"), s("btn-primary"))}
-                        onClick={handlePw}
-                        disabled={savingPw}
-                        id="btn-update-password"
-                      >
+                      <button className={cx(s("btn"), s("btn-primary"))} onClick={handlePw} disabled={savingPw}>
                         {savingPw ? <Spinner size={14} /> : <i className="fa-solid fa-lock" />} Update Password
                       </button>
                     </div>
                   </div>
                 </div>
-
-                {/* 2FA */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-mobile-screen-button" /> Two-Factor Authentication
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-mobile-screen-button" /> Two-Factor Authentication</div>
                   <div className={s("security-card")}>
-                    <div className={cx(s("sc-icon"), s("sc-orange"))}>
-                      <i className="fa-solid fa-mobile-screen-button" />
-                    </div>
+                    <div className={cx(s("sc-icon"), s("sc-orange"))}><i className="fa-solid fa-mobile-screen-button" /></div>
                     <div className={s("sc-body")}>
                       <strong>Email OTP Verification</strong>
-                      <p>When enabled, a 6-digit OTP is emailed to you on every login. Adds a second layer of protection against unauthorised access.</p>
+                      <p>When enabled, a 6-digit OTP is emailed to you on every login.</p>
                     </div>
                     <span className={cx(s("badge"), s(settings?.two_fa_enabled ? "badge-green" : "badge-yellow"))}>
                       {settings?.two_fa_enabled ? "Enabled" : "Disabled"}
@@ -513,23 +468,6 @@ export default function AdminSettingsPage() {
                     <span>2FA is managed by your Super Admin. Contact them to enable or disable it.</span>
                   </div>
                 </div>
-
-                {/* Session */}
-                <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-desktop" /> Active Session
-                  </div>
-                  <div className={s("security-card")}>
-                    <div className={cx(s("sc-icon"), s("sc-blue"))}>
-                      <i className="fa-solid fa-desktop" />
-                    </div>
-                    <div className={s("sc-body")}>
-                      <strong>Current Browser Session</strong>
-                      <p>Authenticated via secure httpOnly cookie. Your session is valid for 10 days and will auto-refresh on activity.</p>
-                    </div>
-                    <span className={cx(s("badge"), s("badge-green"))}>Active</span>
-                  </div>
-                </div>
               </>
             )}
 
@@ -537,47 +475,27 @@ export default function AdminSettingsPage() {
             {tab === "appearance" && (
               <>
                 <div className={s("panel-head")}>
-                  <div className={cx(s("ph-icon"), s("ph-icon-violet"))}>
-                    <i className="fa-solid fa-palette" />
-                  </div>
-                  <div>
-                    <h2>Appearance</h2>
-                    <p>Customize how your school dashboard looks and feels</p>
-                  </div>
+                  <div className={cx(s("ph-icon"), s("ph-icon-violet"))}><i className="fa-solid fa-palette" /></div>
+                  <div><h2>Appearance</h2><p>Customize how your school dashboard looks and feels</p></div>
                 </div>
-
-                {/* Theme picker */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-swatchbook" /> Theme
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-swatchbook" /> Theme</div>
                   <div className={s("theme-grid")}>
                     {[
                       { label: "Default Light", sub: "Clean and minimal",   accent: "#ff9b51", bg: "#fff",    sidebar: "#25343f", active: true  },
                       { label: "Slate Dark",    sub: "Easy on the eyes",    accent: "#ff9b51", bg: "#1e2a35", sidebar: "#151e26", active: false },
                       { label: "Ocean Blue",    sub: "Cool and focused",    accent: "#3b82f6", bg: "#f0f7ff", sidebar: "#1e3a5f", active: false },
                     ].map(theme => (
-                      <div
-                        key={theme.label}
-                        className={cx(s("theme-card"), theme.active ? s("theme-active") : undefined)}
-                        id={`theme-card-${theme.label.toLowerCase().replace(/ /g, "-")}`}
-                      >
-                        {theme.active && (
-                          <div className={s("theme-check")}>
-                            <i className="fa-solid fa-check" />
-                          </div>
-                        )}
-                        {/* Mini mockup */}
+                      <div key={theme.label} className={cx(s("theme-card"), theme.active ? s("theme-active") : undefined)}>
+                        {theme.active && <div className={s("theme-check")}><i className="fa-solid fa-check" /></div>}
                         <div className={s("theme-mockup")} style={{ background: theme.bg }}>
                           <div className={s("tm-sidebar")} style={{ background: theme.sidebar }}>
-                            {[1, 2, 3].map(i => (
-                              <div key={i} className={s("tm-sitem")} style={{ background: i === 1 ? `${theme.accent}44` : undefined }} />
-                            ))}
+                            {[1,2,3].map(i => <div key={i} className={s("tm-sitem")} style={{ background: i === 1 ? `${theme.accent}44` : undefined }} />)}
                           </div>
                           <div className={s("tm-body")}>
-                            <div className={s("tm-topbar")} style={{ background: theme.bg, borderBottom: `1px solid ${theme.bg === "#fff" ? "#e8eef0" : "#ffffff22"}` }} />
+                            <div className={s("tm-topbar")} style={{ background: theme.bg }} />
                             <div className={s("tm-cards")}>
-                              {[1, 2, 3, 4].map(i => (
+                              {[1,2,3,4].map(i => (
                                 <div key={i} className={s("tm-card")} style={{ background: theme.bg === "#fff" ? "#f4f7f8" : "#ffffff14" }}>
                                   <div style={{ height: 7, width: "60%", background: theme.accent, borderRadius: 3, opacity: 0.8 }} />
                                   <div style={{ height: 4, width: "80%", background: theme.bg === "#fff" ? "#e1e8eb" : "#ffffff30", borderRadius: 3 }} />
@@ -588,33 +506,24 @@ export default function AdminSettingsPage() {
                         </div>
                         <div className={s("theme-info")}>
                           <div className={s("theme-accent")} style={{ background: theme.accent }} />
-                          <div>
-                            <strong>{theme.label}</strong>
-                            <span>{theme.sub}</span>
-                          </div>
-                          {theme.active && (
-                            <span className={cx(s("badge"), s("badge-green"))} style={{ fontSize: 10 }}>Active</span>
-                          )}
+                          <div><strong>{theme.label}</strong><span>{theme.sub}</span></div>
+                          {theme.active && <span className={cx(s("badge"), s("badge-green"))} style={{ fontSize: 10 }}>Active</span>}
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className={s("info-note")} style={{ marginTop: 14 }}>
                     <i className="fa-solid fa-circle-info" />
-                    <span>Additional themes are coming in a future update. Theme preference will sync across devices.</span>
+                    <span>Additional themes are coming in a future update.</span>
                   </div>
                 </div>
-
-                {/* Display prefs */}
                 <div className={s("section-group")}>
-                  <div className={s("section-label")}>
-                    <i className="fa-solid fa-display" /> Display Preferences
-                  </div>
+                  <div className={s("section-label")}><i className="fa-solid fa-display" /> Display Preferences</div>
                   <div className={s("pref-list")}>
-                    <ToggleRow label="Show student photos in tables"  desc="Display admission photos next to student names in list views"     on={false} />
-                    <ToggleRow label="Compact table rows"             desc="Reduce row padding for denser data viewing"                        on={false} />
-                    <ToggleRow label="Fee pending alerts on login"    desc="Show a banner when students have overdue fee payments"             on={true}  />
-                    <ToggleRow label="Sidebar collapsed by default"   desc="Start with the sidebar minimised for more screen real estate"     on={false} />
+                    <ToggleRow label="Show student photos in tables"  desc="Display admission photos next to student names" on={false} />
+                    <ToggleRow label="Compact table rows"             desc="Reduce row padding for denser data viewing"    on={false} />
+                    <ToggleRow label="Fee pending alerts on login"    desc="Show a banner when students have overdue fees" on={true}  />
+                    <ToggleRow label="Sidebar collapsed by default"   desc="Start with sidebar minimised"                 on={false} />
                   </div>
                   <div className={s("info-note")} style={{ marginTop: 12 }}>
                     <i className="fa-solid fa-circle-info" />

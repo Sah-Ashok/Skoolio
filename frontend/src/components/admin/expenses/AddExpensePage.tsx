@@ -9,6 +9,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -103,7 +104,7 @@ export default function AddExpensePage() {
                   </select>
                 </Field>
                 <Field label="Amount" required><input value={amount} onChange={(event) => setAmount(event.target.value)} type="number" placeholder="0" /></Field>
-                <Field label="Expense Date" required><input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} /></Field>
+                <Field label="Expense Date" required><DateInput value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} /></Field>
               </div>
               <div className={s("inlineCreate")}>
                 <div><strong>Add category</strong><span>Create school-specific expense categories.</span></div>

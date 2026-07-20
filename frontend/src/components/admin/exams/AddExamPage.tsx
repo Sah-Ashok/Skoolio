@@ -7,8 +7,10 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -23,7 +25,7 @@ const EXAM_TYPES = [
 export default function AddExamPage() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
   const { execute: createExam, loading: saving } = useMutation("/exams", "POST");
 
   const [name,      setName]      = useState("");
@@ -34,7 +36,7 @@ export default function AddExamPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeYear?.id)
+    if (!academicYearId)
       return dispatch(showToast({ type: "error", title: "No Active Year", message: "Please set an active academic year first." }));
     if (!name.trim())
       return dispatch(showToast({ type: "error", title: "Missing Name", message: "Please enter an exam name." }));
@@ -45,7 +47,7 @@ export default function AddExamPage() {
 
     try {
       await createExam({
-        academic_year_id: activeYear.id,
+        academic_year_id: academicYearId,
         name: name.trim(),
         exam_type: examType,
         start_date: startDate,
@@ -103,12 +105,12 @@ export default function AddExamPage() {
 
                 <label className={s("field")}>
                   <span>Start Date <b>*</b></span>
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                  <DateInput value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
                 </label>
 
                 <label className={s("field")}>
                   <span>End Date <b>*</b></span>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                  <DateInput value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
                 </label>
 
                 <label className={cx(s("field"), s("full"))}>

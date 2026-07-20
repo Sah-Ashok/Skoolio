@@ -3,7 +3,7 @@ import {
   registerSchoolService, loginSchoolService, loginTeacherService,
   loginStudentService, getMeService, forgotPasswordService,
   verifyResetOTPService, resetPasswordService, verify2FAService,
-  blockUnblockSchoolService,
+  blockUnblockSchoolService, verifySchoolService,
   changeTeacherPasswordService, changeStudentPasswordService,
 } from '../Service/auth.service';
 import { IRegisterSchool, ILoginSchool, IJwtPayload } from '../types/auth.types';
@@ -145,6 +145,12 @@ export const changeStudentPassword = catchAsync(async (req: Request, res: Respon
 });
 
 // ── SUPER ADMIN: BLOCK / UNBLOCK SCHOOL ───────────────────────────────────
+
+export const verifySchoolById = catchAsync(async (req: Request, res: Response) => {
+  const { schoolId } = req.params;
+  await verifySchoolService(Number(schoolId));
+  sendResponse(res, 200, true, 'School has been verified successfully.', null);
+});
 
 export const blockSchool = catchAsync(async (req: Request, res: Response) => {
   const { schoolId } = req.params;

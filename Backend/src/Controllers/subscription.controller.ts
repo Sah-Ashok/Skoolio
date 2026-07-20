@@ -10,9 +10,11 @@ import {
 
 // ── PLAN CONTROLLERS ──
 
-// Public-ish — any logged in school admin can see available plans to upgrade to
+// Public-ish — any logged in school admin can see available plans with pricing
+// resolved for their own country. No price-selection logic needed on the frontend.
 export const getActivePlans = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const plans = await getActivePlansService();
+  const { country } = req.user as IJwtAdminPayload;
+  const plans = await getActivePlansService(country);
   sendResponse(res, 200, true, 'Plans fetched successfully', plans);
 });
 

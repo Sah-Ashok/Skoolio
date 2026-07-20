@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type EventType = "off" | "holiday" | "event" | "exam" | "early_closing" | "working";
@@ -116,6 +117,7 @@ interface Props {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function SharedCalendarView({ role }: Props) {
+  const { formatDate, formatMonth, isBS } = useDateFormat();
   const { data: activeYear } = useApi<any>("/academic-years/active");
   const { data: calendarData, loading: calLoading } = useApi<any>(
     activeYear ? `/calendar?academic_year_id=${activeYear.id}` : ""
@@ -139,12 +141,14 @@ export default function SharedCalendarView({ role }: Props) {
     while (d <= end) {
       opts.push({
         value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`,
-        label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
+        label: isBS
+          ? formatMonth(d.getFullYear(), d.getMonth() + 1)
+          : `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
       });
       d.setMonth(d.getMonth() + 1);
     }
     return opts;
-  }, [activeYear]);
+  }, [activeYear, isBS]);
 
   // Auto-select current month
   useEffect(() => {
@@ -158,7 +162,7 @@ export default function SharedCalendarView({ role }: Props) {
   const selIdx    = monthOptions.findIndex((o) => o.value === selectedMonth);
   const year      = selectedMonth ? Number(selectedMonth.split("-")[0]) : new Date().getFullYear();
   const moIdx     = selectedMonth ? Number(selectedMonth.split("-")[1]) - 1 : new Date().getMonth();
-  const moLabel   = `${MONTH_NAMES[moIdx]} ${year}`;
+  const moLabel   = isBS ? formatMonth(year, moIdx + 1) : `${MONTH_NAMES[moIdx]} ${year}`;
 
   // Build date → event lookup
   const eventMap = useMemo(() => {
@@ -428,8 +432,8 @@ export default function SharedCalendarView({ role }: Props) {
                 <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                   {[
                     ["Year",  activeYear?.year_name ?? "—"],
-                    ["From",  activeYear?.start_date ? new Date(activeYear.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
-                    ["To",    activeYear?.end_date   ? new Date(activeYear.end_date).toLocaleDateString("en-IN",   { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                    ["From",  activeYear?.start_date ? formatDate(activeYear.start_date.slice(0,10)) : "—"],
+                    ["To",    activeYear?.end_date   ? formatDate(activeYear.end_date.slice(0,10))   : "—"],
                   ].map(([label, val]) => (
                     <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                       <span style={{ color: "#6a7882", fontWeight: 700 }}>{label}</span>

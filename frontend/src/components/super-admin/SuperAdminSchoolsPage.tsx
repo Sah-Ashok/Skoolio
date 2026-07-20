@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useRouter } from "next/navigation";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -33,13 +34,30 @@ export default function SuperAdminSchoolsPage() {
   const { data: plans }                     = useApi<any[]>("/subscriptions/plans/all");
 
   const dispatch = useAppDispatch();
+  const router = useRouter();
 
   const [search, setSearch]             = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [planFilter, setPlanFilter]     = useState("all");
   const [activating, setActivating]     = useState<any | null>(null);
-  const [history, setHistory]           = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+
+  const handleVerify = async (sc: any) => {
+    setActionLoading(sc.school_id);
+    try {
+      await apiRequest(`/school/${sc.school_id}/verify`, { method: 'PATCH' });
+      dispatch(showToast({
+        type: 'success',
+        title: 'School Verified',
+        message: `${sc.school_name} is now verified and can log in.`,
+      }));
+      refetch();
+    } catch (err: any) {
+      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || 'Could not verify school.' }));
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleBlockUnblock = async (sc: any) => {
     const action = sc.is_account === 'blocked' ? 'unblock' : 'block';
@@ -194,6 +212,7 @@ export default function SuperAdminSchoolsPage() {
                     <th>Plan</th>
                     <th>Sub Status</th>
                     <th>Expires</th>
+                    <th>Verified</th>
                     <th>Account</th>
                     <th>Actions</th>
                   </tr>
@@ -233,6 +252,13 @@ export default function SuperAdminSchoolsPage() {
                       </td>
                       <td>
                         <span
+                          className={cx(s("badge"), sc.is_verified ? s("badge-green") : s("badge-yellow"))}
+                        >
+                          {sc.is_verified ? <><i className="fa-solid fa-circle-check" /> Verified</> : <><i className="fa-solid fa-clock" /> Pending</>}
+                        </span>
+                      </td>
+                      <td>
+                        <span
                           className={cx(s("badge"), accountBadge(sc.is_account))}
                           style={{ textTransform: "capitalize" }}
                         >
@@ -241,6 +267,19 @@ export default function SuperAdminSchoolsPage() {
                       </td>
                       <td>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {!sc.is_verified && (
+                            <button
+                              className={cx(s("btn"), s("btn-sm"), s("btn-success"))}
+                              onClick={() => handleVerify(sc)}
+                              disabled={actionLoading === sc.school_id}
+                              title="Verify this school so they can log in"
+                            >
+                              {actionLoading === sc.school_id
+                                ? <Spinner size={12} />
+                                : <><i className="fa-solid fa-circle-check" /> Verify</>
+                              }
+                            </button>
+                          )}
                           <button
                             className={cx(s("btn"), s("btn-sm"), s("btn-primary"))}
                             onClick={() => setActivating(sc)}
@@ -249,7 +288,7 @@ export default function SuperAdminSchoolsPage() {
                           </button>
                           <button
                             className={cx(s("btn"), s("btn-sm"), s("btn-soft"))}
-                            onClick={() => setHistory(sc)}
+                            onClick={() => router.push(`/super-admin/schools/${sc.school_id}/history`)}
                             title="Subscription history"
                           >
                             <i className="fa-solid fa-clock-rotate-left" />
@@ -302,13 +341,6 @@ export default function SuperAdminSchoolsPage() {
           plans={plans || []}
           onClose={() => setActivating(null)}
           onActivated={() => { setActivating(null); refetch(); }}
-        />
-      )}
-
-      {history && (
-        <SubscriptionHistoryModal
-          school={history}
-          onClose={() => setHistory(null)}
         />
       )}
     </div>
@@ -534,105 +566,4 @@ function ActivateSubscriptionModal({
   );
 }
 
-/* ── Subscription History Modal ──────────────────── */
-function SubscriptionHistoryModal({ school, onClose }: { school: any; onClose: () => void }) {
-  const { data: history, loading } = useApi<any[]>(`/subscriptions/schools/${school.school_id}/history`);
 
-  const subStatusBadge = (st: string) => {
-    const m: Record<string, string> = {
-      active: "badge-green", grace_period: "badge-yellow",
-      expired: "badge-red",  cancelled: "badge-red",
-    };
-    return s(m[st] ?? "badge-blue");
-  };
-
-  return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 60,
-        background: "rgba(15,23,42,0.55)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: "#fff", borderRadius: 18, width: "100%", maxWidth: 620,
-          maxHeight: "85vh", overflowY: "auto",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{
-          padding: "20px 24px 16px",
-          borderBottom: "1px solid rgba(191,201,209,0.42)",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div>
-            <h2 style={{ fontSize: 17, fontWeight: 900 }}>Subscription History</h2>
-            <p style={{ fontSize: 12.5, color: "#6b7b86", marginTop: 3 }}>{school.school_name}</p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7b86" }}
-          >
-            <i className="fa-solid fa-xmark" />
-          </button>
-        </div>
-
-        <div style={{ padding: "20px 24px" }}>
-          {loading ? (
-            <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
-          ) : (history || []).length === 0 ? (
-            <p style={{ color: "#6b7b86", fontSize: 13, textAlign: "center", padding: "2rem" }}>
-              No subscription history found.
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {(history || []).map((h: any) => (
-                <div
-                  key={h.id}
-                  style={{
-                    border: "1px solid rgba(191,201,209,0.6)",
-                    borderRadius: 12, padding: "14px 16px",
-                    background: "#fafcfc",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong style={{ fontSize: 14, fontWeight: 900 }}>{h.plan_name}</strong>
-                    <span className={cx(s("badge"), subStatusBadge(h.status))} style={{ textTransform: "capitalize" }}>
-                      {h.status?.replace("_", " ")}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: 12.5, color: "#6b7b86", marginTop: 6 }}>
-                    <i className="fa-regular fa-calendar" style={{ marginRight: 5 }} />
-                    {new Date(h.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    {h.end_date && (
-                      <> → {new Date(h.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</>
-                    )}
-                    {!h.end_date && " (no expiry)"}
-                  </p>
-                  {h.amount_paid > 0 && (
-                    <p style={{ fontSize: 12.5, color: "#6b7b86", marginTop: 4 }}>
-                      <i className="fa-solid fa-receipt" style={{ marginRight: 5 }} />
-                      {h.currency} {Number(h.amount_paid).toLocaleString()} via {h.payment_method}
-                    </p>
-                  )}
-                  {h.notes && (
-                    <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontStyle: "italic" }}>
-                      {h.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className={s("form-actions")}>
-          <button className={cx(s("btn"), s("btn-soft"))} onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}

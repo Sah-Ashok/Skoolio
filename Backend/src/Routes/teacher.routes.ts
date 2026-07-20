@@ -6,6 +6,7 @@ import {
   assignSubjectToTeacher, getTeacherSubjects, removeTeacherSubject,
   createSalary, getTeacherSalaries, updateSalary,
   getMyCoordinatorSections, getMySalaries,
+  bulkMarkTeacherAttendance, getTeacherAttendanceByDate,
 } from '../Controllers/teacher.controller';
 
 const router = Router();
@@ -15,6 +16,10 @@ router.get('/me/sections', protect, restrictTo('faculty'), getMyCoordinatorSecti
 router.get('/me/salary',   protect, restrictTo('faculty'), getMySalaries);
 
 router.use(protect, restrictTo('admin', 'super_admin'));
+
+// ── TEACHER PERSONAL ATTENDANCE ── (static before /:id)
+router.post('/attendance/bulk', bulkMarkTeacherAttendance);
+router.get ('/attendance',      getTeacherAttendanceByDate);  // ?date=YYYY-MM-DD
 
 // ── TEACHER ROUTES ──
 router.post('/', createTeacher);

@@ -8,6 +8,7 @@ import {
   assignSubjectToTeacherService, getTeacherSubjectsService, removeTeacherSubjectService,
   createSalaryService, getTeacherSalariesService, updateSalaryService,
   getMyCoordinatorSectionsService,
+  bulkMarkTeacherAttendanceService, getTeacherAttendanceByDateService,
 } from '../Service/teacher.service';
 
 // ── TEACHER CONTROLLERS ──
@@ -90,6 +91,22 @@ export const getMyCoordinatorSections = catchAsync(async (req: Request, res: Res
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
   const sections = await getMyCoordinatorSectionsService(teacher_id, school_id);
   sendResponse(res, 200, true, 'Coordinator sections fetched successfully', sections);
+});
+
+// ── TEACHER PERSONAL ATTENDANCE ──
+
+export const bulkMarkTeacherAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { date, records } = req.body;
+  const results = await bulkMarkTeacherAttendanceService(school_id, date, records);
+  sendResponse(res, 200, true, 'Teacher attendance marked successfully', results);
+});
+
+export const getTeacherAttendanceByDate = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+  const records = await getTeacherAttendanceByDateService(school_id, date);
+  sendResponse(res, 200, true, 'Teacher attendance fetched successfully', records);
 });
 
 export const getMySalaries = catchAsync(async (req: Request, res: Response, next: NextFunction) => {

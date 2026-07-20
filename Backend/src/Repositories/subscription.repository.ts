@@ -32,8 +32,11 @@ export const getPlanByName = async (name: string): Promise<ISubscriptionPlan | n
 export const createPlan = async (data: ICreatePlan): Promise<ISubscriptionPlan> => {
   const result = await pool.query(
     `INSERT INTO subscription_plans
-      (name, max_students, max_teachers, fee_management_enabled, price_npr_monthly, price_npr_yearly, price_inr_monthly, price_inr_yearly)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (name, max_students, max_teachers, fee_management_enabled,
+       price_npr_monthly, price_npr_yearly,
+       price_inr_monthly, price_inr_yearly,
+       price_usd_monthly, price_usd_yearly)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       data.name,
@@ -44,6 +47,8 @@ export const createPlan = async (data: ICreatePlan): Promise<ISubscriptionPlan> 
       data.price_npr_yearly,
       data.price_inr_monthly,
       data.price_inr_yearly,
+      data.price_usd_monthly ?? 0,
+      data.price_usd_yearly  ?? 0,
     ]
   );
   return result.rows[0];
@@ -55,28 +60,32 @@ export const updatePlan = async (
 ): Promise<ISubscriptionPlan | null> => {
   const result = await pool.query(
     `UPDATE subscription_plans SET
-      name                   = COALESCE($1, name),
-      max_students           = COALESCE($2, max_students),
-      max_teachers           = COALESCE($3, max_teachers),
-      fee_management_enabled = COALESCE($4, fee_management_enabled),
-      price_npr_monthly      = COALESCE($5, price_npr_monthly),
-      price_npr_yearly       = COALESCE($6, price_npr_yearly),
-      price_inr_monthly      = COALESCE($7, price_inr_monthly),
-      price_inr_yearly       = COALESCE($8, price_inr_yearly),
-      is_active              = COALESCE($9, is_active),
+      name                   = COALESCE($1,  name),
+      max_students           = COALESCE($2,  max_students),
+      max_teachers           = COALESCE($3,  max_teachers),
+      fee_management_enabled = COALESCE($4,  fee_management_enabled),
+      price_npr_monthly      = COALESCE($5,  price_npr_monthly),
+      price_npr_yearly       = COALESCE($6,  price_npr_yearly),
+      price_inr_monthly      = COALESCE($7,  price_inr_monthly),
+      price_inr_yearly       = COALESCE($8,  price_inr_yearly),
+      price_usd_monthly      = COALESCE($9,  price_usd_monthly),
+      price_usd_yearly       = COALESCE($10, price_usd_yearly),
+      is_active              = COALESCE($11, is_active),
       updated_at             = NOW()
-     WHERE id = $10
+     WHERE id = $12
      RETURNING *`,
     [
-      data.name || null,
-      data.max_students ?? null,
-      data.max_teachers ?? null,
+      data.name              ?? null,
+      data.max_students      ?? null,
+      data.max_teachers      ?? null,
       data.fee_management_enabled ?? null,
       data.price_npr_monthly ?? null,
-      data.price_npr_yearly ?? null,
+      data.price_npr_yearly  ?? null,
       data.price_inr_monthly ?? null,
-      data.price_inr_yearly ?? null,
-      data.is_active ?? null,
+      data.price_inr_yearly  ?? null,
+      data.price_usd_monthly ?? null,
+      data.price_usd_yearly  ?? null,
+      data.is_active         ?? null,
       id,
     ]
   );
@@ -208,6 +217,7 @@ export const getAllSchoolsWithSubscriptions = async (): Promise<any[]> => {
   const result = await pool.query(
     `SELECT DISTINCT ON (ss.school_id)
        s.id as school_id, s.school_name, s.email, s.is_account, s.country,
+       s.is_verified, s.two_fa_enabled,
        ss.id as subscription_id, ss.plan_id, sp.name as plan_name,
        ss.billing_cycle, ss.start_date, ss.end_date, ss.status,
        sp.max_students, sp.max_teachers

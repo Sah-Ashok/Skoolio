@@ -64,8 +64,8 @@ const adminNav: NavSection[] = [
   {
     label: 'Staff',
     links: [
-      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'    },
-      { href: '/staff/attendance', icon: 'fa-clipboard-check',  label: 'Staff Attendance' },
+      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'       },
+      { href: '/staff/attendance', icon: 'fa-clipboard-check',  label: 'Staff & Teacher Att.' },
     ],
   },
 ]

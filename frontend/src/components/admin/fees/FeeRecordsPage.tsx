@@ -5,6 +5,7 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 
@@ -133,10 +134,10 @@ function PaymentsModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FeeRecordsPage() {
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { academicYearId } = useAcademicYear();
   const { data: collections, loading, error } = useApi<any[]>(
-    activeYear?.id ? `/fees/collections?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   const [search,       setSearch]       = useState("");

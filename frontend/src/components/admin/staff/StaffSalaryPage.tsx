@@ -5,6 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -146,7 +147,7 @@ function PaySalaryModal({
 
           <div className={s("field")}>
             <label>Paid On</label>
-            <input type="date" value={form.paid_on} onChange={e => set("paid_on", e.target.value)} />
+            <DateInput value={form.paid_on} onChange={e => set("paid_on", e.target.value)} />
           </div>
 
           <div className={cx(s("field"), s("full"))}>
@@ -378,7 +379,7 @@ function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; 
           </div>
           <div className={s("field")}>
             <label>Paid On</label>
-            <input type="date" value={form.paid_on} onChange={e => setForm(f => ({ ...f, paid_on: e.target.value }))} />
+            <DateInput value={form.paid_on} onChange={e => setForm(f => ({ ...f, paid_on: e.target.value }))} />
           </div>
           <div className={cx(s("field"), s("full"))}>
             <label>Remarks</label>
@@ -415,7 +416,12 @@ export function StaffSalaryPage() {
 
   const filtered = useMemo(() => {
     if (!filterMonth) return payments;
-    return payments.filter(p => p.salary_month?.startsWith(filterMonth));
+    // salary_month_str is "YYYY-MM" from TO_CHAR; salary_month is a raw ISO date
+    // Must use salary_month_str for reliable filtering
+    return payments.filter(p => {
+      const monthKey = p.salary_month_str ?? (p.salary_month ?? "").slice(0, 7);
+      return monthKey === filterMonth;
+    });
   }, [payments, filterMonth]);
 
   // Summary

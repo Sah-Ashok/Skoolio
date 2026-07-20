@@ -1,8 +1,9 @@
-
 import Sidebar from "@/components/shared/Sidebar";
 import RequireRole from "@/components/shared/RequireRole";
 import PlanStatusBanner from "@/components/shared/PlanStatusBanner";
 import AppFooter from "@/components/shared/AppFooter";
+import OfflineGuard from "@/components/shared/OfflineGuard";
+import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,11 +12,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Sidebar role="admin" />
         <div className="app-main">
           <PlanStatusBanner />
-          <div className="app-page">{children}</div>
+          <div className="app-page">
+            <OfflineGuard>
+              <NoActiveYearGuard role="admin">{children}</NoActiveYearGuard>
+            </OfflineGuard>
+          </div>
           <AppFooter role="admin" />
         </div>
       </div>
     </RequireRole>
   );
 }
-

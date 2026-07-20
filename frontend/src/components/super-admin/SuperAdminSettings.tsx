@@ -8,17 +8,19 @@ export default function SuperAdminSettings() {
   const { data: settings, loading } = useApi<any>('/platform');
   const { execute: saveSettings, loading: saving } = useMutation('/platform', 'PATCH');
 
-  const [platformName, setPlatformName] = useState("");
-  const [supportEmail, setSupportEmail] = useState("");
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
+  const [platformName, setPlatformName]           = useState("");
+  const [supportEmail, setSupportEmail]           = useState("");
+  const [maintenanceMode, setMaintenanceMode]     = useState(false);
+  const [autoVerifySchools, setAutoVerifySchools] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState("");
 
   useEffect(() => {
     if (settings) {
       setPlatformName(settings.platform_name);
       setSupportEmail(settings.support_email);
       setMaintenanceMode(settings.maintenance_mode);
+      setAutoVerifySchools(settings.auto_verify_schools ?? false);
     }
   }, [settings]);
 
@@ -26,9 +28,10 @@ export default function SuperAdminSettings() {
     setError("");
     try {
       await saveSettings({
-        platform_name: platformName,
-        support_email: supportEmail,
-        maintenance_mode: maintenanceMode,
+        platform_name:       platformName,
+        support_email:       supportEmail,
+        maintenance_mode:    maintenanceMode,
+        auto_verify_schools: autoVerifySchools,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -37,10 +40,10 @@ export default function SuperAdminSettings() {
     }
   };
 
-  const Toggle = ({ value, onChange }: { value: boolean; onChange: () => void }) => (
+  const Toggle = ({ value, onChange, color = "#6366f1" }: { value: boolean; onChange: () => void; color?: string }) => (
     <button onClick={onChange} style={{
       width: 46, height: 26, borderRadius: 13, border: "none", cursor: "pointer",
-      background: value ? "#6366f1" : "#cbd5e1", position: "relative", transition: "background 0.2s",
+      background: value ? color : "#cbd5e1", position: "relative", transition: "background 0.2s",
     }}>
       <div style={{
         width: 20, height: 20, borderRadius: "50%", background: "#fff",
@@ -64,6 +67,24 @@ export default function SuperAdminSettings() {
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label style={{ fontSize: 12.5, fontWeight: 700, color: "#374151" }}>{label}</label>
       {children}
+    </div>
+  );
+
+  const ToggleRow = ({
+    label, desc, value, onChange, color, noBorder,
+  }: { label: string; desc: string; value: boolean; onChange: () => void; color?: string; noBorder?: boolean }) => (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      padding: "0.75rem 0",
+      borderBottom: noBorder ? "none" : "1px solid #f1f5f9",
+    }}>
+      <div>
+        <p style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>{label}</p>
+        <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 2, maxWidth: 520 }}>{desc}</p>
+      </div>
+      <div style={{ flexShrink: 0, marginLeft: 24 }}>
+        <Toggle value={value} onChange={onChange} color={color} />
+      </div>
     </div>
   );
 
@@ -99,6 +120,7 @@ export default function SuperAdminSettings() {
           </div>
         )}
 
+        {/* General */}
         <Section title="General" desc="Basic platform identity settings">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
             <Field label="Platform Name">
@@ -110,18 +132,43 @@ export default function SuperAdminSettings() {
           </div>
         </Section>
 
-        <Section title="System" desc="Platform availability and maintenance">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0" }}>
-            <div>
-              <p style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>Maintenance Mode</p>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>When enabled, only super admins can log in to the platform</p>
+        {/* Registration */}
+        <Section title="Registration" desc="Control how new schools are onboarded">
+          <ToggleRow
+            label="Auto-Verify New Schools"
+            desc="When ON, schools are verified immediately on registration — no manual approval needed. Turn OFF to review each new school before they can log in."
+            value={autoVerifySchools}
+            onChange={() => setAutoVerifySchools(v => !v)}
+            color="#16a34a"
+            noBorder
+          />
+          {autoVerifySchools ? (
+            <div style={{ marginTop: "0.75rem", padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13, fontWeight: 600 }}>
+              <i className="fa-solid fa-circle-check" style={{ marginRight: 8 }} />
+              New schools are auto-verified on registration and can log in immediately.
             </div>
-            <Toggle value={maintenanceMode} onChange={() => setMaintenanceMode(v => !v)} />
-          </div>
+          ) : (
+            <div style={{ marginTop: "0.75rem", padding: "12px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
+              <i className="fa-solid fa-circle-info" style={{ marginRight: 8 }} />
+              Manual verification is ON — go to Schools and click <strong>Verify</strong> on each new school before they can log in.
+            </div>
+          )}
+        </Section>
+
+        {/* System */}
+        <Section title="System" desc="Platform availability and maintenance">
+          <ToggleRow
+            label="Maintenance Mode"
+            desc="When enabled, only super admins can log in to the platform. All other users will see a maintenance message."
+            value={maintenanceMode}
+            onChange={() => setMaintenanceMode(v => !v)}
+            color="#6366f1"
+            noBorder
+          />
           {maintenanceMode && (
-            <div style={{ marginTop: "1rem", padding: "12px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c", fontSize: 13, fontWeight: 600 }}>
+            <div style={{ marginTop: "0.75rem", padding: "12px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c", fontSize: 13, fontWeight: 600 }}>
               <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 8 }} />
-              Maintenance mode is ON \u2014 admins, faculty, and students cannot log in until this is disabled and saved.
+              Maintenance mode is ON — admins, faculty, and students cannot log in until this is disabled and saved.
             </div>
           )}
         </Section>

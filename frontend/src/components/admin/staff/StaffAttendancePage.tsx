@@ -9,198 +9,228 @@ import styles from "./staff.module.css";
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type Staff = { id: number; full_name: string; role_name?: string; status: string };
-type AttRecord = { id: number; staff_id: number; date: string; status: string };
+// ── Types ─────────────────────────────────────────────────────────────────────────
+type StaffMember   = { id: number; full_name: string; role_name?: string; status: string; _type: "staff"; };
+type TeacherMember = { id: number; full_name: string; status: string; _type: "teacher"; };
+type Person = StaffMember | TeacherMember;
+type AttRecord = { id: number; staff_id?: number; teacher_id?: number; date: string; status: string };
+
+const personKey = (p: Person) => `${p._type}-${p.id}`;
 
 const ATT_STATUSES = [
-  { key: "present",  label: "Present", cls: "attPresent" },
-  { key: "absent",   label: "Absent",  cls: "attAbsent"  },
-  { key: "leave",    label: "Leave",   cls: "attLeave"   },
-  { key: "half_day", label: "Half",    cls: "attHalf"    },
+  { key: "present",  label: "Present",  icon: "fa-check",               color: "#12805c" },
+  { key: "absent",   label: "Absent",   icon: "fa-xmark",               color: "#b42318" },
+  { key: "leave",    label: "Leave",    icon: "fa-moon",                color: "#3b5bdb" },
+  { key: "half_day", label: "Half Day", icon: "fa-circle-half-stroke",  color: "#c46a14" },
 ];
 
-const today = () => new Date().toISOString().split("T")[0];
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+// ── Person Row ────────────────────────────────────────────────────────────────────────
+function PersonRow({ person, current, onChange }: { person: Person; current: string; onChange: (s: string) => void }) {
+  const isTeacher = person._type === "teacher";
+  const roleLabel = isTeacher ? "Teacher" : (person as StaffMember).role_name ?? "Staff";
+  return (
+    <div className={s("attRow")}>
+      <div className={s("attNameCell")}>
+        <div
+          className={s("attAvatar")}
+          style={{ background: isTeacher ? "#e8edff" : "#fff1df", color: isTeacher ? "#3b5bdb" : "#c46a14" }}
+        >
+          {person.full_name.slice(0, 2).toUpperCase()}
+        </div>
+        <div>
+          <strong className={s("attName")}>{person.full_name}</strong>
+          <span className={s("attRole")}>
+            <i className={`fa-solid ${isTeacher ? "fa-chalkboard-user" : "fa-users-gear"}`} style={{ marginRight: 4, fontSize: 10 }} />
+            {roleLabel}
+          </span>
+        </div>
+      </div>
+      <div className={s("attBtns")}>
+        {ATT_STATUSES.map(a => (
+          <button
+            key={a.key}
+            className={cx(s("attBtn"), current === a.key && s("attBtnActive"))}
+            style={current === a.key ? { background: a.color + "18", color: a.color, borderColor: a.color + "55" } : undefined}
+            onClick={() => onChange(a.key)}
+            title={a.label}
+          >
+            <i className={`fa-solid ${a.icon}`} />
+            <span className={s("attBtnLabel")}>{a.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type Staff = { id: number; full_name: string; role_name?: string; status: string };
+type AttRecordOld = { id: number; staff_id: number; date: string; status: string };
 
 export function StaffAttendancePage() {
-  const { data: staff, loading: loadingStaff } = useApi<Staff[]>("/staff");
-  const [date, setDate] = useState(today());
+  const { data: staffList,   loading: loadingStaff }    = useApi<any[]>("/staff");
+  const { data: teacherList, loading: loadingTeachers } = useApi<any[]>("/teachers");
 
-  // Endpoint changes when date changes — no extra deps array needed
-  const { data: existing, loading: loadingAtt, refetch } =
-    useApi<AttRecord[]>(`/staff/attendance?date=${date}`);
+  const [date,   setDate]   = useState(todayStr);
+  const [filter, setFilter] = useState<"all" | "staff" | "teacher">("all");
+  const [search, setSearch] = useState("");
+  const [saved,  setSaved]  = useState(false);
 
-  // Local draft: staff_id → status
-  const [draft, setDraft] = useState<Record<number, string>>({});
+  const { data: existingStaff,    refetch: refetchStaff }    = useApi<any[]>(`/staff/attendance?date=${date}`);
+  const { data: existingTeachers, refetch: refetchTeachers } = useApi<any[]>(`/teachers/attendance?date=${date}`);
 
-  // useEffect (not useMemo) because we're calling setState as a side effect
+  // Merge: teachers first then staff
+  const allPeople = useMemo<Person[]>(() => [
+    ...(teacherList ?? []).filter((m: any) => m.status !== "inactive").map((m: any) => ({ ...m, _type: "teacher" as const })),
+    ...(staffList   ?? []).filter((m: any) => m.status !== "terminated").map((m: any) => ({ ...m, _type: "staff" as const })),
+  ], [staffList, teacherList]);
+
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  // Sync saved records into draft when date or records change
   useEffect(() => {
-    if (existing) {
-      const map: Record<number, string> = {};
-      existing.forEach(r => { map[r.staff_id] = r.status; });
-      setDraft(map);
-    }
-  }, [existing]);
+    const next: Record<string, string> = {};
+    allPeople.forEach(p => { next[personKey(p)] = "present"; });
+    (existingStaff ?? []).forEach((r: any)    => { next[`staff-${r.staff_id}`]     = r.status; });
+    (existingTeachers ?? []).forEach((r: any) => { next[`teacher-${r.teacher_id}`] = r.status; });
+    setDraft(next);
+    setSaved(false);
+  }, [existingStaff, existingTeachers, allPeople.length]); // eslint-disable-line
 
-  const { execute: bulkMark, loading: saving } = useMutation("/staff/attendance/bulk", "POST");
+  const { execute: saveStaff,   loading: savingStaff }    = useMutation("/staff/attendance/bulk",    "POST");
+  const { execute: saveTeacher, loading: savingTeachers } = useMutation("/teachers/attendance/bulk", "POST");
+  const saving = savingStaff || savingTeachers;
 
-  const activeStaff = useMemo(
-    () => (staff ?? []).filter(m => m.status !== "terminated"),
-    [staff]
-  );
-
-  const setStatus = (staff_id: number, status: string) =>
-    setDraft(d => ({ ...d, [staff_id]: status }));
+  const setStatus = (key: string, status: string) => { setSaved(false); setDraft(d => ({ ...d, [key]: status })); };
 
   const handleSave = async () => {
-    const records = activeStaff.map(m => ({
-      staff_id: m.id,
-      status: draft[m.id] ?? "present",
-    }));
-    await bulkMark({ date, records });
-    refetch();
+    const teachers = allPeople.filter(p => p._type === "teacher");
+    const staff    = allPeople.filter(p => p._type === "staff");
+    await Promise.all([
+      teachers.length && saveTeacher({ date, records: teachers.map(p => ({ teacher_id: p.id, status: draft[personKey(p)] ?? "present" })) }),
+      staff.length    && saveStaff  ({ date, records: staff.map(p =>    ({ staff_id:   p.id, status: draft[personKey(p)] ?? "present" })) }),
+    ]);
+    refetchStaff(); refetchTeachers();
+    setSaved(true);
   };
 
-  // Summary counts from draft
+  const displayed = useMemo(() => allPeople.filter(p => {
+    const matchType   = filter === "all" || p._type === filter;
+    const matchSearch = !search || p.full_name.toLowerCase().includes(search.toLowerCase());
+    return matchType && matchSearch;
+  }), [allPeople, filter, search]);
+
   const summary = useMemo(() => {
-    const counts: Record<string, number> = { present: 0, absent: 0, leave: 0, half_day: 0 };
-    activeStaff.forEach(m => {
-      const st = draft[m.id] ?? "present";
-      counts[st] = (counts[st] || 0) + 1;
+    const c = { present: 0, absent: 0, leave: 0, half_day: 0 };
+    allPeople.forEach(p => {
+      const st = (draft[personKey(p)] ?? "present") as keyof typeof c;
+      if (st in c) c[st]++;
     });
-    return counts;
-  }, [draft, activeStaff]);
+    return c;
+  }, [draft, allPeople]);
+
+  const total        = allPeople.length;
+  const isLoading    = loadingStaff || loadingTeachers;
+  const teacherCount = (teacherList ?? []).filter((m: any) => m.status !== "inactive").length;
+  const staffCount   = (staffList   ?? []).filter((m: any) => m.status !== "terminated").length;
 
   return (
     <div className={s("page")}>
-      <Topbar title="Staff Attendance" subtitle="Mark daily attendance for all non-teaching staff" />
+      <Topbar title="Staff &amp; Teacher Attendance" subtitle="Mark daily attendance for all staff and teaching faculty" />
       <main className={s("content")}>
 
         {/* Head */}
         <section className={s("head")}>
           <div>
             <h1>Daily Attendance</h1>
-            <p>Mark or update attendance for any date. Changes are saved when you click Save All.</p>
+            <p>{new Date(date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
           </div>
           <div className={s("actions")}>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              style={{
-                minHeight: 38, padding: "0 12px", border: "1px solid #c6d0d7",
-                borderRadius: 8, background: "#fff", color: "#1f2d36",
-                font: "inherit", fontSize: 13, fontWeight: 800, outline: "none",
-              }}
-            />
-            <button
-              className={cx(s("btn"), s("btnPrimary"))}
-              onClick={handleSave}
-              disabled={saving || loadingStaff || loadingAtt || activeStaff.length === 0}
-            >
-              {saving
-                ? <><Spinner size={14} color="#fff" /> Saving…</>
-                : <><i className="fa-solid fa-floppy-disk" /> Save All</>
-              }
+            <input type="date" value={date} max={todayStr()} onChange={e => { setDate(e.target.value); setSaved(false); }} className={s("dateInput")} />
+            <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSave} disabled={saving || isLoading || total === 0}>
+              {saving ? <><Spinner size={14} color="#fff" /> Saving…</>
+                : saved  ? <><i className="fa-solid fa-circle-check" /> Saved!</>
+                : <><i className="fa-solid fa-floppy-disk" /> Save All</>}
             </button>
           </div>
         </section>
 
-        {/* Stats */}
-        <section className={s("stats")}>
+        {/* Summary bar */}
+        <div className={s("attSummary")}>
           {[
-            { label: "Present",  value: summary.present,  cls: "green",  icon: "fa-circle-check"        },
-            { label: "Absent",   value: summary.absent,   cls: "red",    icon: "fa-circle-xmark"        },
-            { label: "On Leave", value: summary.leave,    cls: "blue",   icon: "fa-circle-pause"        },
-            { label: "Half Day", value: summary.half_day, cls: "orange", icon: "fa-circle-half-stroke"  },
-          ].map(({ label, value, cls, icon }) => (
-            <article key={label} className={cx(s("stat"), s(cls))}>
-              <div><i className={`fa-solid ${icon}`} /></div>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>out of {activeStaff.length} staff</small>
-            </article>
-          ))}
-        </section>
-
-        {/* Attendance Grid */}
-        <div className={s("card")}>
-          <div className={s("cardHead")}>
-            <div>
-              <h3><i className="fa-solid fa-clipboard-check" />Attendance Sheet</h3>
-              <p>
-                {new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
-                  weekday: "long", day: "2-digit", month: "long", year: "numeric",
-                })}
-              </p>
+            { label: "Present",  count: summary.present,  color: "#12805c" },
+            { label: "Absent",   count: summary.absent,   color: "#b42318" },
+            { label: "Leave",    count: summary.leave,    color: "#3b5bdb" },
+            { label: "Half Day", count: summary.half_day, color: "#c46a14" },
+          ].map(({ label, count, color }) => (
+            <div key={label} className={s("attSumPill")} style={{ borderColor: color + "33", background: color + "11" }}>
+              <span style={{ color, fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{count}</span>
+              <span style={{ color, fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
             </div>
-            {loadingAtt && <Spinner size={18} color="#FF9B51" />}
+          ))}
+          <div className={s("attSumTotal")}>
+            <span style={{ fontWeight: 900, fontSize: 20, color: "#1f2d36" }}>{total}</span>
+            <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 800, textTransform: "uppercase" }}>Total</span>
           </div>
+        </div>
 
-          {loadingStaff ? (
-            <div className={s("empty")}><Spinner size={28} color="#FF9B51" /></div>
-          ) : activeStaff.length === 0 ? (
+        {/* Toolbar */}
+        <div className={s("attToolbar")}>
+          <div className={s("search")} style={{ flex: 1, minWidth: 180 }}>
+            <i className="fa-solid fa-magnifying-glass" />
+            <input placeholder="Search by name…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div className={s("attFilterGroup")}>
+            {(["all", "teacher", "staff"] as const).map(f => (
+              <button key={f} className={cx(s("attFilterBtn"), filter === f && s("attFilterActive"))} onClick={() => setFilter(f)}>
+                <i className={`fa-solid ${f === "teacher" ? "fa-chalkboard-user" : f === "staff" ? "fa-users-gear" : "fa-users"}`} />
+                {f === "all" ? "All" : f === "teacher" ? "Teachers" : "Staff"}
+                <span className={s("attFilterCount")}>{f === "all" ? total : f === "teacher" ? teacherCount : staffCount}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* List card */}
+        <div className={s("card")}>
+          {isLoading ? (
+            <div className={s("empty")}><Spinner size={32} color="#FF9B51" /></div>
+          ) : displayed.length === 0 ? (
             <div className={s("empty")}>
               <i className="fa-solid fa-users-slash" />
-              <p>No active staff members</p>
-              <small>Add staff from the Staff Management page first.</small>
+              <p>{search ? "No matches found" : "No people in this category"}</p>
+              <small>{search ? "Try a different name." : "Add staff or teachers first."}</small>
             </div>
           ) : (
-            <div className={s("attGrid")}>
-              {/* Header */}
-              <div className={cx(s("attRow"), s("attHead"))}>
-                <div className={s("attCell")}>Staff Member</div>
-                {ATT_STATUSES.map(a => (
-                  <div key={a.key} className={s("attCell")} style={{ textAlign: "center" }}>
-                    {a.label}
-                  </div>
-                ))}
+            <>
+              <div className={s("attHeader")}>
+                <div className={s("attNameCell")} style={{ fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 }}>Person</div>
+                <div className={s("attBtns")} style={{ fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {ATT_STATUSES.map(a => <div key={a.key} style={{ flex: 1, textAlign: "center" }}>{a.label}</div>)}
+                </div>
               </div>
-
-              {/* Rows */}
-              {activeStaff.map(m => {
-                const current = draft[m.id] ?? "present";
-                return (
-                  <div key={m.id} className={s("attRow")}>
-                    <div className={s("attCell")}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8,
-                          background: "#fff1df", color: "#c46a14",
-                          display: "grid", placeItems: "center",
-                          fontSize: 11, fontWeight: 900, flexShrink: 0,
-                        }}>
-                          {m.full_name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <strong style={{ fontSize: 13, fontWeight: 900 }}>{m.full_name}</strong>
-                          <small style={{ display: "block", fontSize: 11, color: "#6a7882", fontWeight: 800 }}>
-                            {m.role_name ?? "Staff"}
-                          </small>
-                        </div>
-                      </div>
-                    </div>
-                    {ATT_STATUSES.map(a => (
-                      <div key={a.key} className={s("attCell")} style={{ textAlign: "center" }}>
-                        <button
-                          className={cx(
-                            s("attBtn"),
-                            current === a.key && cx(s("attBtnActive"), s(a.cls))
-                          )}
-                          onClick={() => setStatus(m.id, a.key)}
-                        >
-                          {current === a.key && (
-                            <i className="fa-solid fa-check" style={{ marginRight: 4 }} />
-                          )}
-                          {a.label}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
+              {displayed.map(p => (
+                <PersonRow key={personKey(p)} person={p} current={draft[personKey(p)] ?? "present"} onChange={st => setStatus(personKey(p), st)} />
+              ))}
+            </>
           )}
         </div>
+
+        {/* Quick-set all */}
+        {displayed.length > 1 && (
+          <div className={s("attQuickSet")}>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "#6a7882" }}>Set all shown:</span>
+            {ATT_STATUSES.map(a => (
+              <button key={a.key} className={cx(s("btn"), s("btnSm"))}
+                style={{ background: a.color + "15", color: a.color, border: `1px solid ${a.color}44` }}
+                onClick={() => { const n = { ...draft }; displayed.forEach(p => { n[personKey(p)] = a.key; }); setDraft(n); setSaved(false); }}
+              >
+                <i className={`fa-solid ${a.icon}`} /> All {a.label}
+              </button>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

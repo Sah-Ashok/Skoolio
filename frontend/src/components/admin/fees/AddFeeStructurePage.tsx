@@ -7,6 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 
@@ -28,8 +29,8 @@ const initialFeeHeads: FeeHead[] = [
 export default function AddFeeStructurePage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>('/academic-years/active');
-  const { data: classes } = useApi<any[]>(activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
+  const { activeYear, academicYearId } = useAcademicYear();
+  const { data: classes } = useApi<any[]>(academicYearId ? `/classes?academic_year_id=${academicYearId}` : '', [academicYearId]);
   const { execute: saveStructure, loading: saving } = useMutation('/fees/structures', 'POST');
 
   const [classId, setClassId] = useState("");
@@ -73,7 +74,7 @@ export default function AddFeeStructurePage() {
   };
 
   const handleSave = async () => {
-    if (!activeYear || !classId) return dispatch(showToast({ type: 'error', title: 'Error', message: 'Missing academic year or class' }));
+    if (!activeYear || !academicYearId || !classId) return dispatch(showToast({ type: 'error', title: 'Error', message: 'Missing academic year or class' }));
     
     let hasError = false;
     for (const head of feeHeads) {
@@ -88,7 +89,7 @@ export default function AddFeeStructurePage() {
       // Loop and save each
       for (const head of feeHeads) {
         await saveStructure({
-          academic_year_id: activeYear.id,
+          academic_year_id: academicYearId,
           class_id: parseInt(classId),
           fee_name: head.name,
           amount: parseFloat(head.amount),

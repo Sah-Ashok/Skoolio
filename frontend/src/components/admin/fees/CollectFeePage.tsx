@@ -7,7 +7,9 @@ import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
+import DateInput from "@/components/shared/DateInput";
 import { Spinner } from "@/components/shared/Loader";
 
 const s  = (c: string) => styles[c] || c;
@@ -42,7 +44,7 @@ export default function CollectFeePage() {
     new Date().toISOString().slice(0, 7) // 'YYYY-MM'
   );
 
-  const { data: activeYear }              = useApi<any>("/academic-years/active");
+  const { academicYearId } = useAcademicYear();
   const { data: students, loading: studentsLoading } = useApi<any[]>("/students");
   const { execute: payFee, loading: isPaying }       = useMutation("/fees/payments", "POST");
 
@@ -124,12 +126,12 @@ export default function CollectFeePage() {
 
   // ── Generate transport bills ──────────────────────────────────────────────
   const handleGenerateTransport = async () => {
-    if (!activeYear?.id || !billingMonth) return;
+    if (!academicYearId || !billingMonth) return;
     setGenerating(true);
     try {
       const res = await apiRequest<{ data: any }>("/fees/transport/generate", {
         method: "POST",
-        body: JSON.stringify({ academic_year_id: activeYear.id, billing_month: billingMonth }),
+        body: JSON.stringify({ academic_year_id: academicYearId, billing_month: billingMonth }),
       });
       const { created, skipped } = res.data || {};
       dispatch(showToast({
@@ -185,7 +187,7 @@ export default function CollectFeePage() {
             <button
               className={cx(s("btn"), s("btn-primary"))}
               onClick={handleGenerateTransport}
-              disabled={generating || !activeYear?.id}
+              disabled={generating || !academicYearId}
             >
               {generating
                 ? <><Spinner size={15} /> Generating…</>
@@ -394,12 +396,11 @@ export default function CollectFeePage() {
                         />
                       </Field>
                       <Field label="Payment Date *">
-                        <input
-                          type="date"
+                        <DateInput
                           value={paymentDate}
                           onChange={e => setPaymentDate(e.target.value)}
                           required
-                          style={{ minHeight: 44, padding: "0 13px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 14, fontWeight: 800, outline: "none", width: "100%" }}
+                          style={{ width: "100%" }}
                         />
                       </Field>
                       <Field label="Payment Mode">

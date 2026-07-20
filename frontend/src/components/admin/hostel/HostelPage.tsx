@@ -189,6 +189,26 @@ export default function HostelPage() {
   const [confirmRId, setConfirmRId] = useState<number | null>(null);
   const [rForm, setRForm] = useState({ hostel_id: "", room_number: "", floor: "1", room_type: "non_ac", capacity: "2", monthly_fee: "", status: "available", notes: "" });
 
+  /* ── Student search for assignment form ── */
+  const [studentSearch, setStudentSearch] = useState("");
+  const [showStudentDrop, setShowStudentDrop] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+
+  const filteredStudents = (students || []).filter((s: any) => {
+    const q = studentSearch.toLowerCase();
+    return (
+      (s.full_name || "").toLowerCase().includes(q) ||
+      (s.admission_number || "").toLowerCase().includes(q)
+    );
+  }).slice(0, 50); // cap at 50 for performance
+
+  const selectStudent = (s: any) => {
+    setSelectedStudent(s);
+    setStudentSearch(`${s.full_name} — ${s.admission_number}`);
+    setAForm(f => ({ ...f, student_id: String(s.student_id || s.id) }));
+    setShowStudentDrop(false);
+  };
+
   /* ── Assignment form ── */
   const [showAForm, setShowAForm] = useState(false);
   const [aSaving, setASaving] = useState(false);
@@ -672,12 +692,73 @@ export default function HostelPage() {
 
       {/* Assignment Form */}
       {showAForm && (
-        <Modal title="Assign Student to Hostel" onClose={() => setShowAForm(false)}>
+        <Modal title="Assign Student to Hostel" onClose={() => { setShowAForm(false); setStudentSearch(""); setSelectedStudent(null); }}>
           <Field label="Student" required>
-            <select name="student_id" style={inputStyle} value={aForm.student_id} onChange={af}>
-              <option value="">— Select Student —</option>
-              {(students||[]).map((s: any) => <option key={s.student_id||s.id} value={s.student_id||s.id}>{s.full_name} — {s.admission_number}</option>)}
-            </select>
+            {/* Searchable combobox — works with 1000+ students */}
+            <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: 12, color: col.muted, fontSize: 13, pointerEvents: "none" }} />
+                <input
+                  style={{ ...inputStyle, paddingLeft: 36 }}
+                  placeholder="Search by name or admission no..."
+                  value={studentSearch}
+                  onChange={e => { setStudentSearch(e.target.value); setShowStudentDrop(true); setAForm(f => ({ ...f, student_id: "" })); setSelectedStudent(null); }}
+                  onFocus={() => setShowStudentDrop(true)}
+                  onBlur={() => setTimeout(() => setShowStudentDrop(false), 150)}
+                  autoComplete="off"
+                />
+                {studentSearch && (
+                  <button
+                    style={{ position: "absolute", right: 10, background: "none", border: "none", cursor: "pointer", color: col.muted, fontSize: 14, padding: 4 }}
+                    onMouseDown={e => { e.preventDefault(); setStudentSearch(""); setAForm(f => ({ ...f, student_id: "" })); setSelectedStudent(null); setShowStudentDrop(false); }}
+                  >
+                    <i className="fa-solid fa-xmark" />
+                  </button>
+                )}
+              </div>
+              {showStudentDrop && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                  background: col.card, border: `1.5px solid ${col.border}`,
+                  borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  zIndex: 200, maxHeight: 220, overflowY: "auto",
+                }}>
+                  {filteredStudents.length === 0 ? (
+                    <div style={{ padding: "12px 14px", fontSize: 13, color: col.muted, fontWeight: 600 }}>
+                      {studentSearch ? "No students match your search" : "Start typing to search..."}
+                    </div>
+                  ) : filteredStudents.map((s: any) => (
+                    <div
+                      key={s.student_id || s.id}
+                      onMouseDown={() => selectStudent(s)}
+                      style={{
+                        padding: "10px 14px", cursor: "pointer",
+                        borderBottom: `1px solid ${col.border}`,
+                        background: aForm.student_id === String(s.student_id || s.id) ? col.blueBg : "transparent",
+                        display: "flex", alignItems: "center", gap: 10,
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = col.bg)}
+                      onMouseLeave={e => (e.currentTarget.style.background = aForm.student_id === String(s.student_id || s.id) ? col.blueBg : "transparent")}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: col.blueBg, color: col.blue, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, flexShrink: 0 }}>
+                        {(s.full_name || "?").charAt(0)}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: col.navy }}>{s.full_name}</div>
+                        <div style={{ fontSize: 11, color: col.muted, fontWeight: 600 }}>{s.admission_number}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedStudent && (
+              <div style={{ marginTop: 6, padding: "6px 10px", background: col.greenBg, border: `1px solid #86efac`, borderRadius: 7, fontSize: 12, fontWeight: 700, color: col.green, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="fa-solid fa-circle-check" />
+                {selectedStudent.full_name} selected
+              </div>
+            )}
           </Field>
           <div style={grid2}>
             <Field label="Hostel" required>

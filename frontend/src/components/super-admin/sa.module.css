@@ -303,6 +303,7 @@
 .btn-outline { background: transparent; border: 1px solid #bfc9d1; }
 .btn-soft    { background: #eaecef; }
 .btn-danger  { background: #ffe4e6; color: #be123c; }
+.btn-success { background: #dcfce7; color: #15803d; }
 
 .btn-sm {
   min-height: 32px;

@@ -5,6 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -96,12 +97,12 @@ function StaffFormFields({
 
       <div className={s("field")}>
         <label>Joined Date *</label>
-        <input type="date" value={form.joined_date} onChange={e => set("joined_date", e.target.value)} />
+        <DateInput value={form.joined_date} onChange={e => set("joined_date", e.target.value)} />
       </div>
 
       <div className={s("field")}>
         <label>Date of Birth</label>
-        <input type="date" value={form.date_of_birth} onChange={e => set("date_of_birth", e.target.value)} />
+        <DateInput value={form.date_of_birth} onChange={e => set("date_of_birth", e.target.value)} />
       </div>
 
       <div className={s("field")}>
@@ -464,7 +465,7 @@ function SetSalaryModal({ staff, onClose, onSaved }: { staff: Staff; onClose: ()
           </div>
           <div className={s("field")}>
             <label>Effective From</label>
-            <input type="date" value={effective_from} onChange={e => setEffectiveFrom(e.target.value)} />
+            <DateInput value={effective_from} onChange={e => setEffectiveFrom(e.target.value)} />
           </div>
           {err && <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>{err}</p>}
         </div>

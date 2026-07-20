@@ -1,6 +1,6 @@
 // Enums
 export type BillingCycle = 'monthly' | 'yearly' | 'free';
-export type Currency = 'NPR' | 'INR';
+export type Currency = 'NPR' | 'INR' | 'USD';
 export type SubscriptionStatus = 'active' | 'expired' | 'grace_period' | 'cancelled';
 
 // ── SUBSCRIPTION PLAN ──
@@ -10,13 +10,31 @@ export interface ISubscriptionPlan {
   max_students: number | null;
   max_teachers: number | null;
   fee_management_enabled: boolean;
+  // ── Regional pricing columns ──────────────────────────────────────────
+  // Adding a new currency = add two columns here + migration + currencyConfig.ts entry.
   price_npr_monthly: number;
-  price_npr_yearly: number;
+  price_npr_yearly:  number;
   price_inr_monthly: number;
-  price_inr_yearly: number;
+  price_inr_yearly:  number;
+  price_usd_monthly: number;   // for international schools
+  price_usd_yearly:  number;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
+}
+
+/** Resolved pricing returned to the frontend — no currency logic needed client-side */
+export interface IResolvedPricing {
+  currency:      Currency;
+  symbol:        string;
+  price_monthly: number;
+  price_yearly:  number;
+  price_key:     string;
+}
+
+/** A plan with resolved pricing already attached (returned by getActivePlansForSchool) */
+export interface ISubscriptionPlanResolved extends ISubscriptionPlan {
+  resolved_pricing: IResolvedPricing;
 }
 
 export type ICreatePlan = Pick<
@@ -29,6 +47,8 @@ export type ICreatePlan = Pick<
   | 'price_npr_yearly'
   | 'price_inr_monthly'
   | 'price_inr_yearly'
+  | 'price_usd_monthly'
+  | 'price_usd_yearly'
 >;
 
 export type IUpdatePlan = Partial<ICreatePlan> & { is_active?: boolean };

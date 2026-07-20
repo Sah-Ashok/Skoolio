@@ -1,0 +1,444 @@
+/* ══════════════════════════════════════════
+   STUDENT LOGIN PAGE
+   ══════════════════════════════════════════ */
+
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #f0f4f8;
+}
+
+/* ── LEFT: image panel ── */
+.left {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.bgImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(15, 52, 67, 0.88) 0%,
+    rgba(22, 78, 99, 0.75) 50%,
+    rgba(5, 150, 105, 0.20) 100%
+  );
+}
+
+.leftContent {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 48px 44px;
+  gap: 32px;
+}
+
+/* Feature cards */
+.featureCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.featureCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.featureCard:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.featureIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: rgba(255, 155, 81, 0.18);
+  border: 1px solid rgba(255, 155, 81, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FF9B51;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.featureTitle {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f0f9ff;
+  line-height: 1.2;
+}
+
+.featureSub {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* Quote */
+.quote {
+  color: #fff;
+  max-width: 380px;
+}
+
+.quoteIcon {
+  display: block;
+  font-size: 56px;
+  line-height: 1;
+  color: #FF9B51;
+  font-family: Georgia, serif;
+  margin-bottom: -10px;
+  opacity: 0.85;
+}
+
+.quote p {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.7;
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+/* ── RIGHT: form panel ── */
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Logo */
+.logoWrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.logo {
+  border-radius: 12px;
+  object-fit: contain;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 2px 12px rgba(37, 52, 63, 0.12);
+}
+
+.logoText {
+  display: flex;
+  flex-direction: column;
+}
+
+.logoName {
+  font-size: 22px;
+  font-weight: 800;
+  color: #25343F;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.logoSub {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* Portal badge */
+.portalBadge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 1.5px solid #86efac;
+  border-radius: 14px;
+  margin-bottom: 22px;
+}
+
+.portalBadgeIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.portalBadgeTitle {
+  font-size: 14px;
+  font-weight: 800;
+  color: #14532d;
+  line-height: 1.2;
+}
+
+.portalBadgeSub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #166534;
+  margin-top: 2px;
+}
+
+/* Heading */
+.heading {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.4px;
+  margin-bottom: 22px;
+}
+
+/* Fields */
+.field {
+  margin-bottom: 18px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 7px;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputWrap > i:first-child {
+  position: absolute;
+  left: 14px;
+  color: #94a3b8;
+  font-size: 14px;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
+.input:focus {
+  border-color: #16a34a;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.10);
+}
+
+.inputWrap:focus-within > i:first-child { color: #16a34a; }
+
+.input::placeholder { color: #cbd5e1; }
+
+.eyeBtn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+  border-radius: 6px;
+}
+
+.eyeBtn:hover { color: #16a34a; }
+
+/* Error */
+.errorBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-left: 3px solid #ef4444;
+  border-radius: 10px;
+  color: #be123c;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+
+/* Submit — green for students */
+.btnPrimary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: all 0.2s;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.28);
+  margin-bottom: 20px;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #14532d 0%, #15803d 100%);
+  box-shadow: 0 6px 22px rgba(22, 163, 74, 0.38);
+  transform: translateY(-1px);
+}
+
+.btnPrimary:active:not(:disabled) { transform: translateY(0); }
+.btnPrimary:disabled { opacity: 0.65; cursor: not-allowed; }
+
+/* Divider */
+.divider {
+  position: relative;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.divider span {
+  position: relative;
+  padding: 0 12px;
+  background: #f0f4f8;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* Staff portal link */
+.staffPortal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-decoration: none;
+  transition: all 0.2s;
+  margin-bottom: 20px;
+}
+
+.staffPortal i:first-child {
+  color: #FF9B51;
+  font-size: 15px;
+}
+
+.staffPortal:hover {
+  border-color: #25343F;
+  color: #25343F;
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(37, 52, 63, 0.08);
+}
+
+/* Help text */
+.helpText {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.helpText i {
+  color: #60a5fa;
+  font-size: 13px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* ══ RESPONSIVE ══ */
+@media (max-width: 900px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .left {
+    display: none;
+  }
+
+  .right {
+    background: #f0f4f8;
+    padding: 32px 20px;
+    align-items: flex-start;
+    padding-top: 48px;
+  }
+
+  .card {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .right { padding: 28px 16px; }
+  .heading { font-size: 20px; }
+}

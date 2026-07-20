@@ -6,7 +6,9 @@ import styles from "./academic.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { fetchActiveAcademicYear } from "@/store/academicYearSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -85,8 +87,7 @@ function YearFields({
       </label>
       <label className={s("field")}>
         <span>Start Date</span>
-        <input
-          type="date"
+        <DateInput
           required
           value={form.start_date}
           onChange={(e) => onChange({ ...form, start_date: e.target.value })}
@@ -94,8 +95,7 @@ function YearFields({
       </label>
       <label className={s("field")}>
         <span>End Date</span>
-        <input
-          type="date"
+        <DateInput
           required
           value={form.end_date}
           onChange={(e) => onChange({ ...form, end_date: e.target.value })}
@@ -152,6 +152,8 @@ export default function AcademicYearsPage() {
       setShowForm(false);
       setForm(emptyForm);
       refetch();
+      // Sync Redux so NoActiveYearGuard and all pages pick up the new active year
+      if (form.status === "active") dispatch(fetchActiveAcademicYear());
     } else {
       dispatch(showToast({ type: "error", title: "Could not create", message: "Check the form and try again." }));
     }
@@ -189,6 +191,8 @@ export default function AcademicYearsPage() {
       dispatch(showToast({ type: "success", title: "Updated", message: "Academic year saved." }));
       cancelEdit();
       refetch();
+      // If status changed to/from active, sync Redux
+      dispatch(fetchActiveAcademicYear());
     } else {
       dispatch(showToast({ type: "error", title: "Could not update", message: "That change isn't allowed - check status rules." }));
     }
@@ -202,6 +206,8 @@ export default function AcademicYearsPage() {
     if (res) {
       dispatch(showToast({ type: "success", title: "Activated", message: `"${year.year_name}" is now the active year.` }));
       refetch();
+      // Sync Redux so NoActiveYearGuard and all pages pick up the new active year immediately
+      dispatch(fetchActiveAcademicYear());
     } else {
       dispatch(showToast({ type: "error", title: "Could not activate", message: "Complete the currently active year first." }));
     }

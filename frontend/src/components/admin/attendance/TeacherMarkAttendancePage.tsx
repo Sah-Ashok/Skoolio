@@ -6,6 +6,7 @@ import Topbar from "@/components/shared/Topbar";
 import ToastNotification from "@/components/shared/ToastNotification";
 import styles from "./attendance.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
@@ -40,12 +41,12 @@ const statusBg: Record<AttendanceStatus, string> = {
 
 export default function TeacherMarkAttendancePage() {
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
 
   // Only teacher's own sections
   const { data: mySections, loading: sectionsLoading } = useApi<any[]>(
-    activeYear?.id ? `/teachers/me/sections?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/teachers/me/sections?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
@@ -72,7 +73,7 @@ export default function TeacherMarkAttendancePage() {
 
   // Load data whenever section or date changes
   useEffect(() => {
-    if (!sectionId || !selectedDate || !activeYear?.id) return;
+    if (!sectionId || !selectedDate || !academicYearId) return;
 
     const load = async () => {
       setDataLoading(true);
@@ -114,7 +115,7 @@ export default function TeacherMarkAttendancePage() {
         } else {
           // 2. No record → load enrollments and default to present
           const enRes = await apiRequest<{ data: any[] }>(
-            `/students/enrollments?academic_year_id=${activeYear.id}&section_id=${sectionId}`
+            `/students/enrollments?academic_year_id=${academicYearId}&section_id=${sectionId}`
           );
           const filtered = (enRes.data || []).filter(
             (en: any) => String(en.section_id) === sectionId
@@ -135,7 +136,7 @@ export default function TeacherMarkAttendancePage() {
 
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionId, selectedDate, activeYear?.id]);
+  }, [sectionId, selectedDate, academicYearId]);
 
   const setStudentStatus = (studentId: number, status: AttendanceStatus) => {
     if (isLocked) return;
@@ -200,7 +201,7 @@ export default function TeacherMarkAttendancePage() {
       } else {
         // No existing record — create fresh (backend always marks as submitted)
         await createAttendance({
-          academic_year_id: activeYear.id,
+          academic_year_id: academicYearId,
           class_id:  selectedSection?.class_id,
           section_id: Number(sectionId),
           date:       selectedDate,
@@ -230,7 +231,7 @@ export default function TeacherMarkAttendancePage() {
   };
 
   // ── Empty state: teacher has no sections ──────────────────────────────────
-  if (!sectionsLoading && activeYear && mySections?.length === 0) {
+  if (!sectionsLoading && academicYearId && mySections?.length === 0) {
     return (
       <div className={s("page")}>
         <Topbar title="Mark Attendance" subtitle="You have no sections assigned" />

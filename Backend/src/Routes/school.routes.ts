@@ -5,7 +5,7 @@ import {
   getSettings, updateSettings, changePassword, toggleTwoFA,
 } from '../Controllers/school.controller';
 import {
-  blockSchool, unblockSchool,
+  blockSchool, unblockSchool, verifySchoolById,
 } from '../Controllers/auth.controller';
 
 const router = Router();
@@ -16,6 +16,7 @@ router.patch('/settings',        protect, restrictTo('admin'),             updat
 router.patch('/change-password', protect, restrictTo('admin'),             changePassword);
 
 // Super admin — manage any school
+router.patch('/:schoolId/verify',    protect, restrictTo('super_admin'), verifySchoolById);
 router.patch('/:schoolId/toggle-2fa', protect, restrictTo('super_admin'), toggleTwoFA);
 router.patch('/:schoolId/block',      protect, restrictTo('super_admin'), blockSchool);
 router.patch('/:schoolId/unblock',    protect, restrictTo('super_admin'), unblockSchool);

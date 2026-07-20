@@ -77,6 +77,10 @@ export default function StudentDashboardPage() {
   const { data: me, loading: meLoading } = useApi<any>("/auth/me");
   const { data: activeYear } = useApi<any>("/academic-years/active");
 
+  // ── Hostel & transport for this student ──
+  const { data: hostelData }    = useApi<any>(me?.id ? `/hostel/students/${me.id}`    : null, [me?.id]);
+  const { data: transportData } = useApi<any>(me?.id ? `/transport/students/${me.id}` : null, [me?.id]);
+
   const today    = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
@@ -347,6 +351,85 @@ export default function StudentDashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* Hostel Status */}
+            {hostelData && hostelData.status === "active" && (
+              <div>
+                <div className="sd-section-label">Hostel</div>
+                <div style={{ background: "#fff", borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                      <i className="fa-solid fa-building" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: "#1e293b" }}>{hostelData.hostel_name || "Hostel"}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginTop: 2 }}>
+                        Room {hostelData.room_number} · Floor {hostelData.floor} · {(hostelData.room_type || "").replace("_", " ").toUpperCase()}
+                      </div>
+                    </div>
+                    <span style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11.5, fontWeight: 800, background: "#dcfce7", color: "#16a34a" }}>Active</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", marginBottom: 3 }}>MONTHLY FEE</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#1e293b" }}>₹{Number(hostelData.monthly_fee || 0).toLocaleString()}</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", marginBottom: 3 }}>JOINED</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>{hostelData.joining_date?.slice(0, 10) || "—"}</div>
+                    </div>
+                  </div>
+                  {hostelData.warden_name && (
+                    <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                      <i className="fa-solid fa-user-shield" style={{ color: "#FF9B51" }} />
+                      Warden: <strong style={{ color: "#1e293b" }}>{hostelData.warden_name}</strong>
+                      {hostelData.warden_phone && <span style={{ marginLeft: 4 }}>· {hostelData.warden_phone}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Transport Status */}
+            {transportData && transportData.status === "active" && (
+              <div>
+                <div className="sd-section-label">Transport</div>
+                <div style={{ background: "#fff", borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "#fef3c7", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                      <i className="fa-solid fa-bus" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: "#1e293b" }}>{transportData.route_name || "Route"}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginTop: 2 }}>
+                        {transportData.stop_name ? `Stop: ${transportData.stop_name}` : "Assigned"}
+                        {transportData.pickup_time ? ` · Pickup ${transportData.pickup_time}` : ""}
+                      </div>
+                    </div>
+                    <span style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11.5, fontWeight: 800, background: "#dcfce7", color: "#16a34a" }}>Active</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", marginBottom: 3 }}>MONTHLY FEE</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#1e293b" }}>₹{Number(transportData.monthly_fee || 0).toLocaleString()}</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", marginBottom: 3 }}>VEHICLE</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>{transportData.vehicle_number || "—"}</div>
+                    </div>
+                  </div>
+                  {transportData.driver_name && (
+                    <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                      <i className="fa-solid fa-id-card" style={{ color: "#FF9B51" }} />
+                      Driver: <strong style={{ color: "#1e293b" }}>{transportData.driver_name}</strong>
+                      {transportData.driver_phone && <span style={{ marginLeft: 4 }}>· {transportData.driver_phone}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={{ height: 8 }} />
 
           </main>
         )}

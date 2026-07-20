@@ -4,15 +4,25 @@ import {
   updateSubscriptionStatus, getStudentCount, getTeacherCount, getAllSchoolsWithSubscriptions,
   downgradeToFreeTransaction,
 } from '../Repositories/subscription.repository';
-import { ICreatePlan, IUpdatePlan, IActivateSubscription, ICurrentPlanStatus } from '../types/subscription.types';
+import { ICreatePlan, IUpdatePlan, IActivateSubscription, ICurrentPlanStatus, ISubscriptionPlanResolved } from '../types/subscription.types';
+import { resolvePlanPricing } from '../config/currencyConfig';
 import AppError from '../utils/AppError';
 
 const GRACE_PERIOD_DAYS = 10;
 
-// ── PLAN SERVICES (super_admin manages the catalog) ──
+// ── PLAN SERVICES ───────────────────────────────────────────────────────────────────────────────
 
-export const getActivePlansService = async () => {
-  return await getActivePlans();
+/**
+ * Returns all active plans with pricing resolved for the requesting school's
+ * country. The frontend never needs to know about NPR/INR/USD columns —
+ * it just reads resolved_pricing.price_monthly / resolved_pricing.price_yearly.
+ */
+export const getActivePlansService = async (country?: string): Promise<ISubscriptionPlanResolved[]> => {
+  const plans = await getActivePlans();
+  return plans.map(plan => ({
+    ...plan,
+    resolved_pricing: resolvePlanPricing(plan, country),
+  }));
 };
 
 export const getAllPlansService = async () => {

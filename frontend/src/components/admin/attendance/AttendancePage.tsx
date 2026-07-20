@@ -3,6 +3,7 @@
 import Topbar from "@/components/shared/Topbar";
 import styles from "./attendance.module.css";
 import { useApi } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { Spinner } from "@/components/shared/Loader";
 
 /* ── tiny helpers ── */
@@ -124,11 +125,11 @@ function SectionCard({ sec, curLabel, prevLabel }: { sec: any; curLabel: string;
 }
 
 export default function AttendancePage() {
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
 
   const { data: summary, loading } = useApi<any>(
-    activeYear?.id ? `/attendance/summary/admin?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/attendance/summary/admin?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   const sections: any[]  = summary?.sections ?? [];
@@ -148,7 +149,7 @@ export default function AttendancePage() {
   const totalCurPresent  = sections.reduce((acc, s) => acc + Number(s.current_month_present), 0);
   const totalPrevPresent = sections.reduce((acc, s) => acc + Number(s.prev_month_present),    0);
 
-  if (loading || !activeYear) {
+  if (loading || !academicYearId) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8faff" }}>
         <Topbar title="Attendance" subtitle="Section-wise attendance overview" />

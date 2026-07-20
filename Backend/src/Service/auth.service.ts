@@ -5,19 +5,18 @@ import {
 import {
   createSchool, findSchoolByEmail, findSchoolByPhone, findSchoolByEmailSafe,
   findSchoolById, findSchoolByIdSafe, updateSchoolSettingsRepo, updateSchoolPassword,
-  toggleSchoolTwoFA, blockUnblockSchool,
+  toggleSchoolTwoFA, blockUnblockSchool, verifySchool,
   IUpdateSchoolSettings,
 } from '../Repositories/auth.repository';
-import {
-  storeOTP, consumeOTP,
-} from '../Repositories/otp.repository';
-import { findTeacherByEmailGlobal, getTeacherByIdWithPassword, updateTeacherPassword }  from '../Repositories/teacher.repository';
-import { findStudentByEmailGlobal, getStudentByIdWithPassword, updateStudentPassword }  from '../Repositories/student.repository';
-import { getTeacherByIdService }     from './teacher.service';
-import { getStudentByIdService, getStudentProfileService }     from './student.service';
-import { isMaintenanceModeActive }   from './platform.service';
+import pool from '../config/db';
+import { storeOTP, consumeOTP } from '../Repositories/otp.repository';
+import { findTeacherByEmailGlobal, getTeacherByIdWithPassword, updateTeacherPassword } from '../Repositories/teacher.repository';
+import { findStudentByEmailGlobal, getStudentByIdWithPassword, updateStudentPassword } from '../Repositories/student.repository';
+import { getTeacherByIdService }                 from './teacher.service';
+import { getStudentByIdService, getStudentProfileService } from './student.service';
+import { isMaintenanceModeActive }               from './platform.service';
 import { generateToken, generateShortToken, verifyToken } from '../config/jwt.config';
-import { sendOTPEmail, send2FAEnabledEmail } from '../utils/emailService';
+import { sendOTPEmail, send2FAEnabledEmail }     from '../utils/emailService';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
 
@@ -44,12 +43,24 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
   const hashedPassword = await bcrypt.hash(data.password, 10);
   const school_code    = generateSchoolCode(data.school_name);
 
-  const school = await createSchool({ ...data, password: hashedPassword, school_code });
+  let school = await createSchool({ ...data, password: hashedPassword, school_code });
+
+  // Auto-verify if the platform setting is enabled
+  try {
+    const ps = await pool.query(`SELECT auto_verify_schools FROM platform_settings ORDER BY id ASC LIMIT 1`);
+    if (ps.rows[0]?.auto_verify_schools === true) {
+      await verifySchool(school.id);
+      school = { ...school, is_verified: true };
+    }
+  } catch {
+    // platform_settings may not exist yet — silently skip
+  }
 
   const payload: IJwtAdminPayload = {
     id: school.id, email: school.email, role: school.role,
     school_name: school.school_name, school_code: school.school_code,
-    logo: school.logo, timezone: school.timezone,
+    logo: school.logo, timezone: school.timezone, country: school.country,
+    calendar_system: school.calendar_system ?? 'AD',
     is_verified: school.is_verified, is_account: school.is_account,
   };
 
@@ -57,7 +68,7 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
   return { school, token };
 };
 
-// ── ADMIN LOGIN (with optional 2FA) ──────────────────────────────────────────
+// ── ADMIN LOGIN ───────────────────────────────────────────────────────────────
 
 export type LoginSchoolResult =
   | { type: 'success';      school: any; token: string }
@@ -67,12 +78,10 @@ export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoo
   const school = await findSchoolByEmail(data.email);
   if (!school) throw new AppError('Invalid email or password', 401);
 
-  // Maintenance mode blocks everyone except super_admin, so we never lock ourselves out
   if (school.role !== 'super_admin') {
     const maintenanceActive = await isMaintenanceModeActive();
-    if (maintenanceActive) {
+    if (maintenanceActive)
       throw new AppError('The platform is currently under maintenance. Please try again shortly.', 503);
-    }
   }
 
   if (school.is_account === 'blocked')
@@ -87,23 +96,16 @@ export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoo
   // ── 2FA flow ──
   if ((school as any).two_fa_enabled) {
     const otp = generateOTPCode();
-
-    // Store in Redis (5 min TTL) — replaces old Postgres otp_codes insert
     await storeOTP(school.email, otp, 'two_fa');
-
-    // Surface mail failures so the user knows the OTP was never sent (P9)
     try {
       await sendOTPEmail(school.email, otp, 'two_fa');
     } catch (err: any) {
       console.error('[2FA] Failed to send OTP email:', err.message);
       throw new AppError('Could not send verification code. Please try again later.', 503);
     }
-
     const twofa_session = generateShortToken(
-      { id: school.id, email: school.email, purpose: 'twofa_pending' },
-      '5m'
+      { id: school.id, email: school.email, purpose: 'twofa_pending' }, '5m'
     );
-
     return { type: 'requires_2fa', twofa_session };
   }
 
@@ -111,13 +113,13 @@ export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoo
   const payload: IJwtAdminPayload = {
     id: school.id, email: school.email, role: school.role,
     school_name: school.school_name, school_code: school.school_code,
-    logo: school.logo, timezone: school.timezone,
+    logo: school.logo, timezone: school.timezone, country: school.country,
+    calendar_system: school.calendar_system ?? 'AD',
     is_verified: school.is_verified, is_account: school.is_account,
   };
 
   const token      = generateToken(payload);
   const safeSchool = await findSchoolByEmailSafe(data.email);
-
   return { type: 'success', school: safeSchool, token };
 };
 
@@ -134,7 +136,6 @@ export const verify2FAService = async (twofa_session: string, otp_code: string) 
   if (decoded.purpose !== 'twofa_pending')
     throw new AppError('Invalid session token.', 400);
 
-  // Verify + consume OTP from Redis (one-time use, auto-deleted on success)
   const valid = await consumeOTP(decoded.email, otp_code, 'two_fa');
   if (!valid) throw new AppError('Invalid or expired verification code.', 400);
 
@@ -144,13 +145,13 @@ export const verify2FAService = async (twofa_session: string, otp_code: string) 
   const payload: IJwtAdminPayload = {
     id: school.id, email: school.email, role: school.role,
     school_name: school.school_name, school_code: school.school_code,
-    logo: school.logo, timezone: school.timezone,
+    logo: school.logo, timezone: school.timezone, country: school.country,
+    calendar_system: school.calendar_system ?? 'AD',
     is_verified: school.is_verified, is_account: school.is_account,
   };
 
   const token      = generateToken(payload);
   const safeSchool = await findSchoolByEmailSafe(decoded.email);
-
   return { school: safeSchool, token };
 };
 
@@ -159,16 +160,11 @@ export const verify2FAService = async (twofa_session: string, otp_code: string) 
 export const forgotPasswordService = async (email: string): Promise<void> => {
   const school = await findSchoolByEmail(email);
   if (!school) throw new AppError('No account found with that email address.', 404);
-
   if (school.is_account === 'blocked')
     throw new AppError('Your account has been blocked. Contact support.', 423);
 
   const otp = generateOTPCode();
-
-  // Store in Redis (10 min TTL) — replaces Postgres otp_codes insert
   await storeOTP(email, otp, 'forgot_password');
-
-  // Surface mail failures so the user knows the OTP was never sent (P9)
   try {
     await sendOTPEmail(email, otp, 'forgot_password');
   } catch (err: any) {
@@ -177,46 +173,32 @@ export const forgotPasswordService = async (email: string): Promise<void> => {
   }
 };
 
-// ── VERIFY RESET OTP → returns short-lived reset token ───────────────────────
+// ── VERIFY RESET OTP ──────────────────────────────────────────────────────────
 
-export const verifyResetOTPService = async (
-  email: string,
-  otp: string
-): Promise<string> => {
-  // Verify + consume OTP from Redis
+export const verifyResetOTPService = async (email: string, otp: string): Promise<string> => {
   const valid = await consumeOTP(email, otp, 'forgot_password');
   if (!valid) throw new AppError('Invalid or expired OTP.', 400);
 
   const school = await findSchoolByEmail(email);
   if (!school) throw new AppError('Account not found.', 404);
 
-  const reset_token = generateShortToken(
-    { id: school.id, email: school.email, purpose: 'password_reset' },
-    '10m'
+  return generateShortToken(
+    { id: school.id, email: school.email, purpose: 'password_reset' }, '10m'
   );
-
-  return reset_token;
 };
 
 // ── RESET PASSWORD ────────────────────────────────────────────────────────────
 
-export const resetPasswordService = async (
-  reset_token: string,
-  new_password: string
-): Promise<void> => {
+export const resetPasswordService = async (reset_token: string, new_password: string): Promise<void> => {
   let decoded: any;
   try {
     decoded = verifyToken(reset_token);
   } catch {
     throw new AppError('Reset link expired. Please request a new one.', 401);
   }
-
-  if (decoded.purpose !== 'password_reset')
-    throw new AppError('Invalid reset token.', 400);
-
+  if (decoded.purpose !== 'password_reset') throw new AppError('Invalid reset token.', 400);
   if (!new_password || new_password.length < 6)
     throw new AppError('Password must be at least 6 characters.', 400);
-
   const hashed = await bcrypt.hash(new_password, 10);
   await updateSchoolPassword(decoded.id, hashed);
 };
@@ -225,9 +207,8 @@ export const resetPasswordService = async (
 
 export const loginTeacherService = async (data: ILoginSchool) => {
   const maintenanceActive = await isMaintenanceModeActive();
-  if (maintenanceActive) {
+  if (maintenanceActive)
     throw new AppError('The platform is currently under maintenance. Please try again shortly.', 503);
-  }
 
   const teacher = await findTeacherByEmailGlobal(data.email);
   if (!teacher) throw new AppError('Invalid email or password', 401);
@@ -244,7 +225,9 @@ export const loginTeacherService = async (data: ILoginSchool) => {
   const payload: IJwtUserPayload = {
     id: teacher.id, email: teacher.email, role: 'faculty',
     school_id: teacher.school_id, school_name: teacher.school_name,
-    logo: teacher.school_logo || undefined, timezone: teacher.school_timezone,
+    logo: teacher.school_logo || undefined,
+    timezone: teacher.school_timezone,
+    calendar_system: (teacher.school_calendar_system as any) ?? 'AD',
     is_account: teacher.school_account_status as any,
   };
 
@@ -259,9 +242,8 @@ export const loginStudentService = async (data: ILoginSchool) => {
   if (!data.email) throw new AppError('Invalid email or password', 401);
 
   const maintenanceActive = await isMaintenanceModeActive();
-  if (maintenanceActive) {
+  if (maintenanceActive)
     throw new AppError('The platform is currently under maintenance. Please try again shortly.', 503);
-  }
 
   const student = await findStudentByEmailGlobal(data.email);
   if (!student) throw new AppError('Invalid email or password', 401);
@@ -278,7 +260,9 @@ export const loginStudentService = async (data: ILoginSchool) => {
   const payload: IJwtUserPayload = {
     id: student.id, email: student.email as string, role: 'student',
     school_id: student.school_id, school_name: student.school_name,
-    logo: student.school_logo || undefined, timezone: student.school_timezone,
+    logo: student.school_logo || undefined,
+    timezone: student.school_timezone,
+    calendar_system: (student.school_calendar_system as any) ?? 'AD',
     is_account: student.school_account_status as any,
   };
 
@@ -298,11 +282,23 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
   if (jwtUser.role === 'faculty') {
     const u = jwtUser as IJwtUserPayload;
     const teacher = await getTeacherByIdService(u.id, u.school_id);
-    return { ...teacher, role: 'faculty', school_name: u.school_name, logo: u.logo };
+    return {
+      ...teacher,
+      role: 'faculty',
+      school_name: u.school_name,
+      logo: u.logo,
+      calendar_system: u.calendar_system ?? 'AD',
+    };
   }
   const u = jwtUser as IJwtUserPayload;
   const student = await getStudentProfileService(u.id, u.school_id);
-  return { ...student, role: 'student', school_name: u.school_name, logo: u.logo };
+  return {
+    ...student,
+    role: 'student',
+    school_name: u.school_name,
+    logo: u.logo,
+    calendar_system: u.calendar_system ?? 'AD',
+  };
 };
 
 // ── SCHOOL SETTINGS ───────────────────────────────────────────────────────────
@@ -313,55 +309,44 @@ export const getSchoolSettingsService = async (schoolId: number) => {
   return school;
 };
 
-export const updateSchoolSettingsService = async (
-  schoolId: number,
-  data: IUpdateSchoolSettings
-) => {
+export const updateSchoolSettingsService = async (schoolId: number, data: IUpdateSchoolSettings) => {
   const updated = await updateSchoolSettingsRepo(schoolId, data);
   if (!updated) throw new AppError('School not found.', 404);
   return updated;
 };
 
-export const changePasswordService = async (
-  schoolId: number,
-  current_password: string,
-  new_password: string
-): Promise<void> => {
+export const changePasswordService = async (schoolId: number, current_password: string, new_password: string): Promise<void> => {
   const school = await findSchoolById(schoolId);
   if (!school) throw new AppError('Account not found.', 404);
-
   const isMatch = await bcrypt.compare(current_password, school.password);
   if (!isMatch) throw new AppError('Current password is incorrect.', 400);
-
   if (!new_password || new_password.length < 6)
     throw new AppError('New password must be at least 6 characters.', 400);
-
   const hashed = await bcrypt.hash(new_password, 10);
   await updateSchoolPassword(schoolId, hashed);
 };
 
 // ── TOGGLE 2FA ────────────────────────────────────────────────────────────────
 
-export const toggleTwoFAService = async (
-  schoolId: number,
-  enabled: boolean
-): Promise<void> => {
+export const toggleTwoFAService = async (schoolId: number, enabled: boolean): Promise<void> => {
   const school = await findSchoolById(schoolId);
   if (!school) throw new AppError('School not found.', 404);
-
   await toggleSchoolTwoFA(schoolId, enabled);
+  if (enabled) await send2FAEnabledEmail(school.email, school.school_name);
+};
 
-  if (enabled) {
-    await send2FAEnabledEmail(school.email, school.school_name);
-  }
+// ── VERIFY SCHOOL (super admin) ─────────────────────────────────────────────
+
+export const verifySchoolService = async (schoolId: number): Promise<void> => {
+  const school = await findSchoolById(schoolId);
+  if (!school) throw new AppError('School not found.', 404);
+  if (school.is_verified) throw new AppError('School is already verified.', 400);
+  await verifySchool(schoolId);
 };
 
 // ── BLOCK / UNBLOCK SCHOOL (super admin) ─────────────────────────────────────
 
-export const blockUnblockSchoolService = async (
-  schoolId: number,
-  action: 'block' | 'unblock'
-): Promise<void> => {
+export const blockUnblockSchoolService = async (schoolId: number, action: 'block' | 'unblock'): Promise<void> => {
   const school = await findSchoolById(schoolId);
   if (!school) throw new AppError('School not found.', 404);
   if (school.role === 'super_admin')
@@ -369,44 +354,34 @@ export const blockUnblockSchoolService = async (
   await blockUnblockSchool(schoolId, action);
 };
 
-// ── CHANGE PASSWORD (teacher) ───────────────────────────────────────────────
+// ── CHANGE PASSWORD (teacher) ─────────────────────────────────────────────────
 
 export const changeTeacherPasswordService = async (
-  teacherId: number,
-  schoolId: number,
-  current_password: string,
-  new_password: string
+  teacherId: number, schoolId: number,
+  current_password: string, new_password: string
 ): Promise<void> => {
   const teacher = await getTeacherByIdWithPassword(teacherId, schoolId);
   if (!teacher) throw new AppError('Account not found.', 404);
-
   const isMatch = await bcrypt.compare(current_password, teacher.password);
   if (!isMatch) throw new AppError('Current password is incorrect.', 400);
-
   if (!new_password || new_password.length < 6)
     throw new AppError('New password must be at least 6 characters.', 400);
-
   const hashed = await bcrypt.hash(new_password, 10);
   await updateTeacherPassword(teacherId, schoolId, hashed);
 };
 
-// ── CHANGE PASSWORD (student) ────────────────────────────────────────────────
+// ── CHANGE PASSWORD (student) ─────────────────────────────────────────────────
 
 export const changeStudentPasswordService = async (
-  studentId: number,
-  schoolId: number,
-  current_password: string,
-  new_password: string
+  studentId: number, schoolId: number,
+  current_password: string, new_password: string
 ): Promise<void> => {
   const student = await getStudentByIdWithPassword(studentId, schoolId);
   if (!student) throw new AppError('Account not found.', 404);
-
   const isMatch = await bcrypt.compare(current_password, student.password);
   if (!isMatch) throw new AppError('Current password is incorrect.', 400);
-
   if (!new_password || new_password.length < 6)
     throw new AppError('New password must be at least 6 characters.', 400);
-
   const hashed = await bcrypt.hash(new_password, 10);
   await updateStudentPassword(studentId, schoolId, hashed);
 };

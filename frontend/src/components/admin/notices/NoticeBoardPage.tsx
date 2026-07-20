@@ -7,6 +7,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(" ");
@@ -421,8 +422,7 @@ export default function NoticeBoardPage() {
               </div>
               <div className={s("field")}>
                 <span>Expiry Date <span style={{ color: "#6a7882", fontWeight: 700 }}>(optional — leave blank to never expire)</span></span>
-                <input
-                  type="date"
+                <DateInput
                   value={form.expires_at}
                   onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
                 />

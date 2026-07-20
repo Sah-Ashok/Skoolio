@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 import { uploadChunked } from "@/lib/uploadChunked";
 
 const s  = (c: string) => styles[c] || c;
@@ -451,7 +452,7 @@ export default function EditStudentForm() {
                 </label>
                 <label className={s("field")}>
                   <span>Date of Birth</span>
-                  <input name="date_of_birth" type="date" value={form.date_of_birth} onChange={set} />
+                  <DateInput name="date_of_birth" value={form.date_of_birth} onChange={set} />
                 </label>
               </div>
               <div className={s("field-row")}>
@@ -498,7 +499,7 @@ export default function EditStudentForm() {
                 </label>
                 <label className={s("field")}>
                   <span>Admission Date</span>
-                  <input name="admission_date" type="date" value={form.admission_date} onChange={set} />
+                  <DateInput name="admission_date" value={form.admission_date} onChange={set} />
                 </label>
               </div>
               <label className={s("field")}>

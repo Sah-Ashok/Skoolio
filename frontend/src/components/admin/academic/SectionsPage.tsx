@@ -5,6 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./academic.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
@@ -552,10 +553,10 @@ function ClassCard({
 
 // ─── Main page ──────────────────────────────────────────────────────────────
 export default function SectionsPage() {
-  const { data: activeYear } = useApi<{ id: number; year_name: string }>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
   const { data: classes, loading: classesLoading, refetch: refetchClasses } = useApi<any[]>(
-    activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   const [search, setSearch] = useState("");

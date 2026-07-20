@@ -6,6 +6,7 @@ import { useParams, usePathname } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./attendance.module.css";
 import { useApi } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { Spinner } from "@/components/shared/Loader";
 
 const s  = (n: string) => styles[n] || n;
@@ -48,14 +49,14 @@ export default function StudentAttendancePage() {
   const { data: student, loading: studentLoading } = useApi<any>(
     studentId ? `/students/${studentId}` : ""
   );
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
 
   // Summary: only academic_year_id needed — backend fetches admission_date internally
   const { data: summary, loading: summaryLoading } = useApi<any>(
-    activeYear?.id && studentId
-      ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}`
+    academicYearId && studentId
+      ? `/attendance/student/${studentId}/summary?academic_year_id=${academicYearId}`
       : "",
-    [activeYear?.id, studentId]
+    [academicYearId, studentId]
   );
 
   const { data: monthlyRecords, loading: monthlyLoading } = useApi<any[]>(

@@ -7,7 +7,9 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./calendar.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
+import DateInput from "@/components/shared/DateInput";
 import { Spinner } from "@/components/shared/Loader";
 
 const s = (name: string) => styles[name] || name;
@@ -16,8 +18,8 @@ const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boo
 export default function AddCalendarEventPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>('/academic-years/active');
-  const { data: calendarData } = useApi<any>(activeYear ? `/calendar?academic_year_id=${activeYear.id}` : '');
+  const { activeYear, academicYearId } = useAcademicYear();
+  const { data: calendarData } = useApi<any>(academicYearId ? `/calendar?academic_year_id=${academicYearId}` : '');
   const { execute: createEvent, loading: saving } = useMutation('/calendar/events', 'POST');
 
   const [title, setTitle] = useState("");
@@ -29,14 +31,14 @@ export default function AddCalendarEventPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!calendarData?.id || !activeYear?.id) return dispatch(showToast({ type: 'error', title: 'Error', message: 'No active calendar found' }));
+    if (!calendarData?.id || !academicYearId) return dispatch(showToast({ type: 'error', title: 'Error', message: 'No active calendar found' }));
     if (!title || !eventDate) return dispatch(showToast({ type: 'error', title: 'Error', message: 'Please fill required fields' }));
     if (endDate && new Date(endDate) < new Date(eventDate)) return dispatch(showToast({ type: 'error', title: 'Error', message: 'End date cannot be before start date' }));
 
     try {
       await createEvent({
         calendar_id: calendarData.id,
-        academic_year_id: activeYear.id,
+        academic_year_id: academicYearId,
         title,
         event_type: eventType,
         event_date: eventDate,
@@ -90,11 +92,11 @@ export default function AddCalendarEventPage() {
                 </label>
                 <label className={s("field")}>
                   <span>From Date <b>*</b></span>
-                  <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
+                  <DateInput value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
                 </label>
                 <label className={s("field")}>
                   <span>To Date <span style={{ color: '#94a3b8', fontWeight: 400 }}>(optional, for multi-day)</span></span>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={eventDate} />
+                  <DateInput value={endDate} onChange={(e) => setEndDate(e.target.value)} minDate={eventDate} />
                 </label>
                 <label className={s("field")}>
                   <span>Affects Attendance <b>*</b></span>

@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -29,7 +30,7 @@ export default function MarkClassAttendancePage() {
   const { user }   = useAppSelector(s => s.auth);
   const isFaculty  = user?.role === "faculty";
 
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId } = useAcademicYear();
   // Only fetch teachers list for admin — faculty gets 403 on GET /teachers
   const { data: teachers   } = useApi<any[]>(!isFaculty ? "/teachers" : "");
 
@@ -38,10 +39,10 @@ export default function MarkClassAttendancePage() {
     isFaculty ? "/teachers/me/sections" : ""
   );
   const { data: allClasses, loading: classesLoading } = useApi<any[]>(
-    !isFaculty && activeYear?.id
-      ? `/classes?academic_year_id=${activeYear.id}`
+    !isFaculty && academicYearId
+      ? `/classes?academic_year_id=${academicYearId}`
       : "",
-    [activeYear?.id]
+    [academicYearId]
   );
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
@@ -109,13 +110,13 @@ export default function MarkClassAttendancePage() {
       setStudents([]);
       setStatusMap({});
       setStudentStats({});
-      if (!activeYear?.id || !sectionId) return;
+      if (!academicYearId || !sectionId) return;
 
       setLoadingStudents(true);
       try {
         // Enrollments for this section
         const res = await apiRequest<{ data: any[] }>(
-          `/students/enrollments?academic_year_id=${activeYear.id}&section_id=${sectionId}`
+          `/students/enrollments?academic_year_id=${academicYearId}&section_id=${sectionId}`
         );
         const list = res.data || [];
         setStudents(list);
@@ -125,10 +126,10 @@ export default function MarkClassAttendancePage() {
 
         // Batch attendance stats per student for this section
         const today       = new Date().toISOString().split("T")[0];
-        const start_date  = activeYear.start_date || `${new Date().getFullYear()}-01-01`;
+        const start_date  = activeYear?.start_date || `${new Date().getFullYear()}-01-01`;
         try {
           const statsRes = await apiRequest<{ data: any[] }>(
-            `/attendance/section/${sectionId}/summary?academic_year_id=${activeYear.id}&start_date=${start_date}&end_date=${today}`
+            `/attendance/section/${sectionId}/summary?academic_year_id=${academicYearId}&start_date=${start_date}&end_date=${today}`
           );
           const statsMap: Record<number, any> = {};
           (statsRes.data || []).forEach((r: any) => { statsMap[r.student_id] = r; });
@@ -141,7 +142,7 @@ export default function MarkClassAttendancePage() {
       }
     };
     load();
-  }, [activeYear?.id, sectionId]);
+  }, [academicYearId, sectionId]);
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const counts = students.reduce(
@@ -188,7 +189,7 @@ export default function MarkClassAttendancePage() {
 
   // ── Save attendance ───────────────────────────────────────────────────────
   const saveAttendance = async () => {
-    if (!activeYear?.id || !sectionId) {
+    if (!academicYearId || !sectionId) {
       dispatch(showToast({ type: "warning", title: "Missing", message: "Select section and date." }));
       return;
     }
@@ -206,7 +207,7 @@ export default function MarkClassAttendancePage() {
       await apiRequest("/attendance", {
         method: "POST",
         body: JSON.stringify({
-          academic_year_id: activeYear.id,
+          academic_year_id: academicYearId,
           class_id:         classId ? Number(classId) : students[0]?.class_id,
           section_id:       Number(sectionId),
           date:             selectedDate,

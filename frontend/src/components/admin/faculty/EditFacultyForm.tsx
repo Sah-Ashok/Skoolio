@@ -10,6 +10,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import Topbar from "@/components/shared/Topbar";
+import DateInput from "@/components/shared/DateInput";
 
 const s = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -349,7 +350,7 @@ export default function EditFacultyForm() {
               </label>
               <label className={s("field")}>
                 <span>Date of Birth</span>
-                <input name="date_of_birth" type="date" value={form.date_of_birth} onChange={set} />
+                <DateInput name="date_of_birth" value={form.date_of_birth} onChange={set} />
               </label>
               <label className={s("field")}>
                 <span>Status</span>
@@ -380,7 +381,7 @@ export default function EditFacultyForm() {
               </label>
               <label className={s("field")}>
                 <span>Join Date</span>
-                <input name="join_date" type="date" value={form.join_date} onChange={set} />
+                <DateInput name="join_date" value={form.join_date} onChange={set} />
               </label>
             </div>
           </div>

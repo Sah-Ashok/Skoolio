@@ -1,6 +1,7 @@
 import Sidebar from "@/components/shared/Sidebar";
 import RequireRole from "@/components/shared/RequireRole";
-
+import OfflineGuard from "@/components/shared/OfflineGuard";
+import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,9 +9,11 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       <div className="app-shell">
         <Sidebar role="student" />
         <div className="app-main">
-          {/* No shared Topbar here — each student page manages its own header */}
-          <div className="app-page">{children}</div>
-          
+          <div className="app-page">
+            <OfflineGuard>
+              <NoActiveYearGuard role="student">{children}</NoActiveYearGuard>
+            </OfflineGuard>
+          </div>
         </div>
       </div>
     </RequireRole>

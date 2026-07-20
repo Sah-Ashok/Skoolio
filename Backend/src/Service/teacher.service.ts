@@ -5,6 +5,7 @@ import {
   assignSubjectToTeacher, getSubjectsByTeacher, removeSubjectFromTeacher,
   createSalary, getSalariesByTeacher, getSalaryById, updateSalary,
   getSectionsByCoordinator,
+  markTeacherPersonalAttendance, getTeacherPersonalAttendanceByDate,
 } from '../Repositories/teacher.repository';
 import { ICreateTeacher, IUpdateTeacher, ICreateSalary, IUpdateSalary } from '../types/teacher.types';
 import AppError from '../utils/AppError';
@@ -146,6 +147,25 @@ export const updateSalaryService = async (
   if (!salary) throw new AppError('Salary record not found.', 404);
   // net_salary is a GENERATED column, already in the returned row
   return salary;
+};
+
+// ── TEACHER PERSONAL ATTENDANCE ──────────────────────────────────────────────
+
+export const bulkMarkTeacherAttendanceService = async (
+  school_id: number,
+  date: string,
+  records: Array<{ teacher_id: number; status: string; check_in?: string; check_out?: string; note?: string }>
+) => {
+  const results = await Promise.all(
+    records.map(r =>
+      markTeacherPersonalAttendance(school_id, r.teacher_id, date, r.status, r.check_in, r.check_out, r.note)
+    )
+  );
+  return results;
+};
+
+export const getTeacherAttendanceByDateService = async (school_id: number, date: string) => {
+  return getTeacherPersonalAttendanceByDate(school_id, date);
 };
 
 // ── COORDINATOR SECTIONS (faculty self-service) ──

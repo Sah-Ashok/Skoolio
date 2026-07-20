@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { Spinner } from "@/components/shared/Loader";
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');`;
@@ -170,11 +171,11 @@ export default function StudentOwnAttendancePage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
 
   const { data: me }         = useApi<any>("/auth/me");
-  const { data: activeYear, loading: yearLoading } = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId, loading: yearLoading } = useAcademicYear();
 
   const { data: summary, loading: summaryLoading } = useApi<any>(
-    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}` : null,
-    [activeYear?.id]
+    academicYearId ? `/attendance/me/summary?academic_year_id=${academicYearId}` : null,
+    [academicYearId]
   );
 
   const { data: monthly, loading: monthlyLoading } = useApi<any[]>(
@@ -182,15 +183,15 @@ export default function StudentOwnAttendancePage() {
     [year, month]
   );
 
-  const { data: calendarData } = useApi<any>(
-    activeYear?.id ? `/calendar?academic_year_id=${activeYear.id}` : null,
-    [activeYear?.id]
+  const { data: calendarData, loading: calendarLoading } = useApi<any>(
+    academicYearId ? `/calendar?academic_year_id=${academicYearId}` : null,
+    [academicYearId]
   );
 
   const calendarId  = calendarData?.id ?? null;
   const weekendType = calendarData?.weekend_type ?? "sunday_only";
 
-  const { data: weeklyOffsRaw } = useApi<any[]>(
+  const { data: weeklyOffsRaw, loading: weeklyOffsLoading } = useApi<any[]>(
     calendarId ? `/calendar/${calendarId}/weekly-offs` : null,
     [calendarId]
   );
@@ -200,6 +201,9 @@ export default function StudentOwnAttendancePage() {
     [calendarId]
   );
 
+  // Calendar data is ready only when all three have loaded
+  const calendarReady = !calendarLoading && !weeklyOffsLoading;
+
   const weeklyOffs: { day_of_week: number; week_pattern: WeekPattern }[] = useMemo(
     () => (weeklyOffsRaw ?? []).map(w => ({ day_of_week: w.day_of_week, week_pattern: w.week_pattern as WeekPattern })),
     [weeklyOffsRaw]
@@ -207,6 +211,8 @@ export default function StudentOwnAttendancePage() {
 
   const holidayTitles = useMemo<Map<string, string>>(() => {
     const map = new Map<string, string>();
+    const toLocalDateStr = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     (eventsRaw ?? [])
       .filter(e => e.affects_attendance === true || e.affects_attendance === "true")
       .forEach(e => {
@@ -214,7 +220,7 @@ export default function StudentOwnAttendancePage() {
         const end   = e.end_date ? new Date(e.end_date + "T00:00:00") : new Date(start);
         const cur   = new Date(start);
         while (cur <= end) {
-          const ds = cur.toISOString().split("T")[0];
+          const ds = toLocalDateStr(cur); // use local date — not UTC (toISOString shifts day in Nepal)
           if (!map.has(ds)) map.set(ds, e.title);
           cur.setDate(cur.getDate() + 1);
         }
@@ -245,7 +251,7 @@ export default function StudentOwnAttendancePage() {
   const monthLate    = (monthly ?? []).filter(r => r.status === "late").length;
   const monthTotal   = (monthly ?? []).length;
   const monthEffective = monthPresent + monthAbsent + monthLate;
-  const monthPct     = monthEffective > 0 ? Math.round(((monthPresent + monthLate) / monthEffective) * 100) : 100;
+  const monthPct     = monthEffective > 0 ? Math.round(((monthPresent + monthLate) / monthEffective) * 100) : 0;
 
   type Cell = {
     day: number | null;
@@ -262,10 +268,11 @@ export default function StudentOwnAttendancePage() {
     const leadingBlanks = (firstDow + 6) % 7;
     const result: Cell[] = Array(leadingBlanks).fill({ day: null });
 
-    // Admission date: use start of year as fallback if not available
-    const admDateStr = me?.admission_date
-      ? String(me.admission_date).slice(0, 10)
-      : (activeYear ? String(activeYear.start_date).slice(0, 10) : null);
+    // Use academic year start as the earliest boundary.
+    // Don't trust me.admission_date from /auth/me — it may be an ISO timestamp
+    // that slices to a date after real activity (e.g. "2026-07-16" when student
+    // has records from July 3). Use year start so all past working days show R.
+    const yearStartStr = activeYear ? String(activeYear.start_date).slice(0, 10) : null;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateObj = new Date(year, month - 1, d);
@@ -273,11 +280,11 @@ export default function StudentOwnAttendancePage() {
       const wOff    = isWeeklyOffDay(dateObj, weeklyOffs, weekendType);
       const hName   = !wOff ? holidayTitles.get(dateStr) : undefined;
       const hasRec  = recordsByDay.has(d);
-      const isPast  = dateStr < todayStr; // strictly before today
-      const afterAdm = admDateStr ? dateStr >= admDateStr : true;
+      const isPast  = dateStr < todayStr;          // strictly before today
+      const inYear  = yearStartStr ? dateStr >= yearStartStr : true; // within academic year
 
-      // Remaining: past working day, after admission, no attendance record
-      const isRemaining = isPast && afterAdm && !wOff && !hName && !hasRec;
+      // Remaining: past working day inside the academic year with no attendance record
+      const isRemaining = isPast && inYear && !wOff && !hName && !hasRec;
 
       result.push({
         day:         d,
@@ -291,7 +298,7 @@ export default function StudentOwnAttendancePage() {
 
     while (result.length % 7 !== 0) result.push({ day: null });
     return result;
-  }, [year, month, weeklyOffs, weekendType, holidayTitles, recordsByDay, todayStr, me, activeYear]);
+  }, [year, month, weeklyOffs, weekendType, holidayTitles, recordsByDay, todayStr, activeYear]);
 
   const todayDay    = now.getMonth() + 1 === month ? now.getDate() : null;
   const todayCell   = todayDay ? cells.find(c => c.day === todayDay) : null;
@@ -476,7 +483,7 @@ export default function StudentOwnAttendancePage() {
                     ))}
                   </div>
 
-                  {monthlyLoading ? (
+                  {(monthlyLoading || !calendarReady) ? (
                     <div style={{ padding: "2.5rem", textAlign: "center" }}><Spinner size={24} color={C.brand} /></div>
                   ) : (
                     <div className="att-cal">
@@ -523,7 +530,7 @@ export default function StudentOwnAttendancePage() {
                       { label: "Present", val: monthPresent,   color: C.green  },
                       { label: "Absent",  val: monthAbsent,    color: C.red    },
                       { label: "Marked",  val: monthTotal,     color: C.dark   },
-                      { label: "Rate",    val: `${monthPct}%`, color: monthPct >= 75 ? C.green : C.amber },
+                      { label: "Rate",    val: `${monthPct}%`, color: monthEffective === 0 ? C.mid : monthPct >= 75 ? C.green : C.amber },
                     ].map(s => (
                       <div key={s.label} style={{ textAlign: "center" }}>
                         <strong style={{ display: "block", fontSize: 15, fontWeight: 900, color: s.color }}>{s.val}</strong>
@@ -578,6 +585,7 @@ export default function StudentOwnAttendancePage() {
                     <CardHead title="Year Summary" sub={activeYear?.year_name ?? "Current year"} />
                     <div style={{ padding: "18px" }}>
                       <DonutChart
+                        key={`donut-${present}-${absent}-${late}`}
                         pct={attPct}
                         present={present + late}
                         absent={absent}

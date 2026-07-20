@@ -9,6 +9,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -130,7 +131,10 @@ export default function PaySalaryPage() {
                     <Field label="Deduction Remarks" value={deductionRemarks} onChange={setDeductionRemarks} placeholder="e.g. Loan repayment, advance recovery…" />
                   </div>
                 </div>
-                <Field label="Payment Date" type="date" value={paymentDate} onChange={setPaymentDate} />
+                <label className={s("field")}>
+                  <span>Payment Date</span>
+                  <DateInput value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                </label>
                 <Field label="Payment Mode" value={paymentMode} onChange={setPaymentMode} select options={["Bank Transfer", "Cash", "Cheque"].map(m => ({label: m, value: m}))} />
                 <Field label="Remarks" textarea className={s("full")} placeholder="Salary payment note" value={remarks} onChange={setRemarks} />
               </div>

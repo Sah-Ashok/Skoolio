@@ -9,6 +9,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
 const s  = (c: string) => styles[c] || c;
@@ -41,7 +42,7 @@ export default function ExamResultsPage() {
 
   const { data: exam,      loading: examLoading } = useApi<any>(`/exams/${examId}`);
   const { data: schedules }                        = useApi<any[]>(`/exams/${examId}/schedules`);
-  const { data: activeYear }                       = useApi<any>("/academic-years/active");
+  const { academicYearId }                         = useAcademicYear();
 
   const [scheduleId, setScheduleId] = useState("");
   const selectedSchedule = schedules?.find((s) => s.id.toString() === scheduleId);
@@ -68,16 +69,16 @@ export default function ExamResultsPage() {
   // Load enrollments for selected class
   useEffect(() => {
     const load = async () => {
-      if (!selectedSchedule || !activeYear?.id) { setEnrollments([]); return; }
+      if (!selectedSchedule || !academicYearId) { setEnrollments([]); return; }
       setEnrollmentsLoading(true);
       try {
-        const res = await apiRequest<{ data: any[] }>(`/students/enrollments?academic_year_id=${activeYear.id}`);
+        const res = await apiRequest<{ data: any[] }>(`/students/enrollments?academic_year_id=${academicYearId}`);
         setEnrollments((res.data ?? []).filter((e) => e.class_id?.toString() === selectedSchedule.class_id.toString()));
       } catch { setEnrollments([]); }
       finally { setEnrollmentsLoading(false); }
     };
     load();
-  }, [selectedSchedule, activeYear?.id]);
+  }, [selectedSchedule, academicYearId]);
 
   // Sync marks map
   useEffect(() => {

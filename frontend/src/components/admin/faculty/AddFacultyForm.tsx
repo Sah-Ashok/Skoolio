@@ -8,6 +8,7 @@ import { useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -88,7 +89,7 @@ export default function AddFacultyForm() {
             </label>
             <label className={s("field")}>
               <span>Date of Birth</span>
-              <input name="date_of_birth" type="date" value={form.date_of_birth} onChange={handleChange} />
+              <DateInput name="date_of_birth" value={form.date_of_birth} onChange={handleChange} />
             </label>
             <label className={s("field")}>
               <span>Blood Group</span>
@@ -131,7 +132,7 @@ export default function AddFacultyForm() {
             </label>
             <label className={s("field")}>
               <span>Join Date <em>*</em></span>
-              <input name="join_date" required type="date" value={form.join_date} onChange={handleChange} />
+              <DateInput name="join_date" required value={form.join_date} onChange={handleChange} />
             </label>
             <label className={s("field")}>
               <span>Status</span>

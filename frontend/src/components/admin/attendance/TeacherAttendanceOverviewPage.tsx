@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 
@@ -111,10 +112,10 @@ export default function TeacherAttendanceOverviewPage() {
   const [month,     setMonth]     = useState(today.getMonth()); // 0-indexed
   const [sectionId, setSectionId] = useState<number | null>(null);
 
-  const { data: activeYear }                        = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId }              = useAcademicYear();
   const { data: mySections, loading: secLoading }   = useApi<any[]>(
-    activeYear?.id ? `/teachers/me/sections?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/teachers/me/sections?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   useEffect(() => {
@@ -128,11 +129,11 @@ export default function TeacherAttendanceOverviewPage() {
   const [regLoading,   setRegLoading]   = useState(false);
 
   const loadRegister = useCallback(async () => {
-    if (!sectionId || !activeYear?.id) return;
+    if (!sectionId || !academicYearId) return;
     setRegLoading(true);
     try {
       const res = await apiRequest<{ data: RegisterRow[] }>(
-        `/attendance/section/${sectionId}/register?academic_year_id=${activeYear.id}&year=${year}&month=${month + 1}`
+        `/attendance/section/${sectionId}/register?academic_year_id=${academicYearId}&year=${year}&month=${month + 1}`
       );
       const rows = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? (res as any[]) : []);
       setRegisterRows(rows);
@@ -141,7 +142,7 @@ export default function TeacherAttendanceOverviewPage() {
     } finally {
       setRegLoading(false);
     }
-  }, [sectionId, activeYear?.id, year, month]);
+  }, [sectionId, academicYearId, year, month]);
 
   useEffect(() => { loadRegister(); }, [loadRegister]);
 

@@ -67,5 +67,11 @@ app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})
 })
 
+// Lightweight connectivity check — used by ConnectionBanner on the frontend
+// No auth required; just confirms the server is reachable
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
 app.use(errorHandler)
 export default app;

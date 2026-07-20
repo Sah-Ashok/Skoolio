@@ -9,6 +9,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
 const s = (className: string) => styles[className] || className;
@@ -20,14 +21,14 @@ const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"
 
 export default function FeesPage() {
   const dispatch = useAppDispatch();
-  const { data: activeYear } = useApi<any>('/academic-years/active');
-  const { data: collections, loading } = useApi<any[]>(activeYear?.id ? `/fees/collections?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
+  const { activeYear, academicYearId } = useAcademicYear();
+  const { data: collections, loading } = useApi<any[]>(academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : '', [academicYearId]);
 
   const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
   const [generating, setGenerating]     = useState<string | false>(false);
 
   const handleGenerateBills = async (type: 'academic' | 'transport' | 'hostel') => {
-    if (!activeYear?.id || !billingMonth) return;
+    if (!academicYearId || !billingMonth) return;
     setGenerating(type);
     const ENDPOINTS: Record<string, string> = {
       academic:  '/fees/monthly/generate',
@@ -42,7 +43,7 @@ export default function FeesPage() {
     try {
       const res = await apiRequest<{ data: any }>(ENDPOINTS[type], {
         method: 'POST',
-        body: JSON.stringify({ academic_year_id: activeYear.id, billing_month: billingMonth }),
+        body: JSON.stringify({ academic_year_id: academicYearId, billing_month: billingMonth }),
       });
       const { created, skipped, errors } = res.data ?? res;
       if (errors?.length) {
@@ -161,7 +162,7 @@ export default function FeesPage() {
               <button
                 className={cx(s("btn"), s("btn-primary"))}
                 onClick={() => handleGenerateBills('academic')}
-                disabled={generating || !activeYear?.id}
+                disabled={generating || !academicYearId}
               >
                 {generating === 'academic'
                   ? <><Spinner size={15} color="#fff" /> Generating…</>
@@ -170,7 +171,7 @@ export default function FeesPage() {
               <button
                 className={cx(s("btn"), s("btn-soft"))}
                 onClick={() => handleGenerateBills('transport')}
-                disabled={!!generating || !activeYear?.id}
+                disabled={!!generating || !academicYearId}
               >
                 {generating === 'transport'
                   ? <><Spinner size={15} /> Generating…</>
@@ -179,7 +180,7 @@ export default function FeesPage() {
               <button
                 className={cx(s("btn"), s("btn-soft"))}
                 onClick={() => handleGenerateBills('hostel')}
-                disabled={!!generating || !activeYear?.id}
+                disabled={!!generating || !academicYearId}
               >
                 {generating === 'hostel'
                   ? <><Spinner size={15} /> Generating…</>
