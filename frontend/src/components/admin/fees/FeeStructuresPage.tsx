@@ -15,7 +15,25 @@ import { showToast } from "@/store/toastSlice";
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
-const formatINR = (amount: number | string) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount));
+const formatINR = (amount: number | string) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount));
+
+// ── Edit modal state type ──
+type EditState = {
+  id: number;
+  fee_name: string;
+  amount: string;
+  frequency: string;
+  billing_start_rule: string;
+};
+
+type FeeStructureRow = {
+  id: number;
+  feeName: string;
+  amount: number | string;
+  frequency: string;
+  billing_start_rule: string;
+};
 
 export default function FeeStructuresPage() {
   const dispatch = useAppDispatch();
@@ -28,6 +46,10 @@ export default function FeeStructuresPage() {
   const [structures, setStructures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadTick, setLoadTick] = useState(0);
+
+  // ── Edit modal state ──
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadAllStructures = async () => {
     if (!classes || !academicYearId) return;
@@ -51,7 +73,6 @@ export default function FeeStructuresPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classes, activeYear?.id, loadTick]);
 
-  // When navigating back from AddFeeStructurePage with ?saved=1, force a reload
   useEffect(() => {
     if (searchParams.get('saved') === '1') {
       setLoadTick((t) => t + 1);
@@ -72,12 +93,12 @@ export default function FeeStructuresPage() {
         rows: []
       };
     }
-
     acc[className].rows.push({
       id: curr.id,
       feeName: curr.fee_name,
       frequency: curr.frequency,
       amount: curr.amount,
+      billing_start_rule: curr.billing_start_rule || 'next_month',
       annualTotal: curr.frequency === 'monthly' ? curr.amount * 12 : curr.frequency === 'quarterly' ? curr.amount * 4 : curr.amount,
       year: activeYear?.year_name || curr.academic_year_id
     });
@@ -95,6 +116,46 @@ export default function FeeStructuresPage() {
       } catch (err: any) {
         dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to delete" }));
       }
+    }
+  };
+
+  // ── Open edit modal ──
+  const handleEditOpen = (row: FeeStructureRow) => {
+    setEditState({
+      id: row.id,
+      fee_name: row.feeName,
+      amount: String(row.amount),
+      frequency: row.frequency,
+      billing_start_rule: row.billing_start_rule,
+    });
+  };
+
+  // ── Save edited structure ──
+  const handleEditSave = async () => {
+    if (!editState) return;
+    if (!editState.fee_name.trim() || !editState.amount || Number(editState.amount) <= 0) {
+      dispatch(showToast({ type: "error", title: "Validation", message: "Please fill in all fields correctly." }));
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest(`/fees/structures/${editState.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          fee_name: editState.fee_name,
+          amount: parseFloat(editState.amount),
+          frequency: editState.frequency,
+          billing_start_rule: editState.billing_start_rule,
+        }),
+      });
+      dispatch(showToast({ type: "success", title: "Updated", message: "Fee structure updated successfully" }));
+      setEditState(null);
+      loadAllStructures();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update";
+      dispatch(showToast({ type: "error", title: "Error", message }));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -190,13 +251,30 @@ export default function FeeStructuresPage() {
                     {group.rows.map((row: any) => (
                       <tr key={row.id}>
                         <td><strong>{row.feeName}</strong></td>
-                        <td><span className={cx(s("freq-badge"), s(frequencyClass(row.frequency)))} style={{textTransform: 'capitalize'}}>{row.frequency}</span></td>
+                        <td>
+                          <span className={cx(s("freq-badge"), s(frequencyClass(row.frequency)))} style={{ textTransform: 'capitalize' }}>
+                            {row.frequency}
+                          </span>
+                        </td>
                         <td className={s("amount-cell")}>{formatINR(row.amount)}</td>
                         <td>{formatINR(row.annualTotal)}</td>
                         <td>{row.year}</td>
                         <td>
                           <div className={s("actions")}>
-                            <button className={cx(s("btn"), s("btn-danger"), s("btn-sm"))} type="button" onClick={() => handleDelete(row.id)}>
+                            <button
+                              className={cx(s("btn"), s("btn-soft"), s("btn-sm"))}
+                              type="button"
+                              title="Edit"
+                              onClick={() => handleEditOpen(row)}
+                            >
+                              <i className="fa-solid fa-pen" /> Edit
+                            </button>
+                            <button
+                              className={cx(s("btn"), s("btn-danger"), s("btn-sm"))}
+                              type="button"
+                              title="Delete"
+                              onClick={() => handleDelete(row.id)}
+                            >
                               <i className="fa-solid fa-trash" />
                             </button>
                           </div>
@@ -210,13 +288,121 @@ export default function FeeStructuresPage() {
           </section>
         ))}
       </main>
+
+      {/* ── Edit Modal ── */}
+      {editState && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditState(null); }}
+        >
+          <div style={{
+            background: "#fff", borderRadius: "16px", padding: "2rem",
+            width: "100%", maxWidth: "480px", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
+                <i className="fa-solid fa-pen" style={{ marginRight: 8, color: "#FF9B51" }} />
+                Edit Fee Structure
+              </h2>
+              <button
+                onClick={() => setEditState(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", color: "#64748b" }}
+              >
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
+                Fee Name
+                <input
+                  value={editState.fee_name}
+                  onChange={(e) => setEditState({ ...editState, fee_name: e.target.value })}
+                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                />
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
+                Frequency
+                <select
+                  value={editState.frequency}
+                  onChange={(e) => setEditState({ ...editState, frequency: e.target.value })}
+                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="half_yearly">Half Yearly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="one_time">One Time</option>
+                </select>
+              </label>
+
+              {editState.frequency === "monthly" && (
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
+                  Billing Start Rule
+                  <select
+                    value={editState.billing_start_rule}
+                    onChange={(e) => setEditState({ ...editState, billing_start_rule: e.target.value })}
+                    style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                  >
+                    <option value="next_month">Next Month (Default)</option>
+                    <option value="skip_two_months">Skip 2 Months</option>
+                    <option value="academic_year">From Academic Year</option>
+                  </select>
+                </label>
+              )}
+
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
+                Amount (₹)
+                <input
+                  type="number"
+                  min={1}
+                  value={editState.amount}
+                  onChange={(e) => setEditState({ ...editState, amount: e.target.value })}
+                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                />
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.75rem" }}>
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                style={{
+                  flex: 1, padding: "0.7rem", borderRadius: "8px",
+                  background: "#FF9B51", color: "#fff", border: "none",
+                  fontWeight: 700, fontSize: "0.95rem", cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.7 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                }}
+              >
+                {saving ? <Spinner size={16} /> : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
+              </button>
+              <button
+                onClick={() => setEditState(null)}
+                style={{
+                  padding: "0.7rem 1.2rem", borderRadius: "8px",
+                  background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0",
+                  fontWeight: 600, fontSize: "0.95rem", cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function frequencyClass(frequency: string) {
-  if (frequency === "yearly")   return "freq-yearly";
-  if (frequency === "one_time") return "freq-onetime";
+  if (frequency === "yearly")    return "freq-yearly";
+  if (frequency === "one_time")  return "freq-onetime";
   if (frequency === "quarterly") return "freq-semester";
   return "freq-monthly";
 }

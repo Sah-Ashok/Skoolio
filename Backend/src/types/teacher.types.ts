@@ -18,6 +18,7 @@ export interface ITeacher {
     country?: string;
     qualification?: string;
     experience_years?: number;
+    monthly_salary?: number;
     join_date: Date;
     status: TeacherStatus;
     photo?: string;
@@ -43,6 +44,7 @@ ITeacher,
     country?: string;
     qualification?: string;
     experience_years?: string;
+    monthly_salary?: number;
     photo?: string;
 }
 

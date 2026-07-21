@@ -7,7 +7,6 @@ export interface IClass {
   academic_year_id: number;
   name: string;
   stream?: string;
-  room_no?: string;
   status: ClassStatus;
   description?: string;
   created_at: Date;
@@ -16,7 +15,6 @@ export interface IClass {
 
 export type ICreateClass = Pick<IClass, 'academic_year_id' | 'name' | 'status'> & {
   stream?: string;
-  room_no?: string;
   description?: string;
   sections?: ICreateSection[];
 };

@@ -28,6 +28,7 @@ export default function AddFacultyForm() {
     blood_group:      "",
     qualification:    "",
     experience_years: "",
+    monthly_salary:   "",
     join_date:        "",
     city:             "",
     state:            "",
@@ -49,9 +50,14 @@ export default function AddFacultyForm() {
       dispatch(showToast({ type: "error", title: "Missing Field", message: "Join date is required." }));
       return;
     }
+    if (!form.monthly_salary || Number(form.monthly_salary) <= 0) {
+      dispatch(showToast({ type: "error", title: "Missing Field", message: "Monthly salary is required." }));
+      return;
+    }
     const payload = {
       ...form,
       experience_years: form.experience_years ? Number(form.experience_years) : undefined,
+      monthly_salary:   form.monthly_salary   ? Number(form.monthly_salary)   : undefined,
     };
     const res = await createTeacher(payload);
     if (res) {
@@ -129,6 +135,10 @@ export default function AddFacultyForm() {
             <label className={s("field")}>
               <span>Experience (Years)</span>
               <input name="experience_years" type="number" min="0" max="60" value={form.experience_years} onChange={handleChange} placeholder="e.g. 5" />
+            </label>
+            <label className={s("field")}>
+              <span>Monthly Salary <em>*</em></span>
+              <input name="monthly_salary" required type="number" min="0" value={form.monthly_salary} onChange={handleChange} placeholder="e.g. 25000" />
             </label>
             <label className={s("field")}>
               <span>Join Date <em>*</em></span>

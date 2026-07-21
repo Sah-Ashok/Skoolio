@@ -10,36 +10,57 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
-const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const years = ["2024", "2025", "2026"];
+const AD_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+/** Generate a range of years centred on now, for AD or BS */
+function buildYearOptions(isBS: boolean): string[] {
+  const now   = new Date();
+  const baseY = isBS ? adToBS(now).year : now.getFullYear();
+  // Show 3 years back and 1 ahead so admins can catch up on past payments
+  return Array.from({ length: 5 }, (_, i) => String(baseY - 3 + i));
+}
 
 export default function PaySalaryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const preselectedFaculty = searchParams?.get('faculty');
+  const { isBS } = useDateFormat();
+
+  // Calendar-aware labels
+  const monthNames = isBS ? BS_MONTH_NAMES : AD_MONTHS;
+  const yearOptions = buildYearOptions(isBS);
+
+  // Default to current month/year in the school's calendar
+  const nowBS = adToBS(new Date());
+  const defaultMonth = isBS ? BS_MONTH_NAMES[nowBS.month - 1] : AD_MONTHS[new Date().getMonth()];
+  const defaultYear  = isBS ? String(nowBS.year) : String(new Date().getFullYear());
 
   const { data: facultyList, loading: facultyLoading } = useApi<any[]>('/teachers');
   const { data: activeYear } = useApi<any>('/academic-years/active');
   const { execute: paySalary, loading: paying } = useMutation('/teachers/salary', 'POST');
 
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>(preselectedFaculty || "");
-  const [selectedYear, setSelectedYear] = useState("2025");
-  const [selectedMonth, setSelectedMonth] = useState("June");
-  const selectedMonthNumber = months.indexOf(selectedMonth) + 1;
-  const [basicSalary,       setBasicSalary]       = useState("");
-  const [bonus,             setBonus]             = useState("0");
-  const [taxAmount,         setTaxAmount]         = useState("0");
-  const [providentFund,     setProvidentFund]     = useState("0");
-  const [otherDeduction,    setOtherDeduction]    = useState("0");
-  const [deductionRemarks,  setDeductionRemarks]  = useState("");
-  const [paymentMode,       setPaymentMode]       = useState("Bank Transfer");
-  const [paymentDate,       setPaymentDate]       = useState("");
-  const [remarks,           setRemarks]           = useState("");
+  const [selectedYear,  setSelectedYear]  = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  // month number 1–12 based on the displayed calendar (BS or AD)
+  const selectedMonthNumber = monthNames.indexOf(selectedMonth) + 1;
+
+  const [basicSalary,      setBasicSalary]      = useState("");
+  const [bonus,            setBonus]            = useState("0");
+  const [taxAmount,        setTaxAmount]        = useState("0");
+  const [providentFund,    setProvidentFund]    = useState("0");
+  const [otherDeduction,   setOtherDeduction]   = useState("0");
+  const [deductionRemarks, setDeductionRemarks] = useState("");
+  const [paymentMode,      setPaymentMode]      = useState("Bank Transfer");
+  const [paymentDate,      setPaymentDate]      = useState("");
+  const [remarks,          setRemarks]          = useState("");
 
   const totalDeduction = parseFloat(taxAmount||'0') + parseFloat(providentFund||'0') + parseFloat(otherDeduction||'0');
 
@@ -50,6 +71,13 @@ export default function PaySalaryPage() {
   }, [preselectedFaculty, selectedFacultyId]);
 
   const selectedFaculty = facultyList?.find(f => f.id.toString() === selectedFacultyId);
+
+  // Auto-fill basic salary from teacher's monthly_salary when faculty is selected
+  useEffect(() => {
+    if (selectedFaculty?.monthly_salary) {
+      setBasicSalary(String(selectedFaculty.monthly_salary));
+    }
+  }, [selectedFacultyId, selectedFaculty?.monthly_salary]);
 
   const netPay = parseFloat(basicSalary || '0') + parseFloat(bonus || '0') - totalDeduction;
 
@@ -113,8 +141,8 @@ export default function PaySalaryPage() {
                   options={facultyList?.map(f => ({ label: `${f.full_name} (ID: ${f.id})`, value: f.id.toString() })) || []} 
                   disabled={facultyLoading}
                 />
-                <Field label="Payment Year" value={selectedYear} onChange={setSelectedYear} select options={years.map(y => ({label: y, value: y}))} />
-                <Field label="Payment Month" value={selectedMonth} onChange={setSelectedMonth} select options={months.map(m => ({label: m, value: m}))} />
+                <Field label="Payment Year"  value={selectedYear}  onChange={setSelectedYear}  select options={yearOptions.map(y => ({ label: y, value: y }))} />
+                <Field label="Payment Month" value={selectedMonth} onChange={setSelectedMonth} select options={monthNames.map(m => ({ label: m, value: m }))} />
                 <Field label="Basic Salary" type="number" value={basicSalary} onChange={setBasicSalary} placeholder="e.g. 30000" />
                 <Field label="Bonus / Allowance" type="number" value={bonus} onChange={setBonus} />
                 <div className={s("full")} style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 4 }}>

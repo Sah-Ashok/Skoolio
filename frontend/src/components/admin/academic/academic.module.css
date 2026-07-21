@@ -490,11 +490,22 @@
 
 @media (max-width: 760px) {
   .content {
-    padding: 18px;
+    padding: 12px;
   }
 
-  .hero,
-  .stats-grid,
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .hero h1 {
+    font-size: 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .program-grid,
   .pathway-grid,
   .program-details,
@@ -511,10 +522,25 @@
   .section-row {
     align-items: flex-start;
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .hero-actions {
+    flex-wrap: wrap;
+  }
+
+  .panel-head {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .subject-table {
-    min-width: 760px;
+    min-width: 520px;
   }
 
   .table-scroll {

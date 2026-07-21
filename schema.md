@@ -106,8 +106,8 @@ Primary tenant table. One row per school. `id` doubles as the school's JWT `id` 
 | id | SERIAL PK | |
 | school_id | INTEGER FK → schools | |
 | academic_year_id | INTEGER FK → academic_years | **Always required on GET as query param** |
-| name | VARCHAR | e.g. `Class 10 - Science` |
-| room_no | VARCHAR | optional |
+| name | VARCHAR | e.g. `Class 10` |
+| stream | VARCHAR | optional, e.g. `Science - PCM` `Commerce` `Arts` — stored separately, not baked into name |
 | status | ENUM | `active` `inactive` |
 | description | TEXT | optional |
 | created_at | TIMESTAMP | |
@@ -198,6 +198,7 @@ Which teacher teaches which subject in which class, scoped per academic year.
 | qualification | VARCHAR | optional |
 | experience_years | INTEGER | optional |
 | join_date | DATE | `::text` cast |
+| monthly_salary | DECIMAL(12,2) | optional — base monthly salary agreed at hiring; used as default when generating salary payments |
 | status | ENUM | `active` `inactive` |
 | photo | VARCHAR | optional, URL |
 | role | VARCHAR | always `teacher` |

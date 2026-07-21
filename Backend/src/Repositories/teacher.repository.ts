@@ -12,14 +12,14 @@ export const createTeacher = async (
 ): Promise<ITeacher> => {
   const result = await pool.query(
     `INSERT INTO teachers
-      (school_id, full_name, email, phone, password, gender, date_of_birth, city, state, country, qualification, experience_years, join_date, status, photo)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-     RETURNING id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, join_date::text, status, photo, role, created_at, updated_at`,
+      (school_id, full_name, email, phone, password, gender, date_of_birth, city, state, country, qualification, experience_years, monthly_salary, join_date, status, photo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+     RETURNING id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, monthly_salary, join_date::text, status, photo, role, created_at, updated_at`,
     [
       school_id, data.full_name, data.email, data.phone, data.password,
       data.gender, data.date_of_birth || null, data.city || null, data.state || null,
       data.country || null, data.qualification || null, data.experience_years || 0,
-      data.join_date, data.status || 'active', data.photo || null,
+      data.monthly_salary || null, data.join_date, data.status || 'active', data.photo || null,
     ]
   );
   return result.rows[0];
@@ -27,7 +27,7 @@ export const createTeacher = async (
 
 export const getTeachersBySchool = async (school_id: number): Promise<ITeacher[]> => {
   const result = await pool.query(
-    `SELECT id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, join_date::text, status, photo, role, created_at, updated_at
+    `SELECT id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, monthly_salary, join_date::text, status, photo, role, created_at, updated_at
      FROM teachers WHERE school_id = $1 ORDER BY full_name ASC`,
     [school_id]
   );
@@ -36,7 +36,7 @@ export const getTeachersBySchool = async (school_id: number): Promise<ITeacher[]
 
 export const getTeacherById = async (id: number, school_id: number): Promise<ITeacher | null> => {
   const result = await pool.query(
-    `SELECT id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, join_date::text, status, photo, role, created_at, updated_at
+    `SELECT id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, monthly_salary, join_date::text, status, photo, role, created_at, updated_at
      FROM teachers WHERE id = $1 AND school_id = $2`,
     [id, school_id]
   );
@@ -87,17 +87,18 @@ export const updateTeacher = async (id: number, school_id: number, data: IUpdate
       country          = COALESCE($7,  country),
       qualification    = COALESCE($8,  qualification),
       experience_years = COALESCE($9,  experience_years),
-      join_date        = COALESCE($10, join_date),
-      status           = COALESCE($11, status),
-      photo            = COALESCE($12, photo),
+      monthly_salary   = COALESCE($10, monthly_salary),
+      join_date        = COALESCE($11, join_date),
+      status           = COALESCE($12, status),
+      photo            = COALESCE($13, photo),
       updated_at       = NOW()
-     WHERE id = $13 AND school_id = $14
-     RETURNING id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, join_date::text, status, photo, role, created_at, updated_at`,
+     WHERE id = $14 AND school_id = $15
+     RETURNING id, school_id, full_name, email, phone, gender, date_of_birth::text, city, state, country, qualification, experience_years, monthly_salary, join_date::text, status, photo, role, created_at, updated_at`,
     [
       data.full_name || null, data.phone || null, data.gender || null,
       data.date_of_birth || null, data.city || null, data.state || null,
       data.country || null, data.qualification || null, data.experience_years || null,
-      data.join_date || null, data.status || null, data.photo || null,
+      data.monthly_salary || null, data.join_date || null, data.status || null, data.photo || null,
       id, school_id,
     ]
   );

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useRouter } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import styles from "@/components/admin/academic/academic.module.css";
 import { useApi } from "@/lib/useApi";
@@ -15,31 +14,39 @@ import { Spinner } from "@/components/shared/Loader";
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-const STREAMS         = ["Not Applicable", "Science", "Commerce", "Arts", "Vocational", "General"];
-const SUBJECT_COLORS  = ["#fff3e8","#dbeafe","#ccfbf1","#f3e8ff","#dcfce7","#fef9c3"];
-const SUBJECT_TCOLORS = ["#b45309","#1d4ed8","#0f766e","#7e22ce","#15803d","#854d0e"];
+const STREAMS      = ["Not Applicable", "Commerce", "Science - PCM", "Science - PCB", "Arts", "General", "Vocational"];
+const SUBJ_COLORS  = ["#fff3e8","#dbeafe","#ccfbf1","#f3e8ff","#dcfce7","#fef9c3"];
+const SUBJ_TCOLORS = ["#b45309","#1d4ed8","#0f766e","#7e22ce","#15803d","#854d0e"];
 
+const thStyle: React.CSSProperties = {
+  padding: "9px 12px", textAlign: "left", fontSize: 11,
+  fontWeight: 800, color: "#6b7b86", textTransform: "uppercase", letterSpacing: "0.4px",
+};
+const tdStyle: React.CSSProperties = { padding: "10px 12px", verticalAlign: "middle" };
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function ClassEditPage() {
   const { id }   = useParams<{ id: string }>();
-  const router   = useRouter();
   const dispatch = useAppDispatch();
 
-  const { data: cls,        loading,    refetch }   = useApi<any>(id ? `/classes/${id}` : "");
-  const { data: allSubjects                      }   = useApi<any[]>("/classes/subjects");
-  const { data: teachers                         }   = useApi<any[]>("/teachers");
-  const { data: activeYear                       }   = useApi<any>("/academic-years/active");
+  const { data: cls,         loading, refetch } = useApi<any>(id ? `/classes/${id}` : "");
+  const { data: allSubjects                   } = useApi<any[]>("/classes/subjects");
+  const { data: teachers                      } = useApi<any[]>("/teachers");
+  const { data: activeYear                    } = useApi<any>("/academic-years/active");
 
-  // ── Basic info ──────────────────────────────────────────────────────────────
-  const [info,       setInfo]       = useState({ name: "", stream: "Not Applicable", status: "active", room_no: "", description: "" });
+  // ── Panel 1 state ─────────────────────────────────────────────────────────
+  const [info,       setInfo]       = useState({ name: "", stream: "Not Applicable", status: "active", description: "" });
   const [savingInfo, setSavingInfo] = useState(false);
 
-  // ── Subjects ─────────────────────────────────────────────────────────────────
-  const [assignedSubjects,   setAssignedSubjects]   = useState<any[]>([]);
-  const [subjectToAdd,       setSubjectToAdd]       = useState("");
-  const [addingSubject,      setAddingSubject]      = useState(false);
-  const [removingSubjectId,  setRemovingSubjectId]  = useState<number | null>(null);
+  // ── Panel 2 state ─────────────────────────────────────────────────────────
+  const [assignedSubjects,  setAssignedSubjects]  = useState<any[]>([]);
+  const [subjectToAdd,      setSubjectToAdd]      = useState("");
+  const [addingSubject,     setAddingSubject]     = useState(false);
+  const [removingSubjectId, setRemovingSubjectId] = useState<number | null>(null);
+  const [subjectTeacherMap, setSubjectTeacherMap] = useState<Record<number, number>>({});
+  const [savingTeacher,     setSavingTeacher]     = useState<number | null>(null);
 
-  // ── Sections ─────────────────────────────────────────────────────────────────
+  // ── Panel 3 state ─────────────────────────────────────────────────────────
   const [showAddSection,    setShowAddSection]    = useState(false);
   const [newSection,        setNewSection]        = useState({ name: "", capacity: "", room_no: "" });
   const [addingSection,     setAddingSection]     = useState(false);
@@ -49,24 +56,30 @@ export default function ClassEditPage() {
   const [confirmSectionId,  setConfirmSectionId]  = useState<number | null>(null);
   const [deletingSectionId, setDeletingSectionId] = useState<number | null>(null);
 
-  // populate once class loads
+  // ── Hydrate ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!cls) return;
     setInfo({
-      name:        cls.name        || "",
-      stream:      cls.stream      || "Not Applicable",
-      status:      cls.status      || "active",
-      room_no:     cls.room_no     || "",
-      description: cls.description || "",
+      name:        cls.name        ?? "",
+      stream:      cls.stream      ?? "Not Applicable",
+      status:      cls.status      ?? "active",
+      description: cls.description ?? "",
     });
-    setAssignedSubjects(cls.subjects || []);
+    setAssignedSubjects(cls.subjects ?? []);
   }, [cls]);
 
-  const availableSubjects = (allSubjects || []).filter(
+  useEffect(() => {
+    if (!cls?.subjects) return;
+    const map: Record<number, number> = {};
+    cls.subjects.forEach((sub: any) => { if (sub.teacher_id) map[sub.id] = sub.teacher_id; });
+    setSubjectTeacherMap(map);
+  }, [cls?.subjects]);
+
+  const availableSubjects = (allSubjects ?? []).filter(
     (sub) => !assignedSubjects.some((a) => a.id === sub.id)
   );
 
-  // ── Save basic info ──────────────────────────────────────────────────────────
+  // ── Panel 1: save ─────────────────────────────────────────────────────────
   const handleSaveInfo = async () => {
     if (!info.name.trim()) {
       dispatch(showToast({ type: "error", title: "Required", message: "Class name cannot be empty." }));
@@ -78,49 +91,33 @@ export default function ClassEditPage() {
         method: "PATCH",
         body: JSON.stringify({
           name:        info.name.trim(),
-          stream:      info.stream      || undefined,
+          stream:      info.stream !== "Not Applicable" ? info.stream : null,
           status:      info.status,
-          room_no:     info.room_no.trim()     || undefined,
-          description: info.description.trim() || undefined,
+          description: info.description.trim() || null,
         }),
       });
-      dispatch(showToast({ type: "success", title: "Saved", message: "Class details updated successfully." }));
+      dispatch(showToast({ type: "success", title: "Saved", message: "Class updated." }));
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not save." }));
     } finally {
       setSavingInfo(false);
     }
   };
 
-  // ── Assign teacher to subject ──────────────────────────────────────────────
-  const [subjectTeacherMap, setSubjectTeacherMap] = useState<Record<number, number>>({});
-  const [savingTeacher, setSavingTeacher]         = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!cls?.subjects) return;
-    const map: Record<number, number> = {};
-    cls.subjects.forEach((sub: any) => { if (sub.teacher_id) map[sub.id] = sub.teacher_id; });
-    setSubjectTeacherMap(map);
-  }, [cls?.subjects]);
-
+  // ── Panel 2: teacher assign / remove ──────────────────────────────────────
   const handleAssignTeacher = async (subjectId: number, teacherId: number) => {
     if (!activeYear?.id) return;
     setSavingTeacher(subjectId);
     try {
       await apiRequest("/classes/assign-subject-teacher", {
         method: "POST",
-        body: JSON.stringify({
-          class_id: Number(id),
-          subject_id: subjectId,
-          teacher_id: teacherId,
-          academic_year_id: activeYear.id,
-        }),
+        body: JSON.stringify({ class_id: Number(id), subject_id: subjectId, teacher_id: teacherId, academic_year_id: activeYear.id }),
       });
       setSubjectTeacherMap(prev => ({ ...prev, [subjectId]: teacherId }));
-      dispatch(showToast({ type: "success", title: "Teacher Assigned", message: "Teacher saved for this subject." }));
+      dispatch(showToast({ type: "success", title: "Teacher Assigned", message: "Teacher saved." }));
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not assign teacher." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not assign." }));
     } finally {
       setSavingTeacher(null);
     }
@@ -135,15 +132,15 @@ export default function ClassEditPage() {
         body: JSON.stringify({ class_id: Number(id), subject_id: subjectId, academic_year_id: activeYear.id }),
       });
       setSubjectTeacherMap(prev => { const n = { ...prev }; delete n[subjectId]; return n; });
-      dispatch(showToast({ type: "success", title: "Removed", message: "Teacher unassigned from subject." }));
+      dispatch(showToast({ type: "success", title: "Removed", message: "Teacher unassigned." }));
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not remove teacher." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not remove." }));
     } finally {
       setSavingTeacher(null);
     }
   };
 
-  // ── Assign subject ───────────────────────────────────────────────────────────
+  // ── Panel 2: subject add / remove ─────────────────────────────────────────
   const handleAddSubject = async () => {
     if (!subjectToAdd) return;
     setAddingSubject(true);
@@ -153,17 +150,16 @@ export default function ClassEditPage() {
         body: JSON.stringify({ class_id: Number(id), subject_id: Number(subjectToAdd) }),
       });
       const sub = allSubjects?.find((s) => s.id === Number(subjectToAdd));
-      if (sub) setAssignedSubjects((prev) => [...prev, sub]);
+      if (sub) setAssignedSubjects(prev => [...prev, sub]);
       setSubjectToAdd("");
-      dispatch(showToast({ type: "success", title: "Subject Added", message: `"${sub?.name}" assigned to this class.` }));
+      dispatch(showToast({ type: "success", title: "Subject Added", message: `"${sub?.name}" assigned.` }));
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not assign subject." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not assign subject." }));
     } finally {
       setAddingSubject(false);
     }
   };
 
-  // ── Remove subject ───────────────────────────────────────────────────────────
   const handleRemoveSubject = async (subjectId: number, name: string) => {
     setRemovingSubjectId(subjectId);
     try {
@@ -171,19 +167,21 @@ export default function ClassEditPage() {
         method: "DELETE",
         body: JSON.stringify({ class_id: Number(id), subject_id: subjectId }),
       });
-      setAssignedSubjects((prev) => prev.filter((s) => s.id !== subjectId));
-      dispatch(showToast({ type: "success", title: "Removed", message: `"${name}" removed from this class.` }));
+      setAssignedSubjects(prev => prev.filter((s) => s.id !== subjectId));
+      dispatch(showToast({ type: "success", title: "Removed", message: `"${name}" removed.` }));
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not remove subject." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not remove." }));
     } finally {
       setRemovingSubjectId(null);
     }
   };
 
-  // ── Add section ──────────────────────────────────────────────────────────────
-  const handleAddSection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSection.name.trim()) return;
+  // ── Panel 3: section add ──────────────────────────────────────────────────
+  const handleAddSection = async () => {
+    if (!newSection.name.trim()) {
+      dispatch(showToast({ type: "error", title: "Required", message: "Section name is required." }));
+      return;
+    }
     setAddingSection(true);
     try {
       await apiRequest(`/classes/${id}/sections`, {
@@ -194,18 +192,18 @@ export default function ClassEditPage() {
           room_no:  newSection.room_no.trim() || undefined,
         }),
       });
-      dispatch(showToast({ type: "success", title: "Section Added", message: `Section ${newSection.name} created.` }));
+      dispatch(showToast({ type: "success", title: "Section Added", message: `Section "${newSection.name}" created.` }));
       setNewSection({ name: "", capacity: "", room_no: "" });
       setShowAddSection(false);
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not add section." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not add section." }));
     } finally {
       setAddingSection(false);
     }
   };
 
-  // ── Edit section ─────────────────────────────────────────────────────────────
+  // ── Panel 3: section edit / save ──────────────────────────────────────────
   const startEditSection = (sec: any) => {
     setEditSectionId(sec.id);
     setEditSectionForm({ name: sec.name, capacity: String(sec.capacity ?? ""), room_no: sec.room_no ?? "", status: sec.status ?? "active" });
@@ -229,13 +227,13 @@ export default function ClassEditPage() {
       setEditSectionId(null);
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not update section." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not update section." }));
     } finally {
       setSavingSection(false);
     }
   };
 
-  // ── Delete section ───────────────────────────────────────────────────────────
+  // ── Panel 3: section delete ───────────────────────────────────────────────
   const handleDeleteSection = async (sectionId: number) => {
     setDeletingSectionId(sectionId);
     setConfirmSectionId(null);
@@ -244,28 +242,29 @@ export default function ClassEditPage() {
       dispatch(showToast({ type: "success", title: "Deleted", message: "Section removed." }));
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not delete section." }));
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not delete section." }));
     } finally {
       setDeletingSectionId(null);
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className={s("academic-page")}>
-      <Topbar title={`Edit: ${cls?.name || "…"}`} subtitle="Update class info, subjects and sections" />
+      <Topbar title={`Edit: ${cls?.name ?? "…"}`} subtitle="Update class info, subjects and sections" />
 
       <main className={s("content")}>
 
-        {/* ── Hero ── */}
+        {/* Hero */}
         <section className={s("hero")}>
           <div>
             <div className={s("eyebrow")}>Editing Class</div>
-            <h1>{cls?.name || "Loading…"}</h1>
+            <h1>{cls?.name ?? "Loading…"}</h1>
             <p>Update class details, manage assigned subjects, and edit or add sections below.</p>
           </div>
           <div className={s("hero-actions")}>
             <Link className={s("btn")} href={`/classes/${id}`}>
-              <i className="fa-solid fa-eye" /> View Class
+              <i className="fa-solid fa-eye" /> View
             </Link>
             <Link className={s("btn")} href="/classes">
               <i className="fa-solid fa-arrow-left" /> All Classes
@@ -274,11 +273,12 @@ export default function ClassEditPage() {
         </section>
 
         {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          <div style={{ padding: "4rem", textAlign: "center" }}>
+            <Spinner size={32} color="#FF9B51" />
+          </div>
         ) : (
           <>
-
-            {/* ══ PANEL 1: Class Details ══════════════════════════════════════ */}
+            {/* ══ PANEL 1 — Class Details ══════════════════════════════════ */}
             <div className={s("panel")} style={{ marginBottom: 16 }}>
               <div className={s("panel-head")}>
                 <h2>
@@ -289,7 +289,7 @@ export default function ClassEditPage() {
 
               <div className={s("form-body")}>
                 <label className={s("field")}>
-                  <span>Class Name <em style={{ color: "#f43f5e" }}>*</em></span>
+                  <span>Class Name <em style={{ color: "#f43f5e", fontStyle: "normal" }}>*</em></span>
                   <input
                     value={info.name}
                     onChange={(e) => setInfo({ ...info, name: e.target.value })}
@@ -312,11 +312,6 @@ export default function ClassEditPage() {
                   </select>
                 </label>
 
-                <label className={s("field")}>
-                  <span>Room No</span>
-                  <input value={info.room_no} onChange={(e) => setInfo({ ...info, room_no: e.target.value })} placeholder="e.g. 204" />
-                </label>
-
                 <label className={cx(s("field"), s("wide"))}>
                   <span>Description</span>
                   <textarea
@@ -329,7 +324,11 @@ export default function ClassEditPage() {
               </div>
 
               <div className={s("form-actions")} style={{ padding: "0 18px 18px" }}>
-                <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSaveInfo} disabled={savingInfo}>
+                <button
+                  className={cx(s("btn"), s("btn-primary"))}
+                  onClick={handleSaveInfo}
+                  disabled={savingInfo}
+                >
                   {savingInfo
                     ? <><Spinner size={14} /> Saving…</>
                     : <><i className="fa-solid fa-check" /> Save Details</>}
@@ -337,7 +336,7 @@ export default function ClassEditPage() {
               </div>
             </div>
 
-            {/* ══ PANEL 2: Subjects ═══════════════════════════════════════════ */}
+            {/* ══ PANEL 2 — Subjects ═══════════════════════════════════════ */}
             <div className={s("panel")} style={{ marginBottom: 16 }}>
               <div className={s("panel-head")}>
                 <h2>
@@ -350,76 +349,75 @@ export default function ClassEditPage() {
               </div>
 
               <div className={s("panel-body")}>
-                {/* Assigned chips */}
                 {assignedSubjects.length === 0 ? (
-                  <div style={{ padding: "1.5rem 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
+                  <div style={{ padding: "2rem 0", textAlign: "center", color: "#94a3b8" }}>
                     <i className="fa-solid fa-book" style={{ fontSize: 22, display: "block", marginBottom: 8 }} />
                     No subjects assigned yet.
                   </div>
                 ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid rgba(191,201,209,0.42)" }}>
-                        <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#6b7b86", textTransform: "uppercase" }}>Subject</th>
-                        <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#6b7b86", textTransform: "uppercase" }}>Teaching Faculty</th>
-                        <th style={{ padding: "8px 12px", width: 60 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignedSubjects.map((sub, i) => {
-                        const tc = SUBJECT_TCOLORS[i % SUBJECT_TCOLORS.length];
-                        const bg = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
-                        const assigned = subjectTeacherMap[sub.id];
-                        return (
-                          <tr key={sub.id} style={{ borderBottom: "1px solid rgba(191,201,209,0.28)" }}>
-                            <td style={{ padding: "10px 12px" }}>
-                              <span style={{ background: bg, color: tc, padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 800 }}>
-                                <i className="fa-solid fa-book" style={{ fontSize: 10, marginRight: 5 }} />
-                                {sub.name}
-                                {sub.code && <em style={{ fontStyle: "normal", opacity: 0.6, fontSize: 10, marginLeft: 4 }}>· {sub.code}</em>}
-                              </span>
-                            </td>
-                            <td style={{ padding: "10px 12px" }}>
-                              <select
-                                value={assigned || ""}
-                                onChange={e => {
-                                  if (e.target.value) handleAssignTeacher(sub.id, Number(e.target.value));
-                                  else handleRemoveTeacher(sub.id);
-                                }}
-                                disabled={savingTeacher === sub.id}
-                                style={{ height: 34, border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", width: "100%", color: assigned ? "#25343f" : "#94a3b8" }}
-                              >
-                                <option value="">— Unassigned —</option>
-                                {(teachers || []).filter(t => t.status === "active").map(t => (
-                                  <option key={t.id} value={t.id}>{t.full_name}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                              {savingTeacher === sub.id ? (
-                                <Spinner size={14} />
-                              ) : (
-                                <button
-                                  className={s("btn")}
-                                  style={{ minHeight: 30, padding: "0 10px", fontSize: 12, borderColor: "#fecdd3", color: "#f43f5e", background: "#fff1f2" }}
-                                  onClick={() => handleRemoveSubject(sub.id, sub.name)}
-                                  disabled={removingSubjectId === sub.id}
-                                  title="Remove subject"
+                  <div style={{ overflowX: "auto", marginBottom: 20 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(191,201,209,0.5)" }}>
+                          <th style={thStyle}>Subject</th>
+                          <th style={thStyle}>Teaching Faculty</th>
+                          <th style={{ ...thStyle, width: 52 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assignedSubjects.map((sub, i) => {
+                          const tc      = SUBJ_TCOLORS[i % SUBJ_TCOLORS.length];
+                          const bg      = SUBJ_COLORS[i % SUBJ_COLORS.length];
+                          const assigned = subjectTeacherMap[sub.id];
+                          return (
+                            <tr key={sub.id} style={{ borderBottom: "1px solid rgba(191,201,209,0.28)" }}>
+                              <td style={tdStyle}>
+                                <span style={{ background: bg, color: tc, padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  <i className="fa-solid fa-book" style={{ fontSize: 10 }} />
+                                  {sub.name}
+                                  {sub.code && <em style={{ fontStyle: "normal", opacity: 0.6, fontSize: 10 }}>· {sub.code}</em>}
+                                </span>
+                              </td>
+                              <td style={tdStyle}>
+                                <select
+                                  value={assigned ?? ""}
+                                  onChange={(e) => {
+                                    if (e.target.value) handleAssignTeacher(sub.id, Number(e.target.value));
+                                    else handleRemoveTeacher(sub.id);
+                                  }}
+                                  disabled={savingTeacher === sub.id}
+                                  style={{ height: 34, border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "0 10px", fontSize: 13, fontWeight: 700, outline: "none", width: "100%", color: assigned ? "#25343f" : "#94a3b8", fontFamily: "inherit" }}
                                 >
-                                  {removingSubjectId === sub.id ? <Spinner size={12} /> : <i className="fa-solid fa-trash" />}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                                  <option value="">— Unassigned —</option>
+                                  {(teachers ?? []).filter(t => t.status === "active").map(t => (
+                                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td style={{ ...tdStyle, textAlign: "center" }}>
+                                {savingTeacher === sub.id ? <Spinner size={14} /> : (
+                                  <button
+                                    className={s("btn")}
+                                    style={{ minHeight: 30, padding: "0 10px", fontSize: 12, borderColor: "#fecdd3", color: "#f43f5e", background: "#fff1f2" }}
+                                    onClick={() => handleRemoveSubject(sub.id, sub.name)}
+                                    disabled={removingSubjectId === sub.id}
+                                    title="Remove subject"
+                                  >
+                                    {removingSubjectId === sub.id ? <Spinner size={12} /> : <i className="fa-solid fa-trash" />}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
                 {/* Add subject row */}
-                <div className={s("inline-create")}>
-                  <label className={s("field")}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 10, alignItems: "flex-end" }}>
+                  <label className={s("field")} style={{ margin: 0 }}>
                     <span>Add a Subject</span>
                     <select
                       value={subjectToAdd}
@@ -427,39 +425,29 @@ export default function ClassEditPage() {
                       disabled={availableSubjects.length === 0}
                     >
                       <option value="">
-                        {availableSubjects.length === 0
-                          ? "— All available subjects already assigned —"
-                          : "— Select a subject to add —"}
+                        {availableSubjects.length === 0 ? "— All subjects already assigned —" : "— Select a subject —"}
                       </option>
                       {availableSubjects.map((sub) => (
-                        <option key={sub.id} value={sub.id}>
-                          {sub.name}{sub.code ? ` (${sub.code})` : ""}
-                        </option>
+                        <option key={sub.id} value={sub.id}>{sub.name}{sub.code ? ` (${sub.code})` : ""}</option>
                       ))}
                     </select>
                   </label>
-                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                    <button
-                      className={cx(s("btn"), s("btn-primary"))}
-                      onClick={handleAddSubject}
-                      disabled={!subjectToAdd || addingSubject}
-                      style={{ height: 40, whiteSpace: "nowrap" }}
-                    >
-                      {addingSubject ? <Spinner size={14} /> : <><i className="fa-solid fa-plus" /> Assign</>}
-                    </button>
-                    <Link
-                      href="/subjects"
-                      className={s("btn")}
-                      style={{ height: 40, whiteSpace: "nowrap", fontSize: 12 }}
-                    >
-                      <i className="fa-solid fa-arrow-up-right-from-square" /> New Subject
-                    </Link>
-                  </div>
+                  <button
+                    className={cx(s("btn"), s("btn-primary"))}
+                    onClick={handleAddSubject}
+                    disabled={!subjectToAdd || addingSubject}
+                    style={{ height: 40, whiteSpace: "nowrap" }}
+                  >
+                    {addingSubject ? <Spinner size={14} /> : <><i className="fa-solid fa-plus" /> Assign</>}
+                  </button>
+                  <Link href="/subjects" className={s("btn")} style={{ height: 40, whiteSpace: "nowrap", fontSize: 12 }}>
+                    <i className="fa-solid fa-arrow-up-right-from-square" /> New Subject
+                  </Link>
                 </div>
               </div>
             </div>
 
-            {/* ══ PANEL 3: Sections ═══════════════════════════════════════════ */}
+            {/* ══ PANEL 3 — Sections ═══════════════════════════════════════ */}
             <div className={s("panel")}>
               <div className={s("panel-head")}>
                 <h2>
@@ -470,90 +458,102 @@ export default function ClassEditPage() {
                   </span>
                 </h2>
                 <button
-                  className={cx(s("btn"), s("btn-primary"))}
+                  className={cx(s("btn"), showAddSection ? "" : s("btn-primary"))}
                   style={{ fontSize: 12 }}
-                  onClick={() => { setShowAddSection((v) => !v); setConfirmSectionId(null); setEditSectionId(null); }}
+                  onClick={() => { setShowAddSection(v => !v); setConfirmSectionId(null); setEditSectionId(null); }}
                 >
                   <i className={`fa-solid fa-${showAddSection ? "xmark" : "plus"}`} />
-                  {showAddSection ? "Cancel" : "Add Section"}
+                  {showAddSection ? " Cancel" : " Add Section"}
                 </button>
               </div>
 
-              {/* Add section form */}
+              {/* Add section inline form */}
               {showAddSection && (
-                <form
-                  onSubmit={handleAddSection}
-                  className={s("form-body")}
-                  style={{ borderBottom: "1px solid rgba(191,201,209,0.42)", background: "#f8fbfb" }}
-                >
-                  <label className={s("field")}>
-                    <span>Section Name <em style={{ color: "#f43f5e" }}>*</em></span>
-                    <input
-                      required autoFocus
-                      value={newSection.name}
-                      onChange={(e) => setNewSection({ ...newSection, name: e.target.value })}
-                      placeholder="e.g. A"
-                    />
-                  </label>
-                  <label className={s("field")}>
-                    <span>Capacity</span>
-                    <input
-                      type="number" min="1"
-                      value={newSection.capacity}
-                      onChange={(e) => setNewSection({ ...newSection, capacity: e.target.value })}
-                      placeholder="e.g. 40"
-                    />
-                  </label>
-                  <label className={s("field")}>
-                    <span>Room No</span>
-                    <input
-                      value={newSection.room_no}
-                      onChange={(e) => setNewSection({ ...newSection, room_no: e.target.value })}
-                      placeholder="e.g. 101"
-                    />
-                  </label>
-                  <div className={cx(s("form-actions"), s("wide"))}>
-                    <button type="button" className={s("btn")} onClick={() => setShowAddSection(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className={cx(s("btn"), s("btn-primary"))} disabled={addingSection}>
-                      {addingSection
-                        ? <><Spinner size={14} /> Adding…</>
-                        : <><i className="fa-solid fa-check" /> Add Section</>}
+                <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(191,201,209,0.42)", background: "#f8fbfb" }}>
+                  <div className={s("form-body")} style={{ padding: 0, marginBottom: 14 }}>
+                    <label className={s("field")}>
+                      <span>Section Name <em style={{ color: "#f43f5e", fontStyle: "normal" }}>*</em></span>
+                      <input
+                        autoFocus
+                        value={newSection.name}
+                        onChange={(e) => setNewSection({ ...newSection, name: e.target.value })}
+                        placeholder="e.g. A"
+                        onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); }}
+                      />
+                    </label>
+                    <label className={s("field")}>
+                      <span>Capacity</span>
+                      <input
+                        type="number" min="1"
+                        value={newSection.capacity}
+                        onChange={(e) => setNewSection({ ...newSection, capacity: e.target.value })}
+                        placeholder="e.g. 40"
+                      />
+                    </label>
+                    <label className={s("field")}>
+                      <span>Room No</span>
+                      <input
+                        value={newSection.room_no}
+                        onChange={(e) => setNewSection({ ...newSection, room_no: e.target.value })}
+                        placeholder="e.g. 101"
+                      />
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button className={s("btn")} onClick={() => setShowAddSection(false)}>Cancel</button>
+                    <button
+                      className={cx(s("btn"), s("btn-primary"))}
+                      onClick={handleAddSection}
+                      disabled={addingSection}
+                    >
+                      {addingSection ? <><Spinner size={14} /> Adding…</> : <><i className="fa-solid fa-check" /> Add Section</>}
                     </button>
                   </div>
-                </form>
+                </div>
               )}
 
-              {/* Section rows */}
-              <div style={{ padding: "8px 0 0" }}>
+              {/* Section list */}
+              <div style={{ paddingTop: 4 }}>
                 {!cls?.sections?.length ? (
-                  <div style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
+                  <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
                     <i className="fa-solid fa-inbox" style={{ fontSize: 24, display: "block", marginBottom: 8 }} />
-                    No sections yet. Click &ldquo;Add Section&rdquo; to create one.
+                    No sections yet — click &ldquo;Add Section&rdquo; to create one.
                   </div>
                 ) : cls.sections.map((sec: any) => (
                   <div key={sec.id} className={s("data-row")} style={{ padding: "14px 18px" }}>
 
                     {editSectionId === sec.id ? (
-                      /* ── Inline edit form ── */
                       <div>
-                        <div className={s("form-body")} style={{ padding: 0, marginBottom: 12 }}>
+                        <div className={s("form-body")} style={{ padding: 0, marginBottom: 14 }}>
                           <label className={s("field")}>
                             <span>Name</span>
-                            <input value={editSectionForm.name} onChange={(e) => setEditSectionForm({ ...editSectionForm, name: e.target.value })} />
+                            <input
+                              autoFocus
+                              value={editSectionForm.name}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, name: e.target.value })}
+                            />
                           </label>
                           <label className={s("field")}>
                             <span>Capacity</span>
-                            <input type="number" min="1" value={editSectionForm.capacity} onChange={(e) => setEditSectionForm({ ...editSectionForm, capacity: e.target.value })} />
+                            <input
+                              type="number" min="1"
+                              value={editSectionForm.capacity}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, capacity: e.target.value })}
+                            />
                           </label>
                           <label className={s("field")}>
                             <span>Room No</span>
-                            <input value={editSectionForm.room_no} onChange={(e) => setEditSectionForm({ ...editSectionForm, room_no: e.target.value })} />
+                            <input
+                              value={editSectionForm.room_no}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, room_no: e.target.value })}
+                            />
                           </label>
                           <label className={s("field")}>
                             <span>Status</span>
-                            <select value={editSectionForm.status} onChange={(e) => setEditSectionForm({ ...editSectionForm, status: e.target.value })}>
+                            <select
+                              value={editSectionForm.status}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, status: e.target.value })}
+                            >
                               <option value="active">Active</option>
                               <option value="inactive">Inactive</option>
                             </select>
@@ -571,7 +571,6 @@ export default function ClassEditPage() {
                         </div>
                       </div>
                     ) : (
-                      /* ── Row view ── */
                       <div className={s("row-main")}>
                         <div>
                           <div className={s("row-title")}>
@@ -581,7 +580,7 @@ export default function ClassEditPage() {
                               style={{
                                 marginLeft: 8, fontSize: 10, textTransform: "capitalize",
                                 background: sec.status === "active" ? "#dcfce7" : "#fef3c7",
-                                color:      sec.status === "active" ? "#15803d"  : "#b45309",
+                                color:      sec.status === "active" ? "#15803d" : "#b45309",
                               }}
                             >
                               {sec.status}
@@ -589,9 +588,9 @@ export default function ClassEditPage() {
                           </div>
                           <div className={s("row-sub")}>
                             Capacity: {sec.capacity ?? "—"}
-                            {sec.room_no         && <> &nbsp;·&nbsp; Room {sec.room_no}</>}
+                            {sec.room_no          && <> · Room {sec.room_no}</>}
                             {sec.coordinator_name && (
-                              <> &nbsp;·&nbsp;
+                              <> ·&nbsp;
                                 <i className="fa-solid fa-chalkboard-user" style={{ marginRight: 4, color: "#ff9b51" }} />
                                 {sec.coordinator_name}
                               </>
@@ -644,7 +643,6 @@ export default function ClassEditPage() {
                 ))}
               </div>
             </div>
-
           </>
         )}
       </main>

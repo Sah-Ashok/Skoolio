@@ -6,6 +6,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./salary.module.css";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -15,6 +16,7 @@ const formatINR = (amount: number | string) => new Intl.NumberFormat("en-IN", { 
 export default function FacultySalaryPage() {
   const { data: faculty, loading } = useApi<any[]>('/teachers');
   const [searchTerm, setSearchTerm] = useState("");
+  const { formatDate } = useDateFormat();
 
   const filteredFaculty = faculty?.filter(f => 
     f.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -79,7 +81,7 @@ export default function FacultySalaryPage() {
                         </div>
                       </td>
                       <td>{person.qualification || 'Teacher'}</td>
-                      <td>{new Date(person.join_date).toLocaleDateString()}</td>
+                      <td>{formatDate(person.join_date)}</td>
                       <td><span className={cx(s("badge"), s(person.status === "active" ? "badge-green" : "badge-yellow"))}>{person.status}</span></td>
                       <td>
                         <Link className={cx(s("btn"), s("btnPrimary"), s("btnSm"))} href={`/salary/pay?faculty=${person.id}`}>

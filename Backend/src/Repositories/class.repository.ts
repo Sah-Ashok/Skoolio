@@ -10,10 +10,10 @@ import {
 
 export const createClass = async (school_id: number, data: ICreateClass): Promise<IClass> => {
   const result = await pool.query(
-    `INSERT INTO classes (school_id, academic_year_id, name, stream, room_no, status, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    `INSERT INTO classes (school_id, academic_year_id, name, stream, status, description)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
     [school_id, data.academic_year_id, data.name, data.stream || null,
-     data.room_no || null, data.status || 'active', data.description || null]
+     data.status || 'active', data.description || null]
   );
   return result.rows[0];
 };
@@ -33,18 +33,52 @@ export const getClassById = async (id: number, school_id: number): Promise<IClas
   return result.rows[0] || null;
 };
 
+/**
+ * updateClass — explicit SET for every field so that nullable fields
+ * (stream, description) can actually be cleared to NULL.
+ *
+ * Using COALESCE($n, col) would silently keep the old value when the client
+ * sends null intentionally (e.g. selecting "Not Applicable" for stream).
+ * We only fall back to the existing column value when the key is literally
+ * absent from the payload (undefined), not when it is null.
+ */
 export const updateClass = async (id: number, school_id: number, data: IUpdateClass): Promise<IClass | null> => {
+  // Build SET clause dynamically — only update fields that were sent
+  const fields: string[] = [];
+  const values: any[]    = [];
+  let   idx              = 1;
+
+  if (data.name !== undefined) {
+    fields.push(`name = $${idx++}`);
+    values.push(data.name);
+  }
+  // stream and description can be explicitly set to null (to clear them)
+  if ('stream' in data) {
+    fields.push(`stream = $${idx++}`);
+    values.push(data.stream ?? null);
+  }
+  if ('status' in data && data.status !== undefined) {
+    fields.push(`status = $${idx++}`);
+    values.push(data.status);
+  }
+  if ('description' in data) {
+    fields.push(`description = $${idx++}`);
+    values.push(data.description ?? null);
+  }
+
+  if (fields.length === 0) {
+    // Nothing to update — return the current record
+    return getClassById(id, school_id);
+  }
+
+  fields.push(`updated_at = NOW()`);
+  values.push(id, school_id);
+
   const result = await pool.query(
-    `UPDATE classes SET
-       name        = COALESCE($1, name),
-       stream      = COALESCE($2, stream),
-       room_no     = COALESCE($3, room_no),
-       status      = COALESCE($4, status),
-       description = COALESCE($5, description),
-       updated_at  = NOW()
-     WHERE id = $6 AND school_id = $7 RETURNING *`,
-    [data.name || null, data.stream || null, data.room_no || null,
-     data.status || null, data.description || null, id, school_id]
+    `UPDATE classes SET ${fields.join(', ')}
+     WHERE id = $${idx++} AND school_id = $${idx++}
+     RETURNING *`,
+    values
   );
   return result.rows[0] || null;
 };
@@ -91,7 +125,6 @@ export const getSectionById = async (id: number, school_id: number): Promise<ISe
   return result.rows[0] || null;
 };
 
-// Get all sections where a teacher is the coordinator (for faculty role)
 export const getSectionsByCoordinator = async (teacher_id: number, school_id: number): Promise<ISection[]> => {
   const result = await pool.query(
     `SELECT s.*, c.name AS class_name, t.full_name AS coordinator_name
@@ -105,18 +138,47 @@ export const getSectionsByCoordinator = async (teacher_id: number, school_id: nu
   return result.rows;
 };
 
+/**
+ * updateSection — same explicit-field pattern as updateClass.
+ * coordinator_id can be cleared to NULL (unassign coordinator).
+ * room_no can be cleared to NULL.
+ */
 export const updateSection = async (id: number, school_id: number, data: IUpdateSection): Promise<ISection | null> => {
+  const fields: string[] = [];
+  const values: any[]    = [];
+  let   idx              = 1;
+
+  if (data.name !== undefined) {
+    fields.push(`name = $${idx++}`);
+    values.push(data.name);
+  }
+  if ('room_no' in data) {
+    fields.push(`room_no = $${idx++}`);
+    values.push(data.room_no ?? null);
+  }
+  if (data.capacity !== undefined) {
+    fields.push(`capacity = $${idx++}`);
+    values.push(data.capacity);
+  }
+  if ('coordinator_id' in data) {
+    fields.push(`coordinator_id = $${idx++}`);
+    values.push(data.coordinator_id ?? null);
+  }
+  if (data.status !== undefined) {
+    fields.push(`status = $${idx++}`);
+    values.push(data.status);
+  }
+
+  if (fields.length === 0) return getSectionById(id, school_id);
+
+  fields.push(`updated_at = NOW()`);
+  values.push(id, school_id);
+
   const result = await pool.query(
-    `UPDATE sections SET
-       name           = COALESCE($1, name),
-       room_no        = COALESCE($2, room_no),
-       capacity       = COALESCE($3, capacity),
-       coordinator_id = COALESCE($4, coordinator_id),
-       status         = COALESCE($5, status),
-       updated_at     = NOW()
-     WHERE id = $6 AND school_id = $7 RETURNING *`,
-    [data.name || null, data.room_no || null, data.capacity || null,
-     data.coordinator_id || null, data.status || null, id, school_id]
+    `UPDATE sections SET ${fields.join(', ')}
+     WHERE id = $${idx++} AND school_id = $${idx++}
+     RETURNING *`,
+    values
   );
   return result.rows[0] || null;
 };
@@ -155,7 +217,9 @@ export const getSubjectById = async (id: number, school_id: number): Promise<ISu
 export const updateSubject = async (id: number, school_id: number, data: IUpdateSubject): Promise<ISubject | null> => {
   const result = await pool.query(
     `UPDATE subjects SET
-       name = COALESCE($1, name), code = COALESCE($2, code), updated_at = NOW()
+       name = COALESCE($1, name),
+       code = COALESCE($2, code),
+       updated_at = NOW()
      WHERE id = $3 AND school_id = $4 RETURNING *`,
     [data.name || null, data.code || null, id, school_id]
   );
@@ -172,8 +236,18 @@ export const deleteSubject = async (id: number, school_id: number): Promise<bool
 // ── CLASS SUBJECTS ─────────────────────────────────────────────────────────────
 
 export const assignSubjectToClass = async (school_id: number, class_id: number, subject_id: number): Promise<IClassSubject> => {
+  // Check first — avoids relying on a UNIQUE constraint that may not exist yet.
+  // Run migration/add_class_subjects_unique.sql to add the constraint.
+  const existing = await pool.query(
+    `SELECT * FROM class_subjects
+     WHERE school_id = $1 AND class_id = $2 AND subject_id = $3`,
+    [school_id, class_id, subject_id]
+  );
+  if (existing.rows[0]) return existing.rows[0];
+
   const result = await pool.query(
-    `INSERT INTO class_subjects (school_id, class_id, subject_id) VALUES ($1, $2, $3) RETURNING *`,
+    `INSERT INTO class_subjects (school_id, class_id, subject_id)
+     VALUES ($1, $2, $3) RETURNING *`,
     [school_id, class_id, subject_id]
   );
   return result.rows[0];
@@ -185,11 +259,11 @@ export const getSubjectsByClass = async (class_id: number, school_id: number): P
        cst.teacher_id,
        t.full_name AS teacher_name
      FROM subjects s
-     INNER JOIN class_subjects cs   ON cs.subject_id = s.id AND cs.class_id = $1
+     INNER JOIN class_subjects cs   ON cs.subject_id = s.id AND cs.class_id = $1 AND cs.school_id = $2
      LEFT  JOIN class_subject_teachers cst
             ON cst.subject_id = s.id AND cst.class_id = $1 AND cst.school_id = $2
      LEFT  JOIN teachers t ON t.id = cst.teacher_id
-     WHERE cs.school_id = $2
+     WHERE s.school_id = $2
      ORDER BY s.name ASC`,
     [class_id, school_id]
   );
@@ -197,7 +271,7 @@ export const getSubjectsByClass = async (class_id: number, school_id: number): P
 };
 
 export const removeSubjectFromClass = async (class_id: number, subject_id: number, school_id: number): Promise<boolean> => {
-  // Also remove teacher assignment for this subject
+  // Also remove all teacher assignments for this subject in this class
   await pool.query(
     `DELETE FROM class_subject_teachers WHERE class_id = $1 AND subject_id = $2 AND school_id = $3`,
     [class_id, subject_id, school_id]
@@ -247,8 +321,8 @@ export const getSubjectTeachersByClass = async (class_id: number, school_id: num
        t.full_name AS teacher_name,
        s.name      AS subject_name
      FROM class_subject_teachers cst
-     INNER JOIN teachers t ON t.id   = cst.teacher_id
-     INNER JOIN subjects s ON s.id   = cst.subject_id
+     INNER JOIN teachers t ON t.id = cst.teacher_id
+     INNER JOIN subjects s ON s.id = cst.subject_id
      WHERE cst.class_id = $1 AND cst.school_id = $2
      ORDER BY s.name ASC`,
     [class_id, school_id]
@@ -256,7 +330,6 @@ export const getSubjectTeachersByClass = async (class_id: number, school_id: num
   return result.rows;
 };
 
-// What subjects does a teacher teach (across all classes)?
 export const getTeacherSubjectClasses = async (teacher_id: number, school_id: number): Promise<any[]> => {
   const result = await pool.query(
     `SELECT cst.*,
@@ -273,8 +346,6 @@ export const getTeacherSubjectClasses = async (teacher_id: number, school_id: nu
   return result.rows;
 };
 
-// P1 guard: check if a specific teacher is assigned to a subject in a class for any year.
-// Returns true if the assignment exists (teacher can enter marks), false otherwise.
 export const isTeacherAssignedToSubjectInClass = async (
   teacher_id: number,
   class_id: number,
