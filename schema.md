@@ -229,9 +229,20 @@ Which teacher teaches which subject in which class, scoped per academic year.
 | teacher_id | INTEGER FK → teachers | |
 | basic_salary | DECIMAL | |
 | bonus | DECIMAL | default 0 |
-| deduction | DECIMAL | default 0 |
-| month | INTEGER | **1–12 integer — NOT a string like "June"** |
-| year | INTEGER | e.g. 2025 |
+| deduction | DECIMAL | total = tax + pf + other_deduction (including attendance deduction) |
+| tax_amount | DECIMAL | income tax / TDS |
+| provident_fund | DECIMAL | EPF / PF contribution |
+| other_deduction | DECIMAL | loan, advance, attendance-based deduction, etc. |
+| deduction_remarks | TEXT | optional — notes on deductions |
+| net_salary | DECIMAL | **GENERATED column** = basic_salary + bonus - deduction |
+| month | INTEGER | **1–12 integer — always AD month — NOT a string like "June"** |
+| year | INTEGER | **always AD year** e.g. 2025 — never store BS year |
+| working_days | INTEGER | optional — total working days in month |
+| present_days | DECIMAL | optional — effective present days (post absent/half-day calc) |
+| absent_days | INTEGER | optional — absent days (salary deducted) |
+| half_days | INTEGER | optional — half days (0.5× deduction each) |
+| leave_days | INTEGER | optional — approved leave (not deducted) |
+| per_day_salary | DECIMAL | optional — basic_salary / working_days |
 | payment_date | DATE | optional |
 | payment_method | ENUM | `cash` `bank_transfer` `cheque` — **no `online`, no `upi`** |
 | status | ENUM | `paid` `pending` `cancelled` |

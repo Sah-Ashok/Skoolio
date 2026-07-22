@@ -8,6 +8,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(" ");
@@ -35,14 +36,14 @@ interface Section {
   class_name?: string;
 }
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+// formatDate now comes from useDateFormat hook (BS/AD aware)
 
 const isExpired = (expires_at: string | null) =>
   expires_at ? new Date(expires_at) < new Date() : false;
 
 export default function NoticeBoardPage() {
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
 
   const { data: notices, loading, refetch } = useApi<Notice[]>("/notices/admin");
   const { data: activeYear } = useApi<any>("/academic-years/active");

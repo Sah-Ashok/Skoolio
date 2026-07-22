@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
@@ -11,6 +11,8 @@ import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -21,11 +23,55 @@ const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"
 
 export default function FeesPage() {
   const dispatch = useAppDispatch();
+  const { isBS, formatDate } = useDateFormat();
   const { activeYear, academicYearId } = useAcademicYear();
-  const { data: collections, loading } = useApi<any[]>(academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : '', [academicYearId]);
+  const { data: collections, loading, refetch: refetchCollections } = useApi<any[]>(academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : '', [academicYearId]);
 
-  const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [generating, setGenerating]     = useState<string | false>(false);
+  // billingMonth is always stored as AD "YYYY-MM" — the API expects AD
+  const [billingMonth, setBillingMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [generating, setGenerating] = useState<string | false>(false);
+  const { data: monthlyStatus, loading: monthlyStatusLoading, refetch: refetchMonthlyStatus } = useApi<any[]>(
+    academicYearId && billingMonth
+      ? `/fees/monthly/status?academic_year_id=${academicYearId}&billing_month=${billingMonth}`
+      : '',
+    [academicYearId, billingMonth]
+  );
+
+  // ── BS month options for the billing month picker ─────────────────────────
+  // Build options spanning the active academic year (or ±6 months of today)
+  const bsMonthOptions = useMemo(() => {
+    if (!isBS) return [];
+    // Determine range: academic year start→end, or fallback 12 months around today
+    const startAD = activeYear?.start_date
+      ? new Date(activeYear.start_date + "T00:00:00")
+      : (() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d; })();
+    const endAD = activeYear?.end_date
+      ? new Date(activeYear.end_date + "T00:00:00")
+      : (() => { const d = new Date(); d.setMonth(d.getMonth() + 9); return d; })();
+
+    const startBS = adToBS(startAD);
+    const endBS   = adToBS(endAD);
+    const opts: { label: string; adValue: string }[] = [];
+    let y = startBS.year, m = startBS.month;
+    while (y < endBS.year || (y === endBS.year && m <= endBS.month)) {
+      // Get the AD month this BS month maps to (use day 15 rule)
+      const adDate = new Date(bsToISO({ year: y, month: m, day: 15 }) + "T00:00:00");
+      const adValue = `${adDate.getFullYear()}-${String(adDate.getMonth() + 1).padStart(2, "0")}`;
+      opts.push({ label: `${BS_MONTH_NAMES[m - 1]} ${y}`, adValue });
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+    return opts;
+  }, [isBS, activeYear]);
+
+  // Display label for the currently selected billing month
+  const billingMonthLabel = useMemo(() => {
+    if (!isBS) return null; // AD: native <input type="month"> shows its own label
+    const found = bsMonthOptions.find(o => o.adValue === billingMonth);
+    return found?.label ?? billingMonth;
+  }, [isBS, billingMonth, bsMonthOptions]);
 
   const handleGenerateBills = async (type: 'academic' | 'transport' | 'hostel') => {
     if (!academicYearId || !billingMonth) return;
@@ -51,6 +97,8 @@ export default function FeesPage() {
       } else {
         dispatch(showToast({ type: 'success', title: `${LABELS[type]} Bills Generated`, message: `${created} new bills created, ${skipped} already existed.` }));
       }
+      refetchCollections();
+      refetchMonthlyStatus();
     } catch (err: any) {
       dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || `Could not generate ${LABELS[type].toLowerCase()} bills.` }));
     } finally {
@@ -99,6 +147,12 @@ export default function FeesPage() {
   ];
 
   const pendingList = collections?.filter(c => c.status !== 'paid').slice(0, 5) || [];
+
+  // This report intentionally includes academic, transport, and hostel bills.
+  // A paid-in-full student is excluded so staff can see exactly who still owes
+  // an amount for the selected billing month.
+  const monthlyPending = (monthlyStatus || []).filter((bill: any) => bill.status !== 'paid' && bill.status !== 'waived');
+  const monthlyPendingAmount = monthlyPending.reduce((sum: number, bill: any) => sum + Number(bill.remaining_amount || 0), 0);
 
   const feeStatusData = [
     { name: "Paid", value: collections?.filter(c => c.status === 'paid').length || 0, color: "#12805c" },
@@ -151,12 +205,26 @@ export default function FeesPage() {
           <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap", borderBottom: "1px solid #f0f4f5" }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 900 }}>Billing Month</label>
-              <input
-                type="month"
-                value={billingMonth}
-                onChange={e => setBillingMonth(e.target.value)}
-                style={{ minHeight: 40, padding: "0 12px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 13, fontWeight: 800, outline: "none" }}
-              />
+              {isBS ? (
+                /* BS school: show a <select> with BS month names, value stores AD YYYY-MM */
+                <select
+                  value={billingMonth}
+                  onChange={e => setBillingMonth(e.target.value)}
+                  style={{ minHeight: 40, padding: "0 12px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 13, fontWeight: 800, outline: "none", background: "#fff", cursor: "pointer", minWidth: 180 }}
+                >
+                  {bsMonthOptions.map(opt => (
+                    <option key={opt.adValue} value={opt.adValue}>{opt.label}</option>
+                  ))}
+                </select>
+              ) : (
+                /* AD school: native month picker */
+                <input
+                  type="month"
+                  value={billingMonth}
+                  onChange={e => setBillingMonth(e.target.value)}
+                  style={{ minHeight: 40, padding: "0 12px", border: "1px solid #c6d0d7", borderRadius: 8, fontSize: 13, fontWeight: 800, outline: "none" }}
+                />
+              )}
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
@@ -191,6 +259,37 @@ export default function FeesPage() {
               <i className="fa-solid fa-circle-info" style={{ marginRight: 5 }} />
               Idempotent — scholarship discounts auto-applied on academic bills.
             </p>
+          </div>
+        </section>
+
+        <section className={s("card")} style={{ marginTop: 16 }}>
+          <div className={s("card-head")}>
+            <div>
+              <h3><i className="fa-solid fa-users-viewfinder" />Pending Fees — {billingMonthLabel || billingMonth}</h3>
+              <p>All unpaid or partially paid academic, transport, and hostel bills for the selected month.</p>
+            </div>
+            <strong style={{ color: "#b42318", fontSize: 13 }}>{monthlyPending.length} pending · {formatINR(monthlyPendingAmount)}</strong>
+          </div>
+          <div className={s("table-wrap")}>
+            <table>
+              <thead><tr><th>Student</th><th>Class / Section</th><th>Fee</th><th>Type</th><th>Due Date</th><th>Remaining</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>
+                {monthlyStatusLoading ? <tr><td colSpan={8} style={{ textAlign: "center", padding: "2rem" }}><Spinner size={24} color="#FF9B51" /></td></tr>
+                  : monthlyPending.map((bill: any) => (
+                    <tr key={bill.collection_id}>
+                      <td><strong>{bill.full_name}</strong><br /><small style={{ color: "#6a7882" }}>{bill.admission_number}</small></td>
+                      <td>{[bill.class_name, bill.section_name].filter(Boolean).join(" / ") || "—"}</td>
+                      <td>{bill.fee_name}</td>
+                      <td><span style={{ fontSize: 11, fontWeight: 800 }}>{String(bill.fee_type || "academic").toUpperCase()}</span></td>
+                      <td>{formatDate(String(bill.due_date).slice(0, 10))}</td>
+                      <td><strong>{formatINR(Number(bill.remaining_amount || 0))}</strong></td>
+                      <td><Badge status={bill.status} /></td>
+                      <td><Link className={cx(s("btn"), s("btn-primary"), s("btn-sm"))} href={`/fees/collect?student_id=${bill.student_id}`}>Collect</Link></td>
+                    </tr>
+                  ))}
+                {!monthlyStatusLoading && monthlyPending.length === 0 && <tr><td colSpan={8} style={{ textAlign: "center", padding: "2rem" }}>No pending fees for this month.</td></tr>}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -273,10 +372,10 @@ export default function FeesPage() {
                       </td>
                       <td>{col.fee_name || `Fee #${col.id}`}</td>
                       <td><span style={{fontSize:'11px',fontWeight:800,padding:'2px 8px',borderRadius:'999px',background: col.fee_type === 'transport' ? '#fff1df' : col.fee_type === 'hostel' ? '#f3e8ff' : '#e8edff', color: col.fee_type === 'transport' ? '#c46a14' : col.fee_type === 'hostel' ? '#7c3aed' : '#3b5bdb'}}>{(col.fee_type || 'academic').toUpperCase()}</span></td>
-                      <td className={new Date(col.due_date) < new Date() ? s("danger-text") : s("warning-text")}>{new Date(col.due_date).toLocaleDateString()}</td>
+                      <td className={new Date(col.due_date) < new Date() ? s("danger-text") : s("warning-text")}>{formatDate(col.due_date?.slice(0,10))}</td>
                       <td><strong>{formatINR(parseFloat(col.remaining_amount || '0'))}</strong></td>
                       <td><Badge status={col.status} /></td>
-                      <td><Link className={cx(s("btn"), s("btn-primary"), s("btn-sm"))} href="/fees/collect">Collect</Link></td>
+                      <td><Link className={cx(s("btn"), s("btn-primary"), s("btn-sm"))} href={`/fees/collect?student_id=${col.student_id}`}>Collect</Link></td>
                     </tr>
                   ))}
                   {pendingList.length === 0 && <tr><td colSpan={7} style={{textAlign:'center', padding:'2rem'}}>No pending fees.</td></tr>}

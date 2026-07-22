@@ -4,13 +4,15 @@ import restrictTo from '../middlewares/role.middleware';
 import {
   createFeeStructure, getFeeStructures, updateFeeStructure, deleteFeeStructure,
   createFeeCollection, createMiscFeeCollection,
-  getFeeCollections, getStudentFeeCollections, updateFeeCollection,
+  getFeeCollections, getStudentFeeCollections, updateFeeCollection, waiveFeeCollection,
   createFeePayment, getPaymentsByCollection, getStudentPayments,
   getMyFeeCollections, getMyPayments,
   generateMonthlyFeeBills,
   generateTransportBills, getTransportFeeSummary,
   generateHostelBills, getHostelFeeSummary,
   getPaymentReceipt,
+  assignOneTimeFeesController,
+  getMonthlyBillingStatusController,
 } from '../Controllers/fee.controller';
 import { generateReceipt, getReceiptStatus } from '../Controllers/receipt.controller';
 
@@ -23,6 +25,8 @@ router.get('/me/payments',    restrictTo('student'), getMyPayments);
 
 // ── BILLING ──
 router.post('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
+router.get ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
+router.post('/one-time/assign',    restrictTo('admin', 'super_admin'), assignOneTimeFeesController);
 router.post('/transport/generate', restrictTo('admin', 'super_admin'), generateTransportBills);
 router.get ('/transport/summary',  restrictTo('admin', 'super_admin'), getTransportFeeSummary);
 router.post('/hostel/generate',    restrictTo('admin', 'super_admin'), generateHostelBills);
@@ -41,6 +45,7 @@ router.post('/collections',               restrictTo('admin', 'super_admin'), cr
 router.get ('/collections',               restrictTo('admin', 'super_admin'), getFeeCollections);
 router.get ('/collections/student/:id',   restrictTo('admin', 'super_admin'), getStudentFeeCollections);
 router.patch('/collections/:id',          restrictTo('admin', 'super_admin'), updateFeeCollection);
+router.post ('/collections/:id/waive',    restrictTo('admin', 'super_admin'), waiveFeeCollection);
 
 // ── FEE PAYMENTS ──
 router.post('/payments',               restrictTo('admin', 'super_admin'), createFeePayment);

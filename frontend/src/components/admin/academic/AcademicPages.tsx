@@ -10,6 +10,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (className: string) => styles[className];
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -80,6 +81,7 @@ function AcademicStats() {
 }
 
 function ProgramCards() {
+  const { formatDate } = useDateFormat();
   const { data: activeYear } = useApi<{id: number}>('/academic-years/active');
   const { data: classes, loading, error, refetch } = useApi<any[]>(activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
   const dispatch = useAppDispatch();
@@ -187,7 +189,7 @@ function ProgramCards() {
               </div>
               <div className={s("detail-box")}>
                 <span>Created</span>
-                <strong>{new Date(program.created_at).toLocaleDateString()}</strong>
+                <strong>{formatDate(program.created_at?.slice(0,10))}</strong>
               </div>
             </div>
 
@@ -212,6 +214,7 @@ function ProgramCards() {
 }
 
 export function AcademicManagePage() {
+  const { formatDate } = useDateFormat();
   const { data: years, loading, refetch } = useApi<any[]>('/academic-years');
   const dispatch = useAppDispatch();
   const { execute: createYear, loading: creating, error: createError } = useMutation('/academic-years', 'POST');
@@ -300,8 +303,8 @@ export function AcademicManagePage() {
                 {years?.map(year => (
                   <tr key={year.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '16px 0' }}><strong>{year.year_name}</strong></td>
-                    <td>{new Date(year.start_date).toLocaleDateString()}</td>
-                    <td>{new Date(year.end_date).toLocaleDateString()}</td>
+                    <td>{formatDate(year.start_date?.slice(0,10))}</td>
+                    <td>{formatDate(year.end_date?.slice(0,10))}</td>
                     <td>
                       <span className={cx(s("badge"))} style={{
                         background: year.status === 'active' ? '#dcfce7' : year.status === 'upcoming' ? '#e0f2fe' : '#f1f5f9',

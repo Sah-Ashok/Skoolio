@@ -10,7 +10,7 @@ import {
   getPendingSalariesService, getSalaryPaymentDetailService, updateSalaryPaymentService,
   markAttendanceService, bulkMarkAttendanceService,
   getAttendanceByDateService, getStaffAttendanceService, updateAttendanceService,
-  getMonthlyAbsentCountService,
+  getMonthlyAbsentCountService, getAttendanceForSalaryService,
 } from '../Service/staff.service';
 
 // ── STAFF ROLES ───────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ export const getStaffSalaryPayments = catchAsync(async (req: Request, res: Respo
 
 export const getAllSalaryPayments = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const month = req.query.month as string | undefined;  // 'YYYY-MM'
+  const month = req.query.month as string | undefined;
   const payments = await getAllSalaryPaymentsService(school_id, month);
   sendResponse(res, 200, true, 'All salary payments fetched successfully', payments);
 });
@@ -129,6 +129,17 @@ export const updateSalaryPayment = catchAsync(async (req: Request, res: Response
   const { deductions, ...rest } = req.body;
   const payment = await updateSalaryPaymentService(Number(req.params.id), school_id, rest, deductions);
   sendResponse(res, 200, true, 'Salary payment updated successfully', payment);
+});
+
+// GET /staff/salary/attendance-preview?staff_id=X&month=YYYY-MM
+export const getAttendanceForSalary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { staff_id, month } = req.query as { staff_id: string; month: string };
+  if (!staff_id || !month) {
+    return sendResponse(res, 400, false, 'staff_id and month (YYYY-MM) are required', null);
+  }
+  const preview = await getAttendanceForSalaryService(Number(staff_id), school_id, month);
+  sendResponse(res, 200, true, 'Attendance salary preview fetched', preview);
 });
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ export interface IFeeStructure {
   due_day?: number;
   description?: string;
   billing_start_rule: BillingStartRule;
+  scholarship_applies: boolean;  // whether scholarship discount applies to this fee
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -36,6 +37,7 @@ export type ICreateFeeStructure = Pick<
   due_day?: number;
   description?: string;
   billing_start_rule?: BillingStartRule;
+  scholarship_applies?: boolean;  // default true if not provided
 };
 
 export type IUpdateFeeStructure = Partial<ICreateFeeStructure>;

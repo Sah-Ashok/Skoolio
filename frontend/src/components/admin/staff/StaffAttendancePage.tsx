@@ -5,28 +5,32 @@ import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
+import { useDateFormat } from "@/lib/useDateFormat";
+import DateInput from "@/components/shared/DateInput";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-// ── Types ─────────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 type StaffMember   = { id: number; full_name: string; role_name?: string; status: string; _type: "staff"; };
 type TeacherMember = { id: number; full_name: string; status: string; _type: "teacher"; };
 type Person = StaffMember | TeacherMember;
-type AttRecord = { id: number; staff_id?: number; teacher_id?: number; date: string; status: string };
 
 const personKey = (p: Person) => `${p._type}-${p.id}`;
 
 const ATT_STATUSES = [
-  { key: "present",  label: "Present",  icon: "fa-check",               color: "#12805c" },
-  { key: "absent",   label: "Absent",   icon: "fa-xmark",               color: "#b42318" },
-  { key: "leave",    label: "Leave",    icon: "fa-moon",                color: "#3b5bdb" },
-  { key: "half_day", label: "Half Day", icon: "fa-circle-half-stroke",  color: "#c46a14" },
+  { key: "present",  label: "Present",  icon: "fa-check",              color: "#12805c" },
+  { key: "absent",   label: "Absent",   icon: "fa-xmark",              color: "#b42318" },
+  { key: "leave",    label: "Leave",    icon: "fa-moon",               color: "#3b5bdb" },
+  { key: "half_day", label: "Half Day", icon: "fa-circle-half-stroke", color: "#c46a14" },
 ];
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+const todayStr = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
-// ── Person Row ────────────────────────────────────────────────────────────────────────
+// ── Person Row ────────────────────────────────────────────────────────────────
 function PersonRow({ person, current, onChange }: { person: Person; current: string; onChange: (s: string) => void }) {
   const isTeacher = person._type === "teacher";
   const roleLabel = isTeacher ? "Teacher" : (person as StaffMember).role_name ?? "Staff";
@@ -65,22 +69,36 @@ function PersonRow({ person, current, onChange }: { person: Person; current: str
   );
 }
 
-type Staff = { id: number; full_name: string; role_name?: string; status: string };
-type AttRecordOld = { id: number; staff_id: number; date: string; status: string };
-
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export function StaffAttendancePage() {
   const { data: staffList,   loading: loadingStaff }    = useApi<any[]>("/staff");
   const { data: teacherList, loading: loadingTeachers } = useApi<any[]>("/teachers");
 
+  // date is always stored/sent as AD ISO string
   const [date,   setDate]   = useState(todayStr);
   const [filter, setFilter] = useState<"all" | "staff" | "teacher">("all");
   const [search, setSearch] = useState("");
   const [saved,  setSaved]  = useState(false);
 
+  const { formatDate, isBS } = useDateFormat();
+
+  // Display the date header in BS or AD
+  const dateLabel = useMemo(() => {
+    if (!date) return "";
+    if (isBS) {
+      // formatDate converts AD ISO → BS display string
+      // Add weekday separately in English (weekday name is the same)
+      const weekday = new Date(date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long" });
+      return `${weekday}, ${formatDate(date)}`;
+    }
+    return new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
+      weekday: "long", day: "2-digit", month: "long", year: "numeric",
+    });
+  }, [date, isBS, formatDate]);
+
   const { data: existingStaff,    refetch: refetchStaff }    = useApi<any[]>(`/staff/attendance?date=${date}`);
   const { data: existingTeachers, refetch: refetchTeachers } = useApi<any[]>(`/teachers/attendance?date=${date}`);
 
-  // Merge: teachers first then staff
   const allPeople = useMemo<Person[]>(() => [
     ...(teacherList ?? []).filter((m: any) => m.status !== "inactive").map((m: any) => ({ ...m, _type: "teacher" as const })),
     ...(staffList   ?? []).filter((m: any) => m.status !== "terminated").map((m: any) => ({ ...m, _type: "staff" as const })),
@@ -88,11 +106,10 @@ export function StaffAttendancePage() {
 
   const [draft, setDraft] = useState<Record<string, string>>({});
 
-  // Sync saved records into draft when date or records change
   useEffect(() => {
     const next: Record<string, string> = {};
     allPeople.forEach(p => { next[personKey(p)] = "present"; });
-    (existingStaff ?? []).forEach((r: any)    => { next[`staff-${r.staff_id}`]     = r.status; });
+    (existingStaff    ?? []).forEach((r: any) => { next[`staff-${r.staff_id}`]     = r.status; });
     (existingTeachers ?? []).forEach((r: any) => { next[`teacher-${r.teacher_id}`] = r.status; });
     setDraft(next);
     setSaved(false);
@@ -135,6 +152,16 @@ export function StaffAttendancePage() {
   const teacherCount = (teacherList ?? []).filter((m: any) => m.status !== "inactive").length;
   const staffCount   = (staffList   ?? []).filter((m: any) => m.status !== "terminated").length;
 
+  // DateInput sends back AD ISO — clamp to today
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    // never allow future dates
+    if (val > todayStr()) return;
+    setDate(val);
+    setSaved(false);
+  };
+
   return (
     <div className={s("page")}>
       <Topbar title="Staff &amp; Teacher Attendance" subtitle="Mark daily attendance for all staff and teaching faculty" />
@@ -144,11 +171,22 @@ export function StaffAttendancePage() {
         <section className={s("head")}>
           <div>
             <h1>Daily Attendance</h1>
-            <p>{new Date(date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+            {/* Always shows in the school's calendar (BS or AD) */}
+            <p>{dateLabel}</p>
           </div>
           <div className={s("actions")}>
-            <input type="date" value={date} max={todayStr()} onChange={e => { setDate(e.target.value); setSaved(false); }} className={s("dateInput")} />
-            <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSave} disabled={saving || isLoading || total === 0}>
+            {/* DateInput is BS-aware — shows BS picker for BS schools, native for AD */}
+            <DateInput
+              value={date}
+              max={todayStr()}
+              onChange={handleDateChange}
+              className={s("dateInput")}
+            />
+            <button
+              className={cx(s("btn"), s("btnPrimary"))}
+              onClick={handleSave}
+              disabled={saving || isLoading || total === 0}
+            >
               {saving ? <><Spinner size={14} color="#fff" /> Saving…</>
                 : saved  ? <><i className="fa-solid fa-circle-check" /> Saved!</>
                 : <><i className="fa-solid fa-floppy-disk" /> Save All</>}
@@ -183,7 +221,11 @@ export function StaffAttendancePage() {
           </div>
           <div className={s("attFilterGroup")}>
             {(["all", "teacher", "staff"] as const).map(f => (
-              <button key={f} className={cx(s("attFilterBtn"), filter === f && s("attFilterActive"))} onClick={() => setFilter(f)}>
+              <button
+                key={f}
+                className={cx(s("attFilterBtn"), filter === f && s("attFilterActive"))}
+                onClick={() => setFilter(f)}
+              >
                 <i className={`fa-solid ${f === "teacher" ? "fa-chalkboard-user" : f === "staff" ? "fa-users-gear" : "fa-users"}`} />
                 {f === "all" ? "All" : f === "teacher" ? "Teachers" : "Staff"}
                 <span className={s("attFilterCount")}>{f === "all" ? total : f === "teacher" ? teacherCount : staffCount}</span>
@@ -211,7 +253,12 @@ export function StaffAttendancePage() {
                 </div>
               </div>
               {displayed.map(p => (
-                <PersonRow key={personKey(p)} person={p} current={draft[personKey(p)] ?? "present"} onChange={st => setStatus(personKey(p), st)} />
+                <PersonRow
+                  key={personKey(p)}
+                  person={p}
+                  current={draft[personKey(p)] ?? "present"}
+                  onChange={st => setStatus(personKey(p), st)}
+                />
               ))}
             </>
           )}
@@ -222,9 +269,16 @@ export function StaffAttendancePage() {
           <div className={s("attQuickSet")}>
             <span style={{ fontSize: 12, fontWeight: 900, color: "#6a7882" }}>Set all shown:</span>
             {ATT_STATUSES.map(a => (
-              <button key={a.key} className={cx(s("btn"), s("btnSm"))}
+              <button
+                key={a.key}
+                className={cx(s("btn"), s("btnSm"))}
                 style={{ background: a.color + "15", color: a.color, border: `1px solid ${a.color}44` }}
-                onClick={() => { const n = { ...draft }; displayed.forEach(p => { n[personKey(p)] = a.key; }); setDraft(n); setSaved(false); }}
+                onClick={() => {
+                  const n = { ...draft };
+                  displayed.forEach(p => { n[personKey(p)] = a.key; });
+                  setDraft(n);
+                  setSaved(false);
+                }}
               >
                 <i className={`fa-solid ${a.icon}`} /> All {a.label}
               </button>

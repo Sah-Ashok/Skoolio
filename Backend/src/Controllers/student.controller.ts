@@ -7,6 +7,7 @@ import {
   updateStudentService, deleteStudentService,
   createEnrollmentService, getEnrollmentsService,
   getStudentEnrollmentsService, updateEnrollmentService,
+  searchStudentsService,
 } from '../Service/student.service';
 
 // ── STUDENT CONTROLLERS (ADMIN) ──
@@ -21,6 +22,14 @@ export const getStudents = catchAsync(async (req: Request, res: Response, next: 
   const { id: school_id } = req.user as IJwtAdminPayload;
   const students = await getStudentsService(school_id);
   sendResponse(res, 200, true, 'Students fetched successfully', students);
+});
+
+export const searchStudents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const q = String(req.query.q || '').trim();
+  if (!q || q.length < 2) return sendResponse(res, 400, false, 'Query must be at least 2 characters', null);
+  const results = await searchStudentsService(school_id, q);
+  sendResponse(res, 200, true, 'Students found', results);
 });
 
 export const getStudentById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {

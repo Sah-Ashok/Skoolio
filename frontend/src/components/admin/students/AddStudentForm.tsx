@@ -179,14 +179,9 @@ export default function AddStudentForm() {
       setCreatedStudent(student);
       setCreatedEnroll(enrollRes.data);
       if (photoFile) await uploadPhoto(student.id);
-      setFeesLoading(true);
-      try {
-        const feeRes = await apiRequest<{ data: any[] }>(`/fees/structures?class_id=${enrollment.class_id}&academic_year_id=${activeYear.id}`);
-        const structures = feeRes.data || [];
-        setFeeStructures(structures);
-        setSelectedFees(new Set(structures.map((f: any) => f.id)));
-      } catch { setFeeStructures([]); } finally { setFeesLoading(false); }
-      setStep("fees");
+      // Enrollment is now picked up by the central billing cycle. Creating
+      // collections here would duplicate monthly/yearly invoices.
+      setStep("done");
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save student." }));
     } finally { setIsSubmitting(false); }
@@ -261,7 +256,7 @@ export default function AddStudentForm() {
   const grandNetTotal  = feeNetTotal + miscNetTotal;
   const grandDiscount  = feeDiscountTot + (miscTotal - miscNetTotal);
 
-  const steps   = [{ key: "details", label: "Student Details" }, { key: "fees", label: "Assign Fees" }, { key: "done", label: "Complete" }];
+  const steps   = [{ key: "details", label: "Student Details" }, { key: "done", label: "Complete" }];
   const stepIdx = steps.findIndex(s => s.key === step);
 
   const inputStyle: React.CSSProperties = { width: "100%", minHeight: 38, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit", background: "#fff" };
@@ -463,7 +458,7 @@ export default function AddStudentForm() {
           <div className={s("form-actions")} style={{ marginTop: "1.5rem", padding: "1rem 0", borderTop: "1px solid #eee" }}>
             <Link className={s("btn")} href="/students">Cancel</Link>
             <button type="submit" className={cx(s("btn"), s("btn-primary"))} disabled={isSubmitting}>
-              {isSubmitting ? <><Spinner size={16} /> {photoFile ? "Saving & Uploading…" : "Saving…"}</> : <>Next: Assign Fees <i className="fa-solid fa-arrow-right" /></>}
+              {isSubmitting ? <><Spinner size={16} /> {photoFile ? "Saving & Uploading…" : "Saving…"}</> : <>Save Student <i className="fa-solid fa-check" /></>}
             </button>
           </div>
         </form>
@@ -555,10 +550,11 @@ export default function AddStudentForm() {
           </div>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>Student Admitted Successfully!</h2>
-            <p style={{ color: "#6b7b86", fontWeight: 700, marginTop: 6 }}>{form.full_name} has been registered and enrolled.</p>
+            <p style={{ color: "#6b7b86", fontWeight: 700, marginTop: 6 }}>{form.full_name} has been registered and enrolled. Their class fee plan will be billed from Fee Management.</p>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <Link className={cx(s("btn"), s("btn-primary"))} href={createdStudent?.id ? `/students/profile?id=${createdStudent.id}` : "/students"}><i className="fa-solid fa-user" /> View Profile</Link>
+            <Link className={cx(s("btn"), s("btn-outline"))} href={createdStudent?.id ? `/fees/collect?student_id=${createdStudent.id}` : "/fees"}><i className="fa-solid fa-file-invoice-dollar" /> Open Billing</Link>
             <Link className={cx(s("btn"), s("btn-outline"))} href="/students/add"><i className="fa-solid fa-plus" /> Add Another Student</Link>
             <Link className={cx(s("btn"), s("btn-outline"))} href="/students"><i className="fa-solid fa-list" /> Back to Students</Link>
           </div>

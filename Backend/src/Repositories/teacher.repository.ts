@@ -151,8 +151,8 @@ export const removeSubjectFromTeacher = async (teacher_id: number, subject_id: n
 // ── SALARY QUERIES ──
 
 export const createSalary = async (school_id: number, paid_by: number, data: ICreateSalary): Promise<ITeacherSalary> => {
-  const tax = data.tax_amount || 0;
-  const pf  = data.provident_fund || 0;
+  const tax   = data.tax_amount     || 0;
+  const pf    = data.provident_fund || 0;
   const other = data.other_deduction || 0;
   const totalDeduct = data.deduction ?? (tax + pf + other);
 
@@ -160,13 +160,17 @@ export const createSalary = async (school_id: number, paid_by: number, data: ICr
     `INSERT INTO teacher_salaries
       (school_id, academic_year_id, teacher_id, basic_salary, bonus, deduction,
        tax_amount, provident_fund, other_deduction, deduction_remarks,
+       working_days, present_days, absent_days, half_days, leave_days, per_day_salary,
        month, year, payment_date, payment_method, status, paid_by, remarks)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      RETURNING *, net_salary`,
     [
       school_id, data.academic_year_id, data.teacher_id,
       data.basic_salary, data.bonus || 0, totalDeduct,
       tax, pf, other, data.deduction_remarks || null,
+      data.working_days ?? null, data.present_days ?? null,
+      data.absent_days ?? null, data.half_days ?? null,
+      data.leave_days ?? null, data.per_day_salary ?? null,
       data.month, data.year, data.payment_date || null,
       data.payment_method || null, data.status || 'pending',
       paid_by, data.remarks || null,
@@ -221,6 +225,74 @@ export const updateSalary = async (id: number, school_id: number, data: IUpdateS
     ]
   );
   return result.rows[0] || null;
+};
+
+// ── SALARY SUMMARY (all teachers, with pending/paid status per month) ─────────
+
+export const getSalarySummaryBySchool = async (school_id: number): Promise<any[]> => {
+  const result = await pool.query(
+    `SELECT
+       t.id              AS teacher_id,
+       t.full_name,
+       t.monthly_salary,
+       t.join_date::text,
+       t.status          AS teacher_status,
+       COUNT(ts.id)      AS total_salary_records,
+       SUM(CASE WHEN ts.status = 'paid'    THEN 1 ELSE 0 END) AS paid_months,
+       SUM(CASE WHEN ts.status = 'pending' THEN 1 ELSE 0 END) AS pending_months,
+       SUM(CASE WHEN ts.status = 'paid'    THEN ts.net_salary ELSE 0 END) AS total_paid,
+       SUM(CASE WHEN ts.status = 'pending' THEN ts.net_salary ELSE 0 END) AS total_pending,
+       MAX(CASE WHEN ts.status = 'paid' THEN (ts.year * 100 + ts.month) END) AS last_paid_period
+     FROM teachers t
+     LEFT JOIN teacher_salaries ts ON ts.teacher_id = t.id AND ts.school_id = t.school_id
+     WHERE t.school_id = $1 AND t.status = 'active'
+     GROUP BY t.id, t.full_name, t.monthly_salary, t.join_date, t.status
+     ORDER BY t.full_name ASC`,
+    [school_id]
+  );
+  return result.rows;
+};
+
+export const getTeacherAttendanceSummaryByMonth = async (
+  school_id: number,
+  teacher_id: number,
+  year: number,
+  month: number
+): Promise<any> => {
+  const result = await pool.query(
+    `SELECT
+       COUNT(*)                                                          AS total_records,
+       SUM(CASE WHEN status = 'present'  THEN 1 ELSE 0 END)             AS present_days,
+       SUM(CASE WHEN status = 'absent'   THEN 1 ELSE 0 END)             AS absent_days,
+       SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END)             AS half_days,
+       SUM(CASE WHEN status = 'leave'    THEN 1 ELSE 0 END)             AS leave_days
+     FROM teacher_attendance
+     WHERE school_id = $1
+       AND teacher_id = $2
+       AND EXTRACT(YEAR  FROM date) = $3
+       AND EXTRACT(MONTH FROM date) = $4`,
+    [school_id, teacher_id, year, month]
+  );
+  return result.rows[0];
+};
+
+export const getTeacherAttendanceByMonth = async (
+  school_id: number,
+  teacher_id: number,
+  year: number,
+  month: number
+): Promise<any[]> => {
+  const result = await pool.query(
+    `SELECT date::text, status, check_in::text, check_out::text, note
+     FROM teacher_attendance
+     WHERE school_id = $1
+       AND teacher_id = $2
+       AND EXTRACT(YEAR  FROM date) = $3
+       AND EXTRACT(MONTH FROM date) = $4
+     ORDER BY date ASC`,
+    [school_id, teacher_id, year, month]
+  );
+  return result.rows;
 };
 
 // ── TEACHER PERSONAL ATTENDANCE ──────────────────────────────────────────────

@@ -14,7 +14,8 @@ import {
   createSalaryPayment, getSalaryPaymentsByStaff, getAllSalaryPayments, getPendingSalaries,
   getSalaryPaymentById, updateSalaryPayment,
   createDeductions, getDeductionsByPayment, deleteDeductionsByPayment,
-  markAttendance, getAttendanceByDate, getAttendanceByStaff, updateAttendance, getMonthlyAbsentCount,
+  markAttendance, getAttendanceByDate, getAttendanceByStaff, updateAttendance,
+  getMonthlyAbsentCount, getMonthlyAttendanceSummary,
 } from '../Repositories/staff.repository';
 
 // ── STAFF ROLES ───────────────────────────────────────────────────────────────
@@ -38,7 +39,6 @@ export const deleteStaffRoleService = async (id: number, school_id: number) => {
     const deleted = await deleteStaffRole(id, school_id);
     if (!deleted) throw new AppError('Staff role not found.', 404);
   } catch (err: any) {
-    // PostgreSQL FK violation 23503 = a staff member is still assigned this role
     if (err.code === '23503') {
       throw new AppError('Cannot delete this role — it is still assigned to one or more staff members.', 400);
     }
@@ -54,7 +54,6 @@ export const createStaffService = async (school_id: number, data: ICreateStaff) 
   return createStaff(school_id, data);
 };
 
-// Uses a single LATERAL JOIN query — no N+1
 export const getStaffService = async (school_id: number) => {
   return getStaffWithSalary(school_id);
 };
@@ -103,6 +102,69 @@ export const updateSalaryStructureService = async (id: number, school_id: number
   return record;
 };
 
+// ── ATTENDANCE-BASED SALARY PREVIEW ──────────────────────────────────────────
+/**
+ * Called by the frontend "Pay Salary" modal before the admin submits.
+ * Returns the attendance summary for the given month + the calculated
+ * gross, deduction, and net amounts so the admin can review before saving.
+ *
+ * Formula:
+ *   per_day   = basic_salary / working_days
+ *   deduction = (absent_days + half_days × 0.5) × per_day
+ *   gross     = basic_salary              (the assigned monthly salary)
+ *   net       = gross - deduction
+ *
+ * working_days = total days marked in staff_attendance for the month
+ *   (present + absent + half_day + leave).
+ * Leave days are NOT deducted.
+ */
+export const getAttendanceForSalaryService = async (
+  staff_id:  number,
+  school_id: number,
+  month:     string   // "YYYY-MM"
+) => {
+  const staff = await getStaffById(staff_id, school_id);
+  if (!staff) throw new AppError('Staff member not found.', 404);
+
+  const salary = await getLatestSalaryStructure(staff_id, school_id);
+
+  const [yearStr, monthStr] = month.split('-');
+  const year  = parseInt(yearStr,  10);
+  const mo    = parseInt(monthStr, 10);
+
+  const att = await getMonthlyAttendanceSummary(staff_id, school_id, year, mo);
+
+  const basic_salary  = salary ? Number(salary.basic_salary) : 0;
+  // working_days = all days we have any attendance record for
+  const working_days  = att.total_marked;
+  const per_day       = working_days > 0 ? basic_salary / working_days : 0;
+
+  // absent_days full deduction + half_days counted as 0.5
+  const absent_equiv  = att.absent_days + att.half_days * 0.5;
+  const deduction     = Math.round(per_day * absent_equiv * 100) / 100;
+  const net_salary    = Math.round((basic_salary - deduction) * 100) / 100;
+
+  return {
+    staff_id,
+    month,
+    basic_salary,
+    // attendance
+    working_days,
+    present_days: att.present_days,
+    absent_days:  att.absent_days,
+    half_days:    att.half_days,
+    leave_days:   att.leave_days,
+    // calculated
+    per_day_salary: Math.round(per_day * 100) / 100,
+    absent_deduction: deduction,
+    gross_amount:   basic_salary,
+    net_salary,
+    // meta
+    has_attendance: att.total_marked > 0,
+    salary_set:     !!salary,
+  };
+};
+
 // ── SALARY PAYMENTS ───────────────────────────────────────────────────────────
 
 export const createSalaryPaymentService = async (school_id: number, data: ICreateSalaryPayment) => {
@@ -113,7 +175,41 @@ export const createSalaryPaymentService = async (school_id: number, data: ICreat
   const computedTotal    = deductionItems.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
   const total_deductions = data.total_deductions ?? computedTotal;
 
-  const payment = await createSalaryPayment(school_id, { ...data, total_deductions });
+  // If attendance fields were not provided by the caller, try to auto-fetch them
+  let attFields = {
+    working_days:   data.working_days,
+    present_days:   data.present_days,
+    absent_days:    data.absent_days,
+    half_days:      data.half_days,
+    leave_days:     data.leave_days,
+    per_day_salary: data.per_day_salary,
+  };
+
+  if (attFields.working_days == null) {
+    try {
+      const [yearStr, monthStr] = data.salary_month.slice(0, 7).split('-');
+      const att = await getMonthlyAttendanceSummary(
+        data.staff_id, school_id,
+        parseInt(yearStr, 10), parseInt(monthStr, 10)
+      );
+      const salary = await getLatestSalaryStructure(data.staff_id, school_id);
+      const basic  = salary ? Number(salary.basic_salary) : Number(data.gross_amount);
+      const wDays  = att.total_marked;
+      const perDay = wDays > 0 ? basic / wDays : 0;
+      attFields = {
+        working_days:   wDays,
+        present_days:   att.present_days,
+        absent_days:    att.absent_days,
+        half_days:      att.half_days,
+        leave_days:     att.leave_days,
+        per_day_salary: Math.round(perDay * 100) / 100,
+      };
+    } catch {
+      // attendance data unavailable — proceed without it
+    }
+  }
+
+  const payment = await createSalaryPayment(school_id, { ...data, total_deductions, ...attFields });
 
   if (deductionItems.length) {
     await createDeductions(school_id, payment.id, deductionItems);
@@ -150,7 +246,6 @@ export const updateSalaryPaymentService = async (
   data: IUpdateSalaryPayment,
   newDeductions?: ICreateDeduction[]
 ) => {
-  // Compute new total first so we do a single update call — no race condition
   let finalData = { ...data };
 
   if (newDeductions !== undefined) {
@@ -181,10 +276,7 @@ export const bulkMarkAttendanceService = async (
   date: string,
   records: Array<{ staff_id: number; status: ICreateAttendance['status']; check_in?: string; check_out?: string; note?: string }>
 ) => {
-  const results = await Promise.all(
-    records.map(r => markAttendance(school_id, { ...r, date }))
-  );
-  return results;
+  return Promise.all(records.map(r => markAttendance(school_id, { ...r, date })));
 };
 
 export const getAttendanceByDateService = async (school_id: number, date: string) => {
@@ -201,12 +293,10 @@ export const getStaffAttendanceService = async (
   if (!staff) throw new AppError('Staff member not found.', 404);
 
   const records = await getAttendanceByStaff(staff_id, school_id, from, to);
-
   const summary = records.reduce(
     (acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; },
     {} as Record<string, number>
   );
-
   return { staff, records, summary };
 };
 

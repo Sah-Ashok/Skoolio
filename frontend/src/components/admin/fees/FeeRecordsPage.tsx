@@ -8,6 +8,9 @@ import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { useAppDispatch } from "@/store/hooks";
+import { showToast } from "@/store/toastSlice";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -36,8 +39,9 @@ function PaymentsModal({
   collection: any;
   onClose: () => void;
 }) {
+  const { formatDate } = useDateFormat();
   const { data: payments, loading } = useApi<any[]>(
-    collection ? `{process.env.BackendUrl}/fees/payments/collection/${collection.id}` : ""
+    collection ? `/fees/payments/collection/${collection.id}` : ""
   );
 
   return (
@@ -99,7 +103,7 @@ function PaymentsModal({
                   <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "11px 12px", fontWeight: 900, color: "#1f2d36" }}>{p.receipt_number}</td>
                     <td style={{ padding: "11px 12px", color: "#6a7882", fontWeight: 700 }}>
-                      {new Date(p.payment_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      {formatDate(p.payment_date?.slice(0,10))}
                     </td>
                     <td style={{ padding: "11px 12px", fontWeight: 900, color: "#12805c" }}>{formatINR(p.paid_amount)}</td>
                     <td style={{ padding: "11px 12px", color: "#6a7882", fontWeight: 700, textTransform: "capitalize" }}>
@@ -134,8 +138,10 @@ function PaymentsModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FeeRecordsPage() {
+  const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const { academicYearId } = useAcademicYear();
-  const { data: collections, loading, error } = useApi<any[]>(
+  const { data: collections, loading, error, refetch } = useApi<any[]>(
     academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
     [academicYearId]
   );
@@ -144,6 +150,45 @@ export default function FeeRecordsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter,   setTypeFilter]   = useState("all");
   const [modalCol,     setModalCol]     = useState<any | null>(null);
+  const [waiving,      setWaiving]      = useState<number | null>(null);
+  const [fineTarget,   setFineTarget]   = useState<any | null>(null);
+  const [fineAmount,   setFineAmount]   = useState("");
+  const [fineReason,   setFineReason]   = useState("");
+  const [addingFine,   setAddingFine]   = useState(false);
+
+  const handleAddFine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fineTarget) return;
+    const amt = parseFloat(fineAmount);
+    if (!amt || amt <= 0) return dispatch(showToast({ type: 'error', title: 'Error', message: 'Enter a valid fine amount.' }));
+    setAddingFine(true);
+    try {
+      await apiRequest(`/fees/collections/${fineTarget.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fine_amount: amt, fine_reason: fineReason || 'Late payment fine' }),
+      });
+      dispatch(showToast({ type: 'success', title: 'Fine Applied', message: `Rs. ${fineAmount} fine added to ${fineTarget.fee_name}.` }));
+      refetch();
+      setFineTarget(null); setFineAmount(''); setFineReason('');
+    } catch (err: any) {
+      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || 'Could not apply fine.' }));
+    } finally { setAddingFine(false); }
+  };
+
+  const handleWaive = async (col: any) => {
+    const reason = window.prompt(`Waive reason for "${col.fee_name}" (${col.full_name})?`, 'Waived by admin');
+    if (reason === null) return; // cancelled
+    setWaiving(col.id);
+    try {
+      await apiRequest(`/fees/collections/${col.id}/waive`, { method: 'POST', body: JSON.stringify({ reason: reason || 'Waived by admin' }) });
+      dispatch(showToast({ type: 'success', title: 'Fee Waived', message: `${col.fee_name} has been waived.` }));
+      refetch();
+    } catch (err: any) {
+      dispatch(showToast({ type: 'error', title: 'Failed', message: err.message || 'Could not waive fee.' }));
+    } finally {
+      setWaiving(null);
+    }
+  };
 
   const filtered = (collections || []).filter(col => {
     const q = search.toLowerCase();
@@ -276,7 +321,7 @@ export default function FeeRecordsPage() {
                           <span className={cx(s("badge"), s(typeMeta.cls))}>{typeMeta.label}</span>
                         </td>
                         <td className={isOverdue ? s("danger-text") : ""} style={{ fontSize: 13 }}>
-                          {new Date(col.due_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          {formatDate(col.due_date?.slice(0,10))}
                           {isOverdue && <span style={{ display: "block", fontSize: 10, color: "#b42318", fontWeight: 800 }}>OVERDUE</span>}
                         </td>
                         <td><strong>{formatINR(col.total_amount)}</strong></td>
@@ -292,30 +337,42 @@ export default function FeeRecordsPage() {
                           </span>
                         </td>
                         <td>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            {/* Print receipts — only for collections with at least one payment */}
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                             {hasPaid && (
                               <button
                                 onClick={() => setModalCol(col)}
                                 title="View & Print Receipts"
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 5,
-                                  padding: "5px 10px", borderRadius: 7, border: "none",
-                                  background: "#1e3a5f", color: "#fff",
-                                  fontWeight: 800, fontSize: 11, cursor: "pointer",
-                                }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "none", background: "#1e3a5f", color: "#fff", fontWeight: 800, fontSize: 11, cursor: "pointer" }}
                               >
-                                <i className="fa-solid fa-print" style={{ fontSize: 10 }} />
-                                Receipts
+                                <i className="fa-solid fa-print" style={{ fontSize: 10 }} /> Receipts
                               </button>
                             )}
-                            {col.status !== "paid" && (
+                            {col.status !== "paid" && col.status !== "waived" && (
                               <Link
                                 className={cx(s("btn"), s("btn-primary"), s("btn-sm"))}
-                                href="/fees/collect"
+                                href={`/fees/collect?student_id=${col.student_id}`}
                               >
                                 Collect
                               </Link>
+                            )}
+                            {col.status !== "paid" && col.status !== "waived" && (
+                              <button
+                                onClick={() => handleWaive(col)}
+                                disabled={waiving === col.id}
+                                title="Waive this fee"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "1px solid #d1a83b", background: "#fffbeb", color: "#92400e", fontWeight: 800, fontSize: 11, cursor: "pointer" }}
+                              >
+                                {waiving === col.id ? <Spinner size={10} /> : <i className="fa-solid fa-ban" style={{ fontSize: 10 }} />} Waive
+                              </button>
+                            )}
+                            {col.status !== "paid" && col.status !== "waived" && new Date(col.due_date) < new Date() && (
+                              <button
+                                onClick={() => { setFineTarget(col); setFineAmount(''); setFineReason(''); }}
+                                title="Add late fine"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "1px solid #fbd38d", background: "#fffbeb", color: "#92400e", fontWeight: 800, fontSize: 11, cursor: "pointer" }}
+                              >
+                                <i className="fa-solid fa-bolt" style={{ fontSize: 10 }} /> Fine
+                              </button>
                             )}
                           </div>
                         </td>
@@ -332,6 +389,60 @@ export default function FeeRecordsPage() {
       {/* Payments modal */}
       {modalCol && (
         <PaymentsModal collection={modalCol} onClose={() => setModalCol(null)} />
+      )}
+
+      {/* Add Fine modal */}
+      {fineTarget && (
+        <div
+          onClick={() => setFineTarget(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8eef0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 900, margin: 0, color: '#1f2d36' }}>Add Late Fine</h3>
+                <p style={{ fontSize: 12, color: '#6a7882', fontWeight: 700, marginTop: 2 }}>{fineTarget.fee_name} · {fineTarget.full_name}</p>
+              </div>
+              <button onClick={() => setFineTarget(null)}
+                style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #d4dde2', background: '#fff', cursor: 'pointer', fontSize: 14, color: '#6a7882' }}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <form onSubmit={handleAddFine} style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 800, color: '#1f2d36' }}>
+                Fine Amount (Rs.) *
+                <input
+                  value={fineAmount}
+                  onChange={e => setFineAmount(e.target.value)}
+                  type="number" min="0.01" step="0.01" required placeholder="0.00"
+                  style={{ minHeight: 42, padding: '0 12px', border: '1.5px solid #d1d9e0', borderRadius: 8, fontSize: 13, fontWeight: 700, outline: 'none', width: '100%', background: '#fff', color: '#1a202c' }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 800, color: '#1f2d36' }}>
+                Reason
+                <input
+                  value={fineReason}
+                  onChange={e => setFineReason(e.target.value)}
+                  placeholder="Late payment fine"
+                  style={{ minHeight: 42, padding: '0 12px', border: '1.5px solid #d1d9e0', borderRadius: 8, fontSize: 13, fontWeight: 700, outline: 'none', width: '100%', background: '#fff', color: '#1a202c' }}
+                />
+              </label>
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button type="submit" disabled={addingFine}
+                  style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: '#c46a14', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {addingFine ? <><Spinner size={14} color="#fff" /> Applying…</> : <><i className="fa-solid fa-bolt" /> Apply Fine</>}
+                </button>
+                <button type="button" onClick={() => setFineTarget(null)}
+                  style={{ padding: '0 18px', borderRadius: 8, border: '1px solid #d4dde2', background: '#fff', color: '#6a7882', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

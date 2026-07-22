@@ -43,6 +43,28 @@ export const createStudent = async (
   return result.rows[0];
 };
 
+export const searchStudentsBySchool = async (
+  school_id: number,
+  q: string
+): Promise<Pick<IStudent, 'id' | 'full_name' | 'admission_number' | 'email' | 'phone' | 'scholarship_type' | 'scholarship_percent' | 'scholarship_remarks'>[]> => {
+  const result = await pool.query(
+    `SELECT id, full_name, admission_number, email, phone,
+            scholarship_type, scholarship_percent, scholarship_remarks
+     FROM students
+     WHERE school_id = $1
+       AND (
+         full_name        ILIKE $2
+         OR admission_number ILIKE $2
+         OR email           ILIKE $2
+         OR phone           ILIKE $2
+       )
+     ORDER BY full_name ASC
+     LIMIT 20`,
+    [school_id, `%${q}%`]
+  );
+  return result.rows;
+};
+
 export const getStudentsBySchool = async (school_id: number): Promise<IStudent[]> => {
   const result = await pool.query(
     `SELECT id, school_id, admission_number, full_name, email, phone, gender,

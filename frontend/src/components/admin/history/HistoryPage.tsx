@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { apiRequest } from '@/lib/api';
+import { useDateFormat } from '@/lib/useDateFormat';
 
 interface ActivityLog {
   id: number;
@@ -88,23 +89,10 @@ function ModuleBadge({ module }: { module: string }) {
   );
 }
 
-function formatDate(iso: string) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('en-IN', {
-      day:    '2-digit',
-      month:  'short',
-      year:   'numeric',
-      hour:   '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  } catch {
-    return iso;
-  }
-}
+// formatDate moved into component via useDateFormat hook
 
 export default function HistoryPage() {
+  const { formatDate } = useDateFormat();
   const [logs,       setLogs]       = useState<ActivityLog[]>([]);
   const [total,      setTotal]      = useState(0);
   const [page,       setPage]       = useState(1);
@@ -359,7 +347,8 @@ export default function HistoryPage() {
                 >
                   <td style={tdStyle}>
                     <span style={{ color: '#475569', whiteSpace: 'nowrap', fontSize: '12px' }}>
-                      {formatDate(log.created_at)}
+                      {formatDate(log.created_at?.slice(0,10))}{' '}
+                      {new Date(log.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                     </span>
                   </td>
                   <td style={tdStyle}>

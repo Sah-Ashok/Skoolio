@@ -12,7 +12,6 @@ import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { uploadChunked } from "@/lib/uploadChunked";
-import { useAcademicYear } from "@/hooks/useAcademicYear";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -37,39 +36,19 @@ const textareaStyle: React.CSSProperties = {
   fontFamily: "inherit", background: "#fff", resize: "vertical",
 };
 
-function calculateFeeTotal(structure: any, admissionDate: string, yearEndDate?: string) {
-  if (!yearEndDate || !admissionDate) return Number(structure.amount);
-  const start = new Date(admissionDate);
-  const end = new Date(yearEndDate);
-  const months = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 1);
-  const periods = structure.frequency === "monthly" ? months
-    : structure.frequency === "quarterly" ? Math.ceil(months / 3)
-    : structure.frequency === "half_yearly" ? Math.ceil(months / 6) : 1;
-  return Math.round(Number(structure.amount) * periods * 100) / 100;
-}
-
 export default function EditStudentForm() {
   const router   = useRouter();
   const params   = useParams();
   const id       = params?.id as string;
   const dispatch = useAppDispatch();
-  const { activeYear } = useAcademicYear();
 
   const [activeTab, setActiveTab] = useState<Tab>("personal");
   const [saving,    setSaving]    = useState(false);
   const [newPass,   setNewPass]   = useState("");
   const [showPass,  setShowPass]  = useState(false);
-  const [selectedFeeIds, setSelectedFeeIds] = useState<Set<number>>(new Set());
-  const [assigningFees, setAssigningFees] = useState(false);
 
   const { data: student,     loading }  = useApi<any>(id ? `/students/${id}` : "");
   const { data: enrollments }           = useApi<any[]>(id ? `/students/${id}/enrollments` : "");
-  const currentEnrollment = enrollments?.find((en) => en.status === "active") ?? enrollments?.[0];
-  const { data: feeStructures, loading: feeStructuresLoading } = useApi<any[]>(
-    currentEnrollment ? `/fees/structures?class_id=${currentEnrollment.class_id}&academic_year_id=${currentEnrollment.academic_year_id}` : "",
-    [currentEnrollment?.id]
-  );
-  const { data: feeCollections, refetch: refetchFeeCollections } = useApi<any[]>(id ? `/fees/collections/student/${id}` : "");
 
   /* ── photo state ── */
   const photoInputRef    = useRef<HTMLInputElement>(null);
@@ -245,64 +224,6 @@ export default function EditStudentForm() {
     }
   };
 
-  const toggleFee = (feeId: number) => {
-    setSelectedFeeIds((current) => {
-      const next = new Set(current);
-      if (next.has(feeId)) next.delete(feeId);
-      else next.add(feeId);
-      return next;
-    });
-  };
-
-  const handleAssignFees = async () => {
-    if (!currentEnrollment || !feeStructures?.length || selectedFeeIds.size === 0) return;
-
-    setAssigningFees(true);
-    let assigned = 0;
-    let failed = 0;
-    const scholarshipPercent = Number(form.scholarship_percent || 0);
-    const yearEnd = activeYear?.id === currentEnrollment.academic_year_id
-      ? activeYear.end_date?.split("T")[0]
-      : undefined;
-
-    for (const structure of feeStructures) {
-      if (!selectedFeeIds.has(structure.id)) continue;
-      const grossTotal = calculateFeeTotal(structure, form.admission_date, yearEnd);
-      const discountAmount = scholarshipPercent > 0
-        ? Math.round(grossTotal * scholarshipPercent) / 100
-        : 0;
-      try {
-        await apiRequest("/fees/collections", {
-          method: "POST",
-          body: JSON.stringify({
-            student_id: Number(id),
-            enrollment_id: currentEnrollment.id,
-            fee_structure_id: structure.id,
-            academic_year_id: currentEnrollment.academic_year_id,
-            due_date: new Date().toISOString().split("T")[0],
-            total_amount: grossTotal,
-            ...(discountAmount > 0 ? {
-              discount_amount: discountAmount,
-              discount_reason: `${form.scholarship_type || "Scholarship"} (${scholarshipPercent}%)`,
-            } : {}),
-          }),
-        });
-        assigned += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-
-    setAssigningFees(false);
-    setSelectedFeeIds(new Set());
-    refetchFeeCollections();
-    dispatch(showToast({
-      type: failed ? "error" : "success",
-      title: failed ? "Partially Assigned" : "Fees Assigned",
-      message: failed ? `${assigned} fee structure(s) assigned; ${failed} could not be assigned.` : `${assigned} fee structure(s) assigned to ${form.full_name}.`,
-    }));
-  };
-
   if (loading) return (
     <div className={s("students-page")}>
       <Topbar title="Edit Student" subtitle="" />
@@ -323,8 +244,6 @@ export default function EditStudentForm() {
 
   const initials     = getInitials(form.full_name);
   const latestEnroll = enrollments?.[0];
-  const assignedFeeIds = new Set((feeCollections || []).map((collection) => collection.fee_structure_id).filter(Boolean));
-
   return (
     <div className={s("students-page")}>
       <Topbar title="Edit Student" subtitle={`Updating record for ${student.full_name}`} />
@@ -776,47 +695,15 @@ export default function EditStudentForm() {
                   ))}
                 </div>
               )}
-              {currentEnrollment && (
-                <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid #eef2f3" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: 15, color: "#25343f" }}><i className="fa-solid fa-file-invoice-dollar" style={{ color: "#ff9b51", marginRight: 7 }} />Assign Fee Structures</h3>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7b86", fontWeight: 600 }}>Choose fees for the active class. Already assigned fees are marked below.</p>
-                    </div>
-                    {feeStructures?.length ? (
-                      <button type="button" onClick={() => setSelectedFeeIds(new Set(feeStructures.filter((fee) => !assignedFeeIds.has(fee.id)).map((fee) => fee.id)))} className={cx(s("btn"), s("btn-outline"), s("btn-sm"))}>
-                        Select available
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {feeStructuresLoading ? (
-                    <div style={{ padding: "1.5rem", textAlign: "center" }}><Spinner size={24} color="#ff9b51" /></div>
-                  ) : !feeStructures?.length ? (
-                    <div style={{ padding: "14px", borderRadius: 8, background: "#f8fafc", color: "#6b7b86", fontSize: 13 }}>No fee structures have been created for this class and academic year.</div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 8 }}>
-                      {feeStructures.map((fee) => {
-                        const assigned = assignedFeeIds.has(fee.id);
-                        const selected = selectedFeeIds.has(fee.id);
-                        return (
-                          <label key={fee.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: `1px solid ${assigned ? "#bbf7d0" : selected ? "#fdba74" : "#d4dde2"}`, borderRadius: 9, background: assigned ? "#f0fdf4" : selected ? "#fff7ed" : "#fff", cursor: assigned ? "default" : "pointer" }}>
-                            <input type="checkbox" checked={assigned || selected} disabled={assigned} onChange={() => toggleFee(fee.id)} />
-                            <span style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>{fee.fee_name}</strong><small style={{ display: "block", color: "#6b7b86", marginTop: 2, textTransform: "capitalize" }}>{fee.frequency}</small></span>
-                            <strong style={{ fontSize: 13, color: assigned ? "#15803d" : "#25343f" }}>{assigned ? "Assigned" : `₹${Number(fee.amount).toLocaleString("en-IN")}`}</strong>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                    <button type="button" onClick={handleAssignFees} disabled={assigningFees || selectedFeeIds.size === 0} className={cx(s("btn"), s("btn-primary"))}>
-                      {assigningFees ? <><Spinner size={14} /> Assigning…</> : <><i className="fa-solid fa-plus" /> Assign selected fees</>}
-                    </button>
-                  </div>
+              <div style={{ marginTop: 18, padding: "14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <strong style={{ display: "block", fontSize: 13, color: "#9a3412" }}>Fees are managed in one place</strong>
+                  <span style={{ fontSize: 12, color: "#9a3412" }}>Class fee plans, bills, discounts and payments are maintained in Fee Management.</span>
                 </div>
-              )}
+                <Link href={`/fees/collect?student_id=${id}`} className={cx(s("btn"), s("btn-primary"))} style={{ whiteSpace: "nowrap" }}>
+                  Open Billing
+                </Link>
+              </div>
               <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 13, fontWeight: 700, color: "#1e40af", display: "flex", gap: 10 }}>
                 <i className="fa-solid fa-circle-info" />
                 <span>To change a student&apos;s class or section for this year, use the enrollment update feature in Fee Management.</span>

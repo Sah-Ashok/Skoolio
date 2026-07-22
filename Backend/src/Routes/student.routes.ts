@@ -4,7 +4,7 @@ import restrictTo from '../middlewares/role.middleware';
 import {
   createStudent, getStudents, getStudentById, updateStudent, deleteStudent,
   createEnrollment, getEnrollments, getStudentEnrollments, updateEnrollment,
-  getMyProfile, getMyEnrollments,
+  getMyProfile, getMyEnrollments, searchStudents,
 } from '../Controllers/student.controller';
 
 const router = Router();
@@ -23,6 +23,7 @@ router.patch('/enrollments/:id', restrictTo('admin', 'super_admin'),        upda
 // ── STUDENT CRUD ──
 router.post('/',              restrictTo('admin', 'super_admin'),           createStudent);
 router.get('/',               restrictTo('admin', 'super_admin'),           getStudents);
+router.get('/search',         restrictTo('admin', 'super_admin'),           searchStudents);
 router.get('/:id',            restrictTo('admin', 'super_admin'),           getStudentById);
 router.patch('/:id',          restrictTo('admin', 'super_admin'),           updateStudent);
 router.delete('/:id',         restrictTo('admin', 'super_admin'),           deleteStudent);

@@ -88,10 +88,6 @@ export const createStaff = async (school_id: number, data: ICreateStaff): Promis
   return result.rows[0];
 };
 
-/**
- * Returns all staff for the school including role_name.
- * Use getStaffWithSalary() for the list endpoint — it adds current_salary in one query.
- */
 export const getStaffBySchool = async (school_id: number): Promise<IStaff[]> => {
   const result = await pool.query(
     `SELECT ${STAFF_COLS}
@@ -104,10 +100,6 @@ export const getStaffBySchool = async (school_id: number): Promise<IStaff[]> => 
   return result.rows;
 };
 
-/**
- * Single-query version that also attaches current_salary via a LATERAL join.
- * Eliminates the N+1 pattern of calling getLatestSalaryStructure per staff member.
- */
 export const getStaffWithSalary = async (school_id: number): Promise<any[]> => {
   const result = await pool.query(
     `SELECT
@@ -129,7 +121,6 @@ export const getStaffWithSalary = async (school_id: number): Promise<any[]> => {
      ORDER BY sr.role_name ASC, s.full_name ASC`,
     [school_id]
   );
-
   return result.rows.map(r => ({
     ...r,
     current_salary: r.basic_salary != null
@@ -249,8 +240,9 @@ export const createSalaryPayment = async (school_id: number, data: ICreateSalary
   const result = await pool.query(
     `INSERT INTO staff_salary_payments
        (school_id, staff_id, salary_month, gross_amount, total_deductions,
-        payment_method, paid_on, status, remarks)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        payment_method, paid_on, status, remarks,
+        working_days, present_days, absent_days, half_days, leave_days, per_day_salary)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *,
        net_amount,
        TO_CHAR(salary_month, 'YYYY-MM') AS salary_month_str,
@@ -260,6 +252,12 @@ export const createSalaryPayment = async (school_id: number, data: ICreateSalary
       data.gross_amount, data.total_deductions ?? 0,
       data.payment_method || null, data.paid_on || null,
       data.status || 'pending', data.remarks || null,
+      data.working_days   ?? null,
+      data.present_days   ?? null,
+      data.absent_days    ?? null,
+      data.half_days      ?? null,
+      data.leave_days     ?? null,
+      data.per_day_salary ?? null,
     ]
   );
   return result.rows[0];
@@ -295,7 +293,7 @@ export const getAllSalaryPayments = async (school_id: number, month?: string): P
        s.full_name,
        sr.role_name
      FROM staff_salary_payments sp
-     LEFT JOIN staff s       ON s.id  = sp.staff_id
+     LEFT JOIN staff s        ON s.id  = sp.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sp.school_id = $1 ${monthFilter}
      ORDER BY sp.salary_month DESC, s.full_name ASC`,
@@ -314,7 +312,7 @@ export const getPendingSalaries = async (school_id: number): Promise<any[]> => {
        s.full_name,
        sr.role_name
      FROM staff_salary_payments sp
-     LEFT JOIN staff s       ON s.id  = sp.staff_id
+     LEFT JOIN staff s        ON s.id  = sp.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sp.school_id = $1 AND sp.status = 'pending'
      ORDER BY sp.salary_month DESC`,
@@ -324,7 +322,6 @@ export const getPendingSalaries = async (school_id: number): Promise<any[]> => {
 };
 
 export const getSalaryPaymentById = async (id: number, school_id: number): Promise<IStaffSalaryPayment | null> => {
-  // Also joins staff + role so salary slip modal has full_name and role_name
   const result = await pool.query(
     `SELECT
        sp.*,
@@ -334,7 +331,7 @@ export const getSalaryPaymentById = async (id: number, school_id: number): Promi
        s.full_name,
        sr.role_name
      FROM staff_salary_payments sp
-     LEFT JOIN staff s       ON s.id  = sp.staff_id
+     LEFT JOIN staff s        ON s.id  = sp.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sp.id = $1 AND sp.school_id = $2`,
     [id, school_id]
@@ -425,7 +422,7 @@ export const getAttendanceByDate = async (school_id: number, date: string): Prom
   const result = await pool.query(
     `SELECT sa.*, s.full_name, sr.role_name
      FROM staff_attendance sa
-     LEFT JOIN staff s       ON s.id  = sa.staff_id
+     LEFT JOIN staff s        ON s.id  = sa.staff_id
      LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
      WHERE sa.school_id = $1 AND sa.date = $2
      ORDER BY sr.role_name ASC, s.full_name ASC`,
@@ -454,6 +451,45 @@ export const getMonthlyAbsentCount = async (staff_id: number, school_id: number,
     [staff_id, school_id, year, month]
   );
   return parseInt(result.rows[0].count, 10);
+};
+
+/**
+ * Full attendance summary for a staff member in a given month.
+ * Used by salary service to auto-calculate deductions from attendance.
+ */
+export const getMonthlyAttendanceSummary = async (
+  staff_id:  number,
+  school_id: number,
+  year:      number,
+  month:     number
+): Promise<{
+  present_days: number;
+  absent_days:  number;
+  half_days:    number;
+  leave_days:   number;
+  total_marked: number;
+}> => {
+  const result = await pool.query(
+    `SELECT
+       SUM(CASE WHEN status = 'present'  THEN 1 ELSE 0 END) AS present_days,
+       SUM(CASE WHEN status = 'absent'   THEN 1 ELSE 0 END) AS absent_days,
+       SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END) AS half_days,
+       SUM(CASE WHEN status = 'leave'    THEN 1 ELSE 0 END) AS leave_days,
+       COUNT(*)                                              AS total_marked
+     FROM staff_attendance
+     WHERE staff_id = $1 AND school_id = $2
+       AND EXTRACT(YEAR  FROM date) = $3
+       AND EXTRACT(MONTH FROM date) = $4`,
+    [staff_id, school_id, year, month]
+  );
+  const r = result.rows[0];
+  return {
+    present_days: parseInt(r.present_days ?? '0', 10),
+    absent_days:  parseInt(r.absent_days  ?? '0', 10),
+    half_days:    parseInt(r.half_days    ?? '0', 10),
+    leave_days:   parseInt(r.leave_days   ?? '0', 10),
+    total_marked: parseInt(r.total_marked ?? '0', 10),
+  };
 };
 
 export const updateAttendance = async (id: number, school_id: number, data: IUpdateAttendance): Promise<IStaffAttendance | null> => {

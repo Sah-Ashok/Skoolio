@@ -1,11 +1,11 @@
 // ── Staff Types ────────────────────────────────────────────────────────────────
 
-export type StaffGender = 'male' | 'female' | 'other';
-export type StaffStatus = 'active' | 'on_leave' | 'terminated';
+export type StaffGender        = 'male' | 'female' | 'other';
+export type StaffStatus        = 'active' | 'on_leave' | 'terminated';
 export type StaffPaymentMethod = 'cash' | 'bank_transfer' | 'cheque';
 export type SalaryPaymentStatus = 'paid' | 'pending' | 'cancelled';
-export type AttendanceStatus = 'present' | 'absent' | 'leave' | 'half_day';
-export type DeductionType = 'absent' | 'advance' | 'tax' | 'provident_fund' | 'other';
+export type AttendanceStatus   = 'present' | 'absent' | 'leave' | 'half_day';
+export type DeductionType      = 'absent' | 'advance' | 'tax' | 'provident_fund' | 'other';
 
 // ── Staff Role ────────────────────────────────────────────────────────────────
 
@@ -34,8 +34,8 @@ export interface IStaff {
   joined_date: Date;
   status: StaffStatus;
   photo?: string;
-  citizen_id?: string;      // optional national ID / citizenship number
-  license_number?: string;  // optional driving licence (for drivers etc.)
+  citizen_id?: string;
+  license_number?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -87,13 +87,20 @@ export interface IStaffSalaryPayment {
   paid_on?: Date;
   status: SalaryPaymentStatus;
   remarks?: string;
+  // attendance-based fields (set at payment creation)
+  working_days?:   number;
+  present_days?:   number;
+  absent_days?:    number;
+  half_days?:      number;
+  leave_days?:     number;
+  per_day_salary?: number;
   created_at: Date;
   updated_at: Date;
 }
 
 export type ICreateSalaryPayment = {
   staff_id: number;
-  salary_month: string;
+  salary_month: string;          // "YYYY-MM"
   gross_amount: number;
   total_deductions?: number;
   payment_method?: StaffPaymentMethod;
@@ -101,10 +108,19 @@ export type ICreateSalaryPayment = {
   status?: SalaryPaymentStatus;
   remarks?: string;
   deductions?: ICreateDeduction[];
+  // attendance snapshot
+  working_days?:   number;
+  present_days?:   number;
+  absent_days?:    number;
+  half_days?:      number;
+  leave_days?:     number;
+  per_day_salary?: number;
 };
 
 export type IUpdateSalaryPayment = Partial<
-  Pick<ICreateSalaryPayment, 'gross_amount' | 'total_deductions' | 'payment_method' | 'paid_on' | 'status' | 'remarks'>
+  Pick<ICreateSalaryPayment,
+    'gross_amount' | 'total_deductions' | 'payment_method' | 'paid_on' | 'status' | 'remarks'
+  >
 >;
 
 // ── Salary Deduction ──────────────────────────────────────────────────────────

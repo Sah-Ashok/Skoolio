@@ -67,7 +67,7 @@ export interface ITeacherSalary {
   teacher_id: number;
   basic_salary: number;
   bonus: number;
-  deduction: number;           // total deduction = tax + pf + other
+  deduction: number;           // total deduction = tax + pf + other + absent deduction
   tax_amount: number;          // income tax / TDS
   provident_fund: number;      // EPF / PF
   other_deduction: number;     // loan, advance, etc.
@@ -75,6 +75,13 @@ export interface ITeacherSalary {
   net_salary: number;          // GENERATED column
   month: number;
   year: number;
+  // Attendance-based calculation fields
+  working_days?: number;       // total working days in the month
+  present_days?: number;       // days teacher was present
+  absent_days?: number;        // days deducted (absent, not on leave)
+  half_days?: number;          // half days (0.5 each)
+  leave_days?: number;         // approved leave (not deducted)
+  per_day_salary?: number;     // basic_salary / working_days
   payment_date?: Date;
   payment_method?: PaymentMethod;
   status: SalaryStatus;
@@ -99,6 +106,13 @@ export type ICreateSalary = Pick<
   provident_fund?:    number;
   other_deduction?:   number;
   deduction_remarks?: string;
+  // Attendance-based fields
+  working_days?:      number;
+  present_days?:      number;
+  absent_days?:       number;
+  half_days?:         number;
+  leave_days?:        number;
+  per_day_salary?:    number;
   payment_date?:      Date;
   payment_method?:    PaymentMethod;
   remarks?:           string;

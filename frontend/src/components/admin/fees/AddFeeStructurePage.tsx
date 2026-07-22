@@ -20,10 +20,11 @@ type FeeHead = {
   cycle: string;
   amount: string;
   billing_start_rule: string;
+  scholarship_applies: boolean;
 };
 
 const initialFeeHeads: FeeHead[] = [
-  { id: 1, name: "Tuition Fee", cycle: "monthly", amount: "2000", billing_start_rule: "next_month" }
+  { id: 1, name: "Tuition Fee", cycle: "monthly", amount: "2000", billing_start_rule: "next_month", scholarship_applies: true }
 ];
 
 export default function AddFeeStructurePage() {
@@ -58,14 +59,14 @@ export default function AddFeeStructurePage() {
   const addFeeHead = () => {
     setFeeHeads((heads) => [
       ...heads,
-      { id: Date.now(), name: "", cycle: "monthly", amount: "", billing_start_rule: "next_month" },
+      { id: Date.now(), name: "", cycle: "monthly", amount: "", billing_start_rule: "next_month", scholarship_applies: true },
     ]);
   };
 
   const addStoreItem = () => {
     setFeeHeads((heads) => [
       ...heads,
-      { id: Date.now(), name: "Store Item", cycle: "one_time", amount: "", billing_start_rule: "next_month" },
+      { id: Date.now(), name: "Store Item", cycle: "one_time", amount: "", billing_start_rule: "next_month", scholarship_applies: false },
     ]);
   };
 
@@ -96,7 +97,8 @@ export default function AddFeeStructurePage() {
           frequency: head.cycle,
           due_date_type: 'fixed_day',
           due_day: 10,
-          billing_start_rule: head.billing_start_rule
+          billing_start_rule: head.billing_start_rule,
+          scholarship_applies: head.scholarship_applies,
         });
       }
       
@@ -165,6 +167,14 @@ export default function AddFeeStructurePage() {
                       placeholder="Amount"
                       value={head.amount}
                     />
+                    <label title="Choose whether a student's scholarship discount applies to this fee head." style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", color: "#425466" }}>
+                      <input
+                        type="checkbox"
+                        checked={head.scholarship_applies}
+                        onChange={(e) => setFeeHeads(heads => heads.map(item => item.id === head.id ? { ...item, scholarship_applies: e.target.checked } : item))}
+                      />
+                      Scholarship applies
+                    </label>
                     <button className={cx(s("btn"), s("btn-danger"), s("btn-sm"), s("icon-btn"))} onClick={() => removeFeeHead(head.id)} type="button">
                       <i className="fa-solid fa-trash" />
                     </button>

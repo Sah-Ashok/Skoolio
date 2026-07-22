@@ -17,22 +17,23 @@ const adminNav: NavSection[] = [
   {
     label: 'Main',
     links: [
-      { href: '/dashboard',    icon: 'fa-gauge-high',          label: 'Dashboard'       },
-      { href: '/students',          icon: 'fa-user-graduate',       label: 'Students'        },
-      { href: '/students/promote',   icon: 'fa-arrow-up-from-bracket', label: 'Promote Students' },
-      { href: '/teachers',     icon: 'fa-chalkboard-user',     label: 'Faculty'         },
-      { href: '/subscription', icon: 'fa-id-card-clip',        label: 'My Subscription' },
-      { href: '/settings',     icon: 'fa-gear',                label: 'Settings'        },
-      { href: '/history',      icon: 'fa-clock-rotate-left',   label: 'History'         },
+      { href: '/dashboard',          icon: 'fa-gauge-high',              label: 'Dashboard'        },
+      { href: '/students',           icon: 'fa-user-graduate',           label: 'Students'         },
+      { href: '/students/promote',   icon: 'fa-arrow-up-from-bracket',   label: 'Promote Students' },
+      { href: '/teachers',           icon: 'fa-chalkboard-user',         label: 'Faculty'          },
+      { href: '/subscription',       icon: 'fa-id-card-clip',            label: 'My Subscription'  },
+      { href: '/settings',           icon: 'fa-gear',                    label: 'Settings'         },
+      { href: '/history',            icon: 'fa-clock-rotate-left',       label: 'History'          },
     ],
   },
   {
     label: 'Finance',
     links: [
-      { href: '/fees',          icon: 'fa-file-invoice-dollar', label: 'Fee Management' },
-      { href: '/expenses',      icon: 'fa-wallet',              label: 'Expenses'       },
-      { href: '/salary',        icon: 'fa-money-bill-wave',     label: 'Faculty Salary' },
-      { href: '/staff/salary',  icon: 'fa-coins',               label: 'Staff Salary'   },
+      { href: '/fees',                 icon: 'fa-file-invoice-dollar', label: 'Fee Management'  },
+      { href: '/fees/monthly-billing', icon: 'fa-calendar-check',      label: 'Monthly Billing' },
+      { href: '/expenses',             icon: 'fa-wallet',              label: 'Expenses'        },
+      { href: '/salary',               icon: 'fa-money-bill-wave',     label: 'Faculty Salary'  },
+      { href: '/staff/salary',         icon: 'fa-coins',               label: 'Staff Salary'    },
     ],
   },
   {
@@ -64,7 +65,7 @@ const adminNav: NavSection[] = [
   {
     label: 'Staff',
     links: [
-      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'       },
+      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'        },
       { href: '/staff/attendance', icon: 'fa-clipboard-check',  label: 'Staff & Teacher Att.' },
     ],
   },
@@ -89,14 +90,14 @@ const teacherNav: NavSection[] = [
   {
     label: 'Payroll',
     links: [
-      { href: '/teacher/salary',   icon: 'fa-money-bill-wave', label: 'My Salary'  },
+      { href: '/teacher/salary', icon: 'fa-money-bill-wave', label: 'My Salary' },
     ],
   },
   {
     label: 'School',
     links: [
-      { href: '/teacher/calendar', icon: 'fa-calendar-days',   label: 'Calendar'      },
-      { href: '/teacher/notices',  icon: 'fa-bullhorn',        label: 'Notice Board'  },
+      { href: '/teacher/calendar', icon: 'fa-calendar-days', label: 'Calendar'     },
+      { href: '/teacher/notices',  icon: 'fa-bullhorn',      label: 'Notice Board' },
     ],
   },
 ]

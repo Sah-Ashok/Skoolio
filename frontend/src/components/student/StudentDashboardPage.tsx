@@ -102,7 +102,10 @@ export default function StudentDashboardPage() {
     [activeYear?.id]
   );
 
-  const { data: feeCollections } = useApi<any[]>("/fees/me/collections");
+  const { data: feeCollections } = useApi<any[]>(
+    activeYear?.id ? `/fees/me/collections?academic_year_id=${activeYear.id}` : "",
+    [activeYear?.id]
+  );
   const pendingFees = (feeCollections || []).filter(f => f.status !== "paid");
   const totalDue    = pendingFees.reduce((s, f) => s + Number(f.remaining_amount || 0), 0);
   const fmtINR      = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);

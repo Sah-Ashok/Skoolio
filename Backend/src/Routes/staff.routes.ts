@@ -7,6 +7,7 @@ import {
   setSalaryStructure, getSalaryStructure, updateSalaryStructure,
   createSalaryPayment, getStaffSalaryPayments, getAllSalaryPayments,
   getPendingSalaries, getSalaryPaymentDetail, updateSalaryPayment,
+  getAttendanceForSalary,
   markAttendance, bulkMarkAttendance, getAttendanceByDate,
   getStaffAttendance, updateAttendance, getMonthlyAbsents,
 } from '../Controllers/staff.controller';
@@ -22,34 +23,32 @@ router.patch ('/roles/:id',   updateStaffRole);
 router.delete('/roles/:id',   deleteStaffRole);
 
 // ── Salary Structure ──────────────────────────────────────────────────────────
-// NOTE: these must come BEFORE /:id routes to avoid param collision
 router.post  ('/salary/structure',      setSalaryStructure);
 router.patch ('/salary/structure/:id',  updateSalaryStructure);
 
 // ── Salary Payments ───────────────────────────────────────────────────────────
-// IMPORTANT: static segments (/pending) must be registered BEFORE dynamic /:id
-router.post  ('/salary/payments',          createSalaryPayment);
-router.get   ('/salary/payments/pending',  getPendingSalaries);     // ← BEFORE /:id
-router.get   ('/salary/payments',          getAllSalaryPayments);    // ?month=YYYY-MM
-router.get   ('/salary/payments/:id',      getSalaryPaymentDetail);
-router.patch ('/salary/payments/:id',      updateSalaryPayment);
+// IMPORTANT: all static sub-paths BEFORE dynamic /:id
+router.get  ('/salary/attendance-preview', getAttendanceForSalary);  // ?staff_id=X&month=YYYY-MM
+router.post ('/salary/payments',           createSalaryPayment);
+router.get  ('/salary/payments/pending',   getPendingSalaries);
+router.get  ('/salary/payments',           getAllSalaryPayments);     // ?month=YYYY-MM
+router.get  ('/salary/payments/:id',       getSalaryPaymentDetail);
+router.patch('/salary/payments/:id',       updateSalaryPayment);
 
 // ── Attendance ────────────────────────────────────────────────────────────────
-// static /bulk and /attendance must come BEFORE /:id
-router.post('/attendance/bulk',  bulkMarkAttendance);
-router.post('/attendance',       markAttendance);
-router.get ('/attendance',       getAttendanceByDate);   // ?date=YYYY-MM-DD
-router.patch('/attendance/:id',  updateAttendance);
+router.post ('/attendance/bulk',  bulkMarkAttendance);
+router.post ('/attendance',       markAttendance);
+router.get  ('/attendance',       getAttendanceByDate);   // ?date=YYYY-MM-DD
+router.patch('/attendance/:id',   updateAttendance);
 
-// ── Staff Members ─────────────────────────────────────────────────────────────
-// NOTE: these /:id routes come LAST — they would swallow /roles, /salary, /attendance
+// ── Staff Members (dynamic /:id last — avoids swallowing static paths) ────────
 router.post  ('/',      createStaff);
 router.get   ('/',      getStaff);
 router.get   ('/:id',   getStaffById);
 router.patch ('/:id',   updateStaff);
 router.delete('/:id',   deleteStaff);
 
-// ── Per-staff sub-resources (nested under /:id) ───────────────────────────────
+// ── Per-staff sub-resources ───────────────────────────────────────────────────
 router.get('/:id/salary/structure',   getSalaryStructure);
 router.get('/:id/salary/payments',    getStaffSalaryPayments);
 router.get('/:id/attendance',         getStaffAttendance);        // ?from=&to=

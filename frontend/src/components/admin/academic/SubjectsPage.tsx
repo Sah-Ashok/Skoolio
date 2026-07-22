@@ -8,12 +8,14 @@ import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
 export default function SubjectsPage() {
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const { data: subjects, loading, refetch } = useApi<any[]>("/classes/subjects");
 
   const [search,     setSearch]     = useState("");
@@ -265,7 +267,7 @@ export default function SubjectsPage() {
                               />
                             </td>
                             <td style={{ color: "#94a3b8", fontSize: 12, fontWeight: 700 }}>
-                              {new Date(sub.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                              {formatDate(sub.created_at?.slice(0,10))}
                             </td>
                             <td>
                               <div className={s("row-actions")}>
@@ -299,7 +301,7 @@ export default function SubjectsPage() {
                               }
                             </td>
                             <td style={{ color: "#6b7b86", fontSize: 12, fontWeight: 700 }}>
-                              {new Date(sub.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                              {formatDate(sub.created_at?.slice(0,10))}
                             </td>
                             <td>
                               {confirmId === sub.id ? (

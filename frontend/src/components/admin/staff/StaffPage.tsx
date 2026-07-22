@@ -6,6 +6,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -268,6 +269,7 @@ function EditStaffModal({ staff, roles, onClose, onSaved }: { staff: Staff; role
 
 // ── Staff Detail Panel ────────────────────────────────────────────────────────
 function StaffDetailPanel({ staff, onClose, onEdit }: { staff: Staff; onClose: () => void; onEdit: () => void }) {
+  const { formatDate } = useDateFormat();
   return (
     <div className={s("overlay")} onClick={onClose}>
       <div className={s("modal")} style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
@@ -309,8 +311,8 @@ function StaffDetailPanel({ staff, onClose, onEdit }: { staff: Staff; onClose: (
             {[
               { icon: "fa-phone",        label: "Phone",         value: staff.phone ?? "—" },
               { icon: "fa-venus-mars",   label: "Gender",        value: staff.gender ? staff.gender.charAt(0).toUpperCase() + staff.gender.slice(1) : "—" },
-              { icon: "fa-calendar",     label: "Joined",        value: staff.joined_date ? new Date(staff.joined_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
-              { icon: "fa-cake-candles", label: "Date of Birth", value: staff.date_of_birth ? new Date(staff.date_of_birth).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+              { icon: "fa-calendar",     label: "Joined",        value: staff.joined_date   ? formatDate(staff.joined_date.slice(0,10))   : "—" },
+              { icon: "fa-cake-candles", label: "Date of Birth", value: staff.date_of_birth ? formatDate(staff.date_of_birth.slice(0,10)) : "—" },
             ].map(({ icon, label, value }) => (
               <div key={label} style={{ padding: 12, border: "1px solid #e1e8eb", borderRadius: 9, background: "#f8fbfc" }}>
                 <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>
@@ -490,6 +492,7 @@ type ModalState =
   | null;
 
 export function StaffPage() {
+  const { formatDate } = useDateFormat();
   const { data: staff,  loading: loadingStaff, refetch: refetchStaff } = useApi<Staff[]>("/staff");
   const { data: roles,  loading: loadingRoles, refetch: refetchRoles } = useApi<StaffRole[]>("/staff/roles");
 
@@ -619,11 +622,7 @@ export function StaffPage() {
                       </td>
                       <td>{m.role_name ?? "—"}</td>
                       <td>{m.phone ?? <span style={{ color: "#aab5bb" }}>—</span>}</td>
-                      <td>
-                        {m.joined_date
-                          ? new Date(m.joined_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                          : "—"}
-                      </td>
+                      <td>{m.joined_date ? formatDate(m.joined_date.slice(0,10)) : "—"}</td>
                       <td>
                         {m.current_salary
                           ? <strong style={{ color: "#12805c" }}>{fmt(m.current_salary.basic_salary)}</strong>

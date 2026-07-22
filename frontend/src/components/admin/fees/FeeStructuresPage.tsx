@@ -18,13 +18,14 @@ const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boo
 const formatINR = (amount: number | string) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount));
 
-// ── Edit modal state type ──
+// ── Types ──
 type EditState = {
   id: number;
   fee_name: string;
   amount: string;
   frequency: string;
   billing_start_rule: string;
+  scholarship_applies: boolean;
 };
 
 type FeeStructureRow = {
@@ -33,6 +34,7 @@ type FeeStructureRow = {
   amount: number | string;
   frequency: string;
   billing_start_rule: string;
+  scholarship_applies: boolean;
 };
 
 export default function FeeStructuresPage() {
@@ -99,6 +101,7 @@ export default function FeeStructuresPage() {
       frequency: curr.frequency,
       amount: curr.amount,
       billing_start_rule: curr.billing_start_rule || 'next_month',
+      scholarship_applies: curr.scholarship_applies !== false,
       annualTotal: curr.frequency === 'monthly' ? curr.amount * 12 : curr.frequency === 'quarterly' ? curr.amount * 4 : curr.amount,
       year: activeYear?.year_name || curr.academic_year_id
     });
@@ -127,6 +130,7 @@ export default function FeeStructuresPage() {
       amount: String(row.amount),
       frequency: row.frequency,
       billing_start_rule: row.billing_start_rule,
+      scholarship_applies: row.scholarship_applies,
     });
   };
 
@@ -146,6 +150,7 @@ export default function FeeStructuresPage() {
           amount: parseFloat(editState.amount),
           frequency: editState.frequency,
           billing_start_rule: editState.billing_start_rule,
+          scholarship_applies: editState.scholarship_applies,
         }),
       });
       dispatch(showToast({ type: "success", title: "Updated", message: "Fee structure updated successfully" }));
@@ -160,10 +165,10 @@ export default function FeeStructuresPage() {
   };
 
   const summaryCards = [
-    ["fa-list-check", "Total Structures", structures.length || 0, "blue"],
-    ["fa-calendar-days", "Monthly Plans", structures.filter(st => st.frequency === 'monthly').length || 0, "orange"],
-    ["fa-calendar-check", "Yearly Plans", structures.filter(st => st.frequency === 'yearly').length || 0, "green"],
-    ["fa-circle-dot", "One-Time Plans", structures.filter(st => st.frequency === 'one_time').length || 0, "rose"],
+    ["fa-list-check",  "Total Structures", structures.length || 0,                                          "blue"  ],
+    ["fa-calendar-days","Monthly Plans",   structures.filter(st => st.frequency === 'monthly').length || 0, "orange"],
+    ["fa-calendar-check","Yearly Plans",   structures.filter(st => st.frequency === 'yearly').length || 0,  "green" ],
+    ["fa-circle-dot",  "One-Time Plans",   structures.filter(st => st.frequency === 'one_time').length || 0,"rose"  ],
   ];
 
   return (
@@ -243,6 +248,7 @@ export default function FeeStructuresPage() {
                       <th>Frequency</th>
                       <th>Amount</th>
                       <th>Annual Total</th>
+                      <th>Scholarship</th>
                       <th>Academic Year</th>
                       <th>Actions</th>
                     </tr>
@@ -253,11 +259,16 @@ export default function FeeStructuresPage() {
                         <td><strong>{row.feeName}</strong></td>
                         <td>
                           <span className={cx(s("freq-badge"), s(frequencyClass(row.frequency)))} style={{ textTransform: 'capitalize' }}>
-                            {row.frequency}
+                            {row.frequency.replace('_', ' ')}
                           </span>
                         </td>
                         <td className={s("amount-cell")}>{formatINR(row.amount)}</td>
                         <td>{formatINR(row.annualTotal)}</td>
+                        <td>
+                          <span className={cx(s("badge"), row.scholarship_applies ? s("badge-green") : s("badge-gray"))} style={{ fontSize: 11 }}>
+                            {row.scholarship_applies ? "Applies" : "Excluded"}
+                          </span>
+                        </td>
                         <td>{row.year}</td>
                         <td>
                           <div className={s("actions")}>
@@ -366,6 +377,35 @@ export default function FeeStructuresPage() {
                   style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
                 />
               </label>
+
+              {/* ── Scholarship toggle ── */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 14px", borderRadius: 10,
+                background: editState.scholarship_applies ? "#f0fdf4" : "#f8fafc",
+                border: `1px solid ${editState.scholarship_applies ? "#bbf7d0" : "#e2e8f0"}`,
+                cursor: "pointer",
+              }}
+                onClick={() => setEditState({ ...editState, scholarship_applies: !editState.scholarship_applies })}
+              >
+                <input
+                  type="checkbox"
+                  checked={editState.scholarship_applies}
+                  onChange={(e) => setEditState({ ...editState, scholarship_applies: e.target.checked })}
+                  style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#16a34a" }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div>
+                  <p style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#1e293b" }}>
+                    Apply scholarship discount to this fee
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
+                    {editState.scholarship_applies
+                      ? "Scholarship % will be deducted from this fee when generating bills"
+                      : "This fee will be charged in full regardless of any scholarship"}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.75rem" }}>
@@ -401,8 +441,8 @@ export default function FeeStructuresPage() {
 }
 
 function frequencyClass(frequency: string) {
-  if (frequency === "yearly")    return "freq-yearly";
-  if (frequency === "one_time")  return "freq-onetime";
-  if (frequency === "quarterly") return "freq-semester";
+  if (frequency === "yearly")     return "freq-yearly";
+  if (frequency === "one_time")   return "freq-onetime";
+  if (frequency === "quarterly")  return "freq-semester";
   return "freq-monthly";
 }

@@ -8,12 +8,15 @@ import {
   createFeeCollectionService, createMiscFeeCollectionService,
   getFeeCollectionsService,
   getStudentFeeCollectionsService, updateFeeCollectionService,
+  waiveFeeCollectionService,
   createFeePaymentService, getPaymentsByCollectionService,
   getStudentPaymentsService,
   generateMonthlyFeeBillsService,
   generateTransportBillsService, getTransportFeeSummaryService,
   generateHostelBillsService, getHostelFeeSummaryService,
   getPaymentReceiptService,
+  assignOneTimeFeesService,
+  getMonthlyBillingStatusService,
 } from '../Service/fee.service';
 
 const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
@@ -91,8 +94,20 @@ export const getFeeCollections = catchAsync(async (req: Request, res: Response, 
 
 export const getStudentFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const result = await getStudentFeeCollectionsService(Number(req.params.id), school_id);
+  const { academic_year_id } = req.query;
+  const result = await getStudentFeeCollectionsService(
+    Number(req.params.id),
+    school_id,
+    academic_year_id ? Number(academic_year_id) : undefined
+  );
   sendResponse(res, 200, true, 'Student fee collections fetched successfully', result);
+});
+
+export const waiveFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { reason } = req.body;
+  const result = await waiveFeeCollectionService(Number(req.params.id), school_id, reason || 'Waived by admin');
+  sendResponse(res, 200, true, 'Fee collection waived successfully', result);
 });
 
 export const updateFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -125,7 +140,11 @@ export const getStudentPayments = catchAsync(async (req: Request, res: Response,
 
 export const getMyFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id } = req.user as IJwtUserPayload;
-  const result = await getStudentFeeCollectionsService(id, school_id);
+  const { academic_year_id } = req.query;
+  const result = await getStudentFeeCollectionsService(
+    id, school_id,
+    academic_year_id ? Number(academic_year_id) : undefined
+  );
   sendResponse(res, 200, true, 'Your fee collections fetched successfully', result);
 });
 
@@ -201,4 +220,43 @@ export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, 
   }
 
   sendResponse(res, 200, true, 'Payment receipt fetched', result);
+});
+
+// ── ASSIGN ONE-TIME FEES AT ENROLLMENT ──
+export const assignOneTimeFeesController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const {
+    student_id, enrollment_id, academic_year_id, class_id,
+    scholarship_percent, scholarship_type, admission_date,
+  } = req.body;
+
+  if (!student_id || !enrollment_id || !academic_year_id || !class_id || !admission_date) {
+    return sendResponse(res, 400, false,
+      'student_id, enrollment_id, academic_year_id, class_id and admission_date are required', null);
+  }
+
+  const result = await assignOneTimeFeesService(
+    school_id, school_id,
+    Number(student_id), Number(enrollment_id), Number(academic_year_id), Number(class_id),
+    scholarship_percent ? Number(scholarship_percent) : 0,
+    scholarship_type    || '',
+    admission_date
+  );
+  sendResponse(res, 201, true,
+    `One-time fees assigned: ${result.created} created, ${result.skipped} already existed.`, result);
+});
+
+// ── MONTHLY BILLING STATUS REPORT ──
+export const getMonthlyBillingStatusController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_month } = req.query;
+
+  if (!academic_year_id || !billing_month) {
+    return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
+  }
+
+  const result = await getMonthlyBillingStatusService(
+    school_id, Number(academic_year_id), String(billing_month)
+  );
+  sendResponse(res, 200, true, 'Monthly billing status fetched', result);
 });

@@ -9,6 +9,7 @@ import { showToast } from "@/store/toastSlice";
 import { fetchActiveAcademicYear } from "@/store/academicYearSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -43,12 +44,7 @@ const emptyForm: YearFormState = {
   description: "",
 };
 
-const formatDate = (value: string) => {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
-};
+// formatDate is now provided by useDateFormat hook (BS/AD aware)
 
 const statusBadgeStyle = (status: AcademicYearStatus) => {
   if (status === "active") return { background: "#dcfce7", color: "#166534" };
@@ -115,6 +111,7 @@ function YearFields({
 }
 
 export default function AcademicYearsPage() {
+  const { formatDate } = useDateFormat();
   const { data: years, loading, error: loadError, refetch } = useApi<AcademicYear[]>("/academic-years");
   const dispatch = useAppDispatch();
 

@@ -7,6 +7,7 @@ import {
   updateTeacherService, deleteTeacherService,
   assignSubjectToTeacherService, getTeacherSubjectsService, removeTeacherSubjectService,
   createSalaryService, getTeacherSalariesService, updateSalaryService,
+  getSalarySummaryService, getAttendanceSummaryForSalaryService,
   getMyCoordinatorSectionsService,
   bulkMarkTeacherAttendanceService, getTeacherAttendanceByDateService,
 } from '../Service/teacher.service';
@@ -111,8 +112,22 @@ export const getTeacherAttendanceByDate = catchAsync(async (req: Request, res: R
 
 export const getMySalaries = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
-  // Reuse the same admin service — teacher_id and school_id come from JWT
-  // so a teacher can only ever see their own records, never another teacher's.
   const salaries = await getTeacherSalariesService(teacher_id, school_id);
   sendResponse(res, 200, true, 'Your salary records fetched successfully', salaries);
+});
+
+export const getSalarySummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const summary = await getSalarySummaryService(school_id);
+  sendResponse(res, 200, true, 'Salary summary fetched successfully', summary);
+});
+
+export const getAttendanceSummaryForSalary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const teacher_id = Number(req.params.id);
+  const year  = Number(req.query.year);
+  const month = Number(req.query.month);
+  if (!year || !month) throw new Error('year and month query params required');
+  const data = await getAttendanceSummaryForSalaryService(school_id, teacher_id, year, month);
+  sendResponse(res, 200, true, 'Attendance summary fetched successfully', data);
 });

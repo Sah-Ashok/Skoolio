@@ -3,11 +3,12 @@ import {
   createStudent, getStudentsBySchool, getStudentById,
   getStudentByAdmissionNumber, getStudentByEmail, updateStudent, deleteStudent,
   createEnrollment, getEnrollmentsBySchool, getEnrollmentByStudent,
-  getEnrollmentById, updateEnrollment,
+  getEnrollmentById, updateEnrollment, searchStudentsBySchool,
 } from '../Repositories/student.repository';
 import { ICreateStudent, IUpdateStudent, ICreateEnrollment, IUpdateEnrollment } from '../types/student.types';
 import AppError from '../utils/AppError';
 import { assertCanAddStudent } from './subscription.service';
+import { assignOneTimeFees } from '../Repositories/fee.repository';
 // ── STUDENT SERVICES ──
 
 export const createStudentService = async (school_id: number, data: ICreateStudent) => {
@@ -38,6 +39,10 @@ export const createStudentService = async (school_id: number, data: ICreateStude
 export const getStudentsService = async (school_id: number) => {
   const students = await getStudentsBySchool(school_id);
   return students;
+};
+
+export const searchStudentsService = async (school_id: number, q: string) => {
+  return searchStudentsBySchool(school_id, q);
 };
 
 export const getStudentByIdService = async (id: number, school_id: number) => {
@@ -95,7 +100,25 @@ export const createEnrollmentService = async (
 
   // 3. Create enrollment
   const enrollment = await createEnrollment(school_id, data);
-  return enrollment;
+
+  // Admission, yearly, and other one-time charges are due when a student is
+  // enrolled.  Do this here (rather than relying on a later monthly batch) so
+  // a student admitted today immediately receives every applicable charge.
+  // The repository operation is idempotent, which also keeps this safe if an
+  // administrator retries an enrollment-related request.
+  const oneTimeFees = await assignOneTimeFees(
+    school_id,
+    school_id,
+    data.student_id,
+    enrollment.id,
+    data.academic_year_id,
+    data.class_id,
+    Number(student.scholarship_percent) || 0,
+    student.scholarship_type || '',
+    String(student.admission_date)
+  );
+
+  return { ...enrollment, one_time_fees: oneTimeFees };
 };
 
 export const getEnrollmentsService = async (

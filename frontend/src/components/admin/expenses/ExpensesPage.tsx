@@ -8,12 +8,14 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
 export default function ExpensesPage() {
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const { data: activeYear } = useApi<any>('/academic-years/active');
   const { data: expenses, loading, refetch } = useApi<any[]>(activeYear ? `/expenses?academic_year_id=${activeYear.id}` : '');
   const { data: categories } = useApi<any[]>('/expenses/categories');
@@ -137,7 +139,7 @@ export default function ExpensesPage() {
                         <td><strong>{ex.title}</strong></td>
                         <td>{ex.category_name}</td>
                         <td><strong>₹{Number(ex.amount).toLocaleString("en-IN")}</strong></td>
-                        <td>{new Date(ex.expense_date).toLocaleDateString()}</td>
+                        <td>{formatDate(ex.expense_date?.slice(0,10))}</td>
                         <td>{ex.vendor_name || '-'}</td>
                         <td>
                           <button className={cx(s("btn"), s("btnSoft"), s("btnSm"))} style={{color: '#dc2626'}} onClick={() => handleDelete(ex.id)}>
