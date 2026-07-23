@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { loginThunk, clearError, getRoleRedirect } from '@/store/authSlice';
+import { loginThunk, meThunk, clearError, getRoleRedirect } from '@/store/authSlice';
 import { showToast } from '@/store/toastSlice';
 import { Spinner } from '@/components/shared/Loader';
 import styles from './student-login.module.css';
@@ -40,6 +40,9 @@ export default function StudentLoginPage() {
         title:   `Welcome, ${payload.full_name || 'Student'}!`,
         message: 'Redirecting to your dashboard…',
       }));
+      // Dispatch meThunk so bootstrapped=true is set before RequireRole evaluates,
+      // preventing the infinite loading spinner after login.
+      await dispatch(meThunk());
       router.push(getRoleRedirect(payload.role));
     }
   };

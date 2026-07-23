@@ -184,6 +184,8 @@ export const getStudentAttendanceSummaryService = async (
   school_id:        number,
   academic_year_id: number,
   timezone:         string = 'UTC',
+  override_start?:  string,
+  override_end?:    string,
 ): Promise<IAttendanceSummary> => {
 
   // Fetch student and academic year in parallel (no extra school lookup needed
@@ -208,11 +210,20 @@ export const getStudentAttendanceSummaryService = async (
   // causing start_date > end_date early-return and all-zero summaries.
   const today = getTodayInTimezone(timezone);
 
-  // Effective start = later of admission_date and year start
-  const start_date = admDate > yearStart ? admDate : yearStart;
+  // Computed bounds (full-year mode)
+  const computedStart = admDate > yearStart ? admDate : yearStart;
+  const computedEnd   = today < yearEnd ? today : yearEnd;
 
-  // Effective end = earlier of today and year end
-  const end_date = today < yearEnd ? today : yearEnd;
+  // When caller passes explicit date range (dashboard "this month" / "last month"),
+  // use those — but clamp to [computedStart, computedEnd] so we never go
+  // before admission_date or after today/year-end.
+  const start_date = override_start
+    ? (override_start > computedStart ? override_start : computedStart)
+    : computedStart;
+
+  const end_date = override_end
+    ? (override_end < computedEnd ? override_end : computedEnd)
+    : computedEnd;
 
   // Student admitted after today or year hasn't started yet → 100%
   if (start_date > end_date) {

@@ -8,29 +8,39 @@ import { useAppSelector } from "@/store/hooks";
 
 /* ─── Donut chart ─────────────────────────────────────────────────────────── */
 function DonutChart({ pct, present, absent, total }: { pct: number; present: number; absent: number; total: number }) {
-  const r        = 52;
-  const circ     = 2 * Math.PI * r;
-  const presArc  = (pct / 100) * circ;
-  const absArc   = circ - presArc;
-  const hasData  = total > 0;
+  const r       = 52;
+  const circ    = 2 * Math.PI * r;
+  const hasData = total > 0;
+
+  // Use pct for arcs (already computed correctly by the backend summary)
+  const presArc = hasData ? (pct / 100) * circ : 0;
+  const absArc  = hasData ? circ - presArc      : 0;
+  // Present arc starts at 12 o'clock; absent arc starts where present ends
+  const absDeg  = pct * 3.6 - 90; // pct * (360/100) - 90
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
       {/* donut */}
       <div style={{ flexShrink: 0, position: "relative" }}>
-        <svg viewBox="0 0 140 140" width={120} height={120} style={{ transform: "rotate(-90deg)" }}>
+        <svg viewBox="0 0 140 140" width={120} height={120}>
           {/* track */}
           <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="18" />
           {hasData && (
             <>
-              {/* absent */}
-              <circle cx="70" cy="70" r={r} fill="none" stroke="#ff9a9e" strokeWidth="18"
-                strokeDasharray={`${absArc} ${presArc}`}
-                strokeDashoffset={-presArc} strokeLinecap="round" />
-              {/* present */}
-              <circle cx="70" cy="70" r={r} fill="none" stroke="#4b8ff7" strokeWidth="18"
-                strokeDasharray={`${presArc} ${absArc}`}
-                strokeDashoffset={0} strokeLinecap="round" />
+              {/* absent — starts where present ends */}
+              {absent > 0 && (
+                <circle cx="70" cy="70" r={r} fill="none" stroke="#ff9a9e" strokeWidth="18"
+                  strokeDasharray={`${absArc} ${presArc}`}
+                  strokeDashoffset={0} strokeLinecap="butt"
+                  style={{ transform: `rotate(${absDeg}deg)`, transformOrigin: "70px 70px" }} />
+              )}
+              {/* present — always starts at 12 o'clock */}
+              {present > 0 && (
+                <circle cx="70" cy="70" r={r} fill="none" stroke="#4b8ff7" strokeWidth="18"
+                  strokeDasharray={`${presArc} ${absArc}`}
+                  strokeDashoffset={0} strokeLinecap="butt"
+                  style={{ transform: "rotate(-90deg)", transformOrigin: "70px 70px" }} />
+              )}
             </>
           )}
         </svg>

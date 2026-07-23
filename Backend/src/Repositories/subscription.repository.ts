@@ -3,9 +3,10 @@ import { PoolClient } from 'pg';
 import {
   ISubscriptionPlan, ICreatePlan, IUpdatePlan,
   ISchoolSubscription, IActivateSubscription,
+  ISubscriptionOffer, ICreateOffer, IUpdateOffer,
 } from '../types/subscription.types';
 
-// ── SUBSCRIPTION PLAN QUERIES ──
+// ── SUBSCRIPTION PLAN QUERIES ──────────────────────────────────────────────────
 
 export const getActivePlans = async (): Promise<ISubscriptionPlan[]> => {
   const result = await pool.query(
@@ -32,17 +33,18 @@ export const getPlanByName = async (name: string): Promise<ISubscriptionPlan | n
 export const createPlan = async (data: ICreatePlan): Promise<ISubscriptionPlan> => {
   const result = await pool.query(
     `INSERT INTO subscription_plans
-      (name, max_students, max_teachers, fee_management_enabled,
+      (name, max_students, max_teachers, fee_management_enabled, online_payment_enabled,
        price_npr_monthly, price_npr_yearly,
        price_inr_monthly, price_inr_yearly,
        price_usd_monthly, price_usd_yearly)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
     [
       data.name,
       data.max_students,
       data.max_teachers,
       data.fee_management_enabled,
+      data.online_payment_enabled ?? false,
       data.price_npr_monthly,
       data.price_npr_yearly,
       data.price_inr_monthly,
@@ -60,39 +62,41 @@ export const updatePlan = async (
 ): Promise<ISubscriptionPlan | null> => {
   const result = await pool.query(
     `UPDATE subscription_plans SET
-      name                   = COALESCE($1,  name),
-      max_students           = COALESCE($2,  max_students),
-      max_teachers           = COALESCE($3,  max_teachers),
-      fee_management_enabled = COALESCE($4,  fee_management_enabled),
-      price_npr_monthly      = COALESCE($5,  price_npr_monthly),
-      price_npr_yearly       = COALESCE($6,  price_npr_yearly),
-      price_inr_monthly      = COALESCE($7,  price_inr_monthly),
-      price_inr_yearly       = COALESCE($8,  price_inr_yearly),
-      price_usd_monthly      = COALESCE($9,  price_usd_monthly),
-      price_usd_yearly       = COALESCE($10, price_usd_yearly),
-      is_active              = COALESCE($11, is_active),
-      updated_at             = NOW()
-     WHERE id = $12
+      name                    = COALESCE($1,  name),
+      max_students            = COALESCE($2,  max_students),
+      max_teachers            = COALESCE($3,  max_teachers),
+      fee_management_enabled  = COALESCE($4,  fee_management_enabled),
+      online_payment_enabled  = COALESCE($5,  online_payment_enabled),
+      price_npr_monthly       = COALESCE($6,  price_npr_monthly),
+      price_npr_yearly        = COALESCE($7,  price_npr_yearly),
+      price_inr_monthly       = COALESCE($8,  price_inr_monthly),
+      price_inr_yearly        = COALESCE($9,  price_inr_yearly),
+      price_usd_monthly       = COALESCE($10, price_usd_monthly),
+      price_usd_yearly        = COALESCE($11, price_usd_yearly),
+      is_active               = COALESCE($12, is_active),
+      updated_at              = NOW()
+     WHERE id = $13
      RETURNING *`,
     [
-      data.name              ?? null,
-      data.max_students      ?? null,
-      data.max_teachers      ?? null,
+      data.name                  ?? null,
+      data.max_students          ?? null,
+      data.max_teachers          ?? null,
       data.fee_management_enabled ?? null,
-      data.price_npr_monthly ?? null,
-      data.price_npr_yearly  ?? null,
-      data.price_inr_monthly ?? null,
-      data.price_inr_yearly  ?? null,
-      data.price_usd_monthly ?? null,
-      data.price_usd_yearly  ?? null,
-      data.is_active         ?? null,
+      data.online_payment_enabled ?? null,
+      data.price_npr_monthly     ?? null,
+      data.price_npr_yearly      ?? null,
+      data.price_inr_monthly     ?? null,
+      data.price_inr_yearly      ?? null,
+      data.price_usd_monthly     ?? null,
+      data.price_usd_yearly      ?? null,
+      data.is_active             ?? null,
       id,
     ]
   );
   return result.rows[0] || null;
 };
 
-// ── SCHOOL SUBSCRIPTION QUERIES ──
+// ── SCHOOL SUBSCRIPTION QUERIES ────────────────────────────────────────────────
 
 export const createSubscription = async (
   activated_by: number,
@@ -100,7 +104,8 @@ export const createSubscription = async (
 ): Promise<ISchoolSubscription> => {
   const result = await pool.query(
     `INSERT INTO school_subscriptions
-      (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date, status, payment_method, payment_reference, activated_by, notes)
+      (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
+       status, payment_method, payment_reference, activated_by, notes)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
      RETURNING *`,
     [
@@ -122,9 +127,10 @@ export const createSubscription = async (
 
 export const getLatestSubscription = async (
   school_id: number
-): Promise<(ISchoolSubscription & { plan_name: string; max_students: number | null; max_teachers: number | null; fee_management_enabled: boolean }) | null> => {
+): Promise<(ISchoolSubscription & { plan_name: string; max_students: number | null; max_teachers: number | null; fee_management_enabled: boolean; online_payment_enabled: boolean }) | null> => {
   const result = await pool.query(
-    `SELECT ss.*, sp.name as plan_name, sp.max_students, sp.max_teachers, sp.fee_management_enabled
+    `SELECT ss.*, sp.name as plan_name, sp.max_students, sp.max_teachers,
+            sp.fee_management_enabled, sp.online_payment_enabled
      FROM school_subscriptions ss
      INNER JOIN subscription_plans sp ON sp.id = ss.plan_id
      WHERE ss.school_id = $1
@@ -149,14 +155,8 @@ export const getSubscriptionHistory = async (
   return result.rows;
 };
 
-export const updateSubscriptionStatus = async (
-  id: number,
-  status: string
-): Promise<void> => {
-  await pool.query(
-    `UPDATE school_subscriptions SET status = $1 WHERE id = $2`,
-    [status, id]
-  );
+export const updateSubscriptionStatus = async (id: number, status: string): Promise<void> => {
+  await pool.query(`UPDATE school_subscriptions SET status = $1 WHERE id = $2`, [status, id]);
 };
 
 export const getStudentCount = async (school_id: number): Promise<number> => {
@@ -175,10 +175,6 @@ export const getTeacherCount = async (school_id: number): Promise<number> => {
   return Number(result.rows[0].count);
 };
 
-// ── ATOMIC GRACE-PERIOD DOWNGRADE ──
-// Marks the current subscription expired AND inserts a new Free-plan row in
-// one transaction, so a crash between the two steps can never leave a school
-// permanently locked out with no active subscription.
 export const downgradeToFreeTransaction = async (
   expiredSubscriptionId: number,
   school_id:             number,
@@ -188,21 +184,16 @@ export const downgradeToFreeTransaction = async (
   const client: PoolClient = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    // 1. Mark the old subscription expired
     await client.query(
       `UPDATE school_subscriptions SET status = 'expired' WHERE id = $1`,
       [expiredSubscriptionId]
     );
-
-    // 2. Insert the new Free plan row
     await client.query(
       `INSERT INTO school_subscriptions
         (school_id, plan_id, billing_cycle, amount_paid, start_date, end_date, status, activated_by, notes)
        VALUES ($1, $2, 'free', 0, NOW()::date, NULL, 'active', $1, $3)`,
       [school_id, freePlanId, notes]
     );
-
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -212,19 +203,142 @@ export const downgradeToFreeTransaction = async (
   }
 };
 
-// For super admin dashboard — list all schools with their current plan
 export const getAllSchoolsWithSubscriptions = async (): Promise<any[]> => {
   const result = await pool.query(
     `SELECT DISTINCT ON (ss.school_id)
        s.id as school_id, s.school_name, s.email, s.is_account, s.country,
        s.is_verified, s.two_fa_enabled,
        ss.id as subscription_id, ss.plan_id, sp.name as plan_name,
-       ss.billing_cycle, ss.start_date, ss.end_date, ss.status,
-       sp.max_students, sp.max_teachers
+       ss.billing_cycle, ss.start_date, ss.end_date, ss.status, ss.amount_paid, ss.currency,
+       sp.max_students, sp.max_teachers, sp.fee_management_enabled, sp.online_payment_enabled
      FROM schools s
      LEFT JOIN school_subscriptions ss ON ss.school_id = s.id
      LEFT JOIN subscription_plans sp ON sp.id = ss.plan_id
      ORDER BY ss.school_id, ss.created_at DESC`
   );
   return result.rows;
+};
+
+// ── OFFERS QUERIES ────────────────────────────────────────────────────────────
+
+export const getActiveOffers = async (): Promise<ISubscriptionOffer[]> => {
+  const result = await pool.query(
+    `SELECT * FROM subscription_offers
+     WHERE is_active = true
+       AND valid_from <= CURRENT_DATE
+       AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+       AND (max_uses IS NULL OR uses_count < max_uses)
+     ORDER BY created_at ASC`
+  );
+  return result.rows;
+};
+
+export const getAllOffers = async (): Promise<ISubscriptionOffer[]> => {
+  const result = await pool.query(
+    `SELECT * FROM subscription_offers ORDER BY created_at DESC`
+  );
+  return result.rows;
+};
+
+export const getOfferById = async (id: number): Promise<ISubscriptionOffer | null> => {
+  const result = await pool.query(`SELECT * FROM subscription_offers WHERE id = $1`, [id]);
+  return result.rows[0] || null;
+};
+
+export const getActiveOfferByCode = async (code: string): Promise<ISubscriptionOffer | null> => {
+  const result = await pool.query(
+    `SELECT * FROM subscription_offers
+     WHERE UPPER(code) = UPPER($1) AND is_active = true
+       AND valid_from <= CURRENT_DATE
+       AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+       AND (max_uses IS NULL OR uses_count < max_uses)
+     LIMIT 1`,
+    [code.trim()]
+  );
+  return result.rows[0] || null;
+};
+
+/** Returns false when another activation has consumed the final available use. */
+export const consumeOffer = async (id: number): Promise<boolean> => {
+  const result = await pool.query(
+    `UPDATE subscription_offers SET uses_count = uses_count + 1, updated_at = NOW()
+     WHERE id = $1 AND (max_uses IS NULL OR uses_count < max_uses)
+     RETURNING id`,
+    [id]
+  );
+  return result.rowCount === 1;
+};
+
+export const createOffer = async (data: ICreateOffer): Promise<ISubscriptionOffer> => {
+  const result = await pool.query(
+    `INSERT INTO subscription_offers
+      (code, title, description, plan_name, discount_type, discount_value,
+       applies_to_billing, min_months, saving_text, currency_applies_to,
+       max_uses, valid_from, valid_until, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     RETURNING *`,
+    [
+      data.code.trim().toUpperCase(),
+      data.title,
+      data.description           || null,
+      data.plan_name             || null,
+      data.discount_type,
+      data.discount_value,
+      data.applies_to_billing    || null,
+      data.min_months            || null,
+      data.saving_text           || null,
+      data.currency_applies_to   || null,
+      data.max_uses              || null,
+      data.valid_from            || new Date().toISOString().split('T')[0],
+      data.valid_until           || null,
+      data.is_active             ?? true,
+    ]
+  );
+  return result.rows[0];
+};
+
+export const updateOffer = async (
+  id: number,
+  data: IUpdateOffer
+): Promise<ISubscriptionOffer | null> => {
+  const result = await pool.query(
+    `UPDATE subscription_offers SET
+      title              = COALESCE($1,  title),
+      description        = COALESCE($2,  description),
+      plan_name          = COALESCE($3,  plan_name),
+      discount_type      = COALESCE($4,  discount_type),
+      discount_value     = COALESCE($5,  discount_value),
+      applies_to_billing = COALESCE($6,  applies_to_billing),
+      min_months         = COALESCE($7,  min_months),
+      saving_text        = COALESCE($8,  saving_text),
+      currency_applies_to = COALESCE($9, currency_applies_to),
+      max_uses           = COALESCE($10, max_uses),
+      valid_from         = COALESCE($11, valid_from),
+      valid_until        = COALESCE($12, valid_until),
+      is_active          = COALESCE($13, is_active),
+      updated_at         = NOW()
+     WHERE id = $14
+     RETURNING *`,
+    [
+      data.title              ?? null,
+      data.description        ?? null,
+      data.plan_name          ?? null,
+      data.discount_type      ?? null,
+      data.discount_value     ?? null,
+      data.applies_to_billing ?? null,
+      data.min_months         ?? null,
+      data.saving_text        ?? null,
+      data.currency_applies_to ?? null,
+      data.max_uses           ?? null,
+      data.valid_from         ?? null,
+      data.valid_until        ?? null,
+      data.is_active          ?? null,
+      id,
+    ]
+  );
+  return result.rows[0] || null;
+};
+
+export const deleteOffer = async (id: number): Promise<void> => {
+  await pool.query(`DELETE FROM subscription_offers WHERE id = $1`, [id]);
 };

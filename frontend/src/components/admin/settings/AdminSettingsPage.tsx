@@ -8,17 +8,19 @@ import { showToast } from "@/store/toastSlice";
 import { setUser } from "@/store/authSlice";
 import { Spinner } from "@/components/shared/Loader";
 import styles from "./settings.module.css";
+import PaymentSettingsTab from "./PaymentSettingsTab";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type Tab = "general" | "profile" | "security" | "appearance";
+type Tab = "general" | "profile" | "security" | "appearance" | "payment";
 
 const TABS: { key: Tab; icon: string; label: string; desc: string }[] = [
-  { key: "general",    icon: "fa-sliders",       label: "General",        desc: "Contact & region"    },
-  { key: "profile",    icon: "fa-school",         label: "School Profile", desc: "Identity & branding" },
-  { key: "security",   icon: "fa-shield-halved",  label: "Security",       desc: "Password & 2FA"      },
-  { key: "appearance", icon: "fa-palette",        label: "Appearance",     desc: "Theme & display"     },
+  { key: "general",    icon: "fa-sliders",            label: "General",        desc: "Contact & region"    },
+  { key: "profile",    icon: "fa-school",             label: "School Profile", desc: "Identity & branding" },
+  { key: "security",   icon: "fa-shield-halved",      label: "Security",       desc: "Password & 2FA"      },
+  { key: "appearance", icon: "fa-palette",            label: "Appearance",     desc: "Theme & display"     },
+  { key: "payment",    icon: "fa-building-columns",   label: "Payment Setup",  desc: "Bank accounts"       },
 ];
 
 const TIMEZONES  = ["Asia/Kathmandu", "Asia/Kolkata", "Asia/Dhaka", "UTC"];
@@ -33,10 +35,7 @@ const LANGUAGES = [
   { value: "hi", label: "Hindi"   },
 ];
 
-/* ── Reusable Field ──────────────────────────────────────────────────────── */
-function Field({
-  label, required, hint, children, full,
-}: {
+function Field({ label, required, hint, children, full }: {
   label: string; required?: boolean; hint?: string;
   children: React.ReactNode; full?: boolean;
 }) {
@@ -52,7 +51,6 @@ function Field({
   );
 }
 
-/* ── InfoChip ────────────────────────────────────────────────────────────── */
 function InfoChip({ icon, label, value, tone = "default" }: {
   icon: string; label: string; value: string;
   tone?: "green" | "amber" | "blue" | "default";
@@ -65,7 +63,6 @@ function InfoChip({ icon, label, value, tone = "default" }: {
   );
 }
 
-/* ── ToggleRow ───────────────────────────────────────────────────────────── */
 function ToggleRow({ label, desc, on }: { label: string; desc: string; on: boolean }) {
   return (
     <div className={s("toggle-row")}>
@@ -75,9 +72,6 @@ function ToggleRow({ label, desc, on }: { label: string; desc: string; on: boole
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   MAIN PAGE
-══════════════════════════════════════════════════════════════════════════ */
 export default function AdminSettingsPage() {
   const dispatch = useAppDispatch();
   const authUser = useAppSelector(s => s.auth.user);
@@ -86,7 +80,6 @@ export default function AdminSettingsPage() {
 
   const { data: settings, loading, refetch } = useApi<any>("/school/settings");
 
-  /* General / profile form state */
   const [g, setG] = useState({
     school_name: "", email: "", phone: "", website: "",
     address: "", city: "", state: "", country: "Nepal",
@@ -94,12 +87,10 @@ export default function AdminSettingsPage() {
     calendar_system: "AD" as "AD" | "BS",
   });
 
-  /* Password form state */
   const [pw, setPw] = useState({
     current_password: "", new_password: "", confirm_password: "",
   });
 
-  /* Seed form when API responds */
   useEffect(() => {
     if (!settings) return;
     setG({
@@ -118,8 +109,8 @@ export default function AdminSettingsPage() {
     });
   }, [settings]);
 
-  const { execute: saveG,  loading: savingG  } = useMutation("/school/settings",         "PATCH");
-  const { execute: savePw, loading: savingPw } = useMutation("/school/change-password",  "PATCH");
+  const { execute: saveG,  loading: savingG  } = useMutation("/school/settings",        "PATCH");
+  const { execute: savePw, loading: savingPw } = useMutation("/school/change-password", "PATCH");
 
   const setGField  = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setG(f => ({ ...f, [e.target.name]: e.target.value }));
@@ -134,10 +125,7 @@ export default function AdminSettingsPage() {
     const res = await saveG(g);
     if (res !== null) {
       dispatch(showToast({ type: "success", title: "Saved", message: "Settings updated successfully." }));
-      // Update calendar_system in Redux so useDateFormat picks it up immediately
-      if (authUser) {
-        dispatch(setUser({ ...authUser, calendar_system: g.calendar_system }));
-      }
+      if (authUser) dispatch(setUser({ ...authUser, calendar_system: g.calendar_system }));
       refetch();
     }
   };
@@ -159,13 +147,11 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const initials  = g.school_name
-    ? g.school_name.split(" ").map(p => p[0]).join("").substring(0, 2).toUpperCase()
-    : "SC";
-  const pwMatch    = pw.new_password && pw.confirm_password && pw.new_password === pw.confirm_password;
-  const pwMismatch = pw.confirm_password && pw.new_password !== pw.confirm_password;
-  const pwStrength = !pw.new_password ? null : pw.new_password.length < 6 ? "Weak" : pw.new_password.length < 10 ? "Fair" : "Strong";
-  const pwWidth    = !pw.new_password ? "0%" : pw.new_password.length >= 10 ? "100%" : pw.new_password.length >= 6 ? "60%" : "30%";
+  const initials      = g.school_name ? g.school_name.split(" ").map(p => p[0]).join("").substring(0, 2).toUpperCase() : "SC";
+  const pwMatch       = pw.new_password && pw.confirm_password && pw.new_password === pw.confirm_password;
+  const pwMismatch    = pw.confirm_password && pw.new_password !== pw.confirm_password;
+  const pwStrength    = !pw.new_password ? null : pw.new_password.length < 6 ? "Weak" : pw.new_password.length < 10 ? "Fair" : "Strong";
+  const pwWidth       = !pw.new_password ? "0%" : pw.new_password.length >= 10 ? "100%" : pw.new_password.length >= 6 ? "60%" : "30%";
   const pwStrengthClass = pwStrength === "Weak" ? s("strength-weak") : pwStrength === "Fair" ? s("strength-fair") : s("strength-strong");
 
   return (
@@ -173,7 +159,6 @@ export default function AdminSettingsPage() {
       <Topbar title="Settings" subtitle="Manage your school account and preferences" />
 
       <main className={s("content")}>
-
         {/* Hero */}
         <div className={s("hero")}>
           <div className={s("hero-left")}>
@@ -211,7 +196,7 @@ export default function AdminSettingsPage() {
         ) : (
           <div className={s("panel")}>
 
-            {/* ════════ GENERAL ════════ */}
+            {/* ════ GENERAL ════ */}
             {tab === "general" && (
               <>
                 <div className={s("panel-head")}>
@@ -222,45 +207,26 @@ export default function AdminSettingsPage() {
                   </button>
                 </div>
 
-                {/* Contact */}
                 <div className={s("section-group")}>
                   <div className={s("section-label")}><i className="fa-solid fa-address-card" /> Contact Information</div>
                   <div className={s("grid")}>
-                    <Field label="School Name" required>
-                      <input name="school_name" value={g.school_name} onChange={setGField} placeholder="e.g. Sunrise Academy" />
-                    </Field>
-                    <Field label="Email Address" required>
-                      <input name="email" type="email" value={g.email} onChange={setGField} placeholder="admin@school.edu.np" />
-                    </Field>
-                    <Field label="Phone Number">
-                      <input name="phone" type="tel" value={g.phone} onChange={setGField} placeholder="98XXXXXXXX" />
-                    </Field>
-                    <Field label="Website">
-                      <input name="website" value={g.website} onChange={setGField} placeholder="https://yourschool.edu.np" />
-                    </Field>
+                    <Field label="School Name" required><input name="school_name" value={g.school_name} onChange={setGField} placeholder="e.g. Sunrise Academy" /></Field>
+                    <Field label="Email Address" required><input name="email" type="email" value={g.email} onChange={setGField} placeholder="admin@school.edu.np" /></Field>
+                    <Field label="Phone Number"><input name="phone" type="tel" value={g.phone} onChange={setGField} placeholder="98XXXXXXXX" /></Field>
+                    <Field label="Website"><input name="website" value={g.website} onChange={setGField} placeholder="https://yourschool.edu.np" /></Field>
                   </div>
                 </div>
 
-                {/* Address */}
                 <div className={s("section-group")}>
                   <div className={s("section-label")}><i className="fa-solid fa-location-dot" /> Address</div>
                   <div className={s("grid")}>
-                    <Field label="Street Address" full>
-                      <input name="address" value={g.address} onChange={setGField} placeholder="e.g. Baneshwor, Kathmandu" />
-                    </Field>
-                    <Field label="City">
-                      <input name="city" value={g.city} onChange={setGField} placeholder="e.g. Kathmandu" />
-                    </Field>
-                    <Field label="State / Province">
-                      <input name="state" value={g.state} onChange={setGField} placeholder="e.g. Bagmati" />
-                    </Field>
-                    <Field label="Country">
-                      <input name="country" value={g.country} onChange={setGField} placeholder="Nepal" />
-                    </Field>
+                    <Field label="Street Address" full><input name="address" value={g.address} onChange={setGField} placeholder="e.g. Baneshwor, Kathmandu" /></Field>
+                    <Field label="City"><input name="city" value={g.city} onChange={setGField} placeholder="e.g. Kathmandu" /></Field>
+                    <Field label="State / Province"><input name="state" value={g.state} onChange={setGField} placeholder="e.g. Bagmati" /></Field>
+                    <Field label="Country"><input name="country" value={g.country} onChange={setGField} placeholder="Nepal" /></Field>
                   </div>
                 </div>
 
-                {/* Regional — including calendar system */}
                 <div className={s("section-group")}>
                   <div className={s("section-label")}><i className="fa-solid fa-earth-asia" /> Regional Preferences</div>
                   <div className={s("grid3")}>
@@ -282,49 +248,26 @@ export default function AdminSettingsPage() {
                   </div>
 
                   {/* Calendar system picker */}
-                  <div style={{
-                    marginTop: 16, padding: "16px 18px", borderRadius: 12,
-                    border: "1px solid #dce5e9", background: "#f8fafc",
-                  }}>
+                  <div style={{ marginTop: 16, padding: "16px 18px", borderRadius: 12, border: "1px solid #dce5e9", background: "#f8fafc" }}>
                     <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 800, color: "#25343f" }}>
-                      <i className="fa-solid fa-calendar" style={{ color: "#ff9b51", marginRight: 8 }} />
-                      Date Display System
+                      <i className="fa-solid fa-calendar" style={{ color: "#ff9b51", marginRight: 8 }} />Date Display System
                     </p>
                     <p style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 600, color: "#6a7882" }}>
-                      Choose how dates are shown throughout the app. Dates are always stored in AD — this is display-only and affects date pickers, forms, calendars, and reports.
+                      Choose how dates are shown throughout the app. Dates are always stored in AD — this is display-only.
                     </p>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       {[
-                        { value: "AD", label: "AD — Gregorian", sub: "January 1, 2024 · Used internationally", flag: "🌐" },
-                        { value: "BS", label: "BS — Bikram Sambat", sub: "1 Baishakh 2081 · Used in Nepal", flag: "🇳🇵" },
+                        { value: "AD", label: "AD — Gregorian",      sub: "January 1, 2024 · Used internationally", flag: "🌐" },
+                        { value: "BS", label: "BS — Bikram Sambat",   sub: "1 Baishakh 2081 · Used in Nepal",       flag: "🇳🇵" },
                       ].map(opt => (
-                        <div
-                          key={opt.value}
-                          onClick={() => setG(f => ({ ...f, calendar_system: opt.value as "AD" | "BS" }))}
-                          style={{
-                            padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-                            border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#dce5e9"}`,
-                            background: g.calendar_system === opt.value ? "#fff7ed" : "#fff",
-                            display: "flex", alignItems: "center", gap: 12, transition: "all 0.15s",
-                          }}
-                        >
-                          <div style={{
-                            width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-                            border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#c8d6de"}`,
-                            background: g.calendar_system === opt.value ? "#ff9b51" : "#fff",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            {g.calendar_system === opt.value && (
-                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
-                            )}
+                        <div key={opt.value} onClick={() => setG(f => ({ ...f, calendar_system: opt.value as "AD" | "BS" }))}
+                          style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#dce5e9"}`, background: g.calendar_system === opt.value ? "#fff7ed" : "#fff", display: "flex", alignItems: "center", gap: 12, transition: "all 0.15s" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, border: `2px solid ${g.calendar_system === opt.value ? "#ff9b51" : "#c8d6de"}`, background: g.calendar_system === opt.value ? "#ff9b51" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {g.calendar_system === opt.value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
                           </div>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "#25343f" }}>
-                              {opt.flag} {opt.label}
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: "#6a7882", marginTop: 2 }}>
-                              {opt.sub}
-                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#25343f" }}>{opt.flag} {opt.label}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: "#6a7882", marginTop: 2 }}>{opt.sub}</div>
                           </div>
                         </div>
                       ))}
@@ -332,16 +275,14 @@ export default function AdminSettingsPage() {
                     {g.calendar_system === "BS" && (
                       <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#ecfdf5", border: "1px solid #bbf7d0", fontSize: 12, fontWeight: 700, color: "#059669" }}>
                         <i className="fa-solid fa-circle-check" style={{ marginRight: 6 }} />
-                        All date inputs, calendars, and date displays across the app will switch to Bikram Sambat. Save to apply.
+                        All date inputs and displays will switch to Bikram Sambat. Save to apply.
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div className={s("panel-footer")}>
-                  <button className={cx(s("btn"), s("btn-ghost"))} onClick={() => refetch()}>
-                    <i className="fa-solid fa-rotate-left" /> Reset
-                  </button>
+                  <button className={cx(s("btn"), s("btn-ghost"))} onClick={() => refetch()}><i className="fa-solid fa-rotate-left" /> Reset</button>
                   <button className={cx(s("btn"), s("btn-primary"))} onClick={handleSave} disabled={savingG}>
                     {savingG ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />} Save Changes
                   </button>
@@ -349,7 +290,7 @@ export default function AdminSettingsPage() {
               </>
             )}
 
-            {/* ════════ PROFILE ════════ */}
+            {/* ════ PROFILE ════ */}
             {tab === "profile" && (
               <>
                 <div className={s("panel-head")}>
@@ -402,7 +343,7 @@ export default function AdminSettingsPage() {
               </>
             )}
 
-            {/* ════════ SECURITY ════════ */}
+            {/* ════ SECURITY ════ */}
             {tab === "security" && (
               <>
                 <div className={s("panel-head")}>
@@ -471,7 +412,7 @@ export default function AdminSettingsPage() {
               </>
             )}
 
-            {/* ════════ APPEARANCE ════════ */}
+            {/* ════ APPEARANCE ════ */}
             {tab === "appearance" && (
               <>
                 <div className={s("panel-head")}>
@@ -532,6 +473,9 @@ export default function AdminSettingsPage() {
                 </div>
               </>
             )}
+
+            {/* ════ PAYMENT ════ */}
+            {tab === "payment" && <PaymentSettingsTab />}
 
           </div>
         )}

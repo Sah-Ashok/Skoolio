@@ -8,31 +8,24 @@ import {
   uploadStudentPhoto,
   uploadStudentPhotoChunk,
   uploadTeacherPhotoChunk,
+  uploadPaymentScreenshot,
+  uploadQrCode,
 } from '../Controllers/upload.controller';
 
 const router = Router();
 
-// All upload routes require admin authentication
-router.use(protect, restrictTo('admin', 'super_admin'));
+router.use(protect);
 
-// POST /api/upload/logo
-// Body: multipart/form-data  field name: "logo"
-router.post('/logo',                upload.single('logo'),  uploadLogo);
+// ── Admin uploads ────────────────────────────────────────────────────────────
+router.post('/logo',                      restrictTo('admin', 'super_admin'), upload.single('logo'),       uploadLogo);
+router.post('/teacher-photo/:id',         restrictTo('admin', 'super_admin'), upload.single('photo'),      uploadTeacherPhoto);
+router.post('/student-photo/:id',         restrictTo('admin', 'super_admin'), upload.single('photo'),      uploadStudentPhoto);
+router.post('/student-photo/:id/chunk',   restrictTo('admin', 'super_admin'), upload.single('chunk'),      uploadStudentPhotoChunk);
+router.post('/teacher-photo/:id/chunk',   restrictTo('admin', 'super_admin'), upload.single('chunk'),      uploadTeacherPhotoChunk);
+router.post('/qr-code/:account_id',       restrictTo('admin', 'super_admin'), upload.single('qr'),         uploadQrCode);
 
-// POST /api/upload/teacher-photo/:id
-// Body: multipart/form-data  field name: "photo"
-router.post('/teacher-photo/:id',   upload.single('photo'), uploadTeacherPhoto);
-
-// POST /api/upload/student-photo/:id
-// Body: multipart/form-data  field name: "photo"
-router.post('/student-photo/:id',         upload.single('photo'), uploadStudentPhoto);
-
-// POST /api/upload/student-photo/:id/chunk
-// Chunked upload — one 512 KB slice at a time, field name: "chunk"
-// Headers: x-upload-id, x-chunk-index, x-total-chunks, x-mime-type
-router.post('/student-photo/:id/chunk',   upload.single('chunk'), uploadStudentPhotoChunk);
-
-// POST /api/upload/teacher-photo/:id/chunk
-router.post('/teacher-photo/:id/chunk',   upload.single('chunk'), uploadTeacherPhotoChunk);
+// ── Student: payment screenshot upload ──────────────────────────────────────
+// Student uploads screenshot first, gets back URL, then includes URL in the payment request body
+router.post('/payment-screenshot', restrictTo('student'), upload.single('screenshot'), uploadPaymentScreenshot);
 
 export default router;

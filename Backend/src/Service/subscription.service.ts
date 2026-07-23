@@ -3,20 +3,19 @@ import {
   createSubscription, getLatestSubscription, getSubscriptionHistory,
   updateSubscriptionStatus, getStudentCount, getTeacherCount, getAllSchoolsWithSubscriptions,
   downgradeToFreeTransaction,
+  getActiveOffers, getAllOffers, getOfferById, getActiveOfferByCode, consumeOffer, createOffer, updateOffer, deleteOffer,
 } from '../Repositories/subscription.repository';
-import { ICreatePlan, IUpdatePlan, IActivateSubscription, ICurrentPlanStatus, ISubscriptionPlanResolved } from '../types/subscription.types';
+import {
+  ICreatePlan, IUpdatePlan, IActivateSubscription, ICurrentPlanStatus,
+  ISubscriptionPlanResolved, ICreateOffer, IUpdateOffer,
+} from '../types/subscription.types';
 import { resolvePlanPricing } from '../config/currencyConfig';
 import AppError from '../utils/AppError';
 
 const GRACE_PERIOD_DAYS = 10;
 
-// ── PLAN SERVICES ───────────────────────────────────────────────────────────────────────────────
+// ── PLAN SERVICES ──────────────────────────────────────────────────────────────
 
-/**
- * Returns all active plans with pricing resolved for the requesting school's
- * country. The frontend never needs to know about NPR/INR/USD columns —
- * it just reads resolved_pricing.price_monthly / resolved_pricing.price_yearly.
- */
 export const getActivePlansService = async (country?: string): Promise<ISubscriptionPlanResolved[]> => {
   const plans = await getActivePlans();
   return plans.map(plan => ({
@@ -27,6 +26,12 @@ export const getActivePlansService = async (country?: string): Promise<ISubscrip
 
 export const getAllPlansService = async () => {
   return await getAllPlans();
+};
+
+export const getPlanByIdService = async (id: number) => {
+  const plan = await getPlanById(id);
+  if (!plan) throw new AppError('Plan not found.', 404);
+  return plan;
 };
 
 export const createPlanService = async (data: ICreatePlan) => {
@@ -41,15 +46,54 @@ export const updatePlanService = async (id: number, data: IUpdatePlan) => {
   return plan;
 };
 
-// ── CORE: RESOLVE A SCHOOL'S CURRENT PLAN STATUS ──
-// This is the heart of the whole module — call this whenever you need to know
-// if a school can add students/teachers, or whether they need a downgrade applied.
+// ── OFFER SERVICES ────────────────────────────────────────────────────────────
+
+export const getActiveOffersService = async () => {
+  return await getActiveOffers();
+};
+
+export const getAllOffersService = async () => {
+  return await getAllOffers();
+};
+
+export const createOfferService = async (data: ICreateOffer) => {
+  if (!data.code || !data.title || !data.discount_type || data.discount_value === undefined) {
+    throw new AppError('code, title, discount_type and discount_value are required.', 400);
+  }
+  if (!['percent', 'fixed', 'free_months'].includes(data.discount_type)) {
+    throw new AppError('discount_type must be percent, fixed, or free_months.', 400);
+  }
+  if (data.discount_type === 'percent' && (data.discount_value < 0 || data.discount_value > 100)) {
+    throw new AppError('Percent discount must be between 0 and 100.', 400);
+  }
+  if (data.discount_type === 'free_months' && (!Number.isInteger(Number(data.discount_value)) || Number(data.discount_value) < 1)) {
+    throw new AppError('Free months must be a whole number of at least 1.', 400);
+  }
+  if (data.applies_to_billing && !['monthly', 'yearly'].includes(data.applies_to_billing)) {
+    throw new AppError('applies_to_billing must be monthly or yearly.', 400);
+  }
+  return await createOffer(data);
+};
+
+export const updateOfferService = async (id: number, data: IUpdateOffer) => {
+  const offer = await getOfferById(id);
+  if (!offer) throw new AppError('Offer not found.', 404);
+  const updated = await updateOffer(id, data);
+  return updated;
+};
+
+export const deleteOfferService = async (id: number) => {
+  const offer = await getOfferById(id);
+  if (!offer) throw new AppError('Offer not found.', 404);
+  await deleteOffer(id);
+};
+
+// ── CORE: RESOLVE A SCHOOL'S CURRENT PLAN STATUS ──────────────────────────────
 
 export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurrentPlanStatus> => {
   let latest = await getLatestSubscription(school_id);
 
   if (!latest) {
-    // Safety net — should never happen after backfill, but just in case
     const freePlan = await getPlanByName('Free');
     if (!freePlan) throw new AppError('Free plan not configured.', 500);
     latest = await createSubscription(school_id, {
@@ -65,30 +109,21 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   let is_in_grace_period = false;
   let days_until_lock: number | null = null;
 
-  // Free plan never expires — nothing to check
   if (latest.billing_cycle !== 'free' && latest.end_date) {
     const today = new Date();
     const endDate = new Date(latest.end_date);
     const daysSinceExpiry = Math.floor((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysSinceExpiry > GRACE_PERIOD_DAYS) {
-      // Grace period is over — downgrade to Free now.
-      // Both steps (expire old + create Free) run in one transaction so a
-      // crash between them can never leave the school permanently locked out.
       const freePlan = await getPlanByName('Free');
       if (!freePlan) throw new AppError('Free plan not configured.', 500);
-
       await downgradeToFreeTransaction(
-        latest.id,
-        school_id,
-        freePlan.id,
+        latest.id, school_id, freePlan.id,
         `Auto-downgraded from ${latest.plan_name} after grace period expired.`
       );
-
       latest = await getLatestSubscription(school_id);
       if (!latest) throw new AppError('Unable to resolve subscription.', 500);
     } else if (daysSinceExpiry > 0) {
-      // Within grace period
       is_in_grace_period = true;
       days_until_lock = GRACE_PERIOD_DAYS - daysSinceExpiry;
       if (latest.status === 'active') {
@@ -118,7 +153,7 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   };
 };
 
-// ── ACTIVATE / RENEW (super_admin action) ──
+// ── ACTIVATE / RENEW (super_admin action) ──────────────────────────────────────
 
 export const activateSubscriptionService = async (
   activated_by: number,
@@ -127,11 +162,46 @@ export const activateSubscriptionService = async (
   const plan = await getPlanById(data.plan_id);
   if (!plan) throw new AppError('Plan not found.', 404);
 
-  if (data.billing_cycle !== 'free' && !data.end_date) {
+  let activation = { ...data };
+  if (data.offer_code) {
+    const offer = await getActiveOfferByCode(data.offer_code);
+    if (!offer) throw new AppError('This offer is inactive, expired, or fully used.', 400);
+
+    const currency = (data.currency || 'NPR').toUpperCase() as 'NPR' | 'INR' | 'USD';
+    const months = data.billing_cycle === 'yearly' ? 12 : data.billing_cycle === 'monthly' ? 1 : 0;
+    if (data.billing_cycle === 'free') throw new AppError('Offers cannot be used with the Free plan.', 400);
+    if (offer.plan_name && offer.plan_name !== plan.name) throw new AppError(`This offer applies to the ${offer.plan_name} plan only.`, 400);
+    if (offer.applies_to_billing && offer.applies_to_billing !== data.billing_cycle) throw new AppError(`This offer applies to ${offer.applies_to_billing} billing only.`, 400);
+    if (offer.currency_applies_to && offer.currency_applies_to !== currency) throw new AppError(`This offer applies to ${offer.currency_applies_to} payments only.`, 400);
+    if (offer.min_months && months < offer.min_months) throw new AppError(`This offer requires at least ${offer.min_months} months of subscription.`, 400);
+
+    const priceKey = `price_${currency.toLowerCase()}_${data.billing_cycle}` as keyof typeof plan;
+    const basePrice = Number(plan[priceKey] ?? 0);
+    let amount = basePrice;
+    let endDate = data.end_date;
+    if (offer.discount_type === 'percent') amount = basePrice * (1 - Number(offer.discount_value) / 100);
+    if (offer.discount_type === 'fixed') amount = Math.max(0, basePrice - Number(offer.discount_value));
+    if (offer.discount_type === 'free_months') {
+      amount = 0;
+      const start = new Date(data.start_date || new Date().toISOString().split('T')[0]);
+      start.setMonth(start.getMonth() + Number(offer.discount_value));
+      endDate = start.toISOString().split('T')[0];
+    }
+    activation = {
+      ...data,
+      currency,
+      amount_paid: Math.round(amount * 100) / 100,
+      end_date: endDate,
+      notes: [data.notes, `Offer ${offer.code} applied: ${offer.title}`].filter(Boolean).join(' | '),
+    };
+    if (!await consumeOffer(offer.id)) throw new AppError('This offer has just reached its usage limit.', 409);
+  }
+
+  if (activation.billing_cycle !== 'free' && !activation.end_date) {
     throw new AppError('End date is required for paid subscriptions.', 400);
   }
 
-  const subscription = await createSubscription(activated_by, data);
+  const subscription = await createSubscription(activated_by, activation);
   return subscription;
 };
 
@@ -143,13 +213,13 @@ export const getAllSchoolsWithSubscriptionsService = async () => {
   return await getAllSchoolsWithSubscriptions();
 };
 
-// ── GUARD HELPERS (used by student/teacher creation) ──
+// ── GUARD HELPERS ──────────────────────────────────────────────────────────────
 
 export const assertCanAddStudent = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.can_add_student) {
     throw new AppError(
-      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_students} students. Please upgrade your plan to add more.`,
+      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_students} students. Please upgrade to add more.`,
       403
     );
   }
@@ -159,7 +229,7 @@ export const assertCanAddTeacher = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.can_add_teacher) {
     throw new AppError(
-      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_teachers} teachers. Please upgrade your plan to add more.`,
+      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_teachers} teachers. Please upgrade to add more.`,
       403
     );
   }
@@ -169,7 +239,17 @@ export const assertFeeManagementEnabled = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.plan.fee_management_enabled) {
     throw new AppError(
-      `Fee Management is not available on the ${status.plan.name} plan. Please upgrade to Pro or Plus to use this feature.`,
+      `Fee Management is not available on the ${status.plan.name} plan. Please upgrade to Pro or Plus.`,
+      403
+    );
+  }
+};
+
+export const assertOnlinePaymentEnabled = async (school_id: number) => {
+  const status = await resolveCurrentPlanStatus(school_id);
+  if (!status.plan.online_payment_enabled) {
+    throw new AppError(
+      `Online Payment is not available on the ${status.plan.name} plan. Please upgrade to Pro or Plus to accept online payments from students.`,
       403
     );
   }

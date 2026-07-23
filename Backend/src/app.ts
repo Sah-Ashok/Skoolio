@@ -23,6 +23,7 @@ import noticeRoutes from './Routes/notice.routes';
 import dashboardRoutes from './Routes/dashboard.routes';
 import promotionRoutes from './Routes/promotion.routes';
 import historyRoutes from './Routes/history.routes';
+import onlinePaymentRoutes from './Routes/online_payment.routes';
 import { globalHistoryMiddleware } from './middlewares/history.middleware';
 
 
@@ -62,6 +63,7 @@ app.use('/api/notices',   noticeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/online-payments', onlinePaymentRoutes);
 
 app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})

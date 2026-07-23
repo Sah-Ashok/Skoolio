@@ -5,7 +5,7 @@ import {
   createTeacher, getTeachers, getTeacherById, updateTeacher, deleteTeacher,
   assignSubjectToTeacher, getTeacherSubjects, removeTeacherSubject,
   createSalary, getTeacherSalaries, updateSalary,
-  getMyCoordinatorSections, getMySalaries,
+  getMyCoordinatorSections, getMySalaries, getMyAttendanceMonthly,
   bulkMarkTeacherAttendance, getTeacherAttendanceByDate,
   getSalarySummary, getAttendanceSummaryForSalary,
 } from '../Controllers/teacher.controller';
@@ -13,8 +13,9 @@ import {
 const router = Router();
 
 // ── Faculty-accessible routes (before admin-only middleware) ──
-router.get('/me/sections', protect, restrictTo('faculty'), getMyCoordinatorSections);
-router.get('/me/salary',   protect, restrictTo('faculty'), getMySalaries);
+router.get('/me/sections',   protect, restrictTo('faculty'), getMyCoordinatorSections);
+router.get('/me/salary',     protect, restrictTo('faculty'), getMySalaries);
+router.get('/me/attendance', protect, restrictTo('faculty'), getMyAttendanceMonthly); // ?year=&month=
 
 router.use(protect, restrictTo('admin', 'super_admin'));
 
@@ -23,8 +24,8 @@ router.post('/attendance/bulk', bulkMarkTeacherAttendance);
 router.get ('/attendance',      getTeacherAttendanceByDate);  // ?date=YYYY-MM-DD
 
 // ── SALARY SUMMARY + ATTENDANCE PRE-CALC ── (static before /:id)
-router.get('/salary/summary',           getSalarySummary);                   // GET /teachers/salary/summary
-router.get('/salary/:id/attendance',    getAttendanceSummaryForSalary);      // GET /teachers/salary/:id/attendance?year=&month=
+router.get('/salary/summary',           getSalarySummary);
+router.get('/salary/:id/attendance',    getAttendanceSummaryForSalary);
 
 // ── TEACHER ROUTES ──
 router.post('/', createTeacher);

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { loginThunk, clearError, getRoleRedirect, LoginRole } from '@/store/authSlice';
+import { loginThunk, meThunk, clearError, getRoleRedirect, LoginRole } from '@/store/authSlice';
 import { showToast } from '@/store/toastSlice';
 import { Spinner } from '@/components/shared/Loader';
 import styles from './login.module.css';
@@ -57,6 +57,8 @@ export default function LoginPage() {
         title: `Welcome back, ${payload.full_name || payload.school_name}!`,
         message: 'Redirecting to your dashboard…',
       }));
+      // Ensure bootstrapped=true before RequireRole evaluates — prevents infinite spinner
+      await dispatch(meThunk());
       router.push(getRoleRedirect(payload.role));
     }
   };

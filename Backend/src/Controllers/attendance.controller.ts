@@ -19,10 +19,7 @@ export const createAttendance = catchAsync(async (req: Request, res: Response, n
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
-
-  // Always set marked_by from the JWT — never trust the client-sent value.
   req.body.marked_by = user.id;
-
   const result = await createAttendanceService(school_id, req.body, teacherId);
   sendResponse(res, 201, true, 'Attendance marked successfully', result);
 });
@@ -60,41 +57,28 @@ export const submitAttendance = catchAsync(async (req: Request, res: Response, n
   sendResponse(res, 200, true, 'Attendance submitted successfully', result);
 });
 
-// BUG-06 FIX: validate attendance_id is present and numeric before proceeding.
 export const updateAttendanceDetail = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
-
   const { attendance_id } = req.body;
-
   if (!attendance_id || isNaN(Number(attendance_id))) {
     return sendResponse(res, 400, false, 'attendance_id is required and must be a valid number', null);
   }
-
   const result = await updateAttendanceDetailService(
-    Number(req.params.id),
-    school_id,
-    req.body,
-    Number(attendance_id)
+    Number(req.params.id), school_id, req.body, Number(attendance_id)
   );
   sendResponse(res, 200, true, 'Attendance detail updated successfully', result);
 });
 
 // ── STUDENT ATTENDANCE SUMMARY (ADMIN) ──
-// Only academic_year_id needed; start/end dates are computed from student's
-// admission_date and academic year boundaries in the service layer.
 export const getStudentAttendanceSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-
   const result = await getStudentAttendanceSummaryService(
-    Number(req.params.id),
-    school_id,
-    Number(academic_year_id),
+    Number(req.params.id), school_id, Number(academic_year_id),
   );
   sendResponse(res, 200, true, 'Attendance summary fetched successfully', result);
 });
@@ -102,16 +86,11 @@ export const getStudentAttendanceSummary = catchAsync(async (req: Request, res: 
 export const getStudentMonthlyAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { year, month, academic_year_id } = req.query;
-
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);
   }
-
   const result = await getStudentMonthlyAttendanceService(
-    Number(req.params.id),
-    school_id,
-    Number(year),
-    Number(month),
+    Number(req.params.id), school_id, Number(year), Number(month),
     academic_year_id ? Number(academic_year_id) : undefined
   );
   sendResponse(res, 200, true, 'Monthly attendance fetched successfully', result);
@@ -122,17 +101,12 @@ export const getStudentMonthlyAttendance = catchAsync(async (req: Request, res: 
 export const getClassAttendanceOverview = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id, start_date, end_date } = req.query;
-
   if (!academic_year_id || !start_date || !end_date) {
     return sendResponse(res, 400, false, 'academic_year_id, start_date and end_date are required', null);
   }
-
   const result = await getClassAttendanceOverviewService(
-    school_id,
-    Number(req.params.classId),
-    Number(academic_year_id),
-    String(start_date),
-    String(end_date)
+    school_id, Number(req.params.classId), Number(academic_year_id),
+    String(start_date), String(end_date)
   );
   sendResponse(res, 200, true, 'Class attendance overview fetched successfully', result);
 });
@@ -140,15 +114,10 @@ export const getClassAttendanceOverview = catchAsync(async (req: Request, res: R
 export const getAllClassesAttendanceOverview = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { academic_year_id } = req.query;
-
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-
-  const result = await getAllClassesAttendanceOverviewService(
-    school_id,
-    Number(academic_year_id)
-  );
+  const result = await getAllClassesAttendanceOverviewService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'All classes attendance overview fetched successfully', result);
 });
 
@@ -164,27 +133,33 @@ export const getSectionTeacherHistory = catchAsync(async (req: Request, res: Res
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const result = await getSectionTeacherHistoryService(
-    Number(req.params.sectionId),
-    school_id
+    Number(req.params.sectionId), school_id
   );
   sendResponse(res, 200, true, 'Section teacher history fetched successfully', result);
 });
 
-// ── SELF-SERVICE CONTROLLERS (STUDENT'S OWN ATTENDANCE) ──
-// academic_year_id is the only required param; dates computed from admission_date
+// ── SELF-SERVICE (STUDENT'S OWN ATTENDANCE) ──
+//
+// GET /attendance/me/summary?academic_year_id=X
+//   Returns full academic-year summary (working days, present, absent, %).
+//   Dates are computed server-side from admission_date and academic year bounds.
+//
+// GET /attendance/me/summary?academic_year_id=X&start_date=Y&end_date=Z
+//   Returns date-range summary — used by dashboard period tabs (this_month / last_month).
+//   When start_date + end_date are provided they OVERRIDE the server-computed bounds.
 export const getMyAttendanceSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id, timezone } = req.user as IJwtUserPayload;
-  const { academic_year_id } = req.query;
+  const { academic_year_id, start_date, end_date } = req.query;
 
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
 
   const result = await getStudentAttendanceSummaryService(
-    id,
-    school_id,
-    Number(academic_year_id),
-    timezone,
+    id, school_id, Number(academic_year_id), timezone,
+    // Pass optional date overrides — service will use them when provided
+    start_date ? String(start_date) : undefined,
+    end_date   ? String(end_date)   : undefined,
   );
   sendResponse(res, 200, true, 'Your attendance summary fetched successfully', result);
 });
@@ -192,16 +167,11 @@ export const getMyAttendanceSummary = catchAsync(async (req: Request, res: Respo
 export const getMyMonthlyAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id } = req.user as IJwtUserPayload;
   const { year, month, academic_year_id } = req.query;
-
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);
   }
-
   const result = await getStudentMonthlyAttendanceService(
-    id,
-    school_id,
-    Number(year),
-    Number(month),
+    id, school_id, Number(year), Number(month),
     academic_year_id ? Number(academic_year_id) : undefined
   );
   sendResponse(res, 200, true, 'Your monthly attendance fetched successfully', result);
@@ -224,20 +194,13 @@ export const getSectionRegister = catchAsync(async (req: Request, res: Response,
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
-
   const { year, month, academic_year_id } = req.query;
-
   if (!year || !month || !academic_year_id) {
     return sendResponse(res, 400, false, 'year, month and academic_year_id are required', null);
   }
-
   const result = await getSectionRegisterService(
-    Number(req.params.sectionId),
-    school_id,
-    Number(academic_year_id),
-    Number(year),
-    Number(month),
-    teacherId
+    Number(req.params.sectionId), school_id, Number(academic_year_id),
+    Number(year), Number(month), teacherId
   );
   sendResponse(res, 200, true, 'Section register fetched successfully', result);
 });

@@ -17,7 +17,7 @@ const blobServiceClient = BlobServiceClient.fromConnectionString(
  */
 export const uploadToAzure = async (
   containerName: string,
-  blobName:      string,   // e.g. "teachers/42/7.jpg"
+  blobName:      string,
   buffer:        Buffer,
   mimeType:      string
 ): Promise<string> => {
@@ -44,8 +44,6 @@ export const deleteFromAzure = async (
 };
 
 // ── Deterministic blob name helpers ──────────────────────────────────────────
-// Extension is always lowercase and stripped of the dot.
-// Overwriting the same blobName replaces the old file — no cleanup needed.
 
 export const getLogoBlob = (school_id: number, ext: string) =>
   `${school_id}.${ext.toLowerCase().replace('.', '')}`;
@@ -55,3 +53,9 @@ export const getTeacherBlob = (school_id: number, teacher_id: number, ext: strin
 
 export const getStudentBlob = (school_id: number, student_id: number, ext: string) =>
   `students/${school_id}/${student_id}.${ext.toLowerCase().replace('.', '')}`;
+
+export const getPaymentScreenshotBlob = (school_id: number, student_id: number, timestamp: number, ext: string) =>
+  `payment-screenshots/${school_id}/${student_id}/${timestamp}.${ext.toLowerCase().replace('.', '')}`;
+
+export const getQrCodeBlob = (school_id: number, account_id: number, ext: string) =>
+  `qr-codes/${school_id}/${account_id}.${ext.toLowerCase().replace('.', '')}`;

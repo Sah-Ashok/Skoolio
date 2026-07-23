@@ -104,15 +104,20 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── DonutChart ────────────────────────────────────────────────────────────────
 function DonutChart({ paid, due, total }: { paid: number; due: number; total: number }) {
-  const r     = 48;
-  const cxcy  = 56;
-  const circ  = 2 * Math.PI * r;
-  const paidPct  = total > 0 ? paid / total : 0;
-  const duePct   = total > 0 ? due  / total : (due > 0 ? 1 : 0);
+  const r    = 48;
+  const cxcy = 56;
+  const circ = 2 * Math.PI * r;
+
+  // Always derive total from paid+due so arcs are correct even when
+  // the total prop doesn't match (e.g. discounts changed the billed amount)
+  const derivedTotal = Math.max(total, paid + due);
+  const paidPct  = derivedTotal > 0 ? paid / derivedTotal : 0;
+  const duePct   = derivedTotal > 0 ? due  / derivedTotal : 0;
   const paidDash = circ * paidPct;
   const dueDash  = circ * duePct;
-  const dueOffset = circ * (1 - paidPct);
-  const pct = total > 0 ? Math.round((paid / total) * 100) : (due === 0 ? 100 : 0);
+  // Paid arc starts at 12 o'clock (−90°). Due arc starts where paid ends.
+  const dueDeg   = paidPct * 360 - 90;
+  const pct = derivedTotal > 0 ? Math.round((paid / derivedTotal) * 100) : (due === 0 ? 100 : 0);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -121,8 +126,8 @@ function DonutChart({ paid, due, total }: { paid: number; due: number; total: nu
         {due > 0 && (
           <circle cx={cxcy} cy={cxcy} r={r} fill="none" stroke="#dc2626" strokeWidth={13}
             strokeDasharray={`${dueDash} ${circ - dueDash}`}
-            strokeDashoffset={dueOffset} strokeLinecap="butt"
-            style={{ transform: "rotate(-90deg)", transformOrigin: `${cxcy}px ${cxcy}px` }} />
+            strokeDashoffset={0} strokeLinecap="butt"
+            style={{ transform: `rotate(${dueDeg}deg)`, transformOrigin: `${cxcy}px ${cxcy}px` }} />
         )}
         {paid > 0 && (
           <circle cx={cxcy} cy={cxcy} r={r} fill="none" stroke="#059669" strokeWidth={13}
@@ -208,7 +213,8 @@ export default function StudentFeesPage() {
           {loading ? (
             <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
           ) : (
-            <>
+             <>
+             <h1>Fees OverView</h1>
               {/* ── Hero summary ── */}
               <div className="sfp-card">
                 <div className="sfp-hero">

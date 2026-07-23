@@ -11,6 +11,10 @@ import {
   getMyCoordinatorSectionsService,
   bulkMarkTeacherAttendanceService, getTeacherAttendanceByDateService,
 } from '../Service/teacher.service';
+import {
+  getTeacherAttendanceByMonth,
+  getTeacherAttendanceSummaryByMonth,
+} from '../Repositories/teacher.repository';
 
 // ── TEACHER CONTROLLERS ──
 
@@ -94,6 +98,19 @@ export const getMyCoordinatorSections = catchAsync(async (req: Request, res: Res
   sendResponse(res, 200, true, 'Coordinator sections fetched successfully', sections);
 });
 
+// GET /teachers/me/attendance?year=YYYY&month=M
+// Faculty-only: returns the calling teacher's own daily records + summary for the month.
+export const getMyAttendanceMonthly = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
+  const year  = Number(req.query.year  || new Date().getFullYear());
+  const month = Number(req.query.month || new Date().getMonth() + 1);
+  const [records, summary] = await Promise.all([
+    getTeacherAttendanceByMonth(school_id, teacher_id, year, month),
+    getTeacherAttendanceSummaryByMonth(school_id, teacher_id, year, month),
+  ]);
+  sendResponse(res, 200, true, 'Your attendance fetched successfully', { records, summary });
+});
+
 // ── TEACHER PERSONAL ATTENDANCE ──
 
 export const bulkMarkTeacherAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -130,4 +147,4 @@ export const getAttendanceSummaryForSalary = catchAsync(async (req: Request, res
   if (!year || !month) throw new Error('year and month query params required');
   const data = await getAttendanceSummaryForSalaryService(school_id, teacher_id, year, month);
   sendResponse(res, 200, true, 'Attendance summary fetched successfully', data);
-});
+});

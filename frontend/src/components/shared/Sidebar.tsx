@@ -29,17 +29,18 @@ const adminNav: NavSection[] = [
   {
     label: 'Finance',
     links: [
-      { href: '/fees',                 icon: 'fa-file-invoice-dollar', label: 'Fee Management'  },
-      { href: '/fees/monthly-billing', icon: 'fa-calendar-check',      label: 'Monthly Billing' },
-      { href: '/expenses',             icon: 'fa-wallet',              label: 'Expenses'        },
-      { href: '/salary',               icon: 'fa-money-bill-wave',     label: 'Faculty Salary'  },
-      { href: '/staff/salary',         icon: 'fa-coins',               label: 'Staff Salary'    },
+      { href: '/fees',                          icon: 'fa-file-invoice-dollar', label: 'Fee Management'    },
+      { href: '/fees/monthly-billing',          icon: 'fa-calendar-check',      label: 'Monthly Billing'   },
+      { href: '/fees/payment-requests',         icon: 'fa-money-bill-transfer', label: 'Payment Requests'  },
+      { href: '/fees/bank-accounts',            icon: 'fa-building-columns',    label: 'Bank Accounts'     },
+      { href: '/expenses',                      icon: 'fa-wallet',              label: 'Expenses'          },
+      { href: '/salary',                        icon: 'fa-money-bill-wave',     label: 'Faculty Salary'    },
+      { href: '/staff/salary',                  icon: 'fa-coins',               label: 'Staff Salary'      },
     ],
   },
   {
     label: 'Academic',
     links: [
-      { href: '/manage',         icon: 'fa-layer-group',      label: 'Manage Academic' },
       { href: '/academic-years', icon: 'fa-calendar-plus',    label: 'Academic Years'  },
       { href: '/classes',        icon: 'fa-school',           label: 'Classes'         },
       { href: '/sections',       icon: 'fa-table-cells',      label: 'Sections'        },
@@ -116,6 +117,14 @@ const studentNav: NavSection[] = [
       { href: '/student/attendance', icon: 'fa-user-check',          label: 'My Attendance' },
       { href: '/student/results',    icon: 'fa-file-circle-check',   label: 'My Results'    },
       { href: '/student/fees',       icon: 'fa-file-invoice-dollar', label: 'My Fees'       },
+    ],
+  },
+  {
+    label: 'Payments',
+    links: [
+      { href: '/student/fees/submit-pay-form', icon: 'fa-paper-plane',       label: 'Submit Payment' },
+      { href: '/student/fees/bank-details',    icon: 'fa-building-columns',  label: 'Bank Details' },
+      { href: '/student/fees/my-submissions',  icon: 'fa-clock-rotate-left', label: 'My Submissions' },
     ],
   },
   {
@@ -197,35 +206,14 @@ export default function Sidebar({ role }: SidebarProps) {
 
   return (
     <>
-      {/* ══════════════════════════════════════
-          DESKTOP SIDEBAR
-      ══════════════════════════════════════ */}
       <aside className="sidebar">
-
-        {/* ── Logo block ── */}
-        <div
-          className="sidebar-logo"
-          style={{
-            background:     '#ffffff',
-            flexDirection:  'column',
-            alignItems:     'center',
-            gap:            0,
-            padding:        '20px 20px',
-          }}
-        >
+        <div className="sidebar-logo" style={{ background: '#ffffff', flexDirection: 'column', alignItems: 'center', gap: 0, padding: '20px 20px' }}>
           <Link href="/" style={{ display: 'block', lineHeight: 0, textDecoration: 'none' }}>
-            <Image
-              src="/Logo.png"
-              alt="Skoolio"
-              width={200}
-              height={60}
-              priority
-              style={{ objectFit: 'contain', width: 'auto', height: 60, maxWidth: '100%' }}
-            />
+            <Image src="/Logo.png" alt="Skoolio" width={200} height={60} priority
+              style={{ objectFit: 'contain', width: 'auto', height: 60, maxWidth: '100%' }} />
           </Link>
         </div>
 
-        {/* Nav */}
         <nav className="nav">
           {navSections.map((section) => (
             <div key={section.label}>
@@ -240,7 +228,6 @@ export default function Sidebar({ role }: SidebarProps) {
           ))}
         </nav>
 
-        {/* User footer */}
         <div className="sidebar-footer-wrap">
           <div className="sidebar-footer">
             <div className="s-avatar">{initials}</div>
@@ -248,21 +235,14 @@ export default function Sidebar({ role }: SidebarProps) {
               <p>{displayName}</p>
               <span>{roleLabel[activeRole] || 'Admin Panel'}</span>
             </div>
-            <button
-              className="logout-btn"
-              onClick={handleLogout}
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-              title="Log out"
-            >
+            <button className="logout-btn" onClick={handleLogout}
+              style={{ background: 'none', border: 'none', cursor: 'pointer' }} title="Log out">
               <i className="fa-solid fa-right-from-bracket" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* ══════════════════════════════════════
-          MOBILE BOTTOM NAV
-      ══════════════════════════════════════ */}
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
         <div className="mobile-nav-scroll">
           {mobileGroups.map((group, gi) => (
@@ -275,12 +255,9 @@ export default function Sidebar({ role }: SidebarProps) {
               {group.links.map((link) => {
                 const active = isMobileActive(link.href)
                 return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
+                  <Link key={link.href} href={link.href}
                     className={`mobile-nav-item${active ? ' mobile-nav-active' : ''}`}
-                    aria-current={active ? 'page' : undefined}
-                  >
+                    aria-current={active ? 'page' : undefined}>
                     <i className={`fa-solid ${link.icon}`} />
                     <span>{link.label}</span>
                   </Link>
@@ -288,16 +265,9 @@ export default function Sidebar({ role }: SidebarProps) {
               })}
             </div>
           ))}
-
           <div className="mobile-nav-group">
-            <div className="mobile-nav-divider" aria-hidden="true">
-              <span>Account</span>
-            </div>
-            <button
-              className="mobile-nav-item mobile-nav-logout"
-              onClick={handleLogout}
-              aria-label="Log out"
-            >
+            <div className="mobile-nav-divider" aria-hidden="true"><span>Account</span></div>
+            <button className="mobile-nav-item mobile-nav-logout" onClick={handleLogout} aria-label="Log out">
               <i className="fa-solid fa-right-from-bracket" />
               <span>Logout</span>
             </button>

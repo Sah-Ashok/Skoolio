@@ -1,7 +1,3 @@
--- ============================================================
--- Notice Board Module Migration
--- Run once against your database.
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS notices (
   id                SERIAL PRIMARY KEY,

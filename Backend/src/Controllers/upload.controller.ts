@@ -2,12 +2,18 @@ import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import catchAsync from '../utils/catchAsync';
 import sendResponse from '../utils/response';
-import { uploadToAzure, getLogoBlob, getTeacherBlob, getStudentBlob } from '../utils/azureStorage';
-import { IJwtAdminPayload } from '../types/auth.types';
+import {
+  uploadToAzure,
+  getLogoBlob,
+  getTeacherBlob,
+  getStudentBlob,
+  getPaymentScreenshotBlob,
+  getQrCodeBlob,
+} from '../utils/azureStorage';
+import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 import pool from '../config/db';
 
 // ── In-memory chunk store (keyed by uploadId) ─────────────────────────────────
-// Each entry holds received chunks and metadata until all chunks arrive.
 const chunkStore = new Map<string, {
   chunks:     Buffer[];
   totalChunks: number;
@@ -15,16 +21,16 @@ const chunkStore = new Map<string, {
   received:   number;
 }>();
 
-// Auto-clean stale uploads after 10 minutes
 const CHUNK_TTL_MS = 10 * 60 * 1000;
 function scheduleCleanup(uploadId: string) {
   setTimeout(() => chunkStore.delete(uploadId), CHUNK_TTL_MS);
 }
 
-const LOGOS_CONTAINER    = process.env.AZURE_LOGOS_CONTAINER    || 'skoolio-logos';
-const PROFILES_CONTAINER = process.env.AZURE_PROFILES_CONTAINER || 'skoolio-profiles';
+const LOGOS_CONTAINER       = process.env.AZURE_LOGOS_CONTAINER       || 'skoolio-logos';
+const PROFILES_CONTAINER    = process.env.AZURE_PROFILES_CONTAINER    || 'skoolio-profiles';
+const SCREENSHOTS_CONTAINER = process.env.AZURE_SCREENSHOTS_CONTAINER || 'skoolio-screenshots';
+const QR_CODES_CONTAINER    = process.env.AZURE_QR_CODES_CONTAINER    || 'bank-qr';
 
-// ── helper: extract file extension from mimetype ──────────────────────────────
 const extFromMime = (mime: string): string => {
   const map: Record<string, string> = {
     'image/jpeg': 'jpg',
@@ -35,8 +41,6 @@ const extFromMime = (mime: string): string => {
 };
 
 // ── POST /upload/logo ────────────────────────────────────────────────────────
-// Uploads to skoolio-logos/{school_id}.{ext}
-// Updates schools.logo with the blob URL.
 export const uploadLogo = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   if (!req.file) {
     return sendResponse(res, 400, false, 'No image file provided.', null);
@@ -46,14 +50,8 @@ export const uploadLogo = catchAsync(async (req: Request, res: Response, next: N
   const ext      = extFromMime(req.file.mimetype);
   const blobName = getLogoBlob(school_id, ext);
 
-  const url = await uploadToAzure(
-    LOGOS_CONTAINER,
-    blobName,
-    req.file.buffer,
-    req.file.mimetype
-  );
+  const url = await uploadToAzure(LOGOS_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
-  // Update schools.logo
   await pool.query(
     `UPDATE schools SET logo = $1, updated_at = NOW() WHERE id = $2`,
     [url, school_id]
@@ -63,8 +61,6 @@ export const uploadLogo = catchAsync(async (req: Request, res: Response, next: N
 });
 
 // ── POST /upload/teacher-photo/:id ─────────────────────────────────────────
-// Uploads to skoolio-profiles/teachers/{school_id}/{teacher_id}.{ext}
-// Updates teachers.photo with the blob URL.
 export const uploadTeacherPhoto = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   if (!req.file) {
     return sendResponse(res, 400, false, 'No image file provided.', null);
@@ -77,7 +73,6 @@ export const uploadTeacherPhoto = catchAsync(async (req: Request, res: Response,
     return sendResponse(res, 400, false, 'Invalid teacher id.', null);
   }
 
-  // Verify teacher belongs to this school
   const check = await pool.query(
     `SELECT id FROM teachers WHERE id = $1 AND school_id = $2`,
     [teacher_id, school_id]
@@ -88,13 +83,7 @@ export const uploadTeacherPhoto = catchAsync(async (req: Request, res: Response,
 
   const ext      = extFromMime(req.file.mimetype);
   const blobName = getTeacherBlob(school_id, teacher_id, ext);
-
-  const url = await uploadToAzure(
-    PROFILES_CONTAINER,
-    blobName,
-    req.file.buffer,
-    req.file.mimetype
-  );
+  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   await pool.query(
     `UPDATE teachers SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -105,8 +94,6 @@ export const uploadTeacherPhoto = catchAsync(async (req: Request, res: Response,
 });
 
 // ── POST /upload/student-photo/:id ─────────────────────────────────────────
-// Uploads to skoolio-profiles/students/{school_id}/{student_id}.{ext}
-// Updates students.photo with the blob URL.
 export const uploadStudentPhoto = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   if (!req.file) {
     return sendResponse(res, 400, false, 'No image file provided.', null);
@@ -119,7 +106,6 @@ export const uploadStudentPhoto = catchAsync(async (req: Request, res: Response,
     return sendResponse(res, 400, false, 'Invalid student id.', null);
   }
 
-  // Verify student belongs to this school
   const check = await pool.query(
     `SELECT id FROM students WHERE id = $1 AND school_id = $2`,
     [student_id, school_id]
@@ -130,13 +116,7 @@ export const uploadStudentPhoto = catchAsync(async (req: Request, res: Response,
 
   const ext      = extFromMime(req.file.mimetype);
   const blobName = getStudentBlob(school_id, student_id, ext);
-
-  const url = await uploadToAzure(
-    PROFILES_CONTAINER,
-    blobName,
-    req.file.buffer,
-    req.file.mimetype
-  );
+  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   await pool.query(
     `UPDATE students SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -147,14 +127,6 @@ export const uploadStudentPhoto = catchAsync(async (req: Request, res: Response,
 });
 
 // ── POST /upload/student-photo/:id/chunk ────────────────────────────────
-// Receives one chunk at a time via multipart (field: "chunk").
-// Headers expected:
-//   x-upload-id      — unique ID for this upload session
-//   x-chunk-index    — 0-based index of this chunk
-//   x-total-chunks   — total number of chunks
-//   x-mime-type      — original file MIME type
-//
-// On the final chunk the server reassembles the buffer and pushes to Azure.
 export const uploadStudentPhotoChunk = catchAsync(async (
   req: Request,
   res: Response,
@@ -173,14 +145,8 @@ export const uploadStudentPhotoChunk = catchAsync(async (
     return sendResponse(res, 400, false, 'Missing or invalid chunk headers.', null);
   }
 
-  // Initialise store entry on first chunk
   if (!chunkStore.has(uploadId)) {
-    chunkStore.set(uploadId, {
-      chunks:      new Array(totalChunks),
-      totalChunks,
-      mimeType,
-      received:    0,
-    });
+    chunkStore.set(uploadId, { chunks: new Array(totalChunks), totalChunks, mimeType, received: 0 });
     scheduleCleanup(uploadId);
   }
 
@@ -188,17 +154,12 @@ export const uploadStudentPhotoChunk = catchAsync(async (
   entry.chunks[chunkIndex] = req.file.buffer;
   entry.received += 1;
 
-  // Not the last chunk yet — acknowledge and wait
   if (entry.received < entry.totalChunks) {
-    return sendResponse(res, 200, true, 'Chunk received.', {
-      received: entry.received,
-      total:    entry.totalChunks,
-    });
+    return sendResponse(res, 200, true, 'Chunk received.', { received: entry.received, total: entry.totalChunks });
   }
 
-  // ── All chunks received: reassemble + upload ────────────────────────────
   const fullBuffer = Buffer.concat(entry.chunks);
-  chunkStore.delete(uploadId); // free memory immediately
+  chunkStore.delete(uploadId);
 
   const { id: school_id } = req.user as IJwtAdminPayload;
   const student_id        = Number(req.params.id);
@@ -217,13 +178,7 @@ export const uploadStudentPhotoChunk = catchAsync(async (
 
   const ext      = extFromMime(entry.mimeType);
   const blobName = getStudentBlob(school_id, student_id, ext);
-
-  const url = await uploadToAzure(
-    PROFILES_CONTAINER,
-    blobName,
-    fullBuffer,
-    entry.mimeType
-  );
+  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, fullBuffer, entry.mimeType);
 
   await pool.query(
     `UPDATE students SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -253,12 +208,7 @@ export const uploadTeacherPhotoChunk = catchAsync(async (
   }
 
   if (!chunkStore.has(uploadId)) {
-    chunkStore.set(uploadId, {
-      chunks:      new Array(totalChunks),
-      totalChunks,
-      mimeType,
-      received:    0,
-    });
+    chunkStore.set(uploadId, { chunks: new Array(totalChunks), totalChunks, mimeType, received: 0 });
     scheduleCleanup(uploadId);
   }
 
@@ -267,10 +217,7 @@ export const uploadTeacherPhotoChunk = catchAsync(async (
   entry.received += 1;
 
   if (entry.received < entry.totalChunks) {
-    return sendResponse(res, 200, true, 'Chunk received.', {
-      received: entry.received,
-      total:    entry.totalChunks,
-    });
+    return sendResponse(res, 200, true, 'Chunk received.', { received: entry.received, total: entry.totalChunks });
   }
 
   const fullBuffer = Buffer.concat(entry.chunks);
@@ -293,13 +240,7 @@ export const uploadTeacherPhotoChunk = catchAsync(async (
 
   const ext      = extFromMime(entry.mimeType);
   const blobName = getTeacherBlob(school_id, teacher_id, ext);
-
-  const url = await uploadToAzure(
-    PROFILES_CONTAINER,
-    blobName,
-    fullBuffer,
-    entry.mimeType
-  );
+  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, fullBuffer, entry.mimeType);
 
   await pool.query(
     `UPDATE teachers SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -307,4 +248,67 @@ export const uploadTeacherPhotoChunk = catchAsync(async (
   );
 
   sendResponse(res, 200, true, 'Teacher photo uploaded successfully.', { url });
+});
+
+// ── POST /upload/payment-screenshot ─────────────────────────────────────────
+// Student uploads a payment screenshot. Returns the Azure URL.
+// The URL is then included in the payment request body.
+export const uploadPaymentScreenshot = catchAsync(async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.file) {
+    return sendResponse(res, 400, false, 'No screenshot file provided.', null);
+  }
+
+  const { id: student_id, school_id } = req.user as IJwtUserPayload;
+  const ext       = extFromMime(req.file.mimetype);
+  const timestamp = Date.now();
+  const blobName  = getPaymentScreenshotBlob(school_id, student_id, timestamp, ext);
+
+  const url = await uploadToAzure(SCREENSHOTS_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+
+  sendResponse(res, 200, true, 'Screenshot uploaded successfully.', { url });
+});
+
+// ── POST /upload/qr-code/:account_id ────────────────────────────────────────
+// Admin uploads a QR code image for a specific bank account.
+// Returns the Azure URL to be saved in the bank account record.
+export const uploadQrCode = catchAsync(async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.file) {
+    return sendResponse(res, 400, false, 'No QR code image provided.', null);
+  }
+
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const account_id        = Number(req.params.account_id);
+
+  if (!account_id) {
+    return sendResponse(res, 400, false, 'Invalid bank account id.', null);
+  }
+
+  // Verify the bank account belongs to this school
+  const check = await pool.query(
+    `SELECT id FROM school_bank_accounts WHERE id = $1 AND school_id = $2`,
+    [account_id, school_id]
+  );
+  if (!check.rows.length) {
+    return sendResponse(res, 404, false, 'Bank account not found.', null);
+  }
+
+  const ext      = extFromMime(req.file.mimetype);
+  const blobName = getQrCodeBlob(school_id, account_id, ext);
+  const url      = await uploadToAzure(QR_CODES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+
+  // Persist the URL back into the bank account row
+  await pool.query(
+    `UPDATE school_bank_accounts SET qr_image_url = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
+    [url, account_id, school_id]
+  );
+
+  sendResponse(res, 200, true, 'QR code uploaded successfully.', { url });
 });
