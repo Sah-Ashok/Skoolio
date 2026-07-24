@@ -264,7 +264,27 @@ export default function SharedCalendarView({ role }: Props) {
   const examDays  = visible.filter((d) => d.type === "exam").length;
   const eventDays = visible.filter((d) => d.type === "event").length;
   const workDays  = visible.length - offDays;
-  const monthEvents = visible.filter((d) => d.type && d.type !== "off");
+
+  // Group consecutive same-label cells → single sidebar card with date range
+  const monthEvents = useMemo(() => {
+    type Group = { label: string; type: EventType; startDate: Date; endDate: Date };
+    const groups: Group[] = [];
+    for (const cell of grid) {
+      if (cell.muted || !cell.type || cell.type === "off") continue;
+      const last = groups[groups.length - 1];
+      if (
+        last &&
+        last.label === cell.label &&
+        last.type  === cell.type  &&
+        cell.date.getTime() - last.endDate.getTime() <= 86_400_000 // consecutive days
+      ) {
+        last.endDate = cell.date;
+      } else {
+        groups.push({ label: cell.label ?? "", type: cell.type, startDate: cell.date, endDate: cell.date });
+      }
+    }
+    return groups;
+  }, [grid]);
 
   const goMonth = (dir: -1 | 1) => {
     const next = monthOptions[selIdx + dir];
@@ -417,29 +437,46 @@ export default function SharedCalendarView({ role }: Props) {
                   <h3 style={{ fontSize: 14, fontWeight: 900, margin: 0 }}>{moLabel} Events</h3>
                   <p style={{ fontSize: 11, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>Holidays, exams &amp; events</p>
                 </div>
-                <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto" }}>
+                <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflowY: "auto" }}>
                   {monthEvents.length === 0 ? (
                     <div style={{ padding: "16px 0", textAlign: "center", color: "#94a3b8" }}>
                       <i className="fa-solid fa-calendar-check" style={{ fontSize: 24, display: "block", marginBottom: 8, opacity: 0.4 }} />
                       <p style={{ fontSize: 12, fontWeight: 700 }}>No special entries this month</p>
                     </div>
                   ) : (
-                    monthEvents.map((cell, i) => {
-                      const cs = cell.type ? EVENT_COLORS[cell.type] : null;
-                      const ic = cell.type ? EVENT_ICONS[cell.type]  : "fa-circle";
+                    monthEvents.map((group, i) => {
+                      const cs = EVENT_COLORS[group.type] ?? null;
+                      const ic = EVENT_ICONS[group.type]  ?? "fa-circle";
+                      const isSameDay = fmt(group.startDate) === fmt(group.endDate);
+                      // If start and end share the same BS month+year, show "12–13 Shrawan 2083"
+                      // otherwise fall back to full dates on both sides
+                      const startFull = formatDate(fmt(group.startDate));
+                      const endFull   = formatDate(fmt(group.endDate));
+                      const dateLabel = isSameDay
+                        ? startFull
+                        : (() => {
+                            // formatDate returns e.g. "12 Shrawan 2083"
+                            // Split on first space to get the day number, rest is "Month Year"
+                            const [startDay, ...startRest] = startFull.split(" ");
+                            const [endDay,   ...endRest]   = endFull.split(" ");
+                            const startSuffix = startRest.join(" ");
+                            const endSuffix   = endRest.join(" ");
+                            return startSuffix === endSuffix
+                              ? `${startDay}–${endDay} ${endSuffix}`   // "12–13 Shrawan 2083"
+                              : `${startFull} – ${endFull}`;            // different months
+                          })();
                       return (
-                        <div key={`${fmt(cell.date)}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 10px", borderRadius: 8, background: cs?.bg ?? "#f8fafc", border: "1px solid rgba(191,201,209,0.4)" }}>
-                          <div style={{ width: 28, height: 28, borderRadius: 7, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: cs?.color ?? "#6a7882", fontSize: 12, flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,.07)" }}>
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 8, background: cs?.bg ?? "#f8fafc", border: `1px solid rgba(191,201,209,0.35)` }}>
+                          <div style={{ width: 26, height: 26, borderRadius: 7, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: cs?.color ?? "#6a7882", fontSize: 11, flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,.07)" }}>
                             <i className={`fa-solid ${ic}`} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 12, fontWeight: 900, margin: 0, color: "#1f2d36", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {cell.label}
+                              {group.label}
                             </p>
-                            <p style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882", margin: "2px 0 0" }}>
-                              {formatDate(fmt(cell.date))}
-                              {" · "}
-                              <span style={{ textTransform: "capitalize", color: cs?.color }}>{cell.type}</span>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#6a7882", margin: "1px 0 0", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                              <span>{dateLabel}</span>
+                              <span style={{ color: cs?.color, textTransform: "capitalize" }}>· {group.type}</span>
                             </p>
                           </div>
                         </div>

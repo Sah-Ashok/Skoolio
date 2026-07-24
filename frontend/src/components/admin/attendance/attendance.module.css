@@ -621,6 +621,11 @@
   background: #fffbf0;
 }
 
+.suspendedTableRow,
+.attendanceTableWrap tbody tr.suspendedTableRow {
+  background: #f5f3ff;
+}
+
 /* ── P / A / L toggle ── */
 .palToggle {
   display: flex;
@@ -670,6 +675,12 @@
   border-color: #3b5bdb;
   background: #e8edff;
   color: #3b5bdb;
+}
+
+.palActiveSu {
+  border-color: #6d28d9;
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
 .simpleAttendanceList {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -19,13 +19,18 @@ const C = {
 };
 
 const STATUS: Record<string, { label: string; color: string; bg: string; border: string; short: string }> = {
-  present:  { label: "Present",  color: C.green, bg: C.greenBg,  border: "#bbf7d0", short: "P"  },
-  absent:   { label: "Absent",   color: C.red,   bg: C.redBg,    border: "#fecaca", short: "A"  },
-  late:     { label: "Late",     color: C.amber, bg: C.amberBg,  border: "#fde68a", short: "L"  },
-  leave:    { label: "Leave",    color: C.mid,   bg: C.light,    border: C.border,  short: "Lv" },
-  half_day: { label: "Half Day", color: C.amber, bg: C.amberBg,  border: "#fde68a", short: "½"  },
-  off:      { label: "—",        color: "#b0bec5", bg: "#f8fafc", border: "#e9ecef", short: "–"  },
+  present:  { label: "Present",  color: C.green,    bg: C.greenBg,  border: "#bbf7d0", short: "P"  },
+  absent:   { label: "Absent",   color: C.red,      bg: C.redBg,    border: "#fecaca", short: "A"  },
+  late:     { label: "Late",     color: C.amber,    bg: C.amberBg,  border: "#fde68a", short: "L"  },
+  leave:    { label: "Leave",    color: "#7c3aed",  bg: "#f3eeff",  border: "#ddd6fe", short: "Lv" },
+  half_day: { label: "Half Day", color: C.amber,    bg: C.amberBg,  border: "#fde68a", short: "½"  },
+  off:      { label: "—",        color: "#b0bec5",  bg: "#f8fafc",  border: "#e9ecef", short: "–"  },
 };
+
+// Blue colour for "R" (remaining = past day with no record)
+const REMAINING_COLOR = "#1a73e8";
+const REMAINING_BG    = "#e8f0fe";
+const REMAINING_BORDER = "#a8c7fa";
 
 const AD_DAYS = ["M","T","W","T","F","S","S"];
 const BS_DAYS = ["आ","सो","मं","बु","बि","शु","श"];
@@ -47,6 +52,8 @@ export default function TeacherOwnAttendancePage() {
   const todayBS = useMemo(() => adToBS(now), []);
   const [year,  setYear]  = useState(() => isBS ? todayBS.year  : now.getFullYear());
   const [month, setMonth] = useState(() => isBS ? todayBS.month : now.getMonth() + 1);
+  // selectedValue is the key used for the dropdown ("year-month"); keeps in sync with year/month
+  const [selectedValue, setSelectedValue] = useState("");
 
   // ── Convert display month → AD year/month for API calls ──────────────────
   const { apiYear, apiMonth } = useMemo(() => {
@@ -213,9 +220,37 @@ export default function TeacherOwnAttendancePage() {
         d.setMonth(d.getMonth() + 1);
       }
     }
-    return opts.reverse();
+    return opts; // oldest-first, same as calendar module
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeYear, isBS, todayStr, formatMonth]);
+
+  // Auto-select current month once options are ready
+  useEffect(() => {
+    if (!monthOptions.length || selectedValue) return;
+    let todayKey: string;
+    if (isBS) {
+      todayKey = `${todayBS.year}-${todayBS.month}`;
+    } else {
+      todayKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+    }
+    const found = monthOptions.find(o => o.value === todayKey);
+    setSelectedValue(found ? todayKey : monthOptions[monthOptions.length - 1].value);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthOptions, selectedValue, isBS]);
+
+  // Keep year/month in sync with selectedValue
+  useEffect(() => {
+    if (!selectedValue) return;
+    const [y, m] = selectedValue.split("-").map(Number);
+    if (!isNaN(y) && !isNaN(m)) { setYear(y); setMonth(m); }
+  }, [selectedValue]);
+
+  const selectedIdx = monthOptions.findIndex(o => o.value === selectedValue);
+
+  const goToMonth = (dir: -1 | 1) => {
+    const next = monthOptions[selectedIdx + dir];
+    if (next) setSelectedValue(next.value);
+  };
 
   const monthLabel = isBS ? `${BS_MONTH_NAMES[month-1]} ${year}` : formatMonth(year, month);
   const DAYS = isBS ? BS_DAYS : AD_DAYS;
@@ -257,20 +292,47 @@ export default function TeacherOwnAttendancePage() {
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
               }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.dark }}>{monthLabel}</p>
-                <select
-                  value={`${year}-${month}`}
-                  onChange={e => {
-                    const [y, m] = e.target.value.split("-").map(Number);
-                    setYear(y); setMonth(m);
-                  }}
-                  style={{
-                    padding: "6px 10px", borderRadius: 8,
-                    border: `1px solid ${C.border}`, background: C.light,
-                    fontSize: 12, fontWeight: 700, color: C.dark, outline: "none", cursor: "pointer",
-                  }}
-                >
-                  {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => goToMonth(-1)}
+                    disabled={selectedIdx <= 0}
+                    style={{
+                      width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
+                      background: selectedIdx <= 0 ? C.light : C.white,
+                      color: selectedIdx <= 0 ? "#c6d0d7" : C.dark,
+                      cursor: selectedIdx <= 0 ? "default" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11,
+                    }}
+                  >
+                    <i className="fa-solid fa-chevron-left" />
+                  </button>
+                  <select
+                    value={selectedValue}
+                    onChange={e => setSelectedValue(e.target.value)}
+                    style={{
+                      padding: "6px 10px", borderRadius: 8,
+                      border: `1px solid ${C.border}`, background: C.light,
+                      fontSize: 12, fontWeight: 700, color: C.dark, outline: "none", cursor: "pointer",
+                    }}
+                  >
+                    {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => goToMonth(1)}
+                    disabled={selectedIdx >= monthOptions.length - 1}
+                    style={{
+                      width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
+                      background: selectedIdx >= monthOptions.length - 1 ? C.light : C.white,
+                      color: selectedIdx >= monthOptions.length - 1 ? "#c6d0d7" : C.dark,
+                      cursor: selectedIdx >= monthOptions.length - 1 ? "default" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11,
+                    }}
+                  >
+                    <i className="fa-solid fa-chevron-right" />
+                  </button>
+                </div>
               </div>
 
               {/* Day-of-week header */}
@@ -291,20 +353,53 @@ export default function TeacherOwnAttendancePage() {
                       if (!dayNum) return <div key={`b${i}`} style={{ aspectRatio: "1", minHeight: 36 }} />;
                       const hasRec = !!cell.status;
                       const cfg    = hasRec ? (STATUS[cell.status!] ?? STATUS.off) : STATUS.off;
+
+                      // For cells without a record, only show "R" badge on past days (not today, not future)
+                      const adStr = isBS ? cell.adDateStr : null;
+                      let cellIsPast = false;
+                      if (isBS && cell.adDateStr) {
+                        cellIsPast = cell.adDateStr < todayStr;
+                      } else if (!isBS) {
+                        const adDateStr = `${year}-${String(month).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
+                        cellIsPast = adDateStr < todayStr;
+                      }
+                      const isRemaining = !hasRec && cellIsPast && !cell.isToday;
+
                       return (
                         <div
                           key={`d${i}`}
                           className="tatt-day"
                           style={{
-                            backgroundColor: cell.isToday ? C.brandLight : (hasRec ? cfg.bg   : "transparent"),
-                            borderColor:     cell.isToday ? C.brand      : (hasRec ? cfg.border : "transparent"),
-                            color:           cell.isToday ? C.brandDark  : (hasRec ? cfg.color  : C.mid),
-                            outline:         cell.isToday ? `2px solid ${C.brand}` : "none",
-                            outlineOffset:   1,
+                            backgroundColor: cell.isToday
+                              ? C.brandLight
+                              : hasRec
+                                ? cfg.bg
+                                : isRemaining
+                                  ? REMAINING_BG
+                                  : "transparent",
+                            borderColor: cell.isToday
+                              ? C.brand
+                              : hasRec
+                                ? cfg.border
+                                : isRemaining
+                                  ? REMAINING_BORDER
+                                  : "transparent",
+                            color: cell.isToday
+                              ? C.brandDark
+                              : hasRec
+                                ? cfg.color
+                                : isRemaining
+                                  ? REMAINING_COLOR
+                                  : C.mid,
+                            outline:       cell.isToday ? `2px solid ${C.brand}` : "none",
+                            outlineOffset: 1,
                           }}
                         >
                           <span style={{ fontSize: 12, fontWeight: cell.isToday ? 900 : 700 }}>{dayNum}</span>
                           {hasRec && <span style={{ fontSize: 8, fontWeight: 900, marginTop: 1 }}>{cfg.short}</span>}
+                          {isRemaining && !hasRec && (
+                            <span style={{ fontSize: 8, fontWeight: 900, marginTop: 1, color: REMAINING_COLOR }}>R</span>
+                          )}
                         </div>
                       );
                     })}
@@ -315,10 +410,10 @@ export default function TeacherOwnAttendancePage() {
               {/* Month footer stats */}
               <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                 {[
-                  { label: "Present",  val: present,  color: C.green },
-                  { label: "Absent",   val: absent,   color: C.red   },
-                  { label: "Half Day", val: halfDay,  color: C.amber },
-                  { label: "Leave",    val: leave,    color: C.mid   },
+                  { label: "Present",  val: present,  color: C.green   },
+                  { label: "Absent",   val: absent,   color: C.red     },
+                  { label: "Half Day", val: halfDay,  color: C.amber   },
+                  { label: "Leave",    val: leave,    color: "#7c3aed" },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: "center" }}>
                     <strong style={{ display: "block", fontSize: 15, fontWeight: 900, color: s.color }}>{s.val}</strong>
@@ -401,7 +496,7 @@ export default function TeacherOwnAttendancePage() {
                         { label: "Present",  val: present, color: "#4b8ff7" },
                         { label: "Absent",   val: absent,  color: "#ff9a9e" },
                         { label: "Half Day", val: halfDay, color: C.amber   },
-                        { label: "Leave",    val: leave,   color: C.mid     },
+                        { label: "Leave",    val: leave,   color: "#7c3aed" },
                       ]).map(item => (
                         <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ width: 8, height: 8, borderRadius: 2, background: item.color, flexShrink: 0 }} />

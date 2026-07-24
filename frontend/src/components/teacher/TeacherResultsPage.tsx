@@ -16,75 +16,59 @@ export default function TeacherResultsPage() {
     activeYear?.id ? `/exams?academic_year_id=${activeYear.id}` : "",
     [activeYear?.id]
   );
-
-  // ── Fetch this teacher's subject-class assignments from class_subject_teachers
-  // GET /classes/me/subject-classes → [{class_id, class_name, subject_id, subject_name, academic_year_id}]
   const { data: mySubjectClasses, loading: mySubjectsLoading } = useApi<any[]>(
     activeYear?.id ? "/classes/me/subject-classes" : "",
     [activeYear?.id]
   );
 
-  // Filter to the active academic year
   const myAssignments = useMemo(() => {
     if (!mySubjectClasses || !activeYear?.id) return [];
     return mySubjectClasses.filter((a: any) => a.academic_year_id === activeYear.id);
   }, [mySubjectClasses, activeYear?.id]);
 
-  // Build a Set of subject_ids this teacher is assigned to in this year
   const mySubjectIds = useMemo(
     () => new Set(myAssignments.map((a: any) => a.subject_id)),
     [myAssignments]
   );
 
-  const [examId,      setExamId]      = useState("");
-  const [scheduleId,  setScheduleId]  = useState("");
-  const [schedules,   setSchedules]   = useState<any[]>([]);
-  const [schedulesLoading, setSchedulesLoading] = useState(false);
-  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [examId,             setExamId            ] = useState("");
+  const [scheduleId,         setScheduleId        ] = useState("");
+  const [schedules,          setSchedules         ] = useState<any[]>([]);
+  const [schedulesLoading,   setSchedulesLoading  ] = useState(false);
+  const [enrollments,        setEnrollments       ] = useState<any[]>([]);
   const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
-  const [results,     setResults]     = useState<any[]>([]);
-  const [marksMap,    setMarksMap]    = useState<Record<string, { marks_obtained: string; is_absent: boolean; remarks: string }>>({});
+  const [results,            setResults           ] = useState<any[]>([]);
+  const [marksMap,           setMarksMap          ] = useState<Record<string, { marks_obtained: string; is_absent: boolean; remarks: string }>>({});
 
-  const { execute: saveResult,   loading: saving   } = useMutation("/exams/results", "POST");
-  const { execute: updateResult                     } = useMutation("/exams/results", "PATCH");
+  const { execute: saveResult,   loading: saving } = useMutation("/exams/results", "POST");
+  const { execute: updateResult                  } = useMutation("/exams/results", "PATCH");
 
-  // Auto-select first exam
   useEffect(() => {
     if (exams?.length && !examId) setExamId(exams[0].id.toString());
   }, [exams, examId]);
 
-  // Load schedules — filtered to only subjects this teacher is assigned to
   useEffect(() => {
     if (!examId) { setSchedules([]); return; }
     const load = async () => {
       setSchedulesLoading(true);
       try {
-        const res = await apiRequest<{ data: any[] }>(`/exams/${examId}/schedules`);
-        // Filter schedules to subjects where this teacher is the assigned teacher
+        const res      = await apiRequest<{ data: any[] }>(`/exams/${examId}/schedules`);
         const filtered = (res.data || []).filter(
           (sch: any) => mySubjectIds.size === 0 || mySubjectIds.has(sch.subject_id)
         );
         setSchedules(filtered);
         setScheduleId(filtered.length > 0 ? filtered[0].id.toString() : "");
-      } catch {
-        setSchedules([]);
-      } finally {
-        setSchedulesLoading(false);
-      }
+      } catch { setSchedules([]); }
+      finally  { setSchedulesLoading(false); }
     };
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examId, mySubjectIds]);
 
-  const selectedSchedule = schedules.find((sch) => sch.id.toString() === scheduleId);
+  const selectedSchedule = schedules.find(s => s.id.toString() === scheduleId);
 
-  // Load enrollments + existing results for the selected schedule
   useEffect(() => {
-    if (!selectedSchedule || !activeYear?.id) {
-      setEnrollments([]);
-      setResults([]);
-      return;
-    }
+    if (!selectedSchedule || !activeYear?.id) { setEnrollments([]); setResults([]); return; }
     const load = async () => {
       setEnrollmentsLoading(true);
       try {
@@ -92,38 +76,28 @@ export default function TeacherResultsPage() {
           apiRequest<{ data: any[] }>(`/students/enrollments?academic_year_id=${activeYear.id}`),
           apiRequest<{ data: any[] }>(`/exams/${examId}/class/${selectedSchedule.class_id}/results`),
         ]);
-        // Only students enrolled in the class for this exam schedule
-        const filtered = (enrollRes.data || []).filter(
+        setEnrollments((enrollRes.data || []).filter(
           (en: any) => en.class_id?.toString() === selectedSchedule.class_id.toString()
-        );
-        setEnrollments(filtered);
+        ));
         setResults(resultsRes.data || []);
-      } catch {
-        setEnrollments([]);
-        setResults([]);
-      } finally {
-        setEnrollmentsLoading(false);
-      }
+      } catch { setEnrollments([]); setResults([]); }
+      finally  { setEnrollmentsLoading(false); }
     };
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSchedule?.id, activeYear?.id]);
 
-  // Map existing results by student for current subject
   const existingByStudent = useMemo(() => {
     if (!selectedSchedule) return new Map<number, any>();
     const m = new Map<number, any>();
-    results
-      .filter((r) => r.subject_id === selectedSchedule.subject_id)
-      .forEach((r) => m.set(r.student_id, r));
+    results.filter(r => r.subject_id === selectedSchedule.subject_id).forEach(r => m.set(r.student_id, r));
     return m;
   }, [results, selectedSchedule]);
 
-  // Populate marks input from existing results
   useEffect(() => {
     if (!selectedSchedule) return;
     const init: Record<string, any> = {};
-    enrollments.forEach((en) => {
+    enrollments.forEach(en => {
       const ex = existingByStudent.get(en.student_id);
       init[en.student_id] = {
         marks_obtained: ex?.marks_obtained != null ? ex.marks_obtained.toString() : "",
@@ -135,70 +109,95 @@ export default function TeacherResultsPage() {
   }, [enrollments, existingByStudent, selectedSchedule]);
 
   const isPublished = results.some(
-    (r) => r.status === "published" && r.subject_id === selectedSchedule?.subject_id
+    r => r.status === "published" && r.subject_id === selectedSchedule?.subject_id
   );
 
-  const updateMark = (studentId: number, field: string, value: string | boolean) => {
-    setMarksMap((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
-  };
+  const updateMark = (studentId: number, field: string, value: string | boolean) =>
+    setMarksMap(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
 
   const handleSave = async () => {
     if (!selectedSchedule) return;
     try {
-      const tasks = enrollments
-        .map((en) => {
-          const entry = marksMap[en.student_id];
-          if (!entry) return null;
-          if (!entry.is_absent && entry.marks_obtained === "") return null;
-
-          const existing = existingByStudent.get(en.student_id);
-          const payload = {
-            exam_id:        parseInt(examId),
-            schedule_id:    selectedSchedule.id,
-            student_id:     en.student_id,
-            enrollment_id:  en.id,
-            subject_id:     selectedSchedule.subject_id,
-            max_marks:      selectedSchedule.max_marks,
-            pass_marks:     selectedSchedule.pass_marks,
-            marks_obtained: entry.is_absent ? undefined : parseFloat(entry.marks_obtained),
-            is_absent:      entry.is_absent,
-            remarks:        entry.remarks || undefined,
-          };
-
-          if (existing) return updateResult(payload, `/exams/results/${existing.id}`);
-          return saveResult(payload);
-        })
-        .filter(Boolean);
+      const tasks = enrollments.map(en => {
+        const entry = marksMap[en.student_id];
+        if (!entry || (!entry.is_absent && entry.marks_obtained === "")) return null;
+        const existing = existingByStudent.get(en.student_id);
+        const payload  = {
+          exam_id:        parseInt(examId),
+          schedule_id:    selectedSchedule.id,
+          student_id:     en.student_id,
+          enrollment_id:  en.id,
+          subject_id:     selectedSchedule.subject_id,
+          max_marks:      selectedSchedule.max_marks,
+          pass_marks:     selectedSchedule.pass_marks,
+          marks_obtained: entry.is_absent ? undefined : parseFloat(entry.marks_obtained),
+          is_absent:      entry.is_absent,
+          remarks:        entry.remarks || undefined,
+        };
+        return existing
+          ? updateResult(payload, `/exams/results/${existing.id}`)
+          : saveResult(payload);
+      }).filter(Boolean);
 
       if (!tasks.length) {
         dispatch(showToast({ type: "warning", title: "No Data", message: "No marks entered to save." }));
         return;
       }
       await Promise.all(tasks);
-      dispatch(showToast({
-        type: "success",
-        title: "Saved",
-        message: "Marks saved. Your school admin will publish them once reviewed.",
-      }));
+      dispatch(showToast({ type: "success", title: "Saved", message: "Marks saved successfully." }));
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to save marks" }));
     }
   };
 
-  // ── Empty state: teacher has no subject-class assignments ──
+  // ── Stats for current schedule ─────────────────────────────────────────────
+  const enteredCount = Object.values(marksMap).filter(
+    m => m.is_absent || m.marks_obtained !== ""
+  ).length;
+  const absentCount  = Object.values(marksMap).filter(m => m.is_absent).length;
+  const passCount    = selectedSchedule
+    ? Object.values(marksMap).filter(
+        m => !m.is_absent && m.marks_obtained !== "" &&
+             parseFloat(m.marks_obtained) >= selectedSchedule.pass_marks
+      ).length
+    : 0;
+  const totalStudents = enrollments.length;
+
+  // ── No exams this year state ───────────────────────────────────────────────
+  if (!mySubjectsLoading && activeYear && exams && exams.length === 0) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
+        <Topbar title="Enter Results" subtitle="Record marks for the subjects you teach" />
+        <main style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}>
+          <div style={{ textAlign: "center", maxWidth: 380 }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 26, color: "#94a3b8" }}>
+              <i className="fa-solid fa-pen-to-square" />
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 900, margin: "0 0 8px", color: "#1e293b" }}>No exams yet this year</h2>
+            <p style={{ fontSize: 13, color: "#6a7882", fontWeight: 700, lineHeight: 1.6 }}>
+              No exams have been scheduled for <strong>{activeYear?.year_name}</strong> yet.
+              Ask your school admin to create and schedule an exam first.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── No subjects assigned state ─────────────────────────────────────────────
   if (!mySubjectsLoading && activeYear && myAssignments.length === 0) {
     return (
-      <div className="main-wrapper">
-        <Topbar title="Enter Results" subtitle="You have no subject assignments for this academic year" />
-        <main className="page-content" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+      <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
+        <Topbar title="Enter Results" subtitle="Record marks for the subjects you teach" />
+        <main style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}>
           <div style={{ textAlign: "center", maxWidth: 380 }}>
-            <div style={{ width: 64, height: 64, borderRadius: 16, background: "#fff1df", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, color: "#c46a14" }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: "#fff1df", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 26, color: "#c46a14" }}>
               <i className="fa-solid fa-book-open" />
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 900, margin: "0 0 8px" }}>No subjects assigned</h2>
             <p style={{ fontSize: 13, color: "#6a7882", fontWeight: 700, lineHeight: 1.6 }}>
-              You are not assigned as a subject teacher for any class in this academic year.
-              Ask your admin to assign you to a subject in the class settings.
+              You are not assigned as a subject teacher for any class this year.
+              Ask your admin to assign you in the class settings.
             </p>
           </div>
         </main>
@@ -207,163 +206,340 @@ export default function TeacherResultsPage() {
   }
 
   return (
-    <div className="main-wrapper">
+    <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
       <Topbar title="Enter Results" subtitle="Record marks for the subjects you teach" />
+      <main style={{ padding: 20, maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
-      <main className="page-content">
-        <section className="page-header">
+        {/* ── Page head ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h2>Exam Results Entry</h2>
-            <p>Only subjects you are assigned to teach in this academic year are shown.</p>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#1e293b" }}>Exam Results Entry</h1>
+            <p style={{ margin: "3px 0 0", fontSize: 12, fontWeight: 700, color: "#6a7882" }}>
+              Only subjects you are assigned to teach in {activeYear?.year_name ?? "this year"} are shown.
+            </p>
           </div>
           <button
-            className="btn btn-primary"
             onClick={handleSave}
             disabled={saving || !selectedSchedule || isPublished}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "10px 22px", borderRadius: 9, border: "none",
+              background: !selectedSchedule || isPublished ? "#e2e8f0" : "#1e293b",
+              color:      !selectedSchedule || isPublished ? "#94a3b8" : "#fff",
+              fontWeight: 800, fontSize: 14, cursor: saving || !selectedSchedule || isPublished ? "not-allowed" : "pointer",
+              transition: "background .15s",
+            }}
           >
-            {saving
-              ? <Spinner size={16} />
-              : <><i className="fa-solid fa-floppy-disk" /> Save Marks</>
-            }
+            {saving ? <Spinner size={15} color="#fff" /> : <i className="fa-solid fa-floppy-disk" />}
+            {saving ? "Saving…" : "Save Marks"}
           </button>
-        </section>
+        </div>
 
-        {/* My subject assignment summary */}
+        {/* ── Assignment banner ── */}
         {myAssignments.length > 0 && (
-          <div style={{
-            padding: "10px 14px", borderRadius: 10,
-            background: "#f0fdf4", border: "1px solid #bbf7d0",
-            marginBottom: 16, fontSize: 13, fontWeight: 700, color: "#15803d",
-            display: "flex", alignItems: "center", gap: 10,
-          }}>
-            <i className="fa-solid fa-circle-check" style={{ flexShrink: 0 }} />
+          <div style={{ padding: "11px 16px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, fontWeight: 700, color: "#15803d", display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <i className="fa-solid fa-circle-check" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>
-              You are assigned to teach{" "}
-              <strong>{myAssignments.length}</strong>{" "}
-              subject{myAssignments.length !== 1 ? "s" : ""} in {activeYear?.year_name}:&nbsp;
+              You teach <strong>{myAssignments.length}</strong> subject{myAssignments.length !== 1 ? "s" : ""} in {activeYear?.year_name}:&nbsp;
               {myAssignments.map((a: any, i: number) => (
-                <span key={a.subject_id + "_" + a.class_id}>
+                <span key={`${a.subject_id}_${a.class_id}`}>
                   {i > 0 && ", "}
-                  <em style={{ fontStyle: "normal", fontWeight: 900 }}>{a.subject_name}</em>
-                  {" "}({a.class_name})
+                  <strong>{a.subject_name}</strong> ({a.class_name})
                 </span>
               ))}
             </span>
           </div>
         )}
 
-        {/* Exam + schedule selectors */}
-        <section className="form-grid" style={{ marginBottom: "20px" }}>
-          <div className="form-group">
-            <label className="form-label">Exam</label>
-            <select className="form-control" value={examId} onChange={(e) => setExamId(e.target.value)}>
-              {exams?.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Subject / Class</label>
-            <select
-              className="form-control"
-              value={scheduleId}
-              onChange={(e) => setScheduleId(e.target.value)}
-              disabled={schedules.length === 0}
-            >
-              {schedules.length === 0
-                ? <option>No subjects scheduled for you in this exam</option>
-                : schedules.map((sch) => (
-                    <option key={sch.id} value={sch.id}>
-                      {sch.class_name || `Class ${sch.class_id}`} — {sch.subject_name || `Subject ${sch.subject_id}`}
-                    </option>
-                  ))
-              }
-            </select>
-          </div>
-        </section>
+        {/* ── Selector card ── */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dce5e9", padding: 20, boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Exam */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <label style={{ fontSize: 11, fontWeight: 900, color: "#6a7882", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                Exam
+              </label>
+              <select
+                value={examId}
+                onChange={e => setExamId(e.target.value)}
+                style={{ height: 42, padding: "0 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700, background: "#fff", outline: "none", cursor: "pointer" }}
+              >
+                {(exams ?? []).map(ex => (
+                  <option key={ex.id} value={ex.id}>{ex.name}</option>
+                ))}
+              </select>
+            </div>
 
+            {/* Subject / Class */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <label style={{ fontSize: 11, fontWeight: 900, color: "#6a7882", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                Subject / Class
+              </label>
+              <select
+                value={scheduleId}
+                onChange={e => setScheduleId(e.target.value)}
+                disabled={schedules.length === 0}
+                style={{ height: 42, padding: "0 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700, background: "#fff", outline: "none", cursor: schedules.length === 0 ? "not-allowed" : "pointer", color: schedules.length === 0 ? "#94a3b8" : "#1e293b" }}
+              >
+                {schedules.length === 0
+                  ? <option>No subjects scheduled for you in this exam</option>
+                  : schedules.map(sch => (
+                      <option key={sch.id} value={sch.id}>
+                        {sch.subject_name ?? `Subject ${sch.subject_id}`} — {sch.class_name ?? `Class ${sch.class_id}`}
+                      </option>
+                    ))
+                }
+              </select>
+            </div>
+          </div>
+
+          {/* Schedule meta info strip */}
+          {selectedSchedule && (
+            <div style={{ display: "flex", gap: 24, marginTop: 16, paddingTop: 16, borderTop: "1px solid #f0f4f5", flexWrap: "wrap" }}>
+              {[
+                { label: "Subject",    value: selectedSchedule.subject_name },
+                { label: "Class",      value: selectedSchedule.class_name   },
+                { label: "Max Marks",  value: selectedSchedule.max_marks    },
+                { label: "Pass Marks", value: selectedSchedule.pass_marks   },
+                { label: "Date",       value: selectedSchedule.exam_date
+                    ? new Date(selectedSchedule.exam_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                    : "—" },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
+                  <strong style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>{value}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Published lock notice ── */}
         {isPublished && (
-          <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1rem", background: "#ecfdf5", color: "#047857", fontWeight: 700 }}>
-            <i className="fa-solid fa-lock" style={{ marginRight: 8 }} />
+          <div style={{ padding: "11px 16px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, fontWeight: 700, color: "#15803d", display: "flex", alignItems: "center", gap: 10 }}>
+            <i className="fa-solid fa-lock" />
             Results for this subject are published and locked from editing.
           </div>
         )}
 
-        {/* Marks entry table */}
-        <section className="card">
-          <div className="card-header">
-            <h3>
-              {selectedSchedule
-                ? `${selectedSchedule.subject_name} · ${selectedSchedule.class_name} · Max: ${selectedSchedule.max_marks} · Pass: ${selectedSchedule.pass_marks}`
-                : "Select an exam schedule"}
-            </h3>
-          </div>
-          <div className="table-wrapper">
-            {schedulesLoading || enrollmentsLoading || mySubjectsLoading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} /></div>
-            ) : !selectedSchedule ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
-                No subjects are currently scheduled for you in this exam.
+        {/* ── Stats strip (only when schedule selected and students loaded) ── */}
+        {selectedSchedule && totalStudents > 0 && !enrollmentsLoading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+            {[
+              { label: "Total Students", value: totalStudents,  color: "#1e293b", bg: "#f7fafb", border: "#e2e8f0"  },
+              { label: "Entered",        value: enteredCount,   color: "#1e293b", bg: "#f7fafb", border: "#e2e8f0"  },
+              { label: "Pending",        value: totalStudents - enteredCount, color: "#c46a14", bg: "#fff1df", border: "#fde68a" },
+              { label: "Absent",         value: absentCount,    color: "#b42318", bg: "#fde7e7", border: "#fca5a5"  },
+              { label: "Passing",        value: passCount,      color: "#12805c", bg: "#e2f6ee", border: "#a7f3d0"  },
+            ].map(s => (
+              <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 11, padding: "13px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</span>
+                <strong style={{ fontSize: 22, fontWeight: 900, color: s.color }}>{s.value}</strong>
               </div>
-            ) : (
-              <table>
+            ))}
+          </div>
+        )}
+
+        {/* ── Marks entry table ── */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #dce5e9", overflow: "hidden", boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
+          {/* Card head */}
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0f4f5", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1e293b" }}>
+                {selectedSchedule
+                  ? `${selectedSchedule.subject_name} — ${selectedSchedule.class_name}`
+                  : "Select an exam and subject above"}
+              </h3>
+              {selectedSchedule && (
+                <p style={{ margin: "2px 0 0", fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>
+                  Enter marks for each student. Check "Absent" if the student did not appear.
+                </p>
+              )}
+            </div>
+            {selectedSchedule && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <span style={{ padding: "4px 12px", borderRadius: 999, background: "#f0fdf4", color: "#15803d", fontSize: 11, fontWeight: 900, border: "1px solid #bbf7d0" }}>
+                  Max: {selectedSchedule.max_marks}
+                </span>
+                <span style={{ padding: "4px 12px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 900, border: "1px solid #fed7aa" }}>
+                  Pass: {selectedSchedule.pass_marks}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Table body */}
+          {schedulesLoading || enrollmentsLoading || mySubjectsLoading ? (
+            <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          ) : !selectedSchedule ? (
+            <div style={{ padding: "4rem", textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: 14, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 22, color: "#94a3b8" }}>
+                <i className="fa-solid fa-pen-to-square" />
+              </div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", margin: 0 }}>Select an exam schedule to begin entering marks.</p>
+              <p style={{ fontSize: 12, color: "#c6d0d7", fontWeight: 700, marginTop: 6 }}>No subjects are currently scheduled for you in this exam.</p>
+            </div>
+          ) : enrollments.length === 0 ? (
+            <div style={{ padding: "4rem", textAlign: "center", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
+              <i className="fa-solid fa-users-slash" style={{ fontSize: 26, display: "block", marginBottom: 12, opacity: 0.25 }} />
+              No students enrolled in this class.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr>
-                    <th>Admission No</th>
-                    <th>Student</th>
-                    <th>Absent</th>
-                    <th>Marks Obtained</th>
-                    <th>Remarks</th>
+                  <tr style={{ background: "#f7fafb" }}>
+                    {["#", "Adm. No", "Student Name", "Absent", "Marks Obtained", "Remarks"].map(h => (
+                      <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.4px", borderBottom: "1px solid #eef2f3", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {enrollments.map((en) => (
-                    <tr key={en.student_id}>
-                      <td><strong>{en.admission_number}</strong></td>
-                      <td>{en.full_name}</td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={marksMap[en.student_id]?.is_absent || false}
-                          onChange={(e) => updateMark(en.student_id, "is_absent", e.target.checked)}
-                          disabled={isPublished}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={0}
-                          max={selectedSchedule.max_marks}
-                          className="form-control"
-                          style={{ width: "100px" }}
-                          value={marksMap[en.student_id]?.marks_obtained || ""}
-                          onChange={(e) => updateMark(en.student_id, "marks_obtained", e.target.value)}
-                          disabled={isPublished || marksMap[en.student_id]?.is_absent}
-                          placeholder={`/ ${selectedSchedule.max_marks}`}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={marksMap[en.student_id]?.remarks || ""}
-                          onChange={(e) => updateMark(en.student_id, "remarks", e.target.value)}
-                          disabled={isPublished}
-                          placeholder="Optional"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {enrollments.length === 0 && (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-                        No students enrolled in this class.
-                      </td>
-                    </tr>
-                  )}
+                  {enrollments.map((en, idx) => {
+                    const entry       = marksMap[en.student_id] ?? { marks_obtained: "", is_absent: false, remarks: "" };
+                    const existing    = existingByStudent.get(en.student_id);
+                    const marksNum    = parseFloat(entry.marks_obtained);
+                    const isPassing   = !isNaN(marksNum) && marksNum >= selectedSchedule.pass_marks;
+                    const isFailing   = !isNaN(marksNum) && marksNum < selectedSchedule.pass_marks;
+                    const rowBg       = entry.is_absent ? "#fff5f5" : existing ? "#f9fffe" : "#fff";
+
+                    return (
+                      <tr key={en.student_id} style={{ background: rowBg, borderBottom: "1px solid #f0f4f5" }}>
+                        {/* # */}
+                        <td style={{ padding: "14px 16px", width: 40 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8" }}>{idx + 1}</span>
+                        </td>
+                        {/* Adm no */}
+                        <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", fontFamily: "monospace" }}>{en.admission_number}</span>
+                        </td>
+                        {/* Name */}
+                        <td style={{ padding: "14px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#fff1df", color: "#c46a14", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, flexShrink: 0 }}>
+                              {en.full_name?.charAt(0)}
+                            </div>
+                            <div>
+                              <strong style={{ display: "block", fontSize: 13, fontWeight: 900, color: "#1e293b" }}>{en.full_name}</strong>
+                              {existing && (
+                                <span style={{ fontSize: 10, fontWeight: 800, color: "#12805c" }}>
+                                  <i className="fa-solid fa-circle-check" style={{ marginRight: 3 }} />saved
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {/* Absent toggle */}
+                        <td style={{ padding: "14px 16px" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: isPublished ? "not-allowed" : "pointer", userSelect: "none" }}>
+                            <div
+                              onClick={() => !isPublished && updateMark(en.student_id, "is_absent", !entry.is_absent)}
+                              style={{
+                                width: 38, height: 22, borderRadius: 11,
+                                background: entry.is_absent ? "#b42318" : "#e2e8f0",
+                                position: "relative", transition: "background .2s",
+                                cursor: isPublished ? "not-allowed" : "pointer",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <div style={{
+                                width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                                position: "absolute", top: 3,
+                                left: entry.is_absent ? 19 : 3,
+                                transition: "left .2s",
+                                boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+                              }} />
+                            </div>
+                            {entry.is_absent && (
+                              <span style={{ fontSize: 11, fontWeight: 900, color: "#b42318" }}>Absent</span>
+                            )}
+                          </label>
+                        </td>
+                        {/* Marks */}
+                        <td style={{ padding: "14px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={selectedSchedule.max_marks}
+                              value={entry.marks_obtained}
+                              onChange={e => updateMark(en.student_id, "marks_obtained", e.target.value)}
+                              disabled={isPublished || entry.is_absent}
+                              placeholder={`/ ${selectedSchedule.max_marks}`}
+                              style={{
+                                width: 90, height: 38, padding: "0 10px",
+                                borderRadius: 8,
+                                border: `1.5px solid ${!entry.marks_obtained || entry.is_absent ? "#d1d5db" : isPassing ? "#a7f3d0" : "#fca5a5"}`,
+                                background: entry.is_absent ? "#f8fafc" : "#fff",
+                                fontSize: 14, fontWeight: 800, outline: "none",
+                                color: isFailing ? "#b42318" : isPassing ? "#12805c" : "#1e293b",
+                                textAlign: "center",
+                              }}
+                            />
+                            {!entry.is_absent && entry.marks_obtained !== "" && (
+                              <span style={{
+                                fontSize: 11, fontWeight: 900, padding: "3px 9px", borderRadius: 999,
+                                background: isPassing ? "#e2f6ee" : "#fde7e7",
+                                color:      isPassing ? "#12805c" : "#b42318",
+                              }}>
+                                {isPassing ? "Pass" : "Fail"}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        {/* Remarks */}
+                        <td style={{ padding: "14px 16px" }}>
+                          <input
+                            type="text"
+                            value={entry.remarks}
+                            onChange={e => updateMark(en.student_id, "remarks", e.target.value)}
+                            disabled={isPublished}
+                            placeholder="Optional"
+                            style={{ width: 160, height: 38, padding: "0 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, fontWeight: 600, outline: "none", background: "#fff" }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                {/* Footer summary row */}
+                {enrollments.length > 0 && (
+                  <tfoot>
+                    <tr style={{ background: "#f7fafb", borderTop: "2px solid #eef2f3" }}>
+                      <td colSpan={3} style={{ padding: "12px 16px", fontSize: 12, fontWeight: 900, color: "#6a7882" }}>
+                        {enteredCount} of {totalStudents} filled &nbsp;·&nbsp; {absentCount} absent &nbsp;·&nbsp; {passCount} passing
+                      </td>
+                      <td colSpan={3} style={{ padding: "12px 16px", textAlign: "right" }}>
+                        <button
+                          onClick={handleSave}
+                          disabled={saving || isPublished}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 7,
+                            padding: "9px 20px", borderRadius: 8, border: "none",
+                            background: isPublished ? "#e2e8f0" : "#1e293b",
+                            color: isPublished ? "#94a3b8" : "#fff",
+                            fontWeight: 800, fontSize: 13, cursor: saving || isPublished ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {saving ? <Spinner size={14} color="#fff" /> : <i className="fa-solid fa-floppy-disk" />}
+                          {saving ? "Saving…" : "Save All Marks"}
+                        </button>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
-            )}
-          </div>
-        </section>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom note */}
+        <div style={{ padding: "11px 16px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <i className="fa-solid fa-circle-info" style={{ color: "#c2410c", fontSize: 13, flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>
+            Saved marks are in draft until your school admin reviews and publishes the results. Students will not see marks until published.
+          </span>
+        </div>
       </main>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import ToastNotification from "@/components/shared/ToastNotification";
@@ -11,37 +11,53 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type AttendanceStatus = "present" | "absent" | "leave";
+type AttendanceStatus = "present" | "absent" | "leave" | "suspended";
 
 const PAL: { key: AttendanceStatus; label: string; activeClass: string }[] = [
-  { key: "present", label: "P", activeClass: "palActiveP" },
-  { key: "absent",  label: "A", activeClass: "palActiveA" },
-  { key: "leave",   label: "L", activeClass: "palActiveL" },
+  { key: "present",   label: "P",  activeClass: "palActiveP" },
+  { key: "absent",    label: "A",  activeClass: "palActiveA" },
+  { key: "leave",     label: "Lv", activeClass: "palActiveL" },
+  { key: "suspended", label: "Su", activeClass: "palActiveSu" },
 ];
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
 const statusColor: Record<AttendanceStatus, string> = {
-  present: "#12805c",
-  absent:  "#b42318",
-  leave:   "#c46a14",
+  present:   "#12805c",
+  absent:    "#b42318",
+  leave:     "#c46a14",
+  suspended: "#6d28d9",
 };
 const statusBg: Record<AttendanceStatus, string> = {
-  present: "#e2f6ee",
-  absent:  "#fde7e7",
-  leave:   "#fff1df",
+  present:   "#e2f6ee",
+  absent:    "#fde7e7",
+  leave:     "#fff1df",
+  suspended: "#ede9fe",
 };
+const statusLabel: Record<AttendanceStatus, string> = {
+  present:   "Present",
+  absent:    "Absent",
+  leave:     "Leave",
+  suspended: "Suspended",
+};
+
+// Quick-mark statuses available in the bulk textbox bar
+const QUICK_STATUSES: { key: AttendanceStatus; label: string; color: string; bg: string }[] = [
+  { key: "present",   label: "Present",   color: "#12805c", bg: "#e2f6ee" },
+  { key: "absent",    label: "Absent",    color: "#b42318", bg: "#fde7e7" },
+  { key: "leave",     label: "Leave",     color: "#c46a14", bg: "#fff1df" },
+  { key: "suspended", label: "Suspended", color: "#6d28d9", bg: "#ede9fe" },
+];
 
 export default function TeacherMarkAttendancePage() {
   const dispatch = useAppDispatch();
   const { activeYear, academicYearId } = useAcademicYear();
+  const { formatDate, formatDateShort, toInputValue, fromInputValue, todayISO, isBS } = useDateFormat();
 
   // Only teacher's own sections
   const { data: mySections, loading: sectionsLoading } = useApi<any[]>(
@@ -49,20 +65,24 @@ export default function TeacherMarkAttendancePage() {
     [academicYearId]
   );
 
+  // selectedDate is always stored as AD ISO (YYYY-MM-DD)
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [sectionId, setSectionId]       = useState("");
 
-  // Students and their statuses
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [statusMap, setStatusMap] = useState<Record<string, AttendanceStatus>>({});
 
-  // Existing attendance state
-  const [existingRecord, setExistingRecord]   = useState<any | null>(null);
-  const [isLocked, setIsLocked]               = useState(false);
-  const [dataLoading, setDataLoading]         = useState(false);
+  const [existingRecord, setExistingRecord] = useState<any | null>(null);
+  const [isLocked, setIsLocked]             = useState(false);
+  const [dataLoading, setDataLoading]       = useState(false);
 
   const { execute: createAttendance, loading: saving } = useMutation("/attendance", "POST");
   const [submitting, setSubmitting] = useState(false);
+
+  // Quick-mark state
+  const [quickRolls, setQuickRolls]         = useState("");
+  const [quickStatus, setQuickStatus]       = useState<AttendanceStatus>("absent");
+  const quickInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-select first section
   useEffect(() => {
@@ -82,7 +102,6 @@ export default function TeacherMarkAttendancePage() {
       setEnrolledStudents([]);
 
       try {
-        // 1. Check for an existing attendance record for this section + date
         const attRes = await apiRequest<{ data: any[] }>(`/attendance/section/${sectionId}`);
         const records = attRes.data || [];
         const match = records.find(
@@ -91,35 +110,36 @@ export default function TeacherMarkAttendancePage() {
 
         if (match) {
           setExistingRecord(match);
-
-          // If submitted → lock. Fetch details for display.
           const detRes = await apiRequest<{ data: any }>(`/attendance/${match.id}`);
           const details: any[] = detRes.data?.details ?? [];
-
-          // Build student list from details (they already have full_name)
           setEnrolledStudents(details.map((d: any) => ({
             student_id:       d.student_id,
             full_name:        d.full_name ?? d.student_name ?? `Student #${d.student_id}`,
             admission_number: d.admission_number ?? null,
+            roll_no:          d.roll_no ?? null,
           })));
           setStatusMap(
             Object.fromEntries(
               details.map((d: any) => [
                 d.student_id,
-                (["present", "absent", "leave"].includes(d.status) ? d.status : "present") as AttendanceStatus,
+                (["present","absent","leave","suspended"].includes(d.status) ? d.status : "present") as AttendanceStatus,
               ])
             )
           );
-
           setIsLocked(match.status === "submitted");
         } else {
-          // 2. No record → load enrollments and default to present
           const enRes = await apiRequest<{ data: any[] }>(
             `/students/enrollments?academic_year_id=${academicYearId}&section_id=${sectionId}`
           );
           const filtered = (enRes.data || []).filter(
             (en: any) => String(en.section_id) === sectionId
           );
+          // Sort by roll_no if available
+          filtered.sort((a: any, b: any) => {
+            const ra = Number(a.roll_no ?? 9999);
+            const rb = Number(b.roll_no ?? 9999);
+            return ra - rb;
+          });
           setEnrolledStudents(filtered);
           setStatusMap(
             Object.fromEntries(
@@ -140,16 +160,46 @@ export default function TeacherMarkAttendancePage() {
 
   const setStudentStatus = (studentId: number, status: AttendanceStatus) => {
     if (isLocked) return;
-    setStatusMap((curr) => ({ ...curr, [studentId]: status }));
+    setStatusMap(curr => ({ ...curr, [studentId]: status }));
   };
 
-  const presentCount = enrolledStudents.filter((e) => statusMap[e.student_id] === "present").length;
-  const absentCount  = enrolledStudents.filter((e) => statusMap[e.student_id] === "absent").length;
-  const leaveCount   = enrolledStudents.filter((e) => statusMap[e.student_id] === "leave").length;
+  // Bulk mark all
+  const markAll = (status: AttendanceStatus) => {
+    if (isLocked) return;
+    const next: Record<string, AttendanceStatus> = {};
+    enrolledStudents.forEach(e => { next[e.student_id] = status; });
+    setStatusMap(next);
+  };
 
-  // marked_by = the coordinator_id of the selected section
-  const markedBy = mySections?.find((s) => String(s.id) === sectionId)?.coordinator_id ?? null;
-  const selectedSection = mySections?.find((s) => String(s.id) === sectionId);
+  // Quick-mark by roll numbers
+  const applyQuickMark = () => {
+    if (isLocked || !quickRolls.trim()) return;
+    const rollNums = quickRolls.split(",").map(r => r.trim()).filter(Boolean);
+    const next = { ...statusMap };
+    let matched = 0;
+    enrolledStudents.forEach(en => {
+      if (rollNums.includes(String(en.roll_no))) {
+        next[en.student_id] = quickStatus;
+        matched++;
+      }
+    });
+    if (matched === 0) {
+      dispatch(showToast({ type: "warning", title: "No match", message: "No students found with those roll numbers." }));
+      return;
+    }
+    setStatusMap(next);
+    setQuickRolls("");
+    dispatch(showToast({ type: "success", title: "Applied", message: `${matched} student${matched > 1 ? "s" : ""} marked as ${statusLabel[quickStatus]}.` }));
+    quickInputRef.current?.focus();
+  };
+
+  const presentCount   = enrolledStudents.filter(e => statusMap[e.student_id] === "present").length;
+  const absentCount    = enrolledStudents.filter(e => statusMap[e.student_id] === "absent").length;
+  const leaveCount     = enrolledStudents.filter(e => statusMap[e.student_id] === "leave").length;
+  const suspendedCount = enrolledStudents.filter(e => statusMap[e.student_id] === "suspended").length;
+
+  const markedBy = mySections?.find((sec: any) => String(sec.id) === sectionId)?.coordinator_id ?? null;
+  const selectedSection = mySections?.find((sec: any) => String(sec.id) === sectionId);
 
   const saveAttendance = async () => {
     if (!activeYear?.id || !sectionId) {
@@ -165,20 +215,18 @@ export default function TeacherMarkAttendancePage() {
       return;
     }
 
-    const students = enrolledStudents.map((en) => ({
-      student_id:   en.student_id,
+    const students = enrolledStudents.map(en => ({
+      student_id:    en.student_id,
       enrollment_id: en.id ?? en.enrollment_id,
       status:        statusMap[en.student_id] || "present",
     }));
 
     try {
       if (existingRecord && existingRecord.status === "draft") {
-        // Draft exists — patch each detail then submit so students can see it
         setSubmitting(true);
         const detRes = await apiRequest<{ data: any }>(`/attendance/${existingRecord.id}`);
         const details: any[] = detRes.data?.details ?? [];
 
-        // Update each student detail whose status has changed
         await Promise.all(
           details.map((d: any) => {
             const newStatus = statusMap[d.student_id] || "present";
@@ -190,32 +238,29 @@ export default function TeacherMarkAttendancePage() {
           })
         );
 
-        // Flip draft → submitted so students can see it
         await apiRequest(`/attendance/${existingRecord.id}/submit`, { method: "PATCH" });
 
         dispatch(showToast({
           type: "success",
           title: "Attendance submitted",
-          message: `${presentCount}P \u00b7 ${absentCount}A \u00b7 ${leaveCount}L \u2014 now visible to students.`,
+          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv · ${suspendedCount}Su — visible to students.`,
         }));
       } else {
-        // No existing record — create fresh (backend always marks as submitted)
         await createAttendance({
           academic_year_id: academicYearId,
-          class_id:  selectedSection?.class_id,
-          section_id: Number(sectionId),
-          date:       selectedDate,
-          marked_by:  markedBy,
+          class_id:         selectedSection?.class_id,
+          section_id:       Number(sectionId),
+          date:             selectedDate,
+          marked_by:        markedBy,
           students,
         });
         dispatch(showToast({
           type: "success",
           title: "Attendance saved",
-          message: `${presentCount}P \u00b7 ${absentCount}A \u00b7 ${leaveCount}L saved.`,
+          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv · ${suspendedCount}Su saved.`,
         }));
       }
-      // Reload to reflect submitted state
-      setSectionId((v) => { setTimeout(() => setSectionId(v), 10); return v; });
+      setSectionId(v => { setTimeout(() => setSectionId(v), 10); return v; });
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save attendance." }));
     } finally {
@@ -225,12 +270,15 @@ export default function TeacherMarkAttendancePage() {
 
   const rowClass = (studentId: number) => {
     const st = statusMap[studentId];
-    if (st === "absent") return s("absentTableRow");
-    if (st === "leave")  return s("leaveTableRow");
+    if (st === "absent")    return s("absentTableRow");
+    if (st === "leave")     return s("leaveTableRow");
+    if (st === "suspended") return s("suspendedTableRow");
     return undefined;
   };
 
-  // ── Empty state: teacher has no sections ──────────────────────────────────
+  // Display date in BS if needed
+  const displayDateLabel = formatDate(selectedDate);
+
   if (!sectionsLoading && academicYearId && mySections?.length === 0) {
     return (
       <div className={s("page")}>
@@ -264,21 +312,29 @@ export default function TeacherMarkAttendancePage() {
         {/* ── Page header ── */}
         <section className={s("head")}>
           <div>
-            <h1>Mark Class Attendance</h1>
-            <p>{enrolledStudents.length} students · {selectedSection?.class_name ?? ""} — Section {selectedSection?.name ?? ""}</p>
+            <h1>Mark Attendance</h1>
+            <p>
+              Your section — {selectedSection?.class_name ?? "…"} · {selectedSection ? `Section ${selectedSection.name}` : ""}
+              {" · "}
+              <strong>{displayDateLabel}</strong>
+            </p>
           </div>
           <div className={s("actions")}>
             <Link className={cx(s("btn"), s("btnOutline"))} href="/teacher/attendance">
-              <i className="fa-solid fa-arrow-left" /> Overview
+              <i className="fa-solid fa-arrow-left" /> Back
             </Link>
-            {!isLocked && !existingRecord && (
+            {!isLocked && enrolledStudents.length > 0 && (
               <button
                 className={cx(s("btn"), s("btnPrimary"))}
                 type="button"
                 onClick={saveAttendance}
-                disabled={saving || dataLoading || isLocked}
+                disabled={saving || submitting || dataLoading}
               >
-                {saving ? <Spinner size={16} /> : <><i className="fa-solid fa-floppy-disk" /> Save Attendance</>}
+                {(saving || submitting) ? <Spinner size={16} /> : (
+                  existingRecord?.status === "draft"
+                    ? <><i className="fa-solid fa-paper-plane" /> Submit Attendance</>
+                    : <><i className="fa-solid fa-floppy-disk" /> Save Attendance</>
+                )}
               </button>
             )}
           </div>
@@ -287,8 +343,8 @@ export default function TeacherMarkAttendancePage() {
         {/* ── Filters ── */}
         <section className={s("markHero")}>
           <label>
-            <span>My Section</span>
-            <select value={sectionId} onChange={(e) => setSectionId(e.target.value)} disabled={sectionsLoading}>
+            <span>Section</span>
+            <select value={sectionId} onChange={e => setSectionId(e.target.value)} disabled={sectionsLoading}>
               {mySections?.map((sec: any) => (
                 <option key={sec.id} value={sec.id}>
                   {sec.class_name} — Section {sec.name}
@@ -297,64 +353,84 @@ export default function TeacherMarkAttendancePage() {
             </select>
           </label>
           <label>
-            <span>Date</span>
-            {/* max=today prevents marking future attendance */}
+            <span>Date {isBS ? "(BS)" : ""}</span>
+            {/* Input always operates in the display calendar (BS or AD) */}
             <input
               type="date"
-              value={selectedDate}
-              max={todayStr()}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={toInputValue(selectedDate)}
+              max={toInputValue(todayStr())}
+              onChange={e => setSelectedDate(fromInputValue(e.target.value))}
             />
           </label>
-          {/* Spacer columns so the grid stays consistent */}
-          <div />
-          <div />
+
+          {/* Bulk mark buttons */}
+          <label style={{ gridColumn: "span 2" }}>
+            <span>Quick mark all</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {(["present","absent","leave","suspended"] as AttendanceStatus[]).map(st => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => markAll(st)}
+                  disabled={isLocked || dataLoading}
+                  style={{
+                    padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: 800,
+                    background: statusBg[st], color: statusColor[st],
+                    opacity: isLocked ? 0.5 : 1,
+                  }}
+                >
+                  All {statusLabel[st]}
+                </button>
+              ))}
+            </div>
+          </label>
         </section>
 
-        {/* ── Edit-lock banner ── */}
+        {/* ── Summary stat cards ── */}
+        {enrolledStudents.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 4 }}>
+            {[
+              { label: "Total",     val: enrolledStudents.length, color: "#1f2d36", bg: "#f1f5f9", border: "#dce5e9" },
+              { label: "Present",   val: presentCount,   color: "#12805c", bg: "#e2f6ee", border: "#a7f3d0" },
+              { label: "Absent",    val: absentCount,    color: "#b42318", bg: "#fde7e7", border: "#fca5a5" },
+              { label: "Leave",     val: leaveCount,     color: "#c46a14", bg: "#fff1df", border: "#fcd34d" },
+            ].map(c => (
+              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+                <strong style={{ display: "block", fontSize: 22, fontWeight: 900, color: c.color }}>{c.val}</strong>
+                <span style={{ fontSize: 11, fontWeight: 700, color: c.color, opacity: 0.85 }}>{c.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {suspendedCount > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#ede9fe", border: "1px solid #c4b5fd", marginBottom: 4 }}>
+            <i className="fa-solid fa-ban" style={{ color: "#6d28d9", fontSize: 13 }} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#5b21b6" }}>{suspendedCount} student{suspendedCount > 1 ? "s" : ""} marked as Suspended (class suspended)</span>
+          </div>
+        )}
+
+        {/* ── Lock banner ── */}
         {isLocked && (
-          <div style={{
-            padding: "14px 18px",
-            borderRadius: 12,
-            background: "#fff8ee",
-            border: "1px solid #fdd5b0",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 4,
-          }}>
+          <div style={{ padding: "14px 18px", borderRadius: 12, background: "#fff8ee", border: "1px solid #fdd5b0", display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff1df", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <i className="fa-solid fa-lock" style={{ color: "#c46a14", fontSize: 16 }} />
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 900, color: "#92400e", margin: 0 }}>
-                Attendance Submitted &amp; Locked
-              </p>
+              <p style={{ fontSize: 14, fontWeight: 900, color: "#92400e", margin: 0 }}>Attendance Submitted &amp; Locked</p>
               <p style={{ fontSize: 12, color: "#b45309", fontWeight: 700, margin: "3px 0 0" }}>
-                This record was submitted on {fmtDate(existingRecord?.updated_at ?? existingRecord?.created_at ?? selectedDate)}.
+                Submitted on {formatDateShort(existingRecord?.updated_at ?? existingRecord?.created_at ?? selectedDate)}.
                 Contact your admin to make changes.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Existing draft notice ── */}
+        {/* ── Draft notice ── */}
         {existingRecord && !isLocked && (
-          <div style={{
-            padding: "12px 16px",
-            borderRadius: 10,
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginBottom: 4,
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#1e40af",
-          }}>
+          <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
             <i className="fa-solid fa-circle-info" style={{ flexShrink: 0 }} />
-            Draft attendance loaded from {fmtDate(existingRecord?.date ?? selectedDate)}. Review and save again to update.
+            Draft attendance loaded from {formatDateShort(existingRecord?.date ?? selectedDate)}. Review and submit to publish.
           </div>
         )}
 
@@ -362,11 +438,14 @@ export default function TeacherMarkAttendancePage() {
         <article className={s("card")}>
           <div className={s("cardHead")}>
             <div>
-              <h2>Student Attendance</h2>
-              <p>
+              <h2>{selectedSection?.class_name ?? "Class"} — Section {selectedSection?.name ?? ""}</h2>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 700 }}>
+                {displayDateLabel}
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6a7882" }}>
                 {isLocked
                   ? "Read-only — submitted attendance cannot be edited here."
-                  : "Tap P · A · L to set each student's status. Default is Present."}
+                  : "Tap P · A · Lv · Su to set each student's status."}
               </p>
             </div>
           </div>
@@ -378,46 +457,40 @@ export default function TeacherMarkAttendancePage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Admission No / ID</th>
-                    <th>Name</th>
+                    <th style={{ width: 48, textAlign: "center" }}>#</th>
+                    <th>Student</th>
                     <th>Status</th>
+                    <th>Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {enrolledStudents.map((en) => (
+                  {enrolledStudents.map((en, idx) => (
                     <tr className={rowClass(en.student_id)} key={en.student_id}>
-                      <td><strong>{en.admission_number || `ID: ${en.student_id}`}</strong></td>
-                      <td>{en.full_name}</td>
+                      {/* Roll number */}
+                      <td style={{ textAlign: "center", fontWeight: 900, fontSize: 13, color: "#6a7882" }}>
+                        {en.roll_no ?? (idx + 1)}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: "#1f2d36" }}>{en.full_name}</div>
+                        <div style={{ fontSize: 11, color: "#6a7882", fontWeight: 600 }}>{en.admission_number ?? `ID: ${en.student_id}`}</div>
+                      </td>
                       <td>
                         {isLocked ? (
-                          // Read-only status chip
                           <div style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "5px 12px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            fontWeight: 900,
-                            background: statusBg[statusMap[en.student_id] ?? "present"],
-                            color: statusColor[statusMap[en.student_id] ?? "present"],
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 900,
+                            background: statusBg[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
+                            color: statusColor[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
                           }}>
-                            {(statusMap[en.student_id] ?? "present").charAt(0).toUpperCase()}
-                            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>
-                              {statusMap[en.student_id] ?? "present"}
-                            </span>
+                            {statusLabel[(statusMap[en.student_id] ?? "present") as AttendanceStatus]}
                           </div>
                         ) : (
-                          // Editable P/A/L toggle
                           <div className={s("palToggle")}>
                             {PAL.map(({ key, label, activeClass }) => (
                               <button
                                 key={key}
                                 type="button"
-                                className={cx(
-                                  s("palBtn"),
-                                  statusMap[en.student_id] === key && s(activeClass)
-                                )}
+                                className={cx(s("palBtn"), statusMap[en.student_id] === key && s(activeClass))}
                                 onClick={() => setStudentStatus(en.student_id, key)}
                               >
                                 {label}
@@ -426,39 +499,101 @@ export default function TeacherMarkAttendancePage() {
                           </div>
                         )}
                       </td>
+                      <td>
+                        <input
+                          placeholder="Optional remark…"
+                          disabled={isLocked}
+                          style={{
+                            width: "100%", padding: "6px 10px", borderRadius: 8,
+                            border: "1px solid #dce5e9", fontSize: 12, background: isLocked ? "#f8fafc" : "#fff",
+                            outline: "none",
+                          }}
+                        />
+                      </td>
                     </tr>
                   ))}
                   {enrolledStudents.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
+                      <td colSpan={4} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
                         No students found for this section.
                       </td>
                     </tr>
                   )}
                 </tbody>
-                {enrolledStudents.length > 0 && (
-                  <tfoot>
-                    <tr>
-                      <td>Total: <strong>{enrolledStudents.length}</strong></td>
-                      <td>
-                        <span className={s("successText")}>P: {presentCount}</span>
-                        {" · "}
-                        <span className={s("dangerText")}>A: {absentCount}</span>
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        <span className={s("warningText")}>L: {leaveCount}</span>
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             )}
           </div>
         </article>
 
-        {/* ── Save footer (only when not locked) ── */}
+        {/* ── Quick-mark by roll number ── */}
         {!isLocked && enrolledStudents.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+          <div style={{
+            background: "#fff", border: "1px solid #dce5e9", borderRadius: 14,
+            padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10,
+          }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>
+                <i className="fa-solid fa-bolt" style={{ color: "#ff9b51", marginRight: 7 }} />
+                Quick Mark by Roll Number
+              </p>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 600 }}>
+                Enter roll numbers separated by commas, choose a status, then click Apply.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                ref={quickInputRef}
+                value={quickRolls}
+                onChange={e => setQuickRolls(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && applyQuickMark()}
+                placeholder="e.g. 3, 7, 12, 15"
+                style={{
+                  flex: 1, minWidth: 160, padding: "8px 12px", borderRadius: 9,
+                  border: "1px solid #dce5e9", fontSize: 13, fontWeight: 700,
+                  outline: "none",
+                }}
+              />
+              {/* Status selector */}
+              <div style={{ display: "flex", gap: 5 }}>
+                {QUICK_STATUSES.map(qs => (
+                  <button
+                    key={qs.key}
+                    type="button"
+                    onClick={() => setQuickStatus(qs.key)}
+                    style={{
+                      padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                      fontSize: 12, fontWeight: 800,
+                      background: quickStatus === qs.key ? qs.color : qs.bg,
+                      color:      quickStatus === qs.key ? "#fff"    : qs.color,
+                      boxShadow:  quickStatus === qs.key ? `0 0 0 2px ${qs.color}44` : "none",
+                      transition: "all .15s",
+                    }}
+                  >
+                    {qs.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={applyQuickMark}
+                disabled={!quickRolls.trim()}
+                style={{
+                  padding: "8px 18px", borderRadius: 9, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 900,
+                  background: quickRolls.trim() ? "#ff9b51" : "#e2e8f0",
+                  color:      quickRolls.trim() ? "#fff"    : "#94a3b8",
+                  transition: "all .15s",
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Save footer ── */}
+        {!isLocked && enrolledStudents.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               className={cx(s("btn"), s("btnPrimary"))}
               type="button"

@@ -241,43 +241,78 @@ export default function TeacherAttendanceOverviewPage() {
                     </div>
 
                     {isOpen && (
-                      <div style={{ padding: "0 20px 16px", background: "#fafbff", borderTop: "1px solid #eef2f3" }}>
+                      <div style={{ background: "#f7fafb", borderTop: "1px solid #eef2f3" }}>
                         {!detail ? (
                           <div style={{ padding: "1.5rem", textAlign: "center" }}><Spinner size={22} color="#ff9b51" /></div>
                         ) : (
                           <>
+                            {/* Edit link for draft records */}
                             {rec.status !== "submitted" && (
-                              <div style={{ padding: "10px 0 12px", display: "flex", justifyContent: "flex-end" }}>
+                              <div style={{ padding: "10px 20px 0", display: "flex", justifyContent: "flex-end" }}>
                                 <Link href="/teacher/attendance/class" style={{ fontSize: 12, fontWeight: 900, color: "#ff9b51", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
                                   <i className="fa-solid fa-pen" /> Edit this record
                                 </Link>
                               </div>
                             )}
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
-                              {(detail.details ?? []).map((d: any) => {
-                                const sc = STATUS_COLOR[d.status] ?? "#6a7882";
-                                const si = STATUS_ICON[d.status]  ?? "fa-circle";
-                                return (
-                                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 9, background: "#fff", border: "1px solid #e8eef0" }}>
-                                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: sc + "18", color: sc, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                                      <i className={`fa-solid ${si}`} />
-                                    </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <p style={{ fontSize: 12, fontWeight: 900, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {d.full_name ?? `Student #${d.student_id}`}
-                                      </p>
-                                      <p style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882", margin: "2px 0 0" }}>
-                                        {d.admission_number ?? ""}{d.roll_number ? ` · Roll ${d.roll_number}` : ""}
-                                      </p>
-                                    </div>
-                                    <span style={{ fontSize: 11, fontWeight: 900, color: sc, textTransform: "capitalize", flexShrink: 0 }}>{d.status}</span>
-                                  </div>
-                                );
-                              })}
-                              {(!detail.details || detail.details.length === 0) && (
-                                <p style={{ color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>No student details available.</p>
-                              )}
-                            </div>
+                            {/* Per-student table */}
+                            {(!detail.details || detail.details.length === 0) ? (
+                              <p style={{ color: "#94a3b8", fontSize: 13, fontWeight: 700, padding: "16px 20px" }}>No student details available.</p>
+                            ) : (
+                              <div style={{ overflowX: "auto" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                                  <thead>
+                                    <tr style={{ background: "#eef2f3" }}>
+                                      <th style={{ padding: "9px 20px", textAlign: "left", fontWeight: 900, fontSize: 10, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.4px", whiteSpace: "nowrap" }}>#</th>
+                                      <th style={{ padding: "9px 16px", textAlign: "left", fontWeight: 900, fontSize: 10, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.4px", whiteSpace: "nowrap" }}>Adm. No</th>
+                                      <th style={{ padding: "9px 16px", textAlign: "left", fontWeight: 900, fontSize: 10, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.4px" }}>Student Name</th>
+                                      <th style={{ padding: "9px 16px", textAlign: "center", fontWeight: 900, fontSize: 10, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.4px" }}>Status</th>
+                                      <th style={{ padding: "9px 20px", textAlign: "left", fontWeight: 900, fontSize: 10, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.4px" }}>Remarks</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(detail.details ?? []).map((d: any, i: number) => {
+                                      const sc  = STATUS_COLOR[d.status] ?? "#6a7882";
+                                      const si  = STATUS_ICON[d.status]  ?? "fa-circle";
+                                      const rowBg =
+                                        d.status === "absent" ? "#fff5f5" :
+                                        d.status === "late"   ? "#fffbf0" :
+                                        d.status === "leave"  ? "#f0f4ff" : "#fff";
+                                      return (
+                                        <tr key={d.id} style={{ background: rowBg, borderBottom: "1px solid #eef2f3" }}>
+                                          <td style={{ padding: "11px 20px", color: "#94a3b8", fontWeight: 800, fontSize: 12 }}>{i + 1}</td>
+                                          <td style={{ padding: "11px 16px", fontFamily: "monospace", fontSize: 12, fontWeight: 800, color: "#6a7882", whiteSpace: "nowrap" }}>
+                                            {d.admission_number ?? "—"}
+                                          </td>
+                                          <td style={{ padding: "11px 16px" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                                              <div style={{ width: 30, height: 30, borderRadius: 8, background: sc + "18", color: sc, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>
+                                                <i className={`fa-solid ${si}`} />
+                                              </div>
+                                              <div>
+                                                <strong style={{ fontSize: 13, fontWeight: 900, color: "#1e293b", display: "block" }}>
+                                                  {d.full_name ?? `Student #${d.student_id}`}
+                                                </strong>
+                                                {d.roll_number && (
+                                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8" }}>Roll {d.roll_number}</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </td>
+                                          <td style={{ padding: "11px 16px", textAlign: "center" }}>
+                                            <span style={{ display: "inline-block", padding: "3px 12px", borderRadius: 999, fontSize: 11, fontWeight: 900, textTransform: "capitalize", background: sc + "18", color: sc }}>
+                                              {d.status}
+                                            </span>
+                                          </td>
+                                          <td style={{ padding: "11px 20px", fontSize: 12, color: "#6a7882", fontWeight: 600 }}>
+                                            {d.remarks || "—"}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
