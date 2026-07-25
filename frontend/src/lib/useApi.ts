@@ -61,7 +61,7 @@ export function useApi<T = any>(
 /** POST/PATCH/DELETE helper that returns { loading, error, execute } */
 export function useMutation<TBody = any, TResult = any>(
   endpoint: string,
-  method: 'POST' | 'PATCH' | 'DELETE' = 'POST'
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST'
 ) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
