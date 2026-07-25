@@ -9,17 +9,21 @@ version: "3.9"
 #  What changes vs production:
 #    • Backend  : source mounted, runs nodemon (hot reload)
 #    • Frontend : source mounted, runs next dev (hot reload)
-#    • Backend port 5001 exposed to host (for debugging / Postman)
-#    • No healthcheck dependency wait – faster startup in dev
+#    • Backend port 5001 exposed to host (Postman / curl)
+#    • Redis port 6379 exposed to host (Redis Insight / CLI)
 # =============================================================
 
 services:
+
+  redis:
+    # Expose Redis to host in dev for inspection
+    ports:
+      - "6379:6379"
 
   backend:
     build:
       context: ./Backend
       dockerfile: Dockerfile
-      # Stop at builder stage so devDeps (ts-node, nodemon) are available
       target: builder
     volumes:
       - ./Backend/src:/app/src
@@ -27,7 +31,10 @@ services:
     environment:
       NODE_ENV: development
       PORT: 5001
-    # Expose to host so Postman / curl can hit the API directly
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
     ports:
       - "5001:5001"
     command: ["npm", "run", "dev"]

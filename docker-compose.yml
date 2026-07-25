@@ -4,19 +4,45 @@ version: "3.9"
 #  Skoolio – Docker Compose  (production)
 #
 #  Services:
+#    redis     – Redis 7 (local, replaces Azure Managed Redis)
 #    backend   – Express / Node API    (internal port 5001)
 #    frontend  – Next.js               (internal port 3000)
 #    nginx     – Reverse proxy         (public   port 80 / 443)
 #
-#  External (Azure-managed, no local containers needed):
-#    PostgreSQL – Azure Database for PostgreSQL
-#    Redis      – Azure Managed Redis
+#  External (Azure-managed):
+#    PostgreSQL – Azure Database for PostgreSQL (stu-postgres)
 #
 #  Usage:
 #    docker compose up -d --build
 # =============================================================
 
 services:
+
+  # -----------------------------------------------------------
+  # Redis – local container (replaces Azure Managed Redis)
+  # No password needed – internal Docker network only
+  # Memory limit: 256MB (plenty for OTP/session caching)
+  # -----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: skoolio_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    networks:
+      - skoolio_net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   # -----------------------------------------------------------
   # Backend – Express / Node
@@ -27,13 +53,19 @@ services:
       dockerfile: Dockerfile
     container_name: skoolio_backend
     restart: unless-stopped
-    # Loads all vars from Backend/.env (DB, Redis, SMTP, Azure, JWT …)
     env_file: ./Backend/.env
     environment:
       NODE_ENV: production
       PORT: 5001
-      # Allow requests from nginx on the same Docker network
       CORS_ORIGIN: http://nginx
+      # Override Azure Redis with local container
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - skoolio_net
     healthcheck:
@@ -51,7 +83,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Browser calls /api/* → nginx proxies to backend (same origin)
         NEXT_PUBLIC_API_URL: /api
     container_name: skoolio_frontend
     restart: unless-stopped
@@ -103,3 +134,10 @@ services:
 networks:
   skoolio_net:
     driver: bridge
+
+# =============================================================
+# Volumes
+# =============================================================
+volumes:
+  redis_data:
+    driver: local
