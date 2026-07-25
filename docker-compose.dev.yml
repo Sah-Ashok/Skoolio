@@ -1,0 +1,51 @@
+version: "3.9"
+
+# =============================================================
+#  Skoolio – Development overrides
+#
+#  Usage:
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+#  What changes vs production:
+#    • Backend  : source mounted, runs nodemon (hot reload)
+#    • Frontend : source mounted, runs next dev (hot reload)
+#    • Backend port 5001 exposed to host (for debugging / Postman)
+#    • No healthcheck dependency wait – faster startup in dev
+# =============================================================
+
+services:
+
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+      # Stop at builder stage so devDeps (ts-node, nodemon) are available
+      target: builder
+    volumes:
+      - ./Backend/src:/app/src
+      - ./Backend/server.ts:/app/server.ts
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+    # Expose to host so Postman / curl can hit the API directly
+    ports:
+      - "5001:5001"
+    command: ["npm", "run", "dev"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: /api
+    command: ["npm", "run", "dev"]
+
+  nginx:
+    ports:
+      - "80:80"

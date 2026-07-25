@@ -28,10 +28,11 @@ const STATUS_CONFIG: Record<AttendanceStatus, { label: string; short: string; bg
 
 const ALL_STATUSES = Object.keys(STATUS_CONFIG) as AttendanceStatus[];
 
-function PALToggle({ value, onChange, disabled }: { value: AttendanceStatus; onChange: (v: AttendanceStatus) => void; disabled?: boolean }) {
+function PALToggle({ value, onChange, disabled, hideSuspended }: { value: AttendanceStatus; onChange: (v: AttendanceStatus) => void; disabled?: boolean; hideSuspended?: boolean }) {
+  const visibleStatuses = hideSuspended ? ALL_STATUSES.filter(s => s !== "suspended") : ALL_STATUSES;
   return (
     <div style={{ display: "flex", gap: 4 }}>
-      {ALL_STATUSES.map((st) => {
+      {visibleStatuses.map((st) => {
         const c      = STATUS_CONFIG[st];
         const active = value === st;
         return (
@@ -261,6 +262,9 @@ export default function TeacherMarkAttendancePage() {
     leave:     students.filter(s => statuses[s.id] === "leave").length,
   };
 
+  // If every student is suspended, the whole class is on suspension — hide the Su button per-row
+  const isClassSuspended = students.length > 0 && students.every(s => statuses[s.id] === "suspended");
+
   return (
     <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
       <Topbar title="Mark Attendance" subtitle="Record daily attendance for your section" />
@@ -392,23 +396,11 @@ export default function TeacherMarkAttendancePage() {
 
         {/* ── Student table ── */}
         <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d4dde2", overflow: "hidden", boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eef0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <h2 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
-                {selectedSection ? `${selectedSection.class_name} — Section ${selectedSection.name}` : "Students"}
-              </h2>
-              <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>{formatDate(date)}</p>
-            </div>
-            {!readonly && students.length > 0 && (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={handleSave} disabled={submitting}
-                  style={{ minHeight: 36, padding: "0 16px", borderRadius: 8, border: "none", background: "#ff9b51", color: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}
-                >
-                  {submitting ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />}
-                  {existingRec ? "Update Attendance" : "Save Attendance"}
-                </button>
-              </div>
-            )}
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eef0" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
+              {selectedSection ? `${selectedSection.class_name} — Section ${selectedSection.name}` : "Students"}
+            </h2>
+            <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>{formatDate(date)}</p>
           </div>
 
           {loading ? (
@@ -457,7 +449,7 @@ export default function TeacherMarkAttendancePage() {
                               {cfg.label}
                             </span>
                           ) : (
-                            <PALToggle value={st} onChange={v => setStudentStatus(student.id, v)} />
+                            <PALToggle value={st} onChange={v => setStudentStatus(student.id, v)} hideSuspended={isClassSuspended} />
                           )}
                         </td>
                         {/* Remarks */}
@@ -482,17 +474,7 @@ export default function TeacherMarkAttendancePage() {
             </div>
           )}
 
-          {/* Bottom action bar */}
-          {!readonly && students.length > 0 && (
-            <div style={{ padding: "14px 20px", borderTop: "1px solid #e8eef0", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafcfc" }}>
-              <button onClick={handleSave} disabled={submitting}
-                style={{ minHeight: 38, padding: "0 20px", borderRadius: 8, border: "none", background: "#ff9b51", color: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
-              >
-                {submitting ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />}
-                {existingRec ? "Update Attendance" : "Save Attendance"}
-              </button>
-            </div>
-          )}
+
         </div>
 
         {/* ── Quick mark by roll number ── */}
@@ -504,7 +486,7 @@ export default function TeacherMarkAttendancePage() {
                 Quick Mark by Roll Number
               </p>
               <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 600 }}>
-                Enter roll numbers separated by commas, choose a status, then click Apply.
+                Enter roll numbers separated by commas, pick a status, then press Enter or Apply.
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -516,19 +498,26 @@ export default function TeacherMarkAttendancePage() {
                 placeholder="e.g. 3, 7, 12, 15"
                 style={{ flex: 1, minWidth: 160, padding: "8px 12px", borderRadius: 9, border: "1px solid #d4dde2", fontSize: 13, fontWeight: 700, outline: "none" }}
               />
-              <div style={{ display: "flex", gap: 5 }}>
-                {ALL_STATUSES.map(st => {
-                  const c      = STATUS_CONFIG[st];
-                  const active = quickStatus === st;
-                  return (
-                    <button key={st} type="button" onClick={() => setQuickStatus(st)}
-                      style={{ padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, background: active ? c.color : c.bg, color: active ? "#fff" : c.color, boxShadow: active ? `0 0 0 2px ${c.color}44` : "none", transition: "all .15s" }}
-                    >
-                      {c.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <select
+                value={quickStatus}
+                onChange={e => setQuickStatus(e.target.value as AttendanceStatus)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 9,
+                  border: `1.5px solid ${STATUS_CONFIG[quickStatus].border}`,
+                  background: STATUS_CONFIG[quickStatus].bg,
+                  color: STATUS_CONFIG[quickStatus].color,
+                  fontWeight: 900,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  outline: "none",
+                  minWidth: 130,
+                }}
+              >
+                {ALL_STATUSES.map(st => (
+                  <option key={st} value={st}>{STATUS_CONFIG[st].label}</option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={applyQuickMark}

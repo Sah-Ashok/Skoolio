@@ -1,0 +1,105 @@
+version: "3.9"
+
+# =============================================================
+#  Skoolio – Docker Compose  (production)
+#
+#  Services:
+#    backend   – Express / Node API    (internal port 5001)
+#    frontend  – Next.js               (internal port 3000)
+#    nginx     – Reverse proxy         (public   port 80 / 443)
+#
+#  External (Azure-managed, no local containers needed):
+#    PostgreSQL – Azure Database for PostgreSQL
+#    Redis      – Azure Managed Redis
+#
+#  Usage:
+#    docker compose up -d --build
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # Backend – Express / Node
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: skoolio_backend
+    restart: unless-stopped
+    # Loads all vars from Backend/.env (DB, Redis, SMTP, Azure, JWT …)
+    env_file: ./Backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      # Allow requests from nginx on the same Docker network
+      CORS_ORIGIN: http://nginx
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5001/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # -----------------------------------------------------------
+  # Frontend – Next.js
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Browser calls /api/* → nginx proxies to backend (same origin)
+        NEXT_PUBLIC_API_URL: /api
+    container_name: skoolio_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # -----------------------------------------------------------
+  # Nginx – reverse proxy
+  # -----------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: skoolio_nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Uncomment when SSL certs are ready:
+      # - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+# =============================================================
+# Networks
+# =============================================================
+networks:
+  skoolio_net:
+    driver: bridge
