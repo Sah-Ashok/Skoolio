@@ -13,9 +13,9 @@ import sendResponse from '../utils/response';
 const setAuthCookie = (res: Response, token: string) => {
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure:   false,          // set to true only when HTTPS is enabled
+    sameSite: 'lax',          // 'strict' blocks cookies through nginx proxy
+    maxAge:   7 * 24 * 60 * 60 * 1000,
   });
 };
 
@@ -76,8 +76,8 @@ export const loginStudent = catchAsync(async (req: Request, res: Response) => {
 export const logout = catchAsync(async (req: Request, res: Response) => {
   res.clearCookie('token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure:   false,
+    sameSite: 'lax',
   });
   sendResponse(res, 200, true, 'Logged out successfully', null);
 });
