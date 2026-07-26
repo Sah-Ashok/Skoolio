@@ -11,24 +11,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. SSH into VM and deploy
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:        ${{ secrets.VM_HOST }}
-          username:    ${{ secrets.VM_USER }}
-          key:         ${{ secrets.VM_SSH_KEY }}
-          timeout:     600s
+          host:     ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key:      ${{ secrets.VM_SSH_KEY }}
+          timeout:  600s
           script: |
             set -e
             cd ~/School-ERP
 
+            # ── Save current commit so we can rollback if needed ──
+            PREVIOUS_COMMIT=$(git rev-parse HEAD)
+            echo "Current commit: $PREVIOUS_COMMIT"
+
+            # ── Pull latest code ──
             echo ">>> Pulling latest code..."
             git pull origin main
+            NEW_COMMIT=$(git rev-parse HEAD)
+            echo "New commit: $NEW_COMMIT"
 
-            echo ">>> Rebuilding and restarting containers..."
-            docker compose up -d --build --remove-orphans
+            # ── Build and start ──
+            echo ">>> Building containers..."
+            if ! docker compose up -d --build --remove-orphans; then
+              echo "!!! Build failed — rolling back to $PREVIOUS_COMMIT"
+              git reset --hard $PREVIOUS_COMMIT
+              docker compose up -d --build --remove-orphans
+              echo "!!! Rollback complete"
+              exit 1
+            fi
 
+            # ── Verify all containers are healthy ──
+            echo ">>> Waiting for health checks..."
+            sleep 15
+            UNHEALTHY=$(docker compose ps --format json | grep -c '"Health":"unhealthy"' || true)
+            if [ "$UNHEALTHY" -gt "0" ]; then
+              echo "!!! Containers unhealthy — rolling back to $PREVIOUS_COMMIT"
+              git reset --hard $PREVIOUS_COMMIT
+              docker compose up -d --build --remove-orphans
+              echo "!!! Rollback complete"
+              exit 1
+            fi
+
+            # ── Cleanup ──
             echo ">>> Cleaning up old images..."
             docker image prune -f
 
