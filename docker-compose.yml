@@ -95,7 +95,7 @@ services:
     networks:
       - skoolio_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -123,7 +123,7 @@ services:
     networks:
       - skoolio_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
