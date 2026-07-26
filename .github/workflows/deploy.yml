@@ -1,0 +1,36 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. SSH into VM and deploy
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:        ${{ secrets.VM_HOST }}
+          username:    ${{ secrets.VM_USER }}
+          key:         ${{ secrets.VM_SSH_KEY }}
+          timeout:     600s
+          script: |
+            set -e
+            cd ~/School-ERP
+
+            echo ">>> Pulling latest code..."
+            git pull origin main
+
+            echo ">>> Rebuilding and restarting containers..."
+            docker compose up -d --build --remove-orphans
+
+            echo ">>> Cleaning up old images..."
+            docker image prune -f
+
+            echo ">>> Deploy complete!"
+            docker compose ps
