@@ -243,15 +243,17 @@ export default function PaymentSettingsTab() {
                   </span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "4px 16px" }}>
-                  {[
-                    ["Account Name",   acc.account_name],
-                    ["Account No.",    acc.account_number],
-                    acc.branch    ? ["Branch",      acc.branch]    : null,
-                    acc.ifsc_code ? ["IFSC",        acc.ifsc_code] : null,
-                    acc.upi_id    ? ["UPI ID",      acc.upi_id]    : null,
-                    acc.esewa_id  ? ["eSewa",       acc.esewa_id]  : null,
-                    acc.khalti_id ? ["Khalti",      acc.khalti_id] : null,
-                  ].filter(Boolean).map(([label, val]) => (
+                  {(
+                    [
+                      ["Account Name",   acc.account_name],
+                      ["Account No.",    acc.account_number],
+                      acc.branch    ? ["Branch",  acc.branch]    : null,
+                      acc.ifsc_code ? ["IFSC",    acc.ifsc_code] : null,
+                      acc.upi_id    ? ["UPI ID",  acc.upi_id]    : null,
+                      acc.esewa_id  ? ["eSewa",   acc.esewa_id]  : null,
+                      acc.khalti_id ? ["Khalti",  acc.khalti_id] : null,
+                    ].filter(Boolean) as string[][]
+                  ).map(([label, val]) => (
                     <div key={label} style={{ fontSize: 12 }}>
                       <span style={{ color: "#6a7882", fontWeight: 800 }}>{label}: </span>
                       <strong style={{ fontWeight: 900, color: "#1f2d36" }}>{val}</strong>

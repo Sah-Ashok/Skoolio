@@ -77,7 +77,7 @@ export default function EditFacultyForm() {
     if (teacher.photo) setPhotoPreview(teacher.photo);
   }, [teacher]);
 
-  const set = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } }) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   /* ── Photo handlers ── */

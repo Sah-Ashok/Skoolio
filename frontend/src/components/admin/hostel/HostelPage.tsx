@@ -262,11 +262,11 @@ export default function HostelPage() {
     if (tab === "assignments" && !viewHostelAssignId && hostels?.length) setViewHostelAssignId(hostels[0].id);
   }, [tab, hostels, viewHostelAssignId]);
 
-  const hf = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+  const hf = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | { target: { name: string; value: string } }) =>
     setHForm(f => ({ ...f, [e.target.name]: e.target.value }));
-  const rf = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+  const rf = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | { target: { name: string; value: string } }) =>
     setRForm(f => ({ ...f, [e.target.name]: e.target.value }));
-  const af = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+  const af = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | { target: { name: string; value: string } }) =>
     setAForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
   // ── GENERATE BILLS ──

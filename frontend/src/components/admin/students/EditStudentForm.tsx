@@ -126,7 +126,7 @@ export default function EditStudentForm() {
   }, [student]);
 
   const set = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | { target: { name: string; value: string } }
   ) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
   const handleDisabilityToggle = () =>

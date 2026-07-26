@@ -153,7 +153,7 @@ export function StaffAttendancePage() {
   const staffCount   = (staffList   ?? []).filter((m: any) => m.status !== "terminated").length;
 
   // DateInput sends back AD ISO — clamp to today
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => {
     const val = e.target.value;
     if (!val) return;
     // never allow future dates
@@ -178,7 +178,7 @@ export function StaffAttendancePage() {
             {/* DateInput is BS-aware — shows BS picker for BS schools, native for AD */}
             <DateInput
               value={date}
-              max={todayStr()}
+              maxDate={todayStr()}
               onChange={handleDateChange}
               className={s("dateInput")}
             />

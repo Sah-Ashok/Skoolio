@@ -36,7 +36,7 @@ export default function AddFacultyForm() {
     status:           "active",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 

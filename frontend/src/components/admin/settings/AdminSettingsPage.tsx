@@ -112,7 +112,7 @@ export default function AdminSettingsPage() {
   const { execute: saveG,  loading: savingG  } = useMutation("/school/settings",        "PATCH");
   const { execute: savePw, loading: savingPw } = useMutation("/school/change-password", "PATCH");
 
-  const setGField  = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const setGField  = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } }) =>
     setG(f => ({ ...f, [e.target.name]: e.target.value }));
   const setPwField = (e: React.ChangeEvent<HTMLInputElement>) =>
     setPw(f => ({ ...f, [e.target.name]: e.target.value }));

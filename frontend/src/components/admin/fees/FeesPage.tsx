@@ -230,7 +230,7 @@ export default function FeesPage() {
               <button
                 className={cx(s("btn"), s("btn-primary"))}
                 onClick={() => handleGenerateBills('academic')}
-                disabled={generating || !academicYearId}
+                disabled={!!generating || !academicYearId}
               >
                 {generating === 'academic'
                   ? <><Spinner size={15} color="#fff" /> Generating…</>

@@ -44,7 +44,7 @@ export default function RegisterPage() {
     school_type: '', established_year: '', timezone: 'Asia/Kathmandu',
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setLocalError('');
     if (error) dispatch(clearError());
