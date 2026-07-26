@@ -324,7 +324,29 @@ export const getTeacherPersonalAttendanceByDate = async (school_id: number, date
   return result.rows;
 };
 
-// ── COORDINATOR SECTIONS ──────────────────────────────────────────────────────
+export const getTeacherAttendanceYearlySummary = async (
+  school_id: number,
+  teacher_id: number,
+  academic_year_id: number,
+  start_date: string,
+  end_date: string
+): Promise<any> => {
+  const result = await pool.query(
+    `SELECT
+       COUNT(*)                                                AS total_records,
+       SUM(CASE WHEN status = 'present'  THEN 1 ELSE 0 END)  AS present_days,
+       SUM(CASE WHEN status = 'absent'   THEN 1 ELSE 0 END)  AS absent_days,
+       SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END)  AS half_days,
+       SUM(CASE WHEN status = 'leave'    THEN 1 ELSE 0 END)  AS leave_days,
+       SUM(CASE WHEN status = 'late'     THEN 1 ELSE 0 END)  AS late_days
+     FROM teacher_attendance
+     WHERE school_id  = $1
+       AND teacher_id = $2
+       AND date BETWEEN $3 AND $4`,
+    [school_id, teacher_id, start_date, end_date]
+  );
+  return result.rows[0];
+};
 
 export const getSectionsByCoordinator = async (teacher_id: number, school_id: number): Promise<any[]> => {
   const result = await pool.query(

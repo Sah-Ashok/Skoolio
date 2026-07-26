@@ -14,7 +14,10 @@ import {
 import {
   getTeacherAttendanceByMonth,
   getTeacherAttendanceSummaryByMonth,
+  getTeacherAttendanceYearlySummary,
 } from '../Repositories/teacher.repository';
+import { getAcademicYearById } from '../Repositories/academic.repository';
+import { calculateWorkingDays } from '../Service/calendar.service';
 
 // ── TEACHER CONTROLLERS ──
 
@@ -98,7 +101,45 @@ export const getMyCoordinatorSections = catchAsync(async (req: Request, res: Res
   sendResponse(res, 200, true, 'Coordinator sections fetched successfully', sections);
 });
 
-// GET /teachers/me/attendance?year=YYYY&month=M
+// GET /teachers/me/attendance/yearly?academic_year_id=N
+// Faculty-only: returns the calling teacher's full-year attendance summary.
+export const getMyAttendanceYearly = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
+  const academic_year_id = Number(req.query.academic_year_id);
+  if (!academic_year_id) throw new Error('academic_year_id query param is required');
+
+  const academicYear = await getAcademicYearById(academic_year_id, school_id);
+  if (!academicYear) throw new Error('Academic year not found');
+
+  const start_date = String(academicYear.start_date).slice(0, 10);
+  const end_date   = String(academicYear.end_date).slice(0, 10);
+
+  const [raw, workingDays] = await Promise.all([
+    getTeacherAttendanceYearlySummary(school_id, teacher_id, academic_year_id, start_date, end_date),
+    calculateWorkingDays(school_id, academic_year_id, start_date, end_date),
+  ]);
+
+  const present   = Number(raw.present_days  ?? 0);
+  const absent    = Number(raw.absent_days   ?? 0);
+  const half_days = Number(raw.half_days     ?? 0);
+  const leave     = Number(raw.leave_days    ?? 0);
+  const late      = Number(raw.late_days     ?? 0);
+  const marked    = present + absent + half_days + leave + late;
+  const pct       = marked > 0 ? Math.round(((present + half_days * 0.5) / marked) * 10000) / 100 : 0;
+
+  sendResponse(res, 200, true, 'Yearly attendance fetched successfully', {
+    total_present:         present,
+    total_absent:          absent,
+    total_half_days:       half_days,
+    total_leave:           leave,
+    total_late:            late,
+    total_marked:          marked,
+    total_working_days:    workingDays.working_days,
+    attendance_percentage: pct,
+  });
+});
+
+
 // Faculty-only: returns the calling teacher's own daily records + summary for the month.
 export const getMyAttendanceMonthly = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;

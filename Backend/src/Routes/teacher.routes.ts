@@ -5,7 +5,7 @@ import {
   createTeacher, getTeachers, getTeacherById, updateTeacher, deleteTeacher,
   assignSubjectToTeacher, getTeacherSubjects, removeTeacherSubject,
   createSalary, getTeacherSalaries, updateSalary,
-  getMyCoordinatorSections, getMySalaries, getMyAttendanceMonthly,
+  getMyCoordinatorSections, getMySalaries, getMyAttendanceMonthly, getMyAttendanceYearly,
   bulkMarkTeacherAttendance, getTeacherAttendanceByDate,
   getSalarySummary, getAttendanceSummaryForSalary,
 } from '../Controllers/teacher.controller';
@@ -13,9 +13,10 @@ import {
 const router = Router();
 
 // ── Faculty-accessible routes (before admin-only middleware) ──
-router.get('/me/sections',   protect, restrictTo('faculty'), getMyCoordinatorSections);
-router.get('/me/salary',     protect, restrictTo('faculty'), getMySalaries);
-router.get('/me/attendance', protect, restrictTo('faculty'), getMyAttendanceMonthly); // ?year=&month=
+router.get('/me/sections',            protect, restrictTo('faculty'), getMyCoordinatorSections);
+router.get('/me/salary',              protect, restrictTo('faculty'), getMySalaries);
+router.get('/me/attendance/yearly',   protect, restrictTo('faculty'), getMyAttendanceYearly);  // ?academic_year_id=
+router.get('/me/attendance',          protect, restrictTo('faculty'), getMyAttendanceMonthly); // ?year=&month=
 
 router.use(protect, restrictTo('admin', 'super_admin'));
 

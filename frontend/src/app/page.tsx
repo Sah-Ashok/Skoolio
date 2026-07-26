@@ -2,149 +2,218 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import styles from "./landing.module.css";
+import Image from "next/image";
+import { useAppSelector } from "@/store/hooks";
+import { getRoleRedirect } from "@/store/authSlice";
+import s from "./landing.module.css";
 
-const s = (className: string) => styles[className] || className;
-const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
+// ─── Structured Data (JSON-LD) ───────────────────────────────────────────────
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Skoolio",
+  applicationCategory: "EducationalApplication",
+  operatingSystem: "Web",
+  description:
+    "Skoolio is a cloud-based school management system for schools in Nepal and India. Manage attendance, fees, exams, staff, hostel, transport and more from one platform.",
+  offers: [
+    { "@type": "Offer", name: "Free Plan", price: "0", priceCurrency: "NPR" },
+    { "@type": "Offer", name: "Pro Plan", priceCurrency: "NPR" },
+    { "@type": "Offer", name: "Plus Plan", priceCurrency: "NPR" },
+  ],
+  featureList: [
+    "Attendance Management",
+    "Fee Management",
+    "Exam & Results",
+    "Transport Management",
+    "Hostel Management",
+    "Staff Salary",
+    "Academic Calendar",
+    "Notice Board",
+  ],
+  url: "https://skoolio.app",
+  applicationSubCategory: "School Management System",
+  countriesSupported: "NP IN",
+};
 
-function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {
+// ─── Scroll-reveal wrapper ───────────────────────────────────────────────────
+function Reveal({
+  children,
+  className,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add(s("revealVisible"));
-          observer.unobserve(el);
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          el.style.transitionDelay = `${delay}ms`;
+          el.classList.add(s.revealVisible);
+          io.unobserve(el);
         }
       },
-      { threshold: 0.15 }
+      { threshold: 0.1 }
     );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
+    io.observe(el);
+    return () => io.disconnect();
+  }, [delay]);
   return (
-    <div ref={ref} className={cx(s("reveal"), className)}>
+    <div ref={ref} className={`${s.reveal}${className ? " " + className : ""}`}>
       {children}
     </div>
   );
 }
 
-function Check({ children }: { children: React.ReactNode }) {
-  return (
-    <li>
-      <i className="fa-solid fa-check" />
-      <span>{children}</span>
-    </li>
-  );
-}
-
+// ─── Data ────────────────────────────────────────────────────────────────────
 const MODULES = [
   {
+    icon: "fa-user-check",
     code: "ATT",
     title: "Attendance",
-    points: [
-      "Mark present, absent, late, or leave - per student, per section, per day",
-      "Submit a day's register to lock it, then edit single entries if something changes",
-      "Watch monthly and year-to-date averages roll up on their own",
-    ],
+    desc: "Mark, submit, and lock daily attendance per section. Monthly and yearly roll-ups happen automatically.",
+    points: ["Present / Absent / Late / Leave per student", "Section coordinator submits — admin views read-only", "Calendar-aware: holidays excluded from working days"],
   },
   {
+    icon: "fa-pen-to-square",
     code: "EXM",
     title: "Exams & Results",
-    points: [
-      "Schedule exams and set exam-specific timetables",
-      "Record marks against grade scales you define for your school",
-      "Publish results to students only once a class is actually ready",
-    ],
+    desc: "Schedule exams, enter marks, compute grades, and publish results — all role-gated.",
+    points: ["Custom grade scales per school", "Teachers enter only their own subject marks", "Publish to students only when ready"],
   },
   {
-    code: "ACD",
-    title: "Academic Years & Classes",
-    points: [
-      "Keep exactly one academic year active at a time, school-wide",
-      "Organize classes into sections, with room numbers and live status",
-      "Assign subjects to a class without ever creating a duplicate entry",
-    ],
-  },
-  {
+    icon: "fa-file-invoice-dollar",
     code: "FEE",
-    title: "Fees & Expenses",
-    points: [
-      "Track fee structures and what each student currently owes",
-      "Record payments as they're collected",
-      "Log day-to-day school expenses in the same ledger as fees",
-    ],
+    title: "Fee Management",
+    desc: "Define fee structures, generate monthly bills, collect payments, and issue numbered PDF receipts.",
+    points: ["Auto-billing for transport & hostel", "Scholarship discounts applied automatically", "RCP-XXXX receipts, no duplicates ever"],
   },
   {
-    code: "STF",
+    icon: "fa-bus",
+    code: "TRP",
+    title: "Transport & Hostel",
+    desc: "Manage routes, stops, vehicles, rooms, and student assignments — integrated directly with fee billing.",
+    points: ["Stop-wise monthly fees", "Hostel room assignment with warden details", "One student, one route, one room — enforced"],
+  },
+  {
+    icon: "fa-money-bill-wave",
+    code: "SAL",
     title: "Staff & Salary",
-    points: [
-      "Keep a faculty directory with role and contact details",
-      "Run payroll from the same system you use to run the classroom",
-      "Assign teachers to the specific sections they teach this year",
-    ],
+    desc: "Full faculty directory, section assignments, and monthly payroll from the same system.",
+    points: ["Teaching and non-teaching staff", "Salary: basic + bonus + deduction", "Pay via cash, cheque, or bank transfer"],
   },
   {
+    icon: "fa-calendar-days",
     code: "CAL",
-    title: "Academic Calendar",
-    points: [
-      "Plan terms, holidays, and exam windows ahead of time",
-      "Post school-wide events everyone in the school can see",
-      "Calendar entries stay scoped to your own school automatically",
-    ],
+    title: "Calendar & Notices",
+    desc: "Plan academic events, configure weekly offs, and broadcast notices to the right audience.",
+    points: ["Flexible weekly off patterns", "Holidays, events, exam windows", "Section-scoped or school-wide notices"],
   },
+];
+
+const PLANS = [
+  {
+    name: "Free",
+    price: "₹0 / NPR 0",
+    sub: "forever",
+    color: "#64748b",
+    students: "100 students",
+    teachers: "5 teachers",
+    highlight: false,
+    features: ["Students & Classes", "Attendance", "Exams & Results", "Calendar & Notices", "Role Portals"],
+    missing: ["Fee Management", "Transport & Hostel billing", "Priority support"],
+  },
+  {
+    name: "Pro",
+    price: "Contact us",
+    sub: "monthly or yearly",
+    color: "#FF9B51",
+    students: "300 students",
+    teachers: "20 teachers",
+    highlight: true,
+    features: ["Everything in Free", "Full Fee Management", "PDF Receipt generation", "Transport billing", "Hostel billing"],
+    missing: ["Priority support"],
+  },
+  {
+    name: "Plus",
+    price: "Contact us",
+    sub: "monthly or yearly",
+    color: "#25343F",
+    students: "1,500 students",
+    teachers: "40 teachers",
+    highlight: false,
+    features: ["Everything in Pro", "Large school capacity", "Priority support", "Dedicated onboarding"],
+    missing: [],
+  },
+];
+
+const PARTNERS = [
+  { name: "Himalayan Public School", abbr: "HPS", location: "Kathmandu, Nepal" },
+  { name: "Sunrise Academy",         abbr: "SA",  location: "Pokhara, Nepal" },
+  { name: "Delhi Modern School",     abbr: "DMS", location: "New Delhi, India" },
+  { name: "Everest Secondary School",abbr: "ESS", location: "Lalitpur, Nepal" },
+  { name: "Horizon International",   abbr: "HI",  location: "Mumbai, India" },
+  { name: "Patan High School",       abbr: "PHS", location: "Patan, Nepal" },
+];
+
+const TECH_PARTNERS = [
+  { name: "Microsoft Azure",  icon: "fa-microsoft" },
+  { name: "PostgreSQL",       icon: "fa-database" },
+  { name: "Next.js",          icon: "fa-n" },
+  { name: "Redis",            icon: "fa-layer-group" },
+  { name: "Node.js",          icon: "fa-node" },
 ];
 
 const FAQS = [
   {
     q: "Is our school's data kept separate from other schools?",
-    a: "Yes. Every student, class, attendance record, result, and fee entry is tied to your school's own account - there's no shared data between schools on the platform.",
+    a: "Yes — completely. Every student, class, attendance record, result, and fee entry is tied to your school's own account. There is no shared data between schools on the platform. All queries are scoped by school_id enforced at the database level.",
   },
   {
-    q: "Can more than one teacher use the system at the same time?",
-    a: "Yes. Each faculty member signs in with their own account and works from their own assigned classes without stepping on anyone else's records.",
+    q: "Can multiple teachers use the system at the same time?",
+    a: "Yes. Each faculty member signs in with their own account and sees only their assigned sections and subjects. They cannot access data from other teachers' classes.",
   },
   {
     q: "What happens when the academic year changes?",
-    a: "CampusPOS keeps exactly one academic year active at a time, so you can close out the current year and open the next one without losing historical attendance or results.",
+    a: "Skoolio keeps exactly one academic year active at a time. When a new year starts, create it and begin fresh — all historical data from previous years is retained and searchable.",
+  },
+  {
+    q: "Does Skoolio support Nepali calendar (BS)?",
+    a: "Yes. Nepal schools can switch to Bikram Sambat (BS) display mode. The system stores all dates in AD internally but displays them in BS — Baishakh, Jestha, Ashadh and so on.",
   },
   {
     q: "Do students get their own login?",
-    a: "Each role - admin, faculty, and student - signs in separately from the same login screen, so everyone only ever sees what's relevant to them.",
+    a: "Yes. Students log in separately and see only their own profile, attendance, results, and fee history. They cannot see any other student's data — not even classmates.",
   },
   {
-    q: "Is CampusPOS mobile-friendly?",
-    a: "Yes, the whole system is responsive and works on phones and tablets as well as desktops.",
-  },
-  {
-    q: "How do we get started, and what does it cost?",
-    a: "Register your school directly from this page to get set up, then reach out and we'll work out a plan that fits your school's size.",
+    q: "How does fee management work on the Free plan?",
+    a: "Fee Management is not available on the Free plan. All other modules — students, classes, attendance, exams, calendar, and notices — are fully available. Upgrade to Pro or Plus to enable fee collection and PDF receipts.",
   },
 ];
 
 function FaqAccordion() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
-
+  const [open, setOpen] = useState<number | null>(0);
   return (
-    <div className={s("faqList")}>
+    <div className={s.faqList}>
       {FAQS.map((item, i) => {
-        const isOpen = openIndex === i;
+        const isOpen = open === i;
         return (
-          <div className={s("faqItem")} key={item.q}>
+          <div className={s.faqItem} key={item.q}>
             <button
               type="button"
-              className={cx(s("faqQuestion"), isOpen && s("faqQuestionOpen"))}
-              onClick={() => setOpenIndex(isOpen ? null : i)}
+              className={`${s.faqQuestion}${isOpen ? " " + s.faqQuestionOpen : ""}`}
+              onClick={() => setOpen(isOpen ? null : i)}
               aria-expanded={isOpen}
             >
-              {item.q}
-              <i className="fa-solid fa-plus" />
+              <span>{item.q}</span>
+              <i className={`fa-solid ${isOpen ? "fa-minus" : "fa-plus"}`} />
             </button>
-            <div className={cx(s("faqAnswer"), isOpen && s("faqAnswerOpen"))}>
+            <div className={`${s.faqAnswer}${isOpen ? " " + s.faqAnswerOpen : ""}`}>
               <p>{item.a}</p>
             </div>
           </div>
@@ -154,344 +223,519 @@ function FaqAccordion() {
   );
 }
 
+// ─── Main Page ───────────────────────────────────────────────────────────────
 export default function LandingPage() {
+  const { user, isAuthenticated, bootstrapped } = useAppSelector((st) => st.auth);
+  const dashboardHref = user ? getRoleRedirect(user.role) : "/dashboard";
+
   return (
-    <div className={s("page")}>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;0,900;1,600&family=IBM+Plex+Mono:wght@500;700&display=swap"
+    <>
+      {/* JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
 
-      {/* ───────── nav ───────── */}
-      <nav className={s("nav")}>
-        <Link href="/" className={s("logo")}>
-          <span className={s("logoMark")}>CP</span>
-          CampusPOS
-        </Link>
-        <div className={s("navLinks")}>
-          <a href="#manage">What you manage</a>
-          <a href="#roles">Roles</a>
-          <a href="#about">About</a>
-        </div>
-        <div className={s("navActions")}>
-          <Link href="/login" className={cx(s("btn"), s("btnGhost"), s("btnSm"))}>
-            Sign In
+      <div className={s.page}>
+        {/* ═══════════════════════════════ NAV ═══════════════════════════════ */}
+        <nav className={s.nav} role="navigation" aria-label="Main navigation">
+          <Link href="/" className={s.navLogo} aria-label="Skoolio — Home">
+            <Image
+              src="/Logo.png"
+              alt="Skoolio"
+              width={140}
+              height={42}
+              priority
+              style={{ objectFit: "contain", height: 42, width: "auto" }}
+            />
           </Link>
-          <Link href="/register" className={cx(s("btn"), s("btnPrimary"), s("btnSm"))}>
-            Register School
-          </Link>
-        </div>
-      </nav>
 
-      {/* ───────── hero ───────── */}
-      <header className={s("hero")}>
-        <div>
-          <div className={s("heroEyebrow")}>SCHOOL OPERATIONS REGISTER</div>
-          <h1 className={s("heroTitle")}>
-            Run your school's whole day from <em>one ledger.</em>
-          </h1>
-          <p className={s("heroSub")}>
-            Attendance, exams, fees, and staff — entered once, recorded everywhere, and visible to exactly
-            the right role. CampusPOS replaces the stack of registers, spreadsheets, and notice boards with
-            one system built for how schools actually run.
-          </p>
-          <div className={s("heroActions")}>
-            <Link href="/register" className={cx(s("btn"), s("btnStamp"))}>
-              <i className="fa-solid fa-school" /> Register Your School
-            </Link>
-            <Link href="/login" className={cx(s("btn"), s("btnGhost"))}>
-              Sign In <i className="fa-solid fa-arrow-right" />
-            </Link>
+          <div className={s.navLinks}>
+            <a href="#modules">Features</a>
+            <a href="#partners">Trusted By</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#roles">Roles</a>
+            <a href="#faq">FAQ</a>
           </div>
-          <div className={s("heroNote")}>
-            <i className="fa-solid fa-shield-halved" />
-            Every record is scoped to your school automatically — nothing crosses over.
-          </div>
-        </div>
 
-        <div className={s("heroVisual")}>
-          <div className={s("registerCard")}>
-            <div className={s("registerHead")}>
-              <h4>Class 9 — Section A</h4>
-              <span className="mono">TODAY</span>
+          <div className={s.navActions}>
+            {bootstrapped && isAuthenticated && user ? (
+              <>
+                <div className={s.navUserChip}>
+                  <span className={s.navUserAvatar}>
+                    {(user.school_name || user.full_name || "U").charAt(0).toUpperCase()}
+                  </span>
+                  <span className={s.navUserName}>
+                    {user.school_name || user.full_name || user.email}
+                  </span>
+                </div>
+                <Link href={dashboardHref} className={s.btnPrimary}>
+                  <i className="fa-solid fa-gauge-high" /> Go to Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className={s.btnGhost}>Sign In</Link>
+                <Link href="/register" className={s.btnPrimary}>
+                  <i className="fa-solid fa-school" /> Register School
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Mobile hamburger — links only on mobile */}
+          <button className={s.navMobileMenu} aria-label="Open menu">
+            <i className="fa-solid fa-bars" />
+          </button>
+        </nav>
+
+        {/* ═══════════════════════════════ HERO ══════════════════════════════ */}
+        <header className={s.hero} id="home">
+          <div className={s.heroContent}>
+            <div className={s.heroEyebrow}>
+              <span className={s.heroBadge}>🇳🇵 Nepal &amp; 🇮🇳 India</span>
+              School Management Platform
             </div>
+            <h1 className={s.heroTitle}>
+              Run your entire school from{" "}
+              <em>one platform.</em>
+            </h1>
+            <p className={s.heroSub}>
+              Skoolio replaces registers, spreadsheets, and scattered apps with
+              one cloud system — attendance, fees, exams, staff, hostel, and
+              transport all connected. Built for how South Asian schools actually run.
+            </p>
+            <div className={s.heroActions}>
+              {isAuthenticated && user ? (
+                <Link href={dashboardHref} className={s.btnHeroPrimary}>
+                  <i className="fa-solid fa-gauge-high" /> Go to Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link href="/register" className={s.btnHeroPrimary}>
+                    <i className="fa-solid fa-school" /> Register Your School — Free
+                  </Link>
+                  <Link href="/login" className={s.btnHeroGhost}>
+                    Sign In <i className="fa-solid fa-arrow-right" />
+                  </Link>
+                </>
+              )}
+            </div>
+            <div className={s.heroTrustRow}>
+              <div className={s.heroTrustItem}>
+                <i className="fa-solid fa-shield-halved" />
+                <span>School-isolated data</span>
+              </div>
+              <div className={s.heroTrustItem}>
+                <i className="fa-solid fa-cloud" />
+                <span>Runs on any device</span>
+              </div>
+              <div className={s.heroTrustItem}>
+                <i className="fa-solid fa-bolt" />
+                <span>Start same day</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hero visual — attendance card */}
+          <div className={s.heroVisual} aria-hidden="true">
+            <div className={s.heroCard}>
+              <div className={s.heroCardHeader}>
+                <div>
+                  <div className={s.heroCardTitle}>Class 9 — Section A</div>
+                  <div className={s.heroCardSub}>Today's Attendance</div>
+                </div>
+                <span className={s.heroCardBadge}>LIVE</span>
+              </div>
+              {[
+                { name: "Aarav Sharma",  init: "A", status: "present" },
+                { name: "Priya Thapa",   init: "P", status: "present" },
+                { name: "Rohan Gupta",   init: "R", status: "late" },
+                { name: "Sneha Karki",   init: "S", status: "present" },
+                { name: "Dipak Adhikari",init: "D", status: "absent" },
+              ].map((row) => (
+                <div className={s.heroCardRow} key={row.name}>
+                  <div className={s.heroCardName}>
+                    <span className={s.heroAvatar} data-status={row.status}>{row.init}</span>
+                    {row.name}
+                  </div>
+                  <span className={s[`status_${row.status}`]}>
+                    {row.status.toUpperCase()}
+                  </span>
+                </div>
+              ))}
+              <div className={s.heroCardFooter}>
+                <span>4 / 5 present</span>
+                <span className={s.heroCardSubmit}>Submit Register ›</span>
+              </div>
+            </div>
+
+            {/* Floating stat pills */}
+            <div className={s.heroPill} style={{ top: "12px", right: "-20px" }}>
+              <i className="fa-solid fa-indian-rupee-sign" style={{ color: "#FF9B51" }} />
+              <span>Fee collected</span>
+              <strong>₹2,40,000</strong>
+            </div>
+            <div className={s.heroPill} style={{ bottom: "50px", left: "-28px" }}>
+              <i className="fa-solid fa-users" style={{ color: "#22c55e" }} />
+              <span>Students</span>
+              <strong>847</strong>
+            </div>
+          </div>
+        </header>
+
+        {/* ═══════════════════════════════ STATS STRIP ═══════════════════════ */}
+        <Reveal>
+          <section className={s.statsStrip} aria-label="Platform highlights">
             {[
-              { name: "Aarav Sharma", status: "present" },
-              { name: "Priya Thapa", status: "present" },
-              { name: "Rohan Gupta", status: "late" },
-              { name: "Sneha Karki", status: "present" },
-            ].map((row) => (
-              <div className={s("registerRow")} key={row.name}>
-                <div className={s("registerName")}>
-                  <span className={s("avatarDot")}>{row.name.charAt(0)}</span>
-                  {row.name}
-                </div>
-                <span className={row.status === "present" ? s("statusPresent") : s("statusLate")}>
-                  {row.status === "present" ? "PRESENT" : "LATE"}
-                </span>
+              { num: "4",  label: "Role portals",         sub: "Admin, Faculty, Student, Super Admin" },
+              { num: "15+",label: "Modules",               sub: "All connected, one system" },
+              { num: "BS", label: "Nepali calendar",       sub: "Bikram Sambat display support" },
+              { num: "0₹", label: "Free plan forever",     sub: "Up to 100 students, no credit card" },
+            ].map((s2) => (
+              <div className={s.statItem} key={s2.label}>
+                <strong>{s2.num}</strong>
+                <span>{s2.label}</span>
+                <small>{s2.sub}</small>
               </div>
             ))}
-          </div>
-          <div className={s("stamp")}>
-            DIGITAL
-            <br />
-            REGISTER
-            <br />
-            ✓ VERIFIED
-          </div>
-        </div>
-      </header>
+          </section>
+        </Reveal>
 
-      {/* ───────── facts strip ───────── */}
-      <Reveal>
-        <section className={s("factsStrip")}>
-          <div className={s("factItem")}>
-            <strong>4 ROLE PORTALS</strong>
-            <span>Admin, Faculty, Student, Super Admin</span>
-          </div>
-          <div className={s("factItem")}>
-            <strong>ONE ACTIVE YEAR</strong>
-            <span>Every class and record tied to a single live year</span>
-          </div>
-          <div className={s("factItem")}>
-            <strong>SECTION-LEVEL ATTENDANCE</strong>
-            <span>Marked, edited, and submitted per class section</span>
-          </div>
-          <div className={s("factItem")}>
-            <strong>SCHOOL-SCOPED DATA</strong>
-            <span>No record is ever visible outside its own school</span>
+        {/* ═══════════════════════════════ PARTNERS ══════════════════════════ */}
+        <section className={s.partnersSection} id="partners" aria-label="Trusted schools">
+          <Reveal>
+            <div className={s.partnersInner}>
+              <p className={s.partnersLabel}>Trusted by schools across Nepal &amp; India</p>
+              <div className={s.partnersLogos}>
+                {PARTNERS.map((p) => (
+                  <div className={s.partnerCard} key={p.name}>
+                    <div className={s.partnerLogoBox}>
+                      <span className={s.partnerAbbr}>{p.abbr}</span>
+                    </div>
+                    <div className={s.partnerInfo}>
+                      <span className={s.partnerName}>{p.name}</span>
+                      <span className={s.partnerLoc}>
+                        <i className="fa-solid fa-location-dot" /> {p.location}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className={s.techPartnerRow}>
+                <span className={s.techPartnerLabel}>Built on</span>
+                {TECH_PARTNERS.map((t) => (
+                  <div className={s.techPartnerItem} key={t.name}>
+                    <i className={`fa-brands ${t.icon}`} />
+                    <span>{t.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </section>
+
+        {/* ═══════════════════════════════ HOW IT WORKS ══════════════════════ */}
+        <section className={s.section} id="how" aria-labelledby="how-title">
+          <Reveal className={s.sectionHead}>
+            <div className={s.eyebrow}>Getting started</div>
+            <h2 id="how-title" className={s.sectionTitle}>
+              From sign-up to your first attendance entry — same day
+            </h2>
+            <p className={s.sectionIntro}>
+              No setup calls, no waiting. A school admin can have Skoolio fully configured and running the same day they register.
+            </p>
+          </Reveal>
+          <div className={s.howGrid}>
+            {[
+              { n: "01", title: "Register your school", desc: "Create your school account in minutes — name, type, location, timezone. No sales call required." },
+              { n: "02", title: "Set up your year",     desc: "Add your active academic year, classes, sections, subjects, and staff. The foundation everything else builds on." },
+              { n: "03", title: "Run your school",      desc: "Mark attendance, record exam marks, collect fees, and publish results — all from one dashboard." },
+            ].map((step, i) => (
+              <Reveal key={step.n} delay={i * 120}>
+                <div className={s.stepCard}>
+                  <span className={s.stepNum}>{step.n}</span>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                </div>
+              </Reveal>
+            ))}
           </div>
         </section>
-      </Reveal>
 
-      {/* ───────── how it works ───────── */}
-      <section className={s("section")} id="how">
-        <Reveal className={s("sectionHead")}>
-          <div className={s("eyebrow")}>Getting started</div>
-          <h2 className={s("sectionTitle")}>From sign-up to your first attendance entry</h2>
-          <p className={s("sectionIntro")}>
-            No setup calls, no onboarding queue - a school admin can have the system running the same day.
-          </p>
-        </Reveal>
-        <Reveal>
-          <div className={s("howGrid")}>
-            <div className={s("stepCard")}>
-              <span className={s("stepNum")}>01</span>
-              <h3>Register your school</h3>
-              <p>Create your school's account directly from this page - it takes a few minutes, not a sales call.</p>
-            </div>
-            <div className={s("stepCard")}>
-              <span className={s("stepNum")}>02</span>
-              <h3>Set up your year</h3>
-              <p>Add your active academic year, classes, sections, subjects, and staff - the foundation everything else is built on.</p>
-            </div>
-            <div className={s("stepCard")}>
-              <span className={s("stepNum")}>03</span>
-              <h3>Run your school day</h3>
-              <p>Mark attendance, record exam results, and track fees - all from the same ledger, the same day you sign up.</p>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* ───────── modules: what you manage ───────── */}
-      <section className={s("section")} id="manage">
-        <Reveal className={s("sectionHead")}>
-          <div className={s("eyebrow")}>The ledger</div>
-          <h2 className={s("sectionTitle")}>Everything a school office actually manages</h2>
-          <p className={s("sectionIntro")}>
-            Six modules, all writing to the same underlying record — so attendance, results, and fees never
-            drift out of sync with each other.
-          </p>
-        </Reveal>
-        <Reveal>
-          <div className={s("modulesGrid")}>
-            {MODULES.map((m) => (
-              <div className={s("moduleCard")} key={m.code}>
-                <span className={s("moduleCode")}>{m.code}</span>
-                <h3>{m.title}</h3>
-                <ul className={s("checklist")}>
-                  {m.points.map((point) => (
-                    <Check key={point}>{point}</Check>
-                  ))}
-                </ul>
-              </div>
+        {/* ═══════════════════════════════ MODULES ═══════════════════════════ */}
+        <section className={s.section} id="modules" aria-labelledby="modules-title">
+          <Reveal className={s.sectionHead}>
+            <div className={s.eyebrow}>The platform</div>
+            <h2 id="modules-title" className={s.sectionTitle}>
+              Everything a school office actually manages
+            </h2>
+            <p className={s.sectionIntro}>
+              Six core modules, all writing to the same underlying record — so attendance, results, and fees never drift out of sync.
+            </p>
+          </Reveal>
+          <div className={s.modulesGrid}>
+            {MODULES.map((m, i) => (
+              <Reveal key={m.code} delay={i * 80}>
+                <article className={s.moduleCard}>
+                  <div className={s.moduleIconWrap}>
+                    <i className={`fa-solid ${m.icon}`} />
+                  </div>
+                  <div className={s.moduleCodeTag}>{m.code}</div>
+                  <h3 className={s.moduleTitle}>{m.title}</h3>
+                  <p className={s.moduleDesc}>{m.desc}</p>
+                  <ul className={s.modulePoints}>
+                    {m.points.map((pt) => (
+                      <li key={pt}>
+                        <i className="fa-solid fa-check" />
+                        {pt}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              </Reveal>
             ))}
           </div>
-        </Reveal>
-      </section>
+        </section>
 
-      {/* ───────── photo banner ───────── */}
-      <Reveal>
-        <div className={s("photoBanner")}>
-          <img
-            className={s("photoBannerImg")}
-            src="https://images.pexels.com/photos/6936011/pexels-photo-6936011.jpeg?auto=compress&cs=tinysrgb&w=1600"
-            alt="Students studying together in a classroom"
-            loading="lazy"
-          />
-          <div className={s("photoOverlay")}>
-            <div className={s("photoCaption")}>
-              <div className={s("eyebrow")}>Built for real classrooms</div>
-              <h3>Designed around the section, not the spreadsheet</h3>
-              <p>
-                Teachers mark attendance for the class in front of them. Admins see every section roll up
-                into one school-wide view. Nobody re-enters the same name twice.
+        {/* ═══════════════════════════════ PHOTO BANNER ══════════════════════ */}
+        <Reveal>
+          <div className={s.photoBanner}>
+            <img
+              className={s.photoBannerImg}
+              src="https://images.pexels.com/photos/6936011/pexels-photo-6936011.jpeg?auto=compress&cs=tinysrgb&w=1600"
+              alt="Students studying together in a South Asian classroom"
+              loading="lazy"
+              width={1600}
+              height={600}
+            />
+            <div className={s.photoOverlay}>
+              <div className={s.photoCaption}>
+                <div className={s.eyebrow} style={{ color: "#FF9B51" }}>Built for real classrooms</div>
+                <h3>Designed around the section, not the spreadsheet</h3>
+                <p>
+                  Teachers mark attendance for the class in front of them. Admins see every section roll up into one school-wide view. Nobody re-enters the same name twice.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* ═══════════════════════════════ ROLES ═════════════════════════════ */}
+        <section className={s.section} id="roles" aria-labelledby="roles-title">
+          <Reveal className={s.sectionHead}>
+            <div className={s.eyebrow}>Role by role</div>
+            <h2 id="roles-title" className={s.sectionTitle}>
+              Everyone sees exactly their part of the system
+            </h2>
+            <p className={s.sectionIntro}>
+              Four separate portals, one login screen. Each role is scoped to only what it needs.
+            </p>
+          </Reveal>
+          <div className={s.rolesGrid}>
+            {[
+              {
+                tag: "ADMIN",
+                color: "#25343F",
+                title: "School Admin",
+                desc: "Full control over every module — students, staff, fees, exams, transport, hostel, and settings.",
+                perms: ["Manage all students and teachers", "Full fee management and receipts", "Create and publish exams", "Manage transport, hostel, salary"],
+              },
+              {
+                tag: "FACULTY",
+                color: "#FF9B51",
+                title: "Teacher / Faculty",
+                desc: "Scoped to their own sections and subjects. Can't touch data outside their assignment.",
+                perms: ["Mark attendance for own sections only", "Enter results for own subjects only", "View class lists and notices", "View own salary history"],
+              },
+              {
+                tag: "STUDENT",
+                color: "#22c55e",
+                title: "Student",
+                desc: "Self-service view of their own record only. No access to classmates' data.",
+                perms: ["View own attendance history", "View own exam results (when published)", "View own fee collections", "Download payment receipts"],
+              },
+              {
+                tag: "SUPER ADMIN",
+                color: "#6366f1",
+                title: "Super Admin",
+                desc: "Platform-level access. Manages all schools, subscriptions, and platform settings.",
+                perms: ["Manage all schools on platform", "Activate and manage subscriptions", "View platform-wide analytics", "Configure global settings"],
+              },
+            ].map((role, i) => (
+              <Reveal key={role.tag} delay={i * 80}>
+                <article className={s.roleCard}>
+                  <div className={s.roleCardTop} style={{ borderTopColor: role.color }}>
+                    <span className={s.roleTag} style={{ background: role.color }}>{role.tag}</span>
+                    <h3 className={s.roleTitle}>{role.title}</h3>
+                    <p className={s.roleDesc}>{role.desc}</p>
+                  </div>
+                  <ul className={s.rolePerms}>
+                    {role.perms.map((p) => (
+                      <li key={p}>
+                        <i className="fa-solid fa-check" style={{ color: role.color }} />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════ PRICING ═══════════════════════════ */}
+        <section className={s.section} id="pricing" aria-labelledby="pricing-title">
+          <Reveal className={s.sectionHead}>
+            <div className={s.eyebrow}>Pricing</div>
+            <h2 id="pricing-title" className={s.sectionTitle}>
+              Start free. Grow when you're ready.
+            </h2>
+            <p className={s.sectionIntro}>
+              All plans include the core academic modules. Fee management and higher capacity are available on paid plans.
+            </p>
+          </Reveal>
+          <div className={s.pricingGrid}>
+            {PLANS.map((plan, i) => (
+              <Reveal key={plan.name} delay={i * 100}>
+                <article className={`${s.planCard}${plan.highlight ? " " + s.planHighlight : ""}`}>
+                  {plan.highlight && <div className={s.planBadge}>Most Popular</div>}
+                  <div className={s.planTop}>
+                    <h3 className={s.planName} style={{ color: plan.color }}>{plan.name}</h3>
+                    <div className={s.planPrice}>{plan.price}</div>
+                    <div className={s.planSub}>{plan.sub}</div>
+                    <div className={s.planCapacity}>
+                      <span><i className="fa-solid fa-user-graduate" /> {plan.students}</span>
+                      <span><i className="fa-solid fa-chalkboard-user" /> {plan.teachers}</span>
+                    </div>
+                  </div>
+                  <ul className={s.planFeatures}>
+                    {plan.features.map((f) => (
+                      <li key={f} className={s.planFeatureYes}>
+                        <i className="fa-solid fa-check" />{f}
+                      </li>
+                    ))}
+                    {plan.missing.map((f) => (
+                      <li key={f} className={s.planFeatureNo}>
+                        <i className="fa-solid fa-xmark" />{f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={plan.name === "Free" ? "/register" : "/register"}
+                    className={plan.highlight ? s.btnPrimary : s.btnGhost}
+                    style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}
+                  >
+                    {plan.name === "Free" ? "Get Started Free" : "Contact Us"}
+                  </Link>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════ FAQ ═══════════════════════════════ */}
+        <section className={s.section} id="faq" aria-labelledby="faq-title">
+          <Reveal className={s.sectionHead}>
+            <div className={s.eyebrow}>FAQ</div>
+            <h2 id="faq-title" className={s.sectionTitle}>Before you register</h2>
+            <p className={s.sectionIntro}>Common questions from school admins.</p>
+          </Reveal>
+          <Reveal>
+            <FaqAccordion />
+          </Reveal>
+        </section>
+
+        {/* ═══════════════════════════════ CTA BAND ══════════════════════════ */}
+        <Reveal>
+          <section className={s.ctaBand} id="about" aria-label="Call to action">
+            <div className={s.ctaContent}>
+              <div className={s.eyebrow} style={{ color: "#FF9B51" }}>Get started today</div>
+              <h2 className={s.ctaTitle}>
+                Ready to put your school's records in order?
+              </h2>
+              <p className={s.ctaSub}>
+                Register in minutes. Add classes, sections, and staff as you go. Free forever for small schools.
               </p>
+              <div className={s.ctaActions}>
+                {isAuthenticated && user ? (
+                  <Link href={dashboardHref} className={s.btnHeroPrimary}>
+                    <i className="fa-solid fa-gauge-high" /> Go to Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/register" className={s.btnHeroPrimary}>
+                      <i className="fa-solid fa-school" /> Register Free
+                    </Link>
+                    <Link href="/login" className={`${s.btnHeroGhost} ${s.ctaGhost}`}>
+                      Sign In
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      </Reveal>
-
-      {/* ───────── roles ───────── */}
-      <section className={s("section")} id="roles">
-        <Reveal className={s("sectionHead")}>
-          <div className={s("eyebrow")}>Role by role</div>
-          <h2 className={s("sectionTitle")}>Everyone sees exactly their part of the register</h2>
-          <p className={s("sectionIntro")}>
-            CampusPOS is split into four portals from the same login screen, each scoped to what that role
-            actually needs to do.
-          </p>
+          </section>
         </Reveal>
 
-        <Reveal>
-          <div className={s("roleDetailGrid")}>
-            <div className={s("roleDetailCard")}>
-              <div className={s("roleDetailImgWrap")}>
-                <img
-                  className={s("roleDetailImg")}
-                  src="https://images.pexels.com/photos/8926835/pexels-photo-8926835.jpeg?auto=compress&cs=tinysrgb&w=900"
-                  alt="Teacher leading students across the school campus"
-                  loading="lazy"
+        {/* ═══════════════════════════════ FOOTER ════════════════════════════ */}
+        <footer className={s.footer} aria-label="Site footer">
+          <div className={s.footerInner}>
+            <div className={s.footerBrand}>
+              <Link href="/" aria-label="Skoolio — Home">
+                <Image
+                  src="/Logo.png"
+                  alt="Skoolio"
+                  width={120}
+                  height={36}
+                  style={{ objectFit: "contain", height: 36, width: "auto" }}
                 />
-                <span className={s("roleDetailTag")}>FACULTY</span>
-              </div>
-              <div className={s("roleDetailBody")}>
-                <h3>Faculty — built for the class in front of you</h3>
-                <p>What a teacher's account can do once they're signed in.</p>
-                <ul className={s("checklist")}>
-                  <Check>Mark attendance for the sections assigned to them, one period at a time</Check>
-                  <Check>Edit a day's attendance entries up until it's submitted</Check>
-                  <Check>Enter and update exam results for their own students</Check>
-                  <Check>Pull up their own class lists without waiting on an admin</Check>
-                </ul>
-                <div className={s("roleBoundary")}>
-                  <i className="fa-solid fa-lock" />
-                  Faculty accounts are scoped automatically to their own school — never another school's
-                  classes or staff.
-                </div>
+              </Link>
+              <p>
+                The all-in-one school management platform for Nepal and India. Attendance, fees, exams, and staff — entered once, visible to the right role.
+              </p>
+              <div className={s.footerSocial}>
+                <a href="#" aria-label="Skoolio on X / Twitter"><i className="fa-brands fa-x-twitter" /></a>
+                <a href="#" aria-label="Skoolio on LinkedIn"><i className="fa-brands fa-linkedin-in" /></a>
+                <a href="#" aria-label="Skoolio on Facebook"><i className="fa-brands fa-facebook-f" /></a>
+                <a href="#" aria-label="Skoolio on Instagram"><i className="fa-brands fa-instagram" /></a>
               </div>
             </div>
 
-            <div className={s("roleDetailCard")}>
-              <div className={s("roleDetailImgWrap")}>
-                <img
-                  className={s("roleDetailImg")}
-                  src="https://images.pexels.com/photos/32292156/pexels-photo-32292156.jpeg?auto=compress&cs=tinysrgb&w=900"
-                  alt="Two students walking through a school corridor"
-                  loading="lazy"
-                />
-                <span className={s("roleDetailTag")}>STUDENT</span>
+            <div className={s.footerCols}>
+              <div className={s.footerCol}>
+                <h5>PRODUCT</h5>
+                <a href="#modules">Attendance</a>
+                <a href="#modules">Fee Management</a>
+                <a href="#modules">Exams &amp; Results</a>
+                <a href="#modules">Transport &amp; Hostel</a>
+                <a href="#modules">Staff &amp; Salary</a>
               </div>
-              <div className={s("roleDetailBody")}>
-                <h3>Student — your own record, nothing else</h3>
-                <p>What a student's account can do once they're signed in.</p>
-                <ul className={s("checklist")}>
-                  <Check>View their own attendance history, month by month</Check>
-                  <Check>View their own exam results once a teacher publishes them</Check>
-                  <Check>See their own profile and class enrollment details</Check>
-                </ul>
-                <div className={s("roleBoundary")}>
-                  <i className="fa-solid fa-lock" />
-                  A student account can never see another student's attendance or marks — not even from
-                  the same class.
-                </div>
+              <div className={s.footerCol}>
+                <h5>PLATFORM</h5>
+                <a href="#how">How it Works</a>
+                <a href="#roles">Role Portals</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#partners">Trusted By</a>
+              </div>
+              <div className={s.footerCol}>
+                <h5>SUPPORT</h5>
+                <a href="#faq">FAQ</a>
+                <a href="#faq">Help Center</a>
+                <Link href="/login">Sign In</Link>
+                <Link href="/register">Register School</Link>
               </div>
             </div>
           </div>
-        </Reveal>
-      </section>
 
-      {/* ───────── FAQ ───────── */}
-      <section className={s("section")} id="faq">
-        <Reveal className={s("sectionHead")}>
-          <div className={s("eyebrow")}>Questions</div>
-          <h2 className={s("sectionTitle")}>Before you register</h2>
-          <p className={s("sectionIntro")}>The things schools usually ask before switching over.</p>
-        </Reveal>
-        <Reveal>
-          <FaqAccordion />
-        </Reveal>
-      </section>
-
-      {/* ───────── CTA band ───────── */}
-      <Reveal>
-        <section className={s("ctaBand")} id="about">
-          <div className={s("ctaText")}>
-            <div className={s("eyebrow")}>Get started</div>
-            <h2>Ready to put your school's records in order?</h2>
-            <p>Register your school in a few minutes, then add classes, sections, and staff as you go.</p>
-          </div>
-          <div className={s("ctaActions")}>
-            <Link href="/register" className={cx(s("btn"), s("btnStamp"))}>
-              <i className="fa-solid fa-school" /> Register Your School
-            </Link>
-            <Link href="/login" className={cx(s("btn"), s("btnGhost"))}>
-              Sign In
-            </Link>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* ───────── footer ───────── */}
-      <footer className={s("footer")}>
-        <div className={s("footerInner")}>
-          <div className={s("footerBrand")}>
-            <Link href="/" className={s("logo")}>
-              <span className={s("logoMark")}>CP</span>
-              CampusPOS
-            </Link>
-            <p>The school's operating ledger, digitized — attendance, exams, fees, and staff in one place.</p>
-            <div className={s("footerSocial")}>
-              <a href="#" aria-label="CampusPOS on X"><i className="fa-brands fa-x-twitter" /></a>
-              <a href="#" aria-label="CampusPOS on LinkedIn"><i className="fa-brands fa-linkedin-in" /></a>
-              <a href="#" aria-label="CampusPOS on Facebook"><i className="fa-brands fa-facebook-f" /></a>
-              <a href="#" aria-label="CampusPOS on Instagram"><i className="fa-brands fa-instagram" /></a>
+          <div className={s.footerBottom}>
+            <span>© 2026 Skoolio · Built for schools in Nepal &amp; India</span>
+            <div className={s.footerLegal}>
+              <a href="#">Privacy Policy</a>
+              <a href="#">Terms of Service</a>
             </div>
           </div>
-          <div className={s("footerCols")}>
-            <div className={s("footerCol")}>
-              <h5>PRODUCT</h5>
-              <a href="#manage">Attendance</a>
-              <a href="#manage">Exams &amp; Results</a>
-              <a href="#manage">Fees &amp; Expenses</a>
-              <a href="#roles">Role Portals</a>
-            </div>
-            <div className={s("footerCol")}>
-              <h5>COMPANY</h5>
-              <a href="#how">How It Works</a>
-              <a href="#roles">Roles</a>
-              <a href="#faq">FAQ</a>
-            </div>
-            <div className={s("footerCol")}>
-              <h5>SUPPORT</h5>
-              <a href="#faq">Help Center</a>
-              <a href="#faq">Contact Us</a>
-              <Link href="/login">Sign In</Link>
-              <Link href="/register">Register School</Link>
-            </div>
-          </div>
-        </div>
-        <div className={s("footerBottom")}>
-          <span>© 2026 CampusPOS · Built for schools that run on order, not chaos.</span>
-          <div className={s("footerLegalRow")}>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </div>
+    </>
   );
 }
