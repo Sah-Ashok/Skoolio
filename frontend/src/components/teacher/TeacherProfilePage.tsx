@@ -114,6 +114,16 @@ export default function TeacherProfilePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
+      <style>{`
+        .tp-hero       { display:flex; }
+        .tp-avatar-col { width:200px; flex-shrink:0; background:#25343F; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:36px 20px; gap:14px; }
+        .tp-info-col   { flex:1; min-width:0; padding:28px 28px 24px; }
+        @media(max-width:600px){
+          .tp-hero       { flex-direction:column; }
+          .tp-avatar-col { width:100%; padding:28px 20px 22px; }
+          .tp-info-col   { padding:18px 16px 20px; }
+        }
+      `}</style>
       <Topbar title="My Profile" subtitle="Your personal and professional information" />
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
@@ -121,12 +131,12 @@ export default function TeacherProfilePage() {
           <div style={{ padding: "5rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
         ) : (
           <>
-            {/* ══ HERO — avatar LEFT, info RIGHT, no overlap ══ */}
+            {/* ══ HERO ══ */}
             <Card>
-              <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+              <div className="tp-hero">
 
                 {/* Left — avatar column */}
-                <div style={{ width: 200, flexShrink: 0, background: "#25343F", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 20px", gap: 14 }}>
+                <div className="tp-avatar-col">
                   <div style={{ width: 80, height: 80, borderRadius: 20, background: "#FF9B51", color: "#1e2d38", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 900, boxShadow: "0 6px 20px rgba(255,155,81,.4)" }}>
                     {initials}
                   </div>
@@ -142,18 +152,18 @@ export default function TeacherProfilePage() {
                 </div>
 
                 {/* Right — name + details */}
-                <div style={{ flex: 1, minWidth: 0, padding: "28px 28px 24px" }}>
+                <div className="tp-info-col">
                   <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#1e293b", lineHeight: 1.2 }}>{me?.full_name ?? "—"}</h1>
                   <p style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 700, color: "#6a7882" }}>{me?.school_name ?? ""}</p>
 
                   {/* Quick info chips */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18 }}>
                     {[
-                      { icon: "fa-graduation-cap",  val: me?.qualification     || "—"  },
-                      { icon: "fa-briefcase",        val: `${me?.experience_years ?? 0} yrs exp` },
-                      { icon: "fa-calendar-check",   val: fmtDate(me?.join_date)        },
-                      { icon: "fa-venus-mars",       val: cap(me?.gender)               },
-                    ].map(c => (
+                      { icon: "fa-graduation-cap", val: me?.qualification                        },
+                      { icon: "fa-briefcase",       val: `${me?.experience_years ?? 0} yrs exp`  },
+                      { icon: "fa-calendar-check",  val: fmtDate(me?.join_date)                  },
+                      { icon: "fa-venus-mars",      val: cap(me?.gender)                         },
+                    ].filter(c => c.val && c.val !== "—").map(c => (
                       <div key={c.icon} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 8, background: "#f7fafb", border: "1px solid #e8eef0" }}>
                         <i className={`fa-solid ${c.icon}`} style={{ fontSize: 12, color: "#FF9B51" }} />
                         <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{c.val}</span>
@@ -178,8 +188,6 @@ export default function TeacherProfilePage() {
 
             {/* ══ TWO-COL: Personal + Contact ══ */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
-
-              {/* Personal */}
               <Card>
                 <CardHead icon="fa-user" title="Personal Information" />
                 <div style={{ padding: "4px 20px 12px" }}>
@@ -190,7 +198,6 @@ export default function TeacherProfilePage() {
                 </div>
               </Card>
 
-              {/* Contact */}
               <Card>
                 <CardHead icon="fa-address-book" title="Contact Details" />
                 <div style={{ padding: "4px 20px 12px" }}>
@@ -208,8 +215,8 @@ export default function TeacherProfilePage() {
               <CardHead icon="fa-briefcase" title="Professional Information" sub="Academic credentials and employment details" />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 0, padding: "4px 20px 12px" }}>
                 <div style={{ paddingRight: 20 }}>
-                  <Field icon="fa-graduation-cap"  label="Qualification"   value={me?.qualification} />
-                  <Field icon="fa-briefcase"        label="Experience"      value={`${me?.experience_years ?? 0} years`} />
+                  <Field icon="fa-graduation-cap" label="Qualification" value={me?.qualification} />
+                  <Field icon="fa-briefcase"      label="Experience"    value={`${me?.experience_years ?? 0} years`} />
                 </div>
                 <div style={{ paddingLeft: 20, borderLeft: "1px solid #f0f4f5" }}>
                   <Field icon="fa-calendar-check"   label="Date of Joining" value={fmtDate(me?.join_date)} />
@@ -228,7 +235,6 @@ export default function TeacherProfilePage() {
                   <PwdInput label="Confirm New Password" value={confirmPwd}  onChange={setConfirmPwd}  placeholder="Repeat new password" />
                 </div>
 
-                {/* Strength bar */}
                 {newPwd.length > 0 && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>

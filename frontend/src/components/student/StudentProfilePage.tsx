@@ -1,77 +1,97 @@
 "use client";
 
 import { useState } from "react";
+import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
 
-/* ── helpers ── */
-const fmt = (d?: string | null) =>
+// ── helpers ───────────────────────────────────────────────────────────────────
+const fmtDate = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
 const cap = (s?: string | null) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null;
 
-const streamLabel: Record<string, string> = {
+const STREAM_LABEL: Record<string, string> = {
   science: "Science", commerce: "Commerce",
   arts: "Arts / Humanities", not_applicable: "General",
 };
 
-const bgColor: Record<string, { bg: string; color: string }> = {
-  "A+": { bg: "#fee2e2", color: "#dc2626" }, "A-": { bg: "#fee2e2", color: "#dc2626" },
-  "B+": { bg: "#fef3c7", color: "#d97706" }, "B-": { bg: "#fef3c7", color: "#d97706" },
-  "O+": { bg: "#dcfce7", color: "#16a34a" }, "O-": { bg: "#dcfce7", color: "#16a34a" },
-  "AB+": { bg: "#e0e7ff", color: "#4338ca" }, "AB-": { bg: "#e0e7ff", color: "#4338ca" },
-};
+// ── sub-components ────────────────────────────────────────────────────────────
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", boxShadow: "0 1px 8px rgba(31,45,54,.07)", overflow: "hidden" }}>
+      {children}
+    </div>
+  );
+}
 
-/* ── shared styles ── */
-const pwdLabelStyle: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
-  textTransform: "uppercase", color: "#94a3b8", marginBottom: 6,
-};
-const pwdInputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", borderRadius: 10,
-  border: "1.5px solid #e2e8f0", fontSize: 14, color: "#1e293b",
-  background: "#f8fafc", outline: "none", boxSizing: "border-box",
-};
+function CardHead({ icon, title, sub }: { icon: string; title: string; sub?: string }) {
+  return (
+    <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0f4f5", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <i className={`fa-solid ${icon}`} style={{ color: "#FF9B51", fontSize: 13 }} />
+      </div>
+      <div>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 900, color: "#1e293b" }}>{title}</p>
+        {sub && <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
-/* ── single info row ── */
-function Row({ icon, label, value, highlight = false }: {
-  icon: string; label: string; value?: string | null; highlight?: boolean;
+function Field({ label, value, icon, mono }: {
+  label: string; value?: string | null; icon?: string; mono?: boolean;
 }) {
-  const val = value && value !== "-" ? value : null;
+  const v = value && value !== "—" ? value : null;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", borderBottom: "1px solid #f1f5f9" }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: highlight ? "#fff1df" : "#f8fafc", color: highlight ? "#e98239" : "#64748b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-        <i className={`fa-solid ${icon}`} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: "uppercase", color: "#94a3b8", marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: val ? "#1e293b" : "#cbd5e1", wordBreak: "break-word" }}>{val ?? "Not provided"}</div>
+    <div style={{ padding: "11px 0", borderBottom: "1px solid #f7fafb", display: "flex", alignItems: "center", gap: 12 }}>
+      {icon && (
+        <i className={`fa-solid ${icon}`} style={{ width: 16, textAlign: "center", fontSize: 12, color: "#c6d0d7", flexShrink: 0 }} />
+      )}
+      <div style={{ flex: 1 }}>
+        <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 2 }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: v ? "#1e293b" : "#d4dde2", fontFamily: mono ? "monospace" : "inherit" }}>
+          {v || "—"}
+        </span>
       </div>
     </div>
   );
 }
 
-/* ── section title ── */
-function SectionTitle({ icon, label, color = "#FF9B51" }: { icon: string; label: string; color?: string }) {
+function PwdInput({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder: string;
+}) {
+  const [show, setShow] = useState(false);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 20px 12px", borderBottom: "1px solid #f1f5f9" }}>
-      <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: `${color}20`, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-        <i className={`fa-solid ${icon}`} />
+    <div>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>{label}</label>
+      <div style={{ position: "relative" }}>
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          required
+          style={{ width: "100%", height: 40, padding: "0 40px 0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, fontWeight: 600, outline: "none", background: "#fafbfc", boxSizing: "border-box" }}
+        />
+        <button type="button" onClick={() => setShow(s => !s)}
+          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 13 }}>
+          <i className={`fa-solid ${show ? "fa-eye-slash" : "fa-eye"}`} />
+        </button>
       </div>
-      <span style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>{label}</span>
     </div>
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
 export default function StudentProfilePage() {
   const { user }              = useAppSelector(s => s.auth);
   const { data: me, loading } = useApi<any>("/auth/me");
   const { data: enrollments } = useApi<any[]>("/students/me/enrollments");
 
-  // ── change password ──
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd,     setNewPwd]     = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
@@ -82,8 +102,8 @@ export default function StudentProfilePage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwdError(""); setPwdSuccess("");
-    if (newPwd.length < 6)       { setPwdError("New password must be at least 6 characters."); return; }
-    if (newPwd !== confirmPwd)    { setPwdError("New passwords do not match."); return; }
+    if (newPwd.length < 6)    { setPwdError("New password must be at least 6 characters."); return; }
+    if (newPwd !== confirmPwd) { setPwdError("New passwords do not match."); return; }
     setPwdLoading(true);
     try {
       await apiRequest("/auth/change-password/student", {
@@ -94,9 +114,7 @@ export default function StudentProfilePage() {
       setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
     } catch (err: any) {
       setPwdError(err.message || "Failed to change password.");
-    } finally {
-      setPwdLoading(false);
-    }
+    } finally { setPwdLoading(false); }
   };
 
   const current  = enrollments?.[0];
@@ -104,244 +122,239 @@ export default function StudentProfilePage() {
     ? me.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "S";
   const schoolName = me?.school_name || (user as any)?.school_name || "";
-  const bgroup     = me?.blood_group;
-  const bclr       = bgroup ? bgColor[bgroup] : null;
+
+  // password strength
+  const strength = newPwd.length === 0 ? 0 : newPwd.length < 6 ? 1 : newPwd.length < 8 ? 2 : newPwd.length < 10 ? 3 : 4;
+  const strengthColor = ["#e2e8f0", "#ef4444", "#f97316", "#eab308", "#22c55e"][strength];
+  const strengthLabel = ["", "Too short", "Weak", "Medium", "Strong"][strength];
 
   return (
-    <>
+    <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
       <style>{`
-        .spp { min-height:100vh; background:#f0f4f8; font-family:'Nunito','Inter',sans-serif; }
-        .spp-mob-bar { display:none; align-items:center; justify-content:center; padding:13px 20px; background:#fff; border-bottom:1.5px solid #e2e8f0; position:sticky; top:0; z-index:50; }
-        .spp-mob-logo { height:28px; object-fit:contain; }
-        .spp-mob-logo-txt { font-size:20px; font-weight:900; color:#25343F; letter-spacing:-0.5px; display:none; }
-        .spp-mob-logo-txt em { font-style:normal; color:#FF9B51; }
-        .spp-desk-bar { background:#fff; height:64px; display:flex; align-items:center; padding:0 28px; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:50; box-shadow:0 1px 6px rgba(37,52,63,0.06); }
-        .spp-desk-bar h2 { font-size:17px; font-weight:800; color:#25343F; }
-        .spp-desk-bar p  { font-size:12px; color:#94a3b8; margin-top:1px; }
-        .spp-scroll { padding:20px; max-width:620px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
-        .spp-hero { border-radius:20px; overflow:hidden; box-shadow:0 6px 28px rgba(37,52,63,0.18); }
-        .spp-hero-top { background:linear-gradient(135deg,#1e3a4c 0%,#2c4f66 50%,#1e3a4c 100%); padding:30px 24px ; position:relative; text-align:center; }
-        .spp-hero-top::before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 20% 50%,rgba(255,155,81,0.12) 0%,transparent 60%),radial-gradient(circle at 80% 20%,rgba(255,255,255,0.05) 0%,transparent 40%); pointer-events:none; }
-        .spp-hero-school { font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:rgba(255,255,255,0.5); margin-bottom:24px; position:relative; z-index:1; }
-        .spp-avatar-wrap { position:relative; z-index:1; display:inline-block; }
-        .spp-avatar { width:220px; height:220px; border-radius:18px; border:3.5px solid rgba(255,155,81,0.8); box-shadow:0 8px 32px rgba(0,0,0,0.4); background:linear-gradient(135deg,#314653,#1e3a4c); display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:900; color:#FF9B51; letter-spacing:-1px; overflow:hidden; position:relative; }
-        .spp-avatar img { width:100%; height:100%; object-fit:cover; object-position:top; border-radius:14px; }
-        .spp-avatar::after { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,0.08) 0%,transparent 60%); border-radius:14px; pointer-events:none; }
-        .spp-bg-badge { position:absolute; bottom:-8px; right:-8px; padding:4px 9px; border-radius:8px; font-size:12px; font-weight:900; border:2px solid #fff; box-shadow:0 3px 10px rgba(0,0,0,0.25); white-space:nowrap; }
-        .spp-hero-bottom { background:#fff; margin-top:-52px; padding-top:62px; padding-bottom:18px; padding-inline:20px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; }
-        .spp-name { font-size:22px; font-weight:900; color:#1e293b; letter-spacing:-0.4px; line-height:1.1; }
-        .spp-adm  { font-size:12px; color:#94a3b8; margin-top:-4px; }
-        .spp-pills { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:2px; }
-        .spp-pill  { display:inline-flex; align-items:center; gap:5px; padding:5px 13px; border-radius:999px; font-size:11.5px; font-weight:800; }
-        .spp-strip { background:#fff; border-radius:16px; overflow:hidden; display:grid; grid-template-columns:repeat(3,1fr); box-shadow:0 2px 12px rgba(37,52,63,0.07); border:1px solid #f1f5f9; }
-        .spp-strip-item { padding:14px 10px; display:flex; flex-direction:column; align-items:center; text-align:center; position:relative; }
-        .spp-strip-item + .spp-strip-item::before { content:""; position:absolute; left:0; top:20%; bottom:20%; width:1px; background:#f1f5f9; }
-        .spp-strip-val { font-size:18px; font-weight:900; color:#1e293b; line-height:1.1; }
-        .spp-strip-key { font-size:9.5px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
-        .spp-scholar { border-radius:14px; padding:14px 18px; background:linear-gradient(120deg,#dcfce7,#d1fae5); border:1px solid #86efac; display:flex; align-items:center; gap:12px; }
-        .spp-scholar-icon { width:40px; height:40px; border-radius:10px; flex-shrink:0; background:#4ade80; color:#14532d; display:flex; align-items:center; justify-content:center; font-size:17px; }
-        .spp-scholar-title { font-size:13px; font-weight:900; color:#14532d; }
-        .spp-scholar-sub   { font-size:11px; font-weight:700; color:#166534; margin-top:2px; }
-        .spp-card { background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 12px rgba(37,52,63,0.06); border:1px solid #f1f5f9; }
-        .spp-card > div:last-child { border-bottom:none !important; }
-        @media (max-width: 768px) {
-          .spp-desk-bar { display:none; } .spp-mob-bar { display:flex; }
-          .spp-scroll { padding:16px; gap:12px; } .spp-hero-top { padding:24px 18px ; }
-          .spp-avatar { width:220px; height:220px; border-radius:14px; font-size:30px; }
-          .spp-avatar::after { border-radius:11px; } .spp-name { font-size:20px; }
-          .spp-hero-bottom { padding-top:54px; }
+        .sp-hero       { display:flex; }
+        .sp-avatar-col { width:220px; flex-shrink:0; background:#25343F; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px 20px; gap:14px; }
+        .sp-info-col   { flex:1; min-width:0; padding:26px 26px 22px; }
+        @media(max-width:600px){
+          .sp-hero       { flex-direction:column; }
+          .sp-avatar-col { width:100%; padding:28px 20px 22px; }
+          .sp-info-col   { padding:18px 16px 20px; }
         }
-        @media (max-width: 380px) { .spp-name { font-size:18px; } .spp-strip-val { font-size:15px; } }
       `}</style>
+      <Topbar title="My Profile" subtitle="Your personal and academic information" />
 
-      <div className="spp">
-
-        <header className="spp-desk-bar">
-          <div><h2>My Profile</h2><p>Your personal and academic information</p></div>
-        </header>
-
-        <header className="spp-mob-bar">
-          <img src="/Logo.png" alt="Skoolio" className="spp-mob-logo"
-            onError={e => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-              (e.currentTarget.nextElementSibling as HTMLElement).style.display = "block";
-            }}
-          />
-          <span className="spp-mob-logo-txt"><em>Skoo</em>lio</span>
-        </header>
-
+      <main style={{ maxWidth: 980, margin: "0 auto", padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
         {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
-            <Spinner size={36} color="#FF9B51" />
-          </div>
+          <div style={{ padding: "5rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
         ) : (
-          <main className="spp-scroll">
-
+          <>
             {/* ══ HERO ══ */}
-            <div className="spp-hero">
-              <div className="spp-hero-top">
-                
-                <div className="spp-avatar-wrap">
-                  <div className="spp-avatar">
-                    {me?.photo ? <img src={me.photo} alt={me.full_name} /> : initials}
+            <Card>
+              <div className="sp-hero">
+
+                {/* Left — dark avatar column */}
+                <div className="sp-avatar-col">
+                  <div style={{ width: 160, height: 190, borderRadius: 18, background: "#FF9B51", color: "#1e2d38", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 52, fontWeight: 900, boxShadow: "0 6px 24px rgba(255,155,81,.35)", overflow: "hidden", flexShrink: 0, border: "3px solid rgba(255,155,81,.5)" }}>
+                    {me?.photo
+                      ? <img src={me.photo} alt={me.full_name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }} />
+                      : initials
+                    }
                   </div>
-                  {bgroup && bclr && (
-                    <div className="spp-bg-badge" style={{ background: bclr.bg, color: bclr.color }}>{bgroup}</div>
+                </div>
+
+                {/* Right — name + key info */}
+                <div className="sp-info-col">
+                  <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#1e293b", lineHeight: 1.2 }}>{me?.full_name ?? "—"}</h1>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#6a7882" }}>{schoolName}</p>
+                    {me?.status && (
+                      <span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: "capitalize",
+                        background: me.status === "active" ? "#dcfce7" : "#fee2e2",
+                        color:      me.status === "active" ? "#15803d" : "#b91c1c",
+                        border:     `1px solid ${me.status === "active" ? "#bbf7d0" : "#fca5a5"}`,
+                      }}>{me.status}</span>
+                    )}
+                  </div>
+
+                  {/* Adm number */}
+                  {me?.admission_number && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 12px", borderRadius: 8, background: "#f7fafb", border: "1px solid #e2e8f0" }}>
+                      <i className="fa-solid fa-id-card" style={{ fontSize: 11, color: "#94a3b8" }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", fontFamily: "monospace" }}>
+                        Adm# {me.admission_number}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Quick info chips */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                    {[
+                      { icon: "fa-venus-mars",    val: cap(me?.gender)                    },
+                      { icon: "fa-cake-candles",  val: fmtDate(me?.date_of_birth)         },
+                      { icon: "fa-calendar-plus", val: fmtDate(me?.admission_date) ? `Joined ${fmtDate(me?.admission_date)}` : null },
+                      { icon: "fa-heart-pulse",   val: me?.blood_group                    },
+                    ].filter(c => c.val).map(c => (
+                      <div key={c.icon} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 8, background: "#f7fafb", border: "1px solid #e8eef0" }}>
+                        <i className={`fa-solid ${c.icon}`} style={{ fontSize: 11, color: "#FF9B51" }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{c.val}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Class / Section / Roll */}
+                  {current && (
+                    <div style={{ display: "flex", gap: 20, marginTop: 16, paddingTop: 16, borderTop: "1px solid #f0f4f5", flexWrap: "wrap" }}>
+                      {[
+                        { label: "Class",    val: current.class_name   || "—" },
+                        { label: "Section",  val: current.section_name || "—" },
+                        { label: "Roll No.", val: current.roll_number  || "—" },
+                        { label: "Year",     val: current.academic_year_name || "—" },
+                      ].map(s => (
+                        <div key={s.label}>
+                          <span style={{ display: "block", fontSize: 9, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</span>
+                          <strong style={{ fontSize: 15, fontWeight: 900, color: "#1e293b" }}>{s.val}</strong>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
-              <div className="spp-hero-bottom">
-                <div className="spp-name">{me?.full_name || "—"}</div>
-                {me?.admission_number && <div className="spp-adm">Admission # {me.admission_number}</div>}
-                <div className="spp-pills">
-                  {me?.gender && (
-                    <span className="spp-pill" style={{ background: "#eff6ff", color: "#2563eb" }}>
-                      <i className="fa-solid fa-venus-mars" style={{ fontSize: 10 }} />{cap(me.gender)}
-                    </span>
-                  )}
-                  {me?.nationality && (
-                    <span className="spp-pill" style={{ background: "#f0fdf4", color: "#15803d" }}>
-                      <i className="fa-solid fa-flag" style={{ fontSize: 10 }} />{me.nationality}
-                    </span>
-                  )}
-                  {me?.status && (
-                    <span className="spp-pill" style={{ background: me.status === "active" ? "#dcfce7" : "#fef3c7", color: me.status === "active" ? "#15803d" : "#b45309" }}>
-                      <i className={`fa-solid ${me.status === "active" ? "fa-circle-check" : "fa-clock"}`} style={{ fontSize: 10 }} />{cap(me.status)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+            </Card>
 
-            {/* ══ STAT STRIP ══ */}
-            <div className="spp-strip">
-              <div className="spp-strip-item">
-                <div className="spp-strip-val">{current?.class_name || "—"}</div>
-                <div className="spp-strip-key">Class</div>
-              </div>
-              <div className="spp-strip-item">
-                <div className="spp-strip-val">{current?.section_name ? `Sec ${current.section_name}` : "—"}</div>
-                <div className="spp-strip-key">Section</div>
-              </div>
-              <div className="spp-strip-item">
-                <div className="spp-strip-val">{current?.roll_number || "—"}</div>
-                <div className="spp-strip-key">Roll No</div>
-              </div>
-            </div>
-
-            {/* ══ SCHOLARSHIP ══ */}
+            {/* ══ Scholarship banner ══ */}
             {me?.scholarship_type && me?.scholarship_percent && (
-              <div className="spp-scholar">
-                <div className="spp-scholar-icon"><i className="fa-solid fa-graduation-cap" /></div>
+              <div style={{ padding: "14px 18px", borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#22c55e", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                  <i className="fa-solid fa-graduation-cap" />
+                </div>
                 <div>
-                  <div className="spp-scholar-title">{cap(me.scholarship_type)} Scholarship — {me.scholarship_percent}% fee discount</div>
-                  {me?.scholarship_remarks && <div className="spp-scholar-sub">{me.scholarship_remarks}</div>}
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 900, color: "#15803d" }}>
+                    {cap(me.scholarship_type)} Scholarship — {me.scholarship_percent}% fee discount
+                  </p>
+                  {me?.scholarship_remarks && (
+                    <p style={{ margin: "2px 0 0", fontSize: 11, fontWeight: 700, color: "#16a34a" }}>{me.scholarship_remarks}</p>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* ══ ENROLLMENT ══ */}
+            {/* ══ TWO-COL: Personal + Contact ══ */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
+              <Card>
+                <CardHead icon="fa-user" title="Personal Details" />
+                <div style={{ padding: "4px 20px 12px" }}>
+                  <Field icon="fa-cake-candles"   label="Date of Birth"  value={fmtDate(me?.date_of_birth)} />
+                  <Field icon="fa-venus-mars"     label="Gender"         value={cap(me?.gender)} />
+                  <Field icon="fa-heart-pulse"    label="Blood Group"    value={me?.blood_group} />
+                  <Field icon="fa-pray"           label="Religion"       value={me?.religion} />
+                  <Field icon="fa-people-group"   label="Ethnicity"      value={me?.ethnicity} />
+                  <Field icon="fa-flag"           label="Nationality"    value={me?.nationality} />
+                </div>
+              </Card>
+
+              <Card>
+                <CardHead icon="fa-address-book" title="Contact Details" />
+                <div style={{ padding: "4px 20px 12px" }}>
+                  <Field icon="fa-envelope"   label="Email"   value={me?.email} />
+                  <Field icon="fa-phone"      label="Phone"   value={me?.phone} />
+                  <Field icon="fa-city"       label="City"    value={me?.city} />
+                  <Field icon="fa-map"        label="State"   value={me?.state} />
+                  <Field icon="fa-earth-asia" label="Country" value={me?.country} />
+                </div>
+              </Card>
+            </div>
+
+            {/* ══ Enrollment (academic) ══ */}
             {current && (
-              <div className="spp-card">
-                <SectionTitle icon="fa-school" label="Academic Enrollment" color="#6366f1" />
-                <Row icon="fa-calendar-check" label="Academic Year"   value={current.academic_year_name} highlight />
-                <Row icon="fa-chalkboard"     label="Class"           value={current.class_name} />
-                <Row icon="fa-table-cells"    label="Section"         value={current.section_name ? `Section ${current.section_name}` : null} />
-                <Row icon="fa-hashtag"        label="Roll Number"     value={current.roll_number?.toString()} />
-                <Row icon="fa-code-branch"    label="Stream"          value={streamLabel[current.stream] || cap(current.stream)} />
-                {current.registration_number && <Row icon="fa-id-card" label="Registration No." value={current.registration_number} />}
-                {current.symbol_number        && <Row icon="fa-star"   label="Symbol Number"    value={current.symbol_number} />}
-              </div>
+              <Card>
+                <CardHead icon="fa-school" title="Academic Enrollment" sub={current.academic_year_name} />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 0, padding: "4px 20px 12px" }}>
+                  <div style={{ paddingRight: 20 }}>
+                    <Field icon="fa-school"      label="Class"        value={current.class_name} />
+                    <Field icon="fa-table-cells" label="Section"      value={current.section_name} />
+                    <Field icon="fa-list-ol"     label="Roll Number"  value={current.roll_number?.toString()} />
+                  </div>
+                  <div style={{ paddingLeft: 20, borderLeft: "1px solid #f0f4f5" }}>
+                    <Field icon="fa-code-branch" label="Stream"           value={STREAM_LABEL[current.stream] || cap(current.stream)} />
+                    <Field icon="fa-id-card"     label="Registration No." value={current.registration_number} mono />
+                    <Field icon="fa-star"        label="Symbol Number"    value={current.symbol_number} mono />
+                  </div>
+                </div>
+              </Card>
             )}
 
-            {/* ══ PERSONAL DETAILS ══ */}
-            <div className="spp-card">
-              <SectionTitle icon="fa-user" label="Personal Details" color="#FF9B51" />
-              <Row icon="fa-envelope"      label="Email"           value={me?.email}              highlight />
-              <Row icon="fa-phone"         label="Phone"           value={me?.phone}              highlight />
-              <Row icon="fa-cake-candles"  label="Date of Birth"   value={fmt(me?.date_of_birth)} />
-              <Row icon="fa-heart-pulse"   label="Blood Group"     value={me?.blood_group}        highlight />
-              <Row icon="fa-pray"          label="Religion"        value={me?.religion} />
-              <Row icon="fa-people-group"  label="Ethnicity"       value={me?.ethnicity} />
-              <Row icon="fa-location-dot"  label="City"            value={me?.city} />
-              <Row icon="fa-map"           label="State"           value={me?.state} />
-              <Row icon="fa-earth-asia"    label="Country"         value={me?.country} />
-              
-              <Row icon="fa-calendar-plus" label="Admission Date"  value={fmt(me?.admission_date)} highlight />
-            </div>
+            {/* ══ Guardian ══ */}
+            <Card>
+              <CardHead icon="fa-user-shield" title="Guardian Details" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 0, padding: "4px 20px 12px" }}>
+                <div style={{ paddingRight: 20 }}>
+                  <Field icon="fa-user"          label="Guardian Name"  value={me?.guardian_name} />
+                  <Field icon="fa-people-arrows" label="Relation"       value={cap(me?.guardian_relation)} />
+                  <Field icon="fa-phone"         label="Guardian Phone" value={me?.guardian_phone} />
+                </div>
+                <div style={{ paddingLeft: 20, borderLeft: "1px solid #f0f4f5" }}>
+                  <Field icon="fa-envelope" label="Guardian Email" value={me?.guardian_email} />
+                  <Field icon="fa-house"    label="Address"        value={me?.guardian_address} />
+                </div>
+              </div>
+            </Card>
 
-            {/* ══ GUARDIAN DETAILS ══ */}
-            <div className="spp-card">
-              <SectionTitle icon="fa-user-shield" label="Guardian Details" color="#0284c7" />
-              <Row icon="fa-user"          label="Guardian Name"  value={me?.guardian_name}           highlight />
-              <Row icon="fa-people-arrows" label="Relation"       value={cap(me?.guardian_relation)} />
-              <Row icon="fa-phone"         label="Guardian Phone" value={me?.guardian_phone}          highlight />
-              <Row icon="fa-envelope"      label="Guardian Email" value={me?.guardian_email} />
-              <Row icon="fa-house"         label="Address"        value={me?.guardian_address} />
-            </div>
-
-            {/* ══ SPECIAL NEEDS ══ */}
+            {/* ══ Special needs ══ */}
             {me?.disability && (
-              <div className="spp-card">
-                <SectionTitle icon="fa-wheelchair" label="Special Needs" color="#9333ea" />
-                <Row icon="fa-notes-medical" label="Details" value={me?.disability_description} />
-              </div>
+              <Card>
+                <CardHead icon="fa-wheelchair" title="Special Needs" />
+                <div style={{ padding: "4px 20px 12px" }}>
+                  <Field icon="fa-notes-medical" label="Details" value={me?.disability_description} />
+                </div>
+              </Card>
             )}
 
-            {/* ══ CHANGE PASSWORD ══ */}
-            <div className="spp-card">
-              <SectionTitle icon="fa-lock" label="Change Password" color="#6366f1" />
-              <form onSubmit={handleChangePassword} style={{ padding: "4px 20px 20px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "16px" }}>
+            {/* ══ Change Password ══ */}
+            <Card>
+              <CardHead icon="fa-lock" title="Change Password" sub="Keep your account secure" />
+              <form onSubmit={handleChangePassword} style={{ padding: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 16 }}>
+                  <PwdInput label="Current Password"     value={currentPwd}  onChange={setCurrentPwd}  placeholder="Current password" />
+                  <PwdInput label="New Password"         value={newPwd}      onChange={setNewPwd}      placeholder="Min. 6 characters" />
+                  <PwdInput label="Confirm New Password" value={confirmPwd}  onChange={setConfirmPwd}  placeholder="Repeat new password" />
+                </div>
 
-                  <div>
-                    <label style={pwdLabelStyle}>Current Password</label>
-                    <input type="password" style={pwdInputStyle} placeholder="Enter current password"
-                      value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} required />
-                  </div>
-
-                  <div>
-                    <label style={pwdLabelStyle}>New Password</label>
-                    <input type="password" style={pwdInputStyle} placeholder="Min. 6 characters"
-                      value={newPwd} onChange={e => setNewPwd(e.target.value)} required />
-                  </div>
-
-                  <div>
-                    <label style={pwdLabelStyle}>Confirm New Password</label>
-                    <input type="password" style={pwdInputStyle} placeholder="Repeat new password"
-                      value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required />
-                  </div>
-
-                  {pwdError && (
-                    <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", color: "#dc2626", fontSize: 13 }}>
-                      <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 7 }} />{pwdError}
+                {newPwd.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>
+                      {[1,2,3,4].map(n => (
+                        <div key={n} style={{ flex: 1, height: 4, borderRadius: 999, background: strength >= n ? strengthColor : "#e2e8f0", transition: "background .2s" }} />
+                      ))}
                     </div>
-                  )}
-                  {pwdSuccess && (
-                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", color: "#16a34a", fontSize: 13 }}>
-                      <i className="fa-solid fa-circle-check" style={{ marginRight: 7 }} />{pwdSuccess}
-                    </div>
-                  )}
+                    <span style={{ fontSize: 11, fontWeight: 800, color: strengthColor }}>{strengthLabel}</span>
+                  </div>
+                )}
 
-                  <button type="submit" disabled={pwdLoading} style={{
-                    padding: "11px 24px", borderRadius: 10, border: "none",
-                    background: pwdLoading ? "#a5b4fc" : "#6366f1", color: "#fff",
-                    fontSize: 14, fontWeight: 700, cursor: pwdLoading ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", gap: 8, alignSelf: "flex-start",
-                  }}>
+                {pwdError && (
+                  <div style={{ padding: "9px 13px", borderRadius: 8, background: "#fde7e7", border: "1px solid #fca5a5", color: "#b42318", fontSize: 12, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="fa-solid fa-triangle-exclamation" />{pwdError}
+                  </div>
+                )}
+                {pwdSuccess && (
+                  <div style={{ padding: "9px 13px", borderRadius: 8, background: "#e2f6ee", border: "1px solid #a7f3d0", color: "#12805c", fontSize: 12, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="fa-solid fa-circle-check" />{pwdSuccess}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <button type="submit" disabled={pwdLoading}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 9, border: "none", background: "#FF9B51", color: "#fff", fontWeight: 900, fontSize: 13, cursor: pwdLoading ? "not-allowed" : "pointer", opacity: pwdLoading ? 0.75 : 1 }}>
                     {pwdLoading
-                      ? <><i className="fa-solid fa-spinner fa-spin" />Updating...</>
-                      : <><i className="fa-solid fa-key" />Update Password</>
+                      ? <><i className="fa-solid fa-spinner fa-spin" /> Updating…</>
+                      : <><i className="fa-solid fa-key" /> Update Password</>
                     }
                   </button>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>Min. 6 characters required</span>
                 </div>
               </form>
-            </div>
-
-            <div style={{ height: 8 }} />
-          </main>
+            </Card>
+          </>
         )}
-      </div>
-    </>
+      </main>
+    </div>
   );
 }

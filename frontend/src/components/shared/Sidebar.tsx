@@ -29,18 +29,19 @@ const adminNav: NavSection[] = [
   {
     label: 'Finance',
     links: [
-      { href: '/fees',                          icon: 'fa-file-invoice-dollar', label: 'Fee Management'    },
-      { href: '/fees/monthly-billing',          icon: 'fa-calendar-check',      label: 'Monthly Billing'   },
-      { href: '/fees/payment-requests',         icon: 'fa-money-bill-transfer', label: 'Payment Requests'  },
-      { href: '/fees/bank-accounts',            icon: 'fa-building-columns',    label: 'Bank Accounts'     },
-      { href: '/expenses',                      icon: 'fa-wallet',              label: 'Expenses'          },
-      { href: '/salary',                        icon: 'fa-money-bill-wave',     label: 'Faculty Salary'    },
-      { href: '/staff/salary',                  icon: 'fa-coins',               label: 'Staff Salary'      },
+      { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Management'   },
+      { href: '/fees/monthly-billing',  icon: 'fa-calendar-check',      label: 'Monthly Billing'  },
+      { href: '/fees/payment-requests', icon: 'fa-money-bill-transfer', label: 'Payment Requests' },
+      { href: '/fees/bank-accounts',    icon: 'fa-building-columns',    label: 'Bank Accounts'    },
+      { href: '/expenses',              icon: 'fa-wallet',              label: 'Expenses'         },
+      { href: '/salary',                icon: 'fa-money-bill-wave',     label: 'Faculty Salary'   },
+      { href: '/staff/salary',          icon: 'fa-coins',               label: 'Staff Salary'     },
     ],
   },
   {
     label: 'Academic',
     links: [
+      { href: '/manage',         icon: 'fa-layer-group',      label: 'Manage Academic' },
       { href: '/academic-years', icon: 'fa-calendar-plus',    label: 'Academic Years'  },
       { href: '/classes',        icon: 'fa-school',           label: 'Classes'         },
       { href: '/sections',       icon: 'fa-table-cells',      label: 'Sections'        },
@@ -66,8 +67,8 @@ const adminNav: NavSection[] = [
   {
     label: 'Staff',
     links: [
-      { href: '/staff',            icon: 'fa-users-gear',       label: 'Staff Members'        },
-      { href: '/staff/attendance', icon: 'fa-clipboard-check',  label: 'Staff & Teacher Att.' },
+      { href: '/staff',            icon: 'fa-users-gear',      label: 'Staff Members'        },
+      { href: '/staff/attendance', icon: 'fa-clipboard-check', label: 'Staff & Teacher Att.' },
     ],
   },
 ]
@@ -77,12 +78,13 @@ const teacherNav: NavSection[] = [
     label: 'Main',
     links: [
       { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard'  },
-      { href: '/teacher/profile',   icon: 'fa-id-badge',  label: 'My Profile' },
+      { href: '/teacher/profile',   icon: 'fa-id-badge',   label: 'My Profile' },
     ],
   },
   {
     label: 'Classroom',
     links: [
+      { href: '/teacher/students',         icon: 'fa-users',           label: 'My Students'         },
       { href: '/teacher/attendance',       icon: 'fa-user-check',      label: 'Attendance Overview' },
       { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Mark Attendance'     },
       { href: '/teacher/results',          icon: 'fa-pen-to-square',   label: 'Enter Results'       },
@@ -108,7 +110,7 @@ const studentNav: NavSection[] = [
     label: 'Main',
     links: [
       { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard'  },
-      { href: '/student/profile',   icon: 'fa-id-badge',  label: 'My Profile' },
+      { href: '/student/profile',   icon: 'fa-id-badge',   label: 'My Profile' },
     ],
   },
   {
@@ -123,7 +125,7 @@ const studentNav: NavSection[] = [
     label: 'Payments',
     links: [
       { href: '/student/fees/submit-pay-form', icon: 'fa-paper-plane',       label: 'Submit Payment' },
-      { href: '/student/fees/bank-details',    icon: 'fa-building-columns',  label: 'Bank Details' },
+      { href: '/student/fees/bank-details',    icon: 'fa-building-columns',  label: 'Bank Details'   },
       { href: '/student/fees/my-submissions',  icon: 'fa-clock-rotate-left', label: 'My Submissions' },
     ],
   },
@@ -206,19 +208,20 @@ export default function Sidebar({ role }: SidebarProps) {
 
   return (
     <>
+      {/* ══ DESKTOP SIDEBAR ══ */}
       <aside className="sidebar">
-        <div className="sidebar-logo" style={{ background: '#ffffff', flexDirection: 'column', alignItems: 'center', gap: 0, padding: '20px 20px' }}>
+        <div className="sidebar-logo" style={{ background: '#fff', flexDirection: 'column', alignItems: 'center', padding: '18px 20px' }}>
           <Link href="/" style={{ display: 'block', lineHeight: 0, textDecoration: 'none' }}>
             <Image src="/Logo.png" alt="Skoolio" width={200} height={60} priority
-              style={{ objectFit: 'contain', width: 'auto', height: 60, maxWidth: '100%' }} />
+              style={{ objectFit: 'contain', width: 'auto', height: 56, maxWidth: '100%' }} />
           </Link>
         </div>
 
         <nav className="nav">
-          {navSections.map((section) => (
+          {navSections.map(section => (
             <div key={section.label}>
               <div className="nav-label">{section.label}</div>
-              {section.links.map((link) => (
+              {section.links.map(link => (
                 <Link key={link.href} href={link.href} className={isActive(link.href)}>
                   <i className={`fa-solid ${link.icon}`} />
                   {link.label}
@@ -243,6 +246,7 @@ export default function Sidebar({ role }: SidebarProps) {
         </div>
       </aside>
 
+      {/* ══ MOBILE BOTTOM NAV ══ */}
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
         <div className="mobile-nav-scroll">
           {mobileGroups.map((group, gi) => (
@@ -252,7 +256,7 @@ export default function Sidebar({ role }: SidebarProps) {
                   <span>{group.sectionLabel}</span>
                 </div>
               )}
-              {group.links.map((link) => {
+              {group.links.map(link => {
                 const active = isMobileActive(link.href)
                 return (
                   <Link key={link.href} href={link.href}

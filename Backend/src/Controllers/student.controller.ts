@@ -9,6 +9,9 @@ import {
   getStudentEnrollmentsService, updateEnrollmentService,
   searchStudentsService,
 } from '../Service/student.service';
+import { getEnrollmentById, getEnrollmentsBySchool, updateEnrollment as updateEnrollmentRepo } from '../Repositories/student.repository';
+import { getSectionsByCoordinator } from '../Repositories/teacher.repository';
+import AppError from '../utils/AppError';
 
 // ── STUDENT CONTROLLERS (ADMIN) ──
 
@@ -99,4 +102,29 @@ export const getMyEnrollments = catchAsync(async (req: Request, res: Response, n
   const { id, school_id } = req.user as IJwtUserPayload;
   const enrollments = await getStudentEnrollmentsService(id, school_id);
   sendResponse(res, 200, true, 'Enrollments fetched successfully', enrollments);
+});
+
+// PATCH /students/enrollments/:id/roll — Faculty only
+// Teacher can update roll_number and remarks for students in their own sections only.
+export const updateEnrollmentRoll = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
+  const enrollment_id = Number(req.params.id);
+  const { roll_number, remarks } = req.body;
+
+  // 1. Fetch the enrollment
+  const enrollment = await getEnrollmentById(enrollment_id, school_id);
+  if (!enrollment) throw new AppError('Enrollment not found.', 404);
+
+  // 2. Verify this teacher coordinates the section
+  const mySections = await getSectionsByCoordinator(teacher_id, school_id);
+  const allowed = mySections.some(s => s.id === enrollment.section_id);
+  if (!allowed) throw new AppError('You are not the coordinator of this section.', 403);
+
+  // 3. Only allow roll_number and remarks to be changed
+  const updated = await updateEnrollmentRepo(enrollment_id, school_id, {
+    roll_number: roll_number ?? undefined,
+    remarks:     remarks     ?? undefined,
+  });
+
+  sendResponse(res, 200, true, 'Roll number updated successfully', updated);
 });
