@@ -23,12 +23,12 @@ router.patch('/enrollments/:id',      restrictTo('admin', 'super_admin'),       
 router.patch('/enrollments/:id/roll', restrictTo('faculty'),                        updateEnrollmentRoll);
 
 // ── STUDENT CRUD ──
-router.post('/',              restrictTo('admin', 'super_admin'),           createStudent);
-router.get('/',               restrictTo('admin', 'super_admin'),           getStudents);
-router.get('/search',         restrictTo('admin', 'super_admin'),           searchStudents);
-router.get('/:id',            restrictTo('admin', 'super_admin'),           getStudentById);
-router.patch('/:id',          restrictTo('admin', 'super_admin'),           updateStudent);
-router.delete('/:id',         restrictTo('admin', 'super_admin'),           deleteStudent);
+router.post('/',              restrictTo('admin', 'super_admin'),                    createStudent);
+router.get('/',               restrictTo('admin', 'super_admin'),                    getStudents);
+router.get('/search',         restrictTo('admin', 'super_admin'),                    searchStudents);
+router.get('/:id',            restrictTo('admin', 'super_admin', 'faculty'),         getStudentById);  // faculty: section-scoped in controller
+router.patch('/:id',          restrictTo('admin', 'super_admin'),                    updateStudent);
+router.delete('/:id',         restrictTo('admin', 'super_admin'),                    deleteStudent);
 
 // ── STUDENT ENROLLMENT HISTORY ──
 router.get('/:id/enrollments', restrictTo('admin', 'super_admin'),          getStudentEnrollments);

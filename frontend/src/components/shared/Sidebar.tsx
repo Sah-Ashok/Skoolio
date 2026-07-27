@@ -17,13 +17,12 @@ const adminNav: NavSection[] = [
   {
     label: 'Main',
     links: [
-      { href: '/dashboard',          icon: 'fa-gauge-high',              label: 'Dashboard'        },
-      { href: '/students',           icon: 'fa-user-graduate',           label: 'Students'         },
-      { href: '/students/promote',   icon: 'fa-arrow-up-from-bracket',   label: 'Promote Students' },
-      { href: '/teachers',           icon: 'fa-chalkboard-user',         label: 'Faculty'          },
-      { href: '/subscription',       icon: 'fa-id-card-clip',            label: 'My Subscription'  },
-      { href: '/settings',           icon: 'fa-gear',                    label: 'Settings'         },
-      { href: '/history',            icon: 'fa-clock-rotate-left',       label: 'History'          },
+      { href: '/dashboard',        icon: 'fa-gauge-high',            label: 'Dashboard'        },
+      { href: '/students',         icon: 'fa-user-graduate',         label: 'Students'         },
+      { href: '/teachers',         icon: 'fa-chalkboard-user',       label: 'Faculty'          },
+      { href: '/subscription',     icon: 'fa-id-card-clip',          label: 'My Subscription'  },
+      { href: '/settings',         icon: 'fa-gear',                  label: 'Settings'         },
+      { href: '/history',          icon: 'fa-clock-rotate-left',     label: 'History'          },
     ],
   },
   {

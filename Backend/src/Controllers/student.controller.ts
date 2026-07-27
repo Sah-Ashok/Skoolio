@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import pool from '../config/db';
 import catchAsync from '../utils/catchAsync';
 import sendResponse from '../utils/response';
 import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
@@ -9,7 +10,7 @@ import {
   getStudentEnrollmentsService, updateEnrollmentService,
   searchStudentsService,
 } from '../Service/student.service';
-import { getEnrollmentById, getEnrollmentsBySchool, updateEnrollment as updateEnrollmentRepo } from '../Repositories/student.repository';
+import { getEnrollmentById, updateEnrollment as updateEnrollmentRepo } from '../Repositories/student.repository';
 import { getSectionsByCoordinator } from '../Repositories/teacher.repository';
 import AppError from '../utils/AppError';
 
@@ -36,8 +37,30 @@ export const searchStudents = catchAsync(async (req: Request, res: Response, nex
 });
 
 export const getStudentById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
-  const student = await getStudentByIdService(Number(req.params.id), school_id);
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const student_id = Number(req.params.id);
+
+  // Faculty: verify student is in one of their coordinated sections
+  if (user.role === 'faculty') {
+    const teacher_id = (user as IJwtUserPayload).id;
+    const mySections = await getSectionsByCoordinator(teacher_id, school_id);
+    const sectionIds = mySections.map((s: any) => s.id);
+    if (sectionIds.length === 0) throw new AppError('You are not assigned as coordinator of any section.', 403);
+
+    const result = await pool.query(
+      `SELECT 1 FROM student_enrollments
+       WHERE school_id = $1
+         AND student_id = $2
+         AND section_id = ANY($3::int[])
+         AND status = 'active'
+       LIMIT 1`,
+      [school_id, student_id, sectionIds]
+    );
+    if (!result.rows.length) throw new AppError('This student is not in your section.', 403);
+  }
+
+  const student = await getStudentByIdService(student_id, school_id);
   sendResponse(res, 200, true, 'Student fetched successfully', student);
 });
 

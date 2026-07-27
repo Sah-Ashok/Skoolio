@@ -227,6 +227,7 @@ export const getEnrollmentsBySchool = async (school_id: number, academic_year_id
 
   const result = await pool.query(
     `SELECT se.*, s.full_name, s.admission_number, s.photo, s.gender,
+       s.guardian_name, s.guardian_phone, s.guardian_relation,
        s.scholarship_type, s.scholarship_percent, s.admission_date::text as admission_date,
        c.name AS class_name, sec.name AS section_name
      FROM student_enrollments se

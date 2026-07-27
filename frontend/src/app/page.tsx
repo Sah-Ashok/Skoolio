@@ -721,6 +721,7 @@ export default function LandingPage() {
                 <h5>SUPPORT</h5>
                 <a href="#faq">FAQ</a>
                 <a href="#faq">Help Center</a>
+                <a href="/contact">Contact Us</a>
                 <Link href="/login">Sign In</Link>
                 <Link href="/register">Register School</Link>
               </div>

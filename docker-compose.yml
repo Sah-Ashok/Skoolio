@@ -2,13 +2,11 @@
 #  Skoolio – Docker Compose  (production)
 #
 #  Services:
-#    redis     – Redis 7 (local, replaces Azure Managed Redis)
+#    postgres  – PostgreSQL 16 (local, on dedicated SSD disk)
+#    redis     – Redis 7 (local)
 #    backend   – Express / Node API    (internal port 5001)
 #    frontend  – Next.js               (internal port 3000)
 #    nginx     – Reverse proxy         (public   port 80 / 443)
-#
-#  External (Azure-managed):
-#    PostgreSQL – Azure Database for PostgreSQL (stu-postgres)
 #
 #  Usage:
 #    docker compose up -d --build
@@ -17,9 +15,31 @@
 services:
 
   # -----------------------------------------------------------
-  # Redis – local container (replaces Azure Managed Redis)
-  # No password needed – internal Docker network only
-  # Memory limit: 256MB (plenty for OTP/session caching)
+  # PostgreSQL – local container on dedicated Premium SSD v2
+  # Data stored on /mnt/pgdata (skoolio2 disk - 3000 IOPS)
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: skoolio_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       school_pos
+      POSTGRES_USER:     ashok
+      POSTGRES_PASSWORD: Abhisah@21
+      PGDATA:            /var/lib/postgresql/data/pgdata
+    volumes:
+      - /mnt/pgdata:/var/lib/postgresql/data
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ashok -d school_pos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # -----------------------------------------------------------
+  # Redis – local container
   # -----------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -53,15 +73,23 @@ services:
     restart: unless-stopped
     env_file: ./Backend/.env
     environment:
-      NODE_ENV: production
-      PORT: 5001
-      CORS_ORIGIN: http://nginx
-      # Override Azure Redis with local container
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      NODE_ENV:      production
+      PORT:          5001
+      CORS_ORIGIN:   http://nginx
+      # Local PostgreSQL container
+      DB_HOST:       postgres
+      DB_PORT:       5432
+      DB_USER:       ashok
+      DB_PASSWORD:   Abhisah@21
+      DB_NAME:       school_pos
+      # Local Redis container
+      REDIS_HOST:    redis
+      REDIS_PORT:    6379
       REDIS_PASSWORD: ""
-      REDIS_DB: 0
+      REDIS_DB:      0
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -86,7 +114,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT:     3000
     depends_on:
       backend:
         condition: service_healthy

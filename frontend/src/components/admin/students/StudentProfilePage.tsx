@@ -9,11 +9,11 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency }  from "@/lib/useCurrency";
 import { useAppDispatch } from "@/store/hooks";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
-const fmt = (n: number) => n.toLocaleString("en-IN");
 const pctColor = (p: number) => p >= 85 ? "#16a34a" : p >= 70 ? "#d97706" : "#dc2626";
 
 /* ─── STAT BOX ───────────────────────────────────────────────────────────── */
@@ -131,6 +131,7 @@ function LegDot({ color, label, value }: { color: string; label: string; value: 
 ══════════════════════════════════════════════════════════════════════════ */
 export default function StudentProfilePage() {
   const { formatDate } = useDateFormat();
+  const { fmt }        = useCurrency();
   const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
   const id = searchParams?.get("id");
@@ -315,8 +316,8 @@ export default function StudentProfilePage() {
             </div>
           </div>
           <div className={s("sp-hero-stats")}>
-            <StatBox label="Attendance (Year)" value={`${yearPct}%`}         sub={`${yearPresent} / ${yearMarked} days`} />
-            <StatBox label="Fee Paid"          value={`₹${fmt(grandPaid)}`}  sub={`of ₹${fmt(grandTotal)}`} />
+            <StatBox label="Attendance (Year)" value={`${yearPct}%`}          sub={`${yearPresent} / ${yearMarked} days`} />
+            <StatBox label="Fee Paid"          value={fmt(grandPaid)}          sub={`of ${fmt(grandTotal)}`} />
             <StatBox label="Enrollments"       value={String(enrollments?.length || 0)} sub="academic years" />
           </div>
         </section>

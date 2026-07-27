@@ -87,10 +87,26 @@ function PwdInput({ label, value, onChange, placeholder }: {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-export default function StudentProfilePage() {
+interface Props {
+  /** When provided, fetches that student's data (teacher view — read-only, no photo, no password change) */
+  studentId?: number;
+}
+
+export default function StudentProfilePage({ studentId }: Props = {}) {
+  const isTeacherView = !!studentId;
   const { user }              = useAppSelector(s => s.auth);
-  const { data: me, loading } = useApi<any>("/auth/me");
-  const { data: enrollments } = useApi<any[]>("/students/me/enrollments");
+
+  // Student's own view — uses /auth/me
+  const { data: me,       loading: meLoading }   = useApi<any>(isTeacherView ? "" : "/auth/me");
+  const { data: enrollOwn }                       = useApi<any[]>(isTeacherView ? "" : "/students/me/enrollments");
+
+  // Teacher view — fetches student by id + their enrollments
+  const { data: studentData, loading: stLoading } = useApi<any>(isTeacherView ? `/students/${studentId}` : "", [studentId]);
+  const { data: enrollTeacher }                   = useApi<any[]>(isTeacherView && studentId ? `/students/${studentId}/enrollments` : "", [studentId]);
+
+  const loading     = isTeacherView ? stLoading : meLoading;
+  const me2         = isTeacherView ? studentData : me;
+  const enrollments = isTeacherView ? enrollTeacher : enrollOwn;
 
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd,     setNewPwd]     = useState("");
@@ -118,10 +134,10 @@ export default function StudentProfilePage() {
   };
 
   const current  = enrollments?.[0];
-  const initials = me?.full_name
-    ? me.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+  const initials = me2?.full_name
+    ? me2.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "S";
-  const schoolName = me?.school_name || (user as any)?.school_name || "";
+  const schoolName = me2?.school_name || (user as any)?.school_name || "";
 
   // password strength
   const strength = newPwd.length === 0 ? 0 : newPwd.length < 6 ? 1 : newPwd.length < 8 ? 2 : newPwd.length < 10 ? 3 : 4;

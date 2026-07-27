@@ -16,30 +16,6 @@ const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join
 
 type Step = "details" | "fees" | "done";
 
-interface MiscItem { id: number; name: string; qty: number; price: number; }
-
-function calcBillingPeriods(frequency: string, admissionDate: string, yearEndDate: string): number {
-  if (!admissionDate || !yearEndDate) return 1;
-  const start = new Date(admissionDate);
-  const end   = new Date(yearEndDate);
-  if (end < start) return 1;
-  const totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-  switch (frequency) {
-    case "monthly":     return Math.max(1, totalMonths);
-    case "quarterly":   return Math.max(1, Math.ceil(totalMonths / 3));
-    case "half_yearly": return Math.max(1, Math.ceil(totalMonths / 6));
-    default:            return 1;
-  }
-}
-
-function calcFeeTotal(structure: any, admissionDate: string, yearEndDate: string): number {
-  return Math.round(Number(structure.amount) * calcBillingPeriods(structure.frequency, admissionDate, yearEndDate) * 100) / 100;
-}
-
-const FREQ_LABEL: Record<string, string> = {
-  monthly: "/month", quarterly: "/quarter", half_yearly: "/half-year", yearly: "/year", one_time: "one-time",
-};
-
 export default function AddStudentForm() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
@@ -72,12 +48,75 @@ export default function AddStudentForm() {
   const [photoUploading,    setPhotoUploading]    = useState(false);
   const [uploadedPhotoUrl,  setUploadedPhotoUrl]  = useState<string | null>(null);
 
-  const [feeStructures, setFeeStructures] = useState<any[]>([]);
-  const [feesLoading,   setFeesLoading]   = useState(false);
   const [selectedFees,  setSelectedFees]  = useState<Set<number>>(new Set());
+  const [miscItems,     setMiscItems]     = useState<{name:string;amount:number}[]>([]);
   const [assigningFees, setAssigningFees] = useState(false);
-  const [miscItems,     setMiscItems]     = useState<MiscItem[]>([]);
-  const [miscIdSeed,    setMiscIdSeed]    = useState(1);
+
+  const yearEnd = activeYear?.end_date ?? "";
+
+  // Calculate total amount for a fee structure based on frequency
+  const calcFeeTotal = (fee: any, admissionDate: string, endDate: string): number => {
+    if (!fee?.amount) return 0;
+    const amt = Number(fee.amount);
+    if (fee.frequency === "monthly") {
+      // Count months from admission to year end
+      if (!admissionDate || !endDate) return amt * 12;
+      const start = new Date(admissionDate);
+      const end   = new Date(endDate);
+      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+      return amt * Math.max(1, months);
+    }
+    if (fee.frequency === "quarterly")   return amt * 4;
+    if (fee.frequency === "half_yearly") return amt * 2;
+    return amt; // yearly / one_time
+  };
+
+  const toggleFee = (id: number) => {
+    setSelectedFees(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const miscTotal = miscItems.reduce((s, i) => s + i.amount, 0);
+
+  const feeGrossTotal = feeStructures
+    .filter(f => selectedFees.has(f.id))
+    .reduce((s, fee) => s + calcFeeTotal(fee, form.admission_date, yearEnd), 0);
+
+  const feeDiscountTotal = scholarshipPct
+    ? Math.round(feeGrossTotal * (scholarshipPct / 100) * 100) / 100
+    : 0;
+
+  const grandNetTotal = feeGrossTotal - feeDiscountTotal + miscTotal;
+
+  const handleSkipFees = () => setStep("done");
+
+  const handleAssignFees = async () => {
+    if (!createdStudent?.id || !createdEnroll?.id) { setStep("done"); return; }
+    setAssigningFees(true);
+    try {
+      // Generate fee bills for selected fee structures
+      if (selectedFees.size > 0) {
+        await apiRequest("/fees/generate-bills", {
+          method: "POST",
+          body: JSON.stringify({
+            student_id:      createdStudent.id,
+            enrollment_id:   createdEnroll.id,
+            academic_year_id: activeYear?.id,
+            fee_structure_ids: Array.from(selectedFees),
+          }),
+        });
+      }
+      dispatch(showToast({ type: "success", title: "Fees Assigned", message: "Fee bills created successfully." }));
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Fee Assignment Failed", message: err.message || "Could not assign fees." }));
+    } finally {
+      setAssigningFees(false);
+      setStep("done");
+    }
+  };
 
   const scholarshipPct = form.scholarship_percent ? parseFloat(form.scholarship_percent) : null;
 
@@ -187,76 +226,7 @@ export default function AddStudentForm() {
     } finally { setIsSubmitting(false); }
   };
 
-  const handleAssignFees = async () => {
-    if (!createdStudent || !createdEnroll) return;
-    setAssigningFees(true);
-    let anyError = false;
-    try {
-      const yearEnd = activeYear?.end_date?.split("T")[0] || activeYear?.end_date || "";
-      for (const feeId of selectedFees) {
-        const structure = feeStructures.find(f => f.id === feeId);
-        if (!structure) continue;
-        try {
-          const grossTotal  = calcFeeTotal(structure, form.admission_date, yearEnd);
-          const discountAmt = scholarshipPct ? Math.round(grossTotal * (scholarshipPct / 100) * 100) / 100 : 0;
-          const today   = new Date();
-          const dueDate = structure.due_date_type === "fixed_day" && structure.due_day
-            ? new Date(today.getFullYear(), today.getMonth(), structure.due_day)
-            : new Date(form.admission_date);
-          await apiRequest("/fees/collections", {
-            method: "POST",
-            body: JSON.stringify({
-              student_id: createdStudent.id, enrollment_id: createdEnroll.id,
-              fee_structure_id: feeId, academic_year_id: activeYear.id,
-              due_date: dueDate.toISOString().split("T")[0], total_amount: grossTotal,
-              ...(discountAmt > 0 ? { discount_amount: discountAmt, discount_reason: `${form.scholarship_type || "Scholarship"} (${scholarshipPct}%)` } : {}),
-            }),
-          });
-        } catch (feeErr: any) { anyError = true; }
-      }
-      for (const item of miscItems) {
-        if (!item.name.trim() || !item.price || item.qty < 1) continue;
-        try {
-          const itemTotal   = Math.round(item.price * item.qty * 100) / 100;
-          const discountAmt = scholarshipPct ? Math.round(itemTotal * (scholarshipPct / 100) * 100) / 100 : 0;
-          await apiRequest("/fees/collections", {
-            method: "POST",
-            body: JSON.stringify({
-              student_id: createdStudent.id, enrollment_id: createdEnroll.id,
-              fee_structure_id: null, academic_year_id: activeYear.id,
-              due_date: form.admission_date || new Date().toISOString().split("T")[0],
-              total_amount: itemTotal,
-              ...(discountAmt > 0 ? { discount_amount: discountAmt, discount_reason: `${form.scholarship_type || "Scholarship"} (${scholarshipPct}%)` } : {}),
-            }),
-          });
-        } catch { anyError = true; }
-      }
-      dispatch(showToast({ type: anyError ? "error" : "success", title: anyError ? "Partial" : "Done", message: anyError ? "Some fees could not be assigned." : "Student admitted and fees assigned successfully." }));
-    } finally { setAssigningFees(false); setStep("done"); }
-  };
-
-  const handleSkipFees = () => {
-    dispatch(showToast({ type: "success", title: "Student Created", message: "Fees can be assigned later from Fee Management." }));
-    setStep("done");
-  };
-
-  const toggleFee = (id: number) => setSelectedFees(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const addMiscItem = () => { setMiscItems(prev => [...prev, { id: miscIdSeed, name: "", qty: 1, price: 0 }]); setMiscIdSeed(n => n + 1); };
-  const updateMiscItem = (id: number, field: keyof MiscItem, value: string | number) =>
-    setMiscItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it));
-  const removeMiscItem = (id: number) => setMiscItems(prev => prev.filter(it => it.id !== id));
-
-  const miscTotal      = miscItems.reduce((s, it) => s + it.price * it.qty, 0);
-  const yearEnd        = activeYear?.end_date?.split("T")[0] || activeYear?.end_date || "";
-  const selectedStructures = feeStructures.filter(f => selectedFees.has(f.id));
-  const feeGrossTotal  = selectedStructures.reduce((s, f) => s + calcFeeTotal(f, form.admission_date, yearEnd), 0);
-  const feeDiscountTot = scholarshipPct ? Math.round(feeGrossTotal * (scholarshipPct / 100) * 100) / 100 : 0;
-  const feeNetTotal    = feeGrossTotal - feeDiscountTot;
-  const miscNetTotal   = scholarshipPct ? Math.round(miscTotal * (1 - scholarshipPct / 100) * 100) / 100 : miscTotal;
-  const grandNetTotal  = feeNetTotal + miscNetTotal;
-  const grandDiscount  = feeDiscountTot + (miscTotal - miscNetTotal);
-
-  const steps   = [{ key: "details", label: "Student Details" }, { key: "done", label: "Complete" }];
+  const steps   = [{ key: "details", label: "Student Details" }, { key: "fees", label: "Assign Fees" }, { key: "done", label: "Complete" }];
   const stepIdx = steps.findIndex(s => s.key === step);
 
   const inputStyle: React.CSSProperties = { width: "100%", minHeight: 38, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit", background: "#fff" };
