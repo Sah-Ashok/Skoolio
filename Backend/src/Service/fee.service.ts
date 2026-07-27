@@ -1,3 +1,4 @@
+import pool from '../config/db';
 import {
   createFeeStructure, getFeeStructuresByClass, getFeeStructureById,
   updateFeeStructure, deleteFeeStructure,
@@ -500,11 +501,11 @@ export const generateMonthlyFeeBillsService = async (
         }
 
         // ── Scholarship discount ─────────────────────────────────────────────
-        // Only apply scholarship to fees where scholarship_applies = true
-        // (stored on fee_structure; defaults true for backward compat).
-        // If not set on structure, default = apply to all (safe legacy behaviour).
+        // scholarship_applies defaults to true for backward compatibility with
+        // structures created before this field was added to the schema.
         const scholarshipApplies =
-          (structure as any).scholarship_applies !== false; // undefined or true → apply
+          structure.scholarship_applies !== false &&
+          (structure as any).scholarship_applies !== 'false'; // guard against string 'false'
 
         const amount = Number(structure.amount);
         let discount        = 0;
@@ -526,6 +527,24 @@ export const generateMonthlyFeeBillsService = async (
           ? structure.fee_name
           : `${structure.fee_name} — ${billing_month}`;
 
+        // ── Advance payment offset ───────────────────────────────────────────
+        // If student has overpaid on any previous collection this academic year,
+        // that credit should reduce what they owe on new bills.
+        const advanceRes = await pool.query(
+          `SELECT COALESCE(
+             SUM(paid_amount) - SUM(net_amount), 0
+           ) AS advance_balance
+           FROM fee_collections
+           WHERE school_id        = $1
+             AND student_id       = $2
+             AND academic_year_id = $3
+             AND status           = 'paid'
+             AND paid_amount      > net_amount`,
+          [school_id, en.student_id, academic_year_id]
+        );
+        const advanceBalance = Math.max(0, Number(advanceRes.rows[0]?.advance_balance || 0));
+        const effectiveNetAmount = Math.max(0, net_amount - advanceBalance);
+
         await createFeeCollection(
           school_id, created_by,
           {
@@ -538,7 +557,7 @@ export const generateMonthlyFeeBillsService = async (
             discount_amount:  discount > 0 ? discount    : undefined,
             discount_reason:  discount > 0 ? discount_reason : undefined,
           },
-          fee_name, net_amount, net_amount, 'academic'
+          fee_name, effectiveNetAmount, effectiveNetAmount, 'academic'
         );
         created++;
       }

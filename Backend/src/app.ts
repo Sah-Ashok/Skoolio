@@ -25,6 +25,7 @@ import promotionRoutes from './Routes/promotion.routes';
 import historyRoutes from './Routes/history.routes';
 import onlinePaymentRoutes from './Routes/online_payment.routes';
 import feedbackRoutes from './Routes/feedback.routes';
+import contactRoutes from './Routes/contact.routes';
 import { globalHistoryMiddleware } from './middlewares/history.middleware';
 
 
@@ -66,6 +67,7 @@ app.use('/api/promotion', promotionRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/online-payments', onlinePaymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/contact', contactRoutes);
 
 app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})

@@ -601,7 +601,7 @@ export const createFeePaymentAtomic = async (
     const payment: IFeePayment = paymentResult.rows[0];
 
     const new_paid      = Number(collection.paid_amount) + Number(data.paid_amount);
-    const new_remaining = Number(collection.net_amount)  - new_paid;
+    const new_remaining = Math.max(0, Number(collection.net_amount) - new_paid);
     const new_status    = new_remaining <= 0 ? 'paid' : 'partial';
 
     await client.query(

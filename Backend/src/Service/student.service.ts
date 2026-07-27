@@ -83,7 +83,7 @@ export const deleteStudentService = async (id: number, school_id: number) => {
 
 export const createEnrollmentService = async (
   school_id: number,
-  data: ICreateEnrollment
+  data: ICreateEnrollment & { created_by?: number }
 ) => {
   // 1. Check student exists
   const student = await getStudentById(data.student_id, school_id);
@@ -101,21 +101,22 @@ export const createEnrollmentService = async (
   // 3. Create enrollment
   const enrollment = await createEnrollment(school_id, data);
 
-  // Admission, yearly, and other one-time charges are due when a student is
-  // enrolled.  Do this here (rather than relying on a later monthly batch) so
-  // a student admitted today immediately receives every applicable charge.
-  // The repository operation is idempotent, which also keeps this safe if an
-  // administrator retries an enrollment-related request.
+  // Bug 1 fix: use the actual admin who created the enrollment as created_by
+  // (not school_id which is semantically wrong).
+  // Bug 1 fix: ensure admission_date is a plain YYYY-MM-DD string.
+  const createdBy    = data.created_by || school_id;
+  const admissionDate = String(student.admission_date).slice(0, 10);
+
   const oneTimeFees = await assignOneTimeFees(
     school_id,
-    school_id,
+    createdBy,
     data.student_id,
     enrollment.id,
     data.academic_year_id,
     data.class_id,
     Number(student.scholarship_percent) || 0,
     student.scholarship_type || '',
-    String(student.admission_date)
+    admissionDate
   );
 
   return { ...enrollment, one_time_fees: oneTimeFees };

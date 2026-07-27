@@ -57,7 +57,7 @@ export const deleteStudent = catchAsync(async (req: Request, res: Response, next
 
 export const createEnrollment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const enrollment = await createEnrollmentService(school_id, req.body);
+  const enrollment = await createEnrollmentService(school_id, { ...req.body, created_by: school_id });
   sendResponse(res, 201, true, 'Student enrolled successfully', enrollment);
 });
 
