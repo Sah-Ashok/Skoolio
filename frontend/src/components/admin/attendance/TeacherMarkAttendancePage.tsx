@@ -16,13 +16,12 @@ import { useDateFormat } from "@/lib/useDateFormat";
 const s  = (name: string) => styles[name] || name;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type AttendanceStatus = "present" | "absent" | "leave" | "suspended";
+type AttendanceStatus = "present" | "absent" | "leave";
 
 const PAL: { key: AttendanceStatus; label: string; activeClass: string }[] = [
   { key: "present",   label: "P",  activeClass: "palActiveP" },
   { key: "absent",    label: "A",  activeClass: "palActiveA" },
   { key: "leave",     label: "Lv", activeClass: "palActiveL" },
-  { key: "suspended", label: "Su", activeClass: "palActiveSu" },
 ];
 
 const todayStr = () => new Date().toISOString().split("T")[0];
@@ -31,19 +30,16 @@ const statusColor: Record<AttendanceStatus, string> = {
   present:   "#12805c",
   absent:    "#b42318",
   leave:     "#c46a14",
-  suspended: "#6d28d9",
 };
 const statusBg: Record<AttendanceStatus, string> = {
   present:   "#e2f6ee",
   absent:    "#fde7e7",
   leave:     "#fff1df",
-  suspended: "#ede9fe",
 };
 const statusLabel: Record<AttendanceStatus, string> = {
   present:   "Present",
   absent:    "Absent",
   leave:     "Leave",
-  suspended: "Suspended",
 };
 
 // Quick-mark statuses available in the bulk textbox bar
@@ -51,7 +47,6 @@ const QUICK_STATUSES: { key: AttendanceStatus; label: string; color: string; bg:
   { key: "present",   label: "Present",   color: "#12805c", bg: "#e2f6ee" },
   { key: "absent",    label: "Absent",    color: "#b42318", bg: "#fde7e7" },
   { key: "leave",     label: "Leave",     color: "#c46a14", bg: "#fff1df" },
-  { key: "suspended", label: "Suspended", color: "#6d28d9", bg: "#ede9fe" },
 ];
 
 export default function TeacherMarkAttendancePage() {
@@ -78,6 +73,8 @@ export default function TeacherMarkAttendancePage() {
 
   const { execute: createAttendance, loading: saving } = useMutation("/attendance", "POST");
   const [submitting, setSubmitting] = useState(false);
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
+  const [loadVersion, setLoadVersion] = useState(0);
 
   // Quick-mark state
   const [quickRolls, setQuickRolls]         = useState("");
@@ -116,13 +113,14 @@ export default function TeacherMarkAttendancePage() {
             student_id:       d.student_id,
             full_name:        d.full_name ?? d.student_name ?? `Student #${d.student_id}`,
             admission_number: d.admission_number ?? null,
-            roll_no:          d.roll_no ?? null,
+            roll_no:          d.roll_number ?? null,
+            guardian_name:    d.guardian_name ?? null,
           })));
           setStatusMap(
             Object.fromEntries(
               details.map((d: any) => [
                 d.student_id,
-                (["present","absent","leave","suspended"].includes(d.status) ? d.status : "present") as AttendanceStatus,
+                (["present","absent","leave"].includes(d.status) ? d.status : "present") as AttendanceStatus,
               ])
             )
           );
@@ -134,13 +132,13 @@ export default function TeacherMarkAttendancePage() {
           const filtered = (enRes.data || []).filter(
             (en: any) => String(en.section_id) === sectionId
           );
-          // Sort by roll_no if available
+          // Sort by the enrollment roll number if available.
           filtered.sort((a: any, b: any) => {
-            const ra = Number(a.roll_no ?? 9999);
-            const rb = Number(b.roll_no ?? 9999);
+            const ra = Number(a.roll_number ?? 9999);
+            const rb = Number(b.roll_number ?? 9999);
             return ra - rb;
           });
-          setEnrolledStudents(filtered);
+          setEnrolledStudents(filtered.map((en: any) => ({ ...en, roll_no: en.roll_number ?? null })));
           setStatusMap(
             Object.fromEntries(
               filtered.map((en: any) => [en.student_id, "present" as AttendanceStatus])
@@ -156,7 +154,7 @@ export default function TeacherMarkAttendancePage() {
 
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionId, selectedDate, academicYearId]);
+  }, [sectionId, selectedDate, academicYearId, loadVersion]);
 
   const setStudentStatus = (studentId: number, status: AttendanceStatus) => {
     if (isLocked) return;
@@ -171,7 +169,9 @@ export default function TeacherMarkAttendancePage() {
     setStatusMap(next);
   };
 
-  // Quick-mark by roll numbers
+  // Quick-mark by roll numbers.
+  // The listed roll numbers get the selected status.
+  // ALL OTHER students are automatically set to Present.
   const applyQuickMark = () => {
     if (isLocked || !quickRolls.trim()) return;
     const rollNums = quickRolls.split(",").map(r => r.trim()).filter(Boolean);
@@ -181,6 +181,9 @@ export default function TeacherMarkAttendancePage() {
       if (rollNums.includes(String(en.roll_no))) {
         next[en.student_id] = quickStatus;
         matched++;
+      } else {
+        // Unlisted students automatically become Present
+        next[en.student_id] = "present";
       }
     });
     if (matched === 0) {
@@ -189,14 +192,15 @@ export default function TeacherMarkAttendancePage() {
     }
     setStatusMap(next);
     setQuickRolls("");
-    dispatch(showToast({ type: "success", title: "Applied", message: `${matched} student${matched > 1 ? "s" : ""} marked as ${statusLabel[quickStatus]}.` }));
+    const unmarked = enrolledStudents.length - matched;
+    dispatch(showToast({ type: "success", title: "Applied", message: `${matched} marked as ${statusLabel[quickStatus]}, ${unmarked} marked as Present.` }));
     quickInputRef.current?.focus();
   };
 
   const presentCount   = enrolledStudents.filter(e => statusMap[e.student_id] === "present").length;
   const absentCount    = enrolledStudents.filter(e => statusMap[e.student_id] === "absent").length;
   const leaveCount     = enrolledStudents.filter(e => statusMap[e.student_id] === "leave").length;
-  const suspendedCount = enrolledStudents.filter(e => statusMap[e.student_id] === "suspended").length;
+  const classSuspended = Boolean(existingRecord?.is_holiday);
 
   const markedBy = mySections?.find((sec: any) => String(sec.id) === sectionId)?.coordinator_id ?? null;
   const selectedSection = mySections?.find((sec: any) => String(sec.id) === sectionId);
@@ -243,7 +247,7 @@ export default function TeacherMarkAttendancePage() {
         dispatch(showToast({
           type: "success",
           title: "Attendance submitted",
-          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv · ${suspendedCount}Su — visible to students.`,
+          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv — visible to students.`,
         }));
       } else {
         await createAttendance({
@@ -257,10 +261,10 @@ export default function TeacherMarkAttendancePage() {
         dispatch(showToast({
           type: "success",
           title: "Attendance saved",
-          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv · ${suspendedCount}Su saved.`,
+          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv saved.`,
         }));
       }
-      setSectionId(v => { setTimeout(() => setSectionId(v), 10); return v; });
+      setLoadVersion(v => v + 1);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save attendance." }));
     } finally {
@@ -272,8 +276,20 @@ export default function TeacherMarkAttendancePage() {
     const st = statusMap[studentId];
     if (st === "absent")    return s("absentTableRow");
     if (st === "leave")     return s("leaveTableRow");
-    if (st === "suspended") return s("suspendedTableRow");
     return undefined;
+  };
+
+  const suspendClassForDay = async () => {
+    if (!activeYear?.id || !sectionId || !markedBy || !selectedSection) return;
+    try {
+      setSubmitting(true);
+      await createAttendance({ academic_year_id: academicYearId, class_id: selectedSection.class_id, section_id: Number(sectionId), date: selectedDate, marked_by: markedBy, is_holiday: true, remarks: "Class suspended", students: [] });
+      setShowSuspendConfirm(false);
+      setLoadVersion(v => v + 1);
+      dispatch(showToast({ type: "success", title: "Class suspended", message: `${selectedSection.class_name} — Section ${selectedSection.name} is suspended for ${displayDateLabel}.` }));
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Could not suspend class", message: err.message || "Please try again." }));
+    } finally { setSubmitting(false); }
   };
 
   // Display date in BS if needed
@@ -323,7 +339,7 @@ export default function TeacherMarkAttendancePage() {
             <Link className={cx(s("btn"), s("btnOutline"))} href="/teacher/attendance">
               <i className="fa-solid fa-arrow-left" /> Back
             </Link>
-            {!isLocked && enrolledStudents.length > 0 && (
+            {!isLocked && !classSuspended && enrolledStudents.length > 0 && (
               <button
                 className={cx(s("btn"), s("btnPrimary"))}
                 type="button"
@@ -335,6 +351,11 @@ export default function TeacherMarkAttendancePage() {
                     ? <><i className="fa-solid fa-paper-plane" /> Submit Attendance</>
                     : <><i className="fa-solid fa-floppy-disk" /> Save Attendance</>
                 )}
+              </button>
+            )}
+            {!existingRecord && !dataLoading && (
+              <button className={cx(s("btn"), s("btnOutline"))} type="button" onClick={() => setShowSuspendConfirm(true)} style={{ color: "#6d28d9", borderColor: "#c4b5fd" }}>
+                <i className="fa-solid fa-ban" /> Suspend class
               </button>
             )}
           </div>
@@ -367,7 +388,7 @@ export default function TeacherMarkAttendancePage() {
           <label style={{ gridColumn: "span 2" }}>
             <span>Quick mark all</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {(["present","absent","leave","suspended"] as AttendanceStatus[]).map(st => (
+              {(["present","absent","leave"] as AttendanceStatus[]).map(st => (
                 <button
                   key={st}
                   type="button"
@@ -387,26 +408,10 @@ export default function TeacherMarkAttendancePage() {
           </label>
         </section>
 
-        {/* ── Summary stat cards ── */}
-        {enrolledStudents.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 4 }}>
-            {[
-              { label: "Total",     val: enrolledStudents.length, color: "#1f2d36", bg: "#f1f5f9", border: "#dce5e9" },
-              { label: "Present",   val: presentCount,   color: "#12805c", bg: "#e2f6ee", border: "#a7f3d0" },
-              { label: "Absent",    val: absentCount,    color: "#b42318", bg: "#fde7e7", border: "#fca5a5" },
-              { label: "Leave",     val: leaveCount,     color: "#c46a14", bg: "#fff1df", border: "#fcd34d" },
-            ].map(c => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
-                <strong style={{ display: "block", fontSize: 22, fontWeight: 900, color: c.color }}>{c.val}</strong>
-                <span style={{ fontSize: 11, fontWeight: 700, color: c.color, opacity: 0.85 }}>{c.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {suspendedCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#ede9fe", border: "1px solid #c4b5fd", marginBottom: 4 }}>
-            <i className="fa-solid fa-ban" style={{ color: "#6d28d9", fontSize: 13 }} />
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#5b21b6" }}>{suspendedCount} student{suspendedCount > 1 ? "s" : ""} marked as Suspended (class suspended)</span>
+        {classSuspended && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 12, background: "#f5f3ff", border: "1px solid #c4b5fd", marginBottom: 4 }}>
+            <i className="fa-solid fa-ban" style={{ color: "#6d28d9", fontSize: 18 }} />
+            <div><strong style={{ color: "#5b21b6", fontSize: 14 }}>Class suspended for this day</strong><p style={{ color: "#6d28d9", fontSize: 12, fontWeight: 700, margin: "3px 0 0" }}>No individual student attendance is recorded for this section.</p></div>
           </div>
         )}
 
@@ -445,20 +450,27 @@ export default function TeacherMarkAttendancePage() {
               <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6a7882" }}>
                 {isLocked
                   ? "Read-only — submitted attendance cannot be edited here."
-                  : "Tap P · A · Lv · Su to set each student's status."}
+                  : "Tap P · A · Lv to set each student's status."}
               </p>
             </div>
           </div>
 
           <div className={s("attendanceTableWrap")}>
-            {(sectionsLoading || dataLoading) ? (
+            {classSuspended ? (
+              <div style={{ padding: "2.5rem", textAlign: "center", color: "#5b21b6" }}>
+                <i className="fa-solid fa-ban" style={{ fontSize: 28, display: "block", marginBottom: 10 }} />
+                <strong style={{ fontSize: 14 }}>Class suspended — attendance is not required for this section today.</strong>
+              </div>
+            ) : (sectionsLoading || dataLoading) ? (
               <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={32} /></div>
             ) : (
               <table>
                 <thead>
                   <tr>
                     <th style={{ width: 48, textAlign: "center" }}>#</th>
+                    <th>Roll no.</th>
                     <th>Student</th>
+                    <th>Father / guardian</th>
                     <th>Status</th>
                     <th>Remarks</th>
                   </tr>
@@ -466,14 +478,14 @@ export default function TeacherMarkAttendancePage() {
                 <tbody>
                   {enrolledStudents.map((en, idx) => (
                     <tr className={rowClass(en.student_id)} key={en.student_id}>
-                      {/* Roll number */}
                       <td style={{ textAlign: "center", fontWeight: 900, fontSize: 13, color: "#6a7882" }}>
-                        {en.roll_no ?? (idx + 1)}
+                        {idx + 1}
                       </td>
+                      <td style={{ fontWeight: 900, fontSize: 13, color: "#1f2d36" }}>{en.roll_no ?? "—"}</td>
                       <td>
                         <div style={{ fontWeight: 800, fontSize: 13, color: "#1f2d36" }}>{en.full_name}</div>
-                        <div style={{ fontSize: 11, color: "#6a7882", fontWeight: 600 }}>{en.admission_number ?? `ID: ${en.student_id}`}</div>
                       </td>
+                      <td style={{ fontSize: 13, fontWeight: 700, color: "#51606a" }}>{en.guardian_name ?? "—"}</td>
                       <td>
                         {isLocked ? (
                           <div style={{
@@ -514,7 +526,7 @@ export default function TeacherMarkAttendancePage() {
                   ))}
                   {enrolledStudents.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
                         No students found for this section.
                       </td>
                     </tr>
@@ -526,7 +538,7 @@ export default function TeacherMarkAttendancePage() {
         </article>
 
         {/* ── Quick-mark by roll number ── */}
-        {!isLocked && enrolledStudents.length > 0 && (
+        {!isLocked && !classSuspended && enrolledStudents.length > 0 && (
           <div style={{
             background: "#fff", border: "1px solid #dce5e9", borderRadius: 14,
             padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10,
@@ -591,9 +603,28 @@ export default function TeacherMarkAttendancePage() {
           </div>
         )}
 
-        {/* ── Save footer ── */}
-        {!isLocked && enrolledStudents.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        {/* ── Bottom: compact stats strip + save button ── */}
+        {!isLocked && !classSuspended && enrolledStudents.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            {/* Compact stat pill strip */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { label: "Total",   val: enrolledStudents.length, color: "#1f2d36", bg: "#f1f5f9", border: "#dce5e9" },
+                { label: "Present", val: presentCount,            color: "#12805c", bg: "#e2f6ee", border: "#a7f3d0" },
+                { label: "Absent",  val: absentCount,             color: "#b42318", bg: "#fde7e7", border: "#fca5a5" },
+                { label: "Leave",   val: leaveCount,              color: "#c46a14", bg: "#fff1df", border: "#fcd34d" },
+              ].map(c => (
+                <div key={c.label} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 12px", borderRadius: 999,
+                  background: c.bg, border: `1px solid ${c.border}`,
+                }}>
+                  <strong style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{c.val}</strong>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: c.color, opacity: 0.85 }}>{c.label}</span>
+                </div>
+              ))}
+            </div>
+            {/* Save / Submit button */}
             <button
               className={cx(s("btn"), s("btnPrimary"))}
               type="button"
@@ -610,6 +641,19 @@ export default function TeacherMarkAttendancePage() {
         )}
 
       </main>
+      {showSuspendConfirm && (
+        <div role="dialog" aria-modal="true" aria-labelledby="suspend-class-title" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15, 23, 42, .48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "min(460px, 100%)", background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 24px 70px rgba(15,23,42,.3)" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", color: "#6d28d9", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 14 }}><i className="fa-solid fa-ban" /></div>
+            <h2 id="suspend-class-title" style={{ margin: 0, color: "#1f2d36", fontSize: 18, fontWeight: 900 }}>Suspend this class for the day?</h2>
+            <p style={{ margin: "9px 0 0", color: "#5f6f7b", fontSize: 13, fontWeight: 600, lineHeight: 1.55 }}>This marks {selectedSection?.class_name} — Section {selectedSection?.name} as suspended on {displayDateLabel}. No student will be marked present, absent, or on leave for this date.</p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+              <button type="button" className={cx(s("btn"), s("btnOutline"))} onClick={() => setShowSuspendConfirm(false)} disabled={submitting}>Cancel</button>
+              <button type="button" className={cx(s("btn"), s("btnPrimary"))} onClick={suspendClassForDay} disabled={submitting} style={{ background: "#6d28d9" }}>{submitting ? <Spinner size={16} /> : <><i className="fa-solid fa-ban" /> Yes, suspend class</>}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

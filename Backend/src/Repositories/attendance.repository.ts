@@ -256,9 +256,12 @@ export const getAttendanceDetails = async (
     `SELECT ad.*,
             s.full_name,
             s.admission_number,
-            s.photo
+            s.photo,
+            s.guardian_name,
+            se.roll_number
      FROM attendance_details ad
      INNER JOIN students s ON s.id = ad.student_id
+     LEFT JOIN student_enrollments se ON se.id = ad.enrollment_id
      WHERE ad.attendance_id = $1 AND ad.school_id = $2
      ORDER BY s.full_name ASC`,
     [attendance_id, school_id]

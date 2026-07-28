@@ -57,8 +57,11 @@ export const createAttendanceService = async (
   data: ICreateAttendance,
   teacherId?: number
 ) => {
-  if (!data.students || data.students.length === 0)
+  const isClassSuspension = data.is_holiday === true;
+  if (!isClassSuspension && (!data.students || data.students.length === 0))
     throw new AppError('No students provided for attendance.', 400);
+  if (isClassSuspension && data.students.length > 0)
+    throw new AppError('A class suspension cannot contain individual student attendance.', 400);
 
   assertAttendanceDate(data.date);
 
@@ -79,7 +82,9 @@ export const createAttendanceService = async (
   if (existing) throw new AppError('Attendance already marked for this section on this date.', 400);
 
   const attendance = await createAttendance(school_id, data);
-  const details    = await createAttendanceDetails(school_id, attendance.id, data.students);
+  const details    = isClassSuspension
+    ? []
+    : await createAttendanceDetails(school_id, attendance.id, data.students);
 
   const total_present = details.filter(d => d.status === 'present').length;
   const total_absent  = details.filter(d => d.status === 'absent').length;

@@ -32,6 +32,8 @@ export type ICreateAttendance = Pick<
 > & {
   is_holiday?: boolean;
   remarks?: string;
+  // A class suspension is recorded at section level and intentionally has no
+  // per-student rows.
   students: ICreateAttendanceDetail[];
 };
 

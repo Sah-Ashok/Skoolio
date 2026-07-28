@@ -17,22 +17,20 @@ const getEditLockDate = () => {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split("T")[0];
 };
 
-type AttendanceStatus = "present" | "absent" | "suspended" | "leave";
+type AttendanceStatus = "present" | "absent" | "leave";
 
 const STATUS_CONFIG: Record<AttendanceStatus, { label: string; short: string; bg: string; color: string; border: string; rowBg: string }> = {
   present:   { label: "Present",   short: "P",  bg: "#e2f6ee", color: "#12805c", border: "#12805c", rowBg: "#fff"     },
   absent:    { label: "Absent",    short: "A",  bg: "#fde7e7", color: "#b42318", border: "#b42318", rowBg: "#fff5f5"  },
-  suspended: { label: "Suspended", short: "Su", bg: "#ede9fe", color: "#6d28d9", border: "#6d28d9", rowBg: "#f5f3ff"  },
   leave:     { label: "Leave",     short: "Lv", bg: "#e8edff", color: "#3b5bdb", border: "#3b5bdb", rowBg: "#f0f4ff"  },
 };
 
 const ALL_STATUSES = Object.keys(STATUS_CONFIG) as AttendanceStatus[];
 
-function PALToggle({ value, onChange, disabled, hideSuspended }: { value: AttendanceStatus; onChange: (v: AttendanceStatus) => void; disabled?: boolean; hideSuspended?: boolean }) {
-  const visibleStatuses = hideSuspended ? ALL_STATUSES.filter(s => s !== "suspended") : ALL_STATUSES;
+function PALToggle({ value, onChange, disabled }: { value: AttendanceStatus; onChange: (v: AttendanceStatus) => void; disabled?: boolean }) {
   return (
     <div style={{ display: "flex", gap: 4 }}>
-      {visibleStatuses.map((st) => {
+      {ALL_STATUSES.map((st) => {
         const c      = STATUS_CONFIG[st];
         const active = value === st;
         return (
@@ -76,6 +74,7 @@ export default function TeacherMarkAttendancePage() {
   const [loading,     setLoading]     = useState(false);
   const [existingRec, setExistingRec] = useState<any | null>(null);
   const [submitting,  setSubmitting]  = useState(false);
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
 
   // Quick-mark by roll number
   const [quickRolls,  setQuickRolls]  = useState("");
@@ -124,8 +123,8 @@ export default function TeacherMarkAttendancePage() {
         const studs = (rec.details ?? []).map((d: any) => ({
           id:               d.student_id,
           full_name:        d.full_name,
-          admission_number: d.admission_number,
-          roll_no:          d.roll_no ?? null,
+          roll_no:          d.roll_number ?? null,
+          guardian_name:    d.guardian_name ?? null,
           enrollment_id:    d.enrollment_id,
           detail_id:        d.id,
         }));
@@ -146,8 +145,8 @@ export default function TeacherMarkAttendancePage() {
         const studs = (Array.isArray(enrolled) ? enrolled : []).map((en: any) => ({
           id:               en.student_id,
           full_name:        en.full_name,
-          admission_number: en.admission_number,
-          roll_no:          en.roll_no ?? null,
+          guardian_name:    en.guardian_name ?? null,
+          roll_no:          en.roll_number ?? null,
           enrollment_id:    en.id,
         }));
         studs.sort((a: any, b: any) => Number(a.roll_no ?? 9999) - Number(b.roll_no ?? 9999));
@@ -255,15 +254,30 @@ export default function TeacherMarkAttendancePage() {
     }
   };
 
+  const suspendClassForDay = async () => {
+    if (!sectionId || !activeYear?.id || !selectedSection) return;
+    setSubmitting(true);
+    try {
+      await apiRequest("/attendance", {
+        method: "POST",
+        body: JSON.stringify({ academic_year_id: activeYear.id, class_id: selectedSection.class_id, section_id: Number(sectionId), date, marked_by: null, is_holiday: true, remarks: "Class suspended", students: [] }),
+      });
+      setShowSuspendConfirm(false);
+      dispatch(showToast({ type: "success", title: "Class suspended", message: `${selectedSection.class_name} — Section ${selectedSection.name} is suspended for ${formatDate(date)}.` }));
+      loadData();
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Could not suspend class", message: err.message || "Please try again." }));
+    } finally { setSubmitting(false); }
+  };
+
   const counts = {
     present:   students.filter(s => statuses[s.id] === "present").length,
     absent:    students.filter(s => statuses[s.id] === "absent").length,
-    suspended: students.filter(s => statuses[s.id] === "suspended").length,
     leave:     students.filter(s => statuses[s.id] === "leave").length,
   };
 
   // If every student is suspended, the whole class is on suspension — hide the Su button per-row
-  const isClassSuspended = students.length > 0 && students.every(s => statuses[s.id] === "suspended");
+  const isClassSuspended = Boolean(existingRec?.is_holiday);
 
   return (
     <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
@@ -288,7 +302,7 @@ export default function TeacherMarkAttendancePage() {
             >
               <i className="fa-solid fa-arrow-left" /> Back
             </button>
-            {!readonly && students.length > 0 && (
+            {!readonly && !isClassSuspended && students.length > 0 && (
               <button
                 onClick={handleSave}
                 disabled={submitting}
@@ -296,6 +310,11 @@ export default function TeacherMarkAttendancePage() {
               >
                 {submitting ? <Spinner size={14} /> : <i className="fa-solid fa-floppy-disk" />}
                 {existingRec ? "Update Attendance" : "Save Attendance"}
+              </button>
+            )}
+            {!readonly && !existingRec && (
+              <button onClick={() => setShowSuspendConfirm(true)} style={{ minHeight: 38, padding: "0 16px", borderRadius: 8, border: "1px solid #c4b5fd", background: "#f5f3ff", color: "#6d28d9", fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}>
+                <i className="fa-solid fa-ban" /> Suspend class
               </button>
             )}
           </div>
@@ -343,7 +362,7 @@ export default function TeacherMarkAttendancePage() {
           )}
 
           {/* Bulk mark all */}
-          {!readonly && students.length > 0 && (
+          {!readonly && !isClassSuspended && students.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {ALL_STATUSES.map(st => {
                 const c = STATUS_CONFIG[st];
@@ -375,15 +394,19 @@ export default function TeacherMarkAttendancePage() {
             <i className="fa-solid fa-circle-info" /> This record was previously submitted. You can still edit and update it.
           </div>
         )}
+        {isClassSuspended && (
+          <div style={{ padding: "14px 16px", borderRadius: 10, background: "#f5f3ff", border: "1px solid #c4b5fd", color: "#5b21b6", fontWeight: 700, fontSize: 13, display: "flex", gap: 10, alignItems: "center" }}>
+            <i className="fa-solid fa-ban" /> This class is suspended for the selected day. Student attendance is not required.
+          </div>
+        )}
 
         {/* ── Stat cards ── */}
         {students.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
             {[
               { label: "Total",     val: students.length,  color: "#1f2d36", bg: "#f8fafc", border: "#dce5e9" },
               { label: "Present",   val: counts.present,   color: STATUS_CONFIG.present.color,   bg: STATUS_CONFIG.present.bg,   border: "#a7f3d0" },
               { label: "Absent",    val: counts.absent,    color: STATUS_CONFIG.absent.color,    bg: STATUS_CONFIG.absent.bg,    border: "#fca5a5" },
-              { label: "Suspended", val: counts.suspended, color: STATUS_CONFIG.suspended.color, bg: STATUS_CONFIG.suspended.bg, border: "#c4b5fd" },
               { label: "Leave",     val: counts.leave,     color: STATUS_CONFIG.leave.color,     bg: STATUS_CONFIG.leave.bg,     border: "#a5b4fc" },
             ].map(c => (
               <div key={c.label} style={{ padding: "14px 16px", borderRadius: 10, background: c.bg, border: `1px solid ${c.border}`, textAlign: "center" }}>
@@ -403,7 +426,12 @@ export default function TeacherMarkAttendancePage() {
             <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>{formatDate(date)}</p>
           </div>
 
-          {loading ? (
+          {isClassSuspended ? (
+            <div style={{ padding: "3rem", textAlign: "center", color: "#5b21b6" }}>
+              <i className="fa-solid fa-ban" style={{ fontSize: 32, display: "block", marginBottom: 12 }} />
+              <p style={{ fontWeight: 800, fontSize: 14 }}>Class suspended — no student attendance is recorded today.</p>
+            </div>
+          ) : loading ? (
             <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
           ) : students.length === 0 ? (
             <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
@@ -415,7 +443,7 @@ export default function TeacherMarkAttendancePage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#f7fafb" }}>
-                    {["#", "Student", "Status", "Remarks"].map(h => (
+                    {["#", "Roll no.", "Student", "Father / guardian", "Status", "Remarks"].map(h => (
                       <th key={h} style={{ padding: "12px 20px", textAlign: "left", fontWeight: 900, fontSize: 11, color: "#6a7882", textTransform: "uppercase" }}>{h}</th>
                     ))}
                   </tr>
@@ -426,33 +454,23 @@ export default function TeacherMarkAttendancePage() {
                     const cfg = STATUS_CONFIG[st];
                     return (
                       <tr key={student.id} style={{ background: cfg.rowBg, borderBottom: "1px solid #f0f4f5" }}>
-                        {/* Roll no */}
                         <td style={{ padding: "14px 20px", fontWeight: 900, fontSize: 13, color: "#6a7882", textAlign: "center", width: 52 }}>
-                          {student.roll_no ?? (idx + 1)}
+                          {idx + 1}
                         </td>
-                        {/* Student info */}
+                        <td style={{ padding: "14px 20px", fontWeight: 900, fontSize: 13, color: "#1f2d36" }}>{student.roll_no ?? "—"}</td>
                         <td style={{ padding: "14px 20px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 36, height: 36, borderRadius: 9, background: cfg.bg, color: cfg.color, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, flexShrink: 0 }}>
-                              {student.full_name?.charAt(0) ?? "?"}
-                            </div>
-                            <div>
-                              <strong style={{ display: "block", fontWeight: 900 }}>{student.full_name}</strong>
-                              <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>{student.admission_number ?? `ID #${student.id}`}</span>
-                            </div>
-                          </div>
+                          <strong style={{ display: "block", fontWeight: 900 }}>{student.full_name}</strong>
                         </td>
-                        {/* P/A/Su/Lv toggle */}
+                        <td style={{ padding: "14px 20px", color: "#51606a", fontWeight: 700 }}>{student.guardian_name ?? "—"}</td>
                         <td style={{ padding: "14px 20px" }}>
                           {readonly ? (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 900, background: cfg.bg, color: cfg.color }}>
                               {cfg.label}
                             </span>
                           ) : (
-                            <PALToggle value={st} onChange={v => setStudentStatus(student.id, v)} hideSuspended={isClassSuspended} />
+                            <PALToggle value={st} onChange={v => setStudentStatus(student.id, v)} />
                           )}
                         </td>
-                        {/* Remarks */}
                         <td style={{ padding: "14px 20px" }}>
                           {readonly ? (
                             <span style={{ fontSize: 12, color: "#6a7882", fontWeight: 700 }}>{remarks[student.id] || "—"}</span>
@@ -478,7 +496,7 @@ export default function TeacherMarkAttendancePage() {
         </div>
 
         {/* ── Quick mark by roll number ── */}
-        {!readonly && students.length > 0 && (
+        {!readonly && !isClassSuspended && students.length > 0 && (
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d4dde2", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10, boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>
@@ -531,6 +549,19 @@ export default function TeacherMarkAttendancePage() {
         )}
 
       </main>
+      {showSuspendConfirm && (
+        <div role="dialog" aria-modal="true" aria-labelledby="suspend-class-title" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "min(460px, 100%)", background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 24px 70px rgba(15,23,42,.3)" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", color: "#6d28d9", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 14 }}><i className="fa-solid fa-ban" /></div>
+            <h2 id="suspend-class-title" style={{ margin: 0, color: "#1f2d36", fontSize: 18, fontWeight: 900 }}>Suspend this class for the day?</h2>
+            <p style={{ margin: "9px 0 0", color: "#5f6f7b", fontSize: 13, fontWeight: 600, lineHeight: 1.55 }}>This marks {selectedSection?.class_name} — Section {selectedSection?.name} as suspended on {formatDate(date)}. No student will be marked present, absent, or on leave.</p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+              <button type="button" onClick={() => setShowSuspendConfirm(false)} disabled={submitting} style={{ minHeight: 38, padding: "0 16px", borderRadius: 8, border: "1px solid #d4dde2", background: "#fff", fontWeight: 900, cursor: "pointer" }}>Cancel</button>
+              <button type="button" onClick={suspendClassForDay} disabled={submitting} style={{ minHeight: 38, padding: "0 16px", borderRadius: 8, border: "none", background: "#6d28d9", color: "#fff", fontWeight: 900, cursor: "pointer" }}>{submitting ? <Spinner size={14} /> : <><i className="fa-solid fa-ban" /> Yes, suspend class</>}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
