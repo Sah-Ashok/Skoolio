@@ -7,6 +7,11 @@
 # =============================================================
 set -e
 
+# Load environment variables from .env
+if [ -f "$(dirname "$0")/Backend/.env" ]; then
+  export $(grep -v '^#' "$(dirname "$0")/Backend/.env" | xargs)
+fi
+
 # ── Config ────────────────────────────────────────────────────
 LOCAL_CONTAINER="skoolio_postgres"
 LOCAL_USER="ashok"
@@ -17,8 +22,14 @@ BACKUP_FILE="skoolio_backup_${DATE}.dump.gz"
 BLOB_CONTAINER="pg-backups"
 
 # Azure Blob Storage (backup account)
-# Set this to your BACKUP account connection string
-AZURE_CONNECTION_STRING="YOUR_BACKUP_STORAGE_CONNECTION_STRING"
+# Read from environment variable — never hardcode secrets!
+AZURE_CONNECTION_STRING="${BACKUP_STORAGE_CONNECTION_STRING}"
+
+if [ -z "$AZURE_CONNECTION_STRING" ]; then
+  echo "ERROR: BACKUP_STORAGE_CONNECTION_STRING not set in environment!"
+  echo "Add it to Backend/.env and run: source Backend/.env"
+  exit 1
+fi
 
 # ── Create backup directory ───────────────────────────────────
 mkdir -p $BACKUP_DIR
