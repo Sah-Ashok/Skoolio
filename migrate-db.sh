@@ -25,7 +25,7 @@ LOCAL_USER="ashok"
 LOCAL_DB="school_pos"
 
 echo ""
-echo "[1/4] Dumping data from Azure PostgreSQL..."
+echo "[1/4] Dumping data from Azure PostgreSQL (plain SQL format)..."
 PGPASSWORD=$AZURE_PASSWORD /usr/lib/postgresql/18/bin/pg_dump \
   -h $AZURE_HOST \
   -p $AZURE_PORT \
@@ -33,8 +33,8 @@ PGPASSWORD=$AZURE_PASSWORD /usr/lib/postgresql/18/bin/pg_dump \
   -d $AZURE_DB \
   --no-owner \
   --no-acl \
-  -F c \
-  -f /tmp/skoolio_backup.dump
+  -F p \
+  -f /tmp/skoolio_backup.sql
 
 echo "      Dump complete ✅"
 
@@ -48,17 +48,13 @@ echo "      PostgreSQL ready ✅"
 
 echo ""
 echo "[3/4] Restoring data to local PostgreSQL..."
-# Copy dump into container then restore using container's pg_restore
-docker cp /tmp/skoolio_backup.dump $LOCAL_CONTAINER:/tmp/skoolio_backup.dump
+# Copy plain SQL dump into container and restore with psql
+docker cp /tmp/skoolio_backup.sql $LOCAL_CONTAINER:/tmp/skoolio_backup.sql
 
-docker exec $LOCAL_CONTAINER pg_restore \
+docker exec $LOCAL_CONTAINER psql \
   -U $LOCAL_USER \
   -d $LOCAL_DB \
-  --no-owner \
-  --no-acl \
-  --clean \
-  --if-exists \
-  /tmp/skoolio_backup.dump
+  -f /tmp/skoolio_backup.sql
 
 echo "      Restore complete ✅"
 
@@ -71,8 +67,8 @@ TABLE_COUNT=$(docker exec $LOCAL_CONTAINER psql \
 echo "      Tables in local DB: $TABLE_COUNT ✅"
 
 # Cleanup
-rm -f /tmp/skoolio_backup.dump
-docker exec $LOCAL_CONTAINER rm -f /tmp/skoolio_backup.dump
+rm -f /tmp/skoolio_backup.sql
+docker exec $LOCAL_CONTAINER rm -f /tmp/skoolio_backup.sql
 
 echo ""
 echo "======================================================"
