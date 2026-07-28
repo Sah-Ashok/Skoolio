@@ -48,24 +48,31 @@ echo "      PostgreSQL ready ✅"
 
 echo ""
 echo "[3/4] Restoring data to local PostgreSQL..."
-docker exec -i $LOCAL_CONTAINER pg_restore \
+# Copy dump into container then restore using container's pg_restore
+docker cp /tmp/skoolio_backup.dump $LOCAL_CONTAINER:/tmp/skoolio_backup.dump
+
+docker exec $LOCAL_CONTAINER pg_restore \
   -U $LOCAL_USER \
   -d $LOCAL_DB \
   --no-owner \
   --no-acl \
   --clean \
   --if-exists \
-  < /tmp/skoolio_backup.dump
+  /tmp/skoolio_backup.dump
 
 echo "      Restore complete ✅"
 
 echo ""
 echo "[4/4] Verifying migration..."
-TABLE_COUNT=$(docker exec $LOCAL_CONTAINER psql -U $LOCAL_USER -d $LOCAL_DB -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+TABLE_COUNT=$(docker exec $LOCAL_CONTAINER psql \
+  -U $LOCAL_USER \
+  -d $LOCAL_DB \
+  -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
 echo "      Tables in local DB: $TABLE_COUNT ✅"
 
 # Cleanup
 rm -f /tmp/skoolio_backup.dump
+docker exec $LOCAL_CONTAINER rm -f /tmp/skoolio_backup.dump
 
 echo ""
 echo "======================================================"
