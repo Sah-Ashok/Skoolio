@@ -26,7 +26,7 @@ LOCAL_DB="school_pos"
 
 echo ""
 echo "[1/4] Dumping data from Azure PostgreSQL..."
-PGPASSWORD=$AZURE_PASSWORD pg_dump \
+PGPASSWORD=$AZURE_PASSWORD /usr/lib/postgresql/18/bin/pg_dump \
   -h $AZURE_HOST \
   -p $AZURE_PORT \
   -U $AZURE_USER \
