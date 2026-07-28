@@ -20,7 +20,7 @@ LOCAL_USER="ashok"
 LOCAL_DB="school_pos"
 BACKUP_DIR="/tmp/pg_backups"
 DATE=$(date +%Y-%m-%d_%H-%M)
-BACKUP_FILE="skoolio_backup_${DATE}.dump.gz"
+BACKUP_FILE="skoolio_backup_${DATE}.sql.gz"
 BLOB_CONTAINER="pg-backups"
 
 # Azure Blob Storage (backup account)
@@ -45,7 +45,7 @@ docker exec $LOCAL_CONTAINER pg_dump \
   -d $LOCAL_DB \
   --no-owner \
   --no-acl \
-  -F c \
+  -F p \
   | gzip > $BACKUP_DIR/$BACKUP_FILE
 
 echo "[$(date)] Dump complete: $BACKUP_FILE ($(du -sh $BACKUP_DIR/$BACKUP_FILE | cut -f1))"
