@@ -28,7 +28,8 @@ jobs:
 
             # ── Pull latest code ──
             echo ">>> Pulling latest code..."
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             NEW_COMMIT=$(git rev-parse HEAD)
             echo "New commit: $NEW_COMMIT"
 
