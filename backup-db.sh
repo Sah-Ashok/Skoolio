@@ -9,7 +9,9 @@ set -e
 
 # Load environment variables from .env
 if [ -f "$(dirname "$0")/Backend/.env" ]; then
-  export $(grep -v '^#' "$(dirname "$0")/Backend/.env" | xargs)
+  set -a
+  source "$(dirname "$0")/Backend/.env"
+  set +a
 fi
 
 # ── Config ────────────────────────────────────────────────────
