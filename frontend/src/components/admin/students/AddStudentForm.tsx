@@ -14,14 +14,17 @@ import DateInput from "@/components/shared/DateInput";
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type Step = "details" | "fees" | "done";
+type Step = "details" | "done";
 
 export default function AddStudentForm() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
 
   const { data: activeYear } = useApi<any>("/academic-years/active");
-  const { data: classes }    = useApi<any[]>(activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "", [activeYear?.id]);
+  const { data: classes }    = useApi<any[]>(
+    activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "",
+    [activeYear?.id]
+  );
 
   const [form, setForm] = useState({
     admission_number: "", full_name: "", email: "", phone: "", password: "",
@@ -31,104 +34,39 @@ export default function AddStudentForm() {
     disability: false, disability_description: "",
     guardian_name: "", guardian_phone: "", guardian_relation: "Father",
     guardian_email: "", guardian_occupation: "", guardian_address: "",
-    scholarship_type: "", scholarship_percent: "", scholarship_remarks: "", status: "active",
+    scholarship_type: "", scholarship_percent: "", scholarship_remarks: "",
+    status: "active",
   });
 
-  const [enrollment, setEnrollment] = useState({ class_id: "", section_id: "", roll_number: "", stream: "not_applicable" });
+  const [enrollment, setEnrollment] = useState({
+    class_id: "", section_id: "", roll_number: "", stream: "not_applicable",
+  });
+
   const [sections,        setSections]        = useState<any[]>([]);
   const [sectionsLoading, setSectionsLoading] = useState(false);
   const [step,            setStep]            = useState<Step>("details");
   const [isSubmitting,    setIsSubmitting]    = useState(false);
   const [createdStudent,  setCreatedStudent]  = useState<any>(null);
-  const [createdEnroll,   setCreatedEnroll]   = useState<any>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [photoPreview,      setPhotoPreview]      = useState<string | null>(null);
-  const [photoFile,         setPhotoFile]         = useState<File | null>(null);
-  const [photoUploading,    setPhotoUploading]    = useState(false);
-  const [uploadedPhotoUrl,  setUploadedPhotoUrl]  = useState<string | null>(null);
-
-  const [selectedFees,  setSelectedFees]  = useState<Set<number>>(new Set());
-  const [miscItems,     setMiscItems]     = useState<{name:string;amount:number}[]>([]);
-  const [assigningFees, setAssigningFees] = useState(false);
-
-  const yearEnd = activeYear?.end_date ?? "";
-
-  // Calculate total amount for a fee structure based on frequency
-  const calcFeeTotal = (fee: any, admissionDate: string, endDate: string): number => {
-    if (!fee?.amount) return 0;
-    const amt = Number(fee.amount);
-    if (fee.frequency === "monthly") {
-      // Count months from admission to year end
-      if (!admissionDate || !endDate) return amt * 12;
-      const start = new Date(admissionDate);
-      const end   = new Date(endDate);
-      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-      return amt * Math.max(1, months);
-    }
-    if (fee.frequency === "quarterly")   return amt * 4;
-    if (fee.frequency === "half_yearly") return amt * 2;
-    return amt; // yearly / one_time
-  };
-
-  const toggleFee = (id: number) => {
-    setSelectedFees(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const miscTotal = miscItems.reduce((s, i) => s + i.amount, 0);
-
-  const feeGrossTotal = feeStructures
-    .filter(f => selectedFees.has(f.id))
-    .reduce((s, fee) => s + calcFeeTotal(fee, form.admission_date, yearEnd), 0);
-
-  const feeDiscountTotal = scholarshipPct
-    ? Math.round(feeGrossTotal * (scholarshipPct / 100) * 100) / 100
-    : 0;
-
-  const grandNetTotal = feeGrossTotal - feeDiscountTotal + miscTotal;
-
-  const handleSkipFees = () => setStep("done");
-
-  const handleAssignFees = async () => {
-    if (!createdStudent?.id || !createdEnroll?.id) { setStep("done"); return; }
-    setAssigningFees(true);
-    try {
-      // Generate fee bills for selected fee structures
-      if (selectedFees.size > 0) {
-        await apiRequest("/fees/generate-bills", {
-          method: "POST",
-          body: JSON.stringify({
-            student_id:      createdStudent.id,
-            enrollment_id:   createdEnroll.id,
-            academic_year_id: activeYear?.id,
-            fee_structure_ids: Array.from(selectedFees),
-          }),
-        });
-      }
-      dispatch(showToast({ type: "success", title: "Fees Assigned", message: "Fee bills created successfully." }));
-    } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Fee Assignment Failed", message: err.message || "Could not assign fees." }));
-    } finally {
-      setAssigningFees(false);
-      setStep("done");
-    }
-  };
+  const [photoPreview,     setPhotoPreview]     = useState<string | null>(null);
+  const [photoFile,        setPhotoFile]        = useState<File | null>(null);
+  const [photoUploading,   setPhotoUploading]   = useState(false);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
 
   const scholarshipPct = form.scholarship_percent ? parseFloat(form.scholarship_percent) : null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | { target: { name: string; value: string } }) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+      | { target: { name: string; value: string } }
+  ) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleDisabilityToggle = () =>
     setForm(prev => ({ ...prev, disability: !prev.disability, disability_description: "" }));
 
   const handleClassChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const class_id = e.target.value;
-    setEnrollment({ ...enrollment, class_id, section_id: "" });
+    setEnrollment(prev => ({ ...prev, class_id, section_id: "" }));
     setSections([]);
     if (!class_id) return;
     try {
@@ -142,11 +80,13 @@ export default function AddStudentForm() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!["image/jpeg","image/png","image/webp"].includes(file.type)) {
-      dispatch(showToast({ type: "error", title: "Invalid File", message: "Only JPEG, PNG or WebP images are allowed." })); return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      dispatch(showToast({ type: "error", title: "Invalid File", message: "Only JPEG, PNG or WebP allowed." }));
+      return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 2 MB." })); return;
+      dispatch(showToast({ type: "error", title: "File Too Large", message: "Photo must be under 2 MB." }));
+      return;
     }
     setPhotoFile(file);
     const reader = new FileReader();
@@ -160,12 +100,14 @@ export default function AddStudentForm() {
     try {
       const fd = new FormData();
       fd.append("photo", photoFile);
-      const res = await apiRequest<{ url: string }>(`/upload/student-photo/${studentId}`, { method: "POST", body: fd });
+      const res = await apiRequest<{ url: string }>(
+        `/upload/student-photo/${studentId}`, { method: "POST", body: fd }
+      );
       const url = (res as any)?.url || (res as any)?.data?.url || null;
       if (url) setUploadedPhotoUrl(url);
       return url;
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Photo Upload Failed", message: err.message || "Could not upload photo." }));
+      dispatch(showToast({ type: "error", title: "Photo Upload Failed", message: err.message }));
       return null;
     } finally { setPhotoUploading(false); }
   };
@@ -173,103 +115,168 @@ export default function AddStudentForm() {
   const handleSaveDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.admission_number || !form.full_name || !form.password || !form.date_of_birth || !form.admission_date) {
-      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please fill all required student fields." })); return;
+      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please fill all required student fields." }));
+      return;
     }
     if (!form.guardian_name || !form.guardian_phone || !form.guardian_relation) {
-      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Guardian name, phone and relation are required." })); return;
+      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Guardian name, phone and relation are required." }));
+      return;
     }
     if (!enrollment.class_id || !enrollment.section_id) {
-      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please select a class and section." })); return;
+      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please select a class and section." }));
+      return;
     }
     if (!activeYear?.id) {
-      dispatch(showToast({ type: "error", title: "No Active Year", message: "No active academic year found." })); return;
+      dispatch(showToast({ type: "error", title: "No Active Year", message: "No active academic year found." }));
+      return;
     }
+
     setIsSubmitting(true);
     try {
       const studentPayload: Record<string, any> = {
-        admission_number: form.admission_number, full_name: form.full_name, password: form.password,
-        gender: form.gender, date_of_birth: form.date_of_birth, admission_date: form.admission_date,
-        nationality: form.nationality || undefined, status: form.status,
-        guardian_name: form.guardian_name, guardian_phone: form.guardian_phone,
-        guardian_relation: form.guardian_relation, disability: form.disability,
-        email: form.email || undefined, phone: form.phone || undefined,
-        blood_group: form.blood_group || undefined, city: form.city || undefined,
-        state: form.state || undefined, country: form.country || undefined,
-        religion: form.religion || undefined, ethnicity: form.ethnicity || undefined,
-        previous_school: form.previous_school || undefined,
-        disability_description: form.disability && form.disability_description ? form.disability_description : undefined,
-        guardian_email: form.guardian_email || undefined, guardian_occupation: form.guardian_occupation || undefined,
-        guardian_address: form.guardian_address || undefined,
-        scholarship_type: form.scholarship_type || undefined,
-        scholarship_percent: scholarshipPct ?? undefined,
-        scholarship_remarks: form.scholarship_remarks || undefined,
+        admission_number:        form.admission_number,
+        full_name:               form.full_name,
+        password:                form.password,
+        gender:                  form.gender,
+        date_of_birth:           form.date_of_birth,
+        admission_date:          form.admission_date,
+        nationality:             form.nationality     || undefined,
+        status:                  form.status,
+        guardian_name:           form.guardian_name,
+        guardian_phone:          form.guardian_phone,
+        guardian_relation:       form.guardian_relation,
+        disability:              form.disability,
+        email:                   form.email           || undefined,
+        phone:                   form.phone           || undefined,
+        blood_group:             form.blood_group     || undefined,
+        city:                    form.city            || undefined,
+        state:                   form.state           || undefined,
+        country:                 form.country         || undefined,
+        religion:                form.religion        || undefined,
+        ethnicity:               form.ethnicity       || undefined,
+        previous_school:         form.previous_school || undefined,
+        disability_description:  form.disability && form.disability_description
+          ? form.disability_description : undefined,
+        guardian_email:          form.guardian_email      || undefined,
+        guardian_occupation:     form.guardian_occupation || undefined,
+        guardian_address:        form.guardian_address    || undefined,
+        scholarship_type:        form.scholarship_type    || undefined,
+        scholarship_percent:     scholarshipPct           ?? undefined,
+        scholarship_remarks:     form.scholarship_remarks || undefined,
       };
-      const studentRes = await apiRequest<{ data: any }>("/students", { method: "POST", body: JSON.stringify(studentPayload) });
+
+      const studentRes = await apiRequest<{ data: any }>(
+        "/students", { method: "POST", body: JSON.stringify(studentPayload) }
+      );
       const student = studentRes.data;
       if (!student?.id) throw new Error("Could not create student.");
-      const enrollRes = await apiRequest<{ data: any }>("/students/enrollments", {
+
+      // Enroll student — one-time fees are auto-assigned by the backend
+      await apiRequest<{ data: any }>("/students/enrollments", {
         method: "POST",
         body: JSON.stringify({
-          student_id: student.id, academic_year_id: activeYear.id,
-          class_id: Number(enrollment.class_id), section_id: Number(enrollment.section_id),
-          roll_number: enrollment.roll_number || undefined, stream: enrollment.stream, status: "active",
+          student_id:       student.id,
+          academic_year_id: activeYear.id,
+          class_id:         Number(enrollment.class_id),
+          section_id:       Number(enrollment.section_id),
+          roll_number:      enrollment.roll_number || undefined,
+          stream:           enrollment.stream,
+          status:           "active",
         }),
       });
+
       setCreatedStudent(student);
-      setCreatedEnroll(enrollRes.data);
+
       if (photoFile) await uploadPhoto(student.id);
-      // Enrollment is now picked up by the central billing cycle. Creating
-      // collections here would duplicate monthly/yearly invoices.
+
+      dispatch(showToast({
+        type: "success",
+        title: "Student Admitted",
+        message: `${form.full_name} has been registered and enrolled successfully.`,
+      }));
+
       setStep("done");
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not save student." }));
     } finally { setIsSubmitting(false); }
   };
 
-  const steps   = [{ key: "details", label: "Student Details" }, { key: "fees", label: "Assign Fees" }, { key: "done", label: "Complete" }];
+  const steps   = [{ key: "details", label: "Student Details" }, { key: "done", label: "Complete" }];
   const stepIdx = steps.findIndex(s => s.key === step);
 
-  const inputStyle: React.CSSProperties = { width: "100%", minHeight: 38, border: "1px solid #d4dde2", borderRadius: 7, padding: "0 10px", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit", background: "#fff" };
-  const textareaStyle: React.CSSProperties = { ...inputStyle, minHeight: 72, padding: "8px 10px", resize: "vertical" };
+  const textareaStyle: React.CSSProperties = {
+    width: "100%", minHeight: 72, border: "1px solid #d4dde2", borderRadius: 7,
+    padding: "8px 10px", fontSize: 13, fontWeight: 600, outline: "none",
+    fontFamily: "inherit", background: "#fff", resize: "vertical", boxSizing: "border-box",
+  };
 
   return (
     <>
-      {/* Step indicator */}
+      {/* ── Step indicator ── */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
         {steps.map((st, i) => (
           <div key={st.key} style={{ display: "flex", alignItems: "center", flex: i < steps.length - 1 ? 1 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: i < stepIdx ? "#15803d" : i === stepIdx ? "#ff9b51" : "#eaecef", color: i <= stepIdx ? "#fff" : "#6b7b86", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%",
+                background: i < stepIdx ? "#15803d" : i === stepIdx ? "#ff9b51" : "#eaecef",
+                color: i <= stepIdx ? "#fff" : "#6b7b86",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 900,
+              }}>
                 {i < stepIdx ? <i className="fa-solid fa-check" /> : i + 1}
               </div>
-              <span style={{ fontSize: 13, fontWeight: 900, color: i === stepIdx ? "#ff9b51" : i < stepIdx ? "#15803d" : "#6b7b86", whiteSpace: "nowrap" }}>{st.label}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 900,
+                color: i === stepIdx ? "#ff9b51" : i < stepIdx ? "#15803d" : "#6b7b86",
+                whiteSpace: "nowrap",
+              }}>
+                {st.label}
+              </span>
             </div>
-            {i < steps.length - 1 && <div style={{ flex: 1, height: 2, background: i < stepIdx ? "#15803d" : "#eaecef", margin: "0 12px" }} />}
+            {i < steps.length - 1 && (
+              <div style={{ flex: 1, height: 2, background: i < stepIdx ? "#15803d" : "#eaecef", margin: "0 12px" }} />
+            )}
           </div>
         ))}
       </div>
 
-      {/* ═══ STEP 1 ═══ */}
+      {/* ═══ STEP 1: Student Details ═══ */}
       {step === "details" && (
         <form onSubmit={handleSaveDetails}>
           <section className={s("form-grid")}>
 
             {/* Left: Personal */}
             <article className={s("panel")}>
-              <div className={s("panel-head")}><div><h2>Personal Information</h2><p className={s("muted")}>Basic details of the student</p></div></div>
+              <div className={s("panel-head")}>
+                <div><h2>Personal Information</h2><p className={s("muted")}>Basic details of the student</p></div>
+              </div>
               <div className={s("form-body")}>
+
                 {/* Photo */}
                 <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 4 }}>
-                  <div onClick={() => photoInputRef.current?.click()} style={{ width: 72, height: 72, borderRadius: 12, flexShrink: 0, border: "2px dashed #d4dde2", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden" }}>
-                    {photoPreview ? <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="fa-solid fa-camera" style={{ fontSize: 22, color: "#b0bec5" }} />}
+                  <div
+                    onClick={() => photoInputRef.current?.click()}
+                    style={{ width: 72, height: 72, borderRadius: 12, flexShrink: 0, border: "2px dashed #d4dde2", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden" }}
+                  >
+                    {photoPreview
+                      ? <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <i className="fa-solid fa-camera" style={{ fontSize: 22, color: "#b0bec5" }} />
+                    }
                   </div>
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: 12, fontWeight: 800, color: "#25343f", margin: "0 0 4px" }}>Student Photo</p>
                     <p style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600, margin: "0 0 6px" }}>Optional · JPEG / PNG / WebP · max 2 MB</p>
                     <button type="button" onClick={() => photoInputRef.current?.click()} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2", background: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-                      <i className="fa-solid fa-upload" style={{ marginRight: 5 }} />{photoFile ? "Change Photo" : "Upload Photo"}
+                      <i className="fa-solid fa-upload" style={{ marginRight: 5 }} />
+                      {photoFile ? "Change Photo" : "Upload Photo"}
                     </button>
-                    {photoFile && <button type="button" onClick={() => { setPhotoFile(null); setPhotoPreview(null); if (photoInputRef.current) photoInputRef.current.value = ""; }} style={{ marginLeft: 8, padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>Remove</button>}
+                    {photoFile && (
+                      <button type="button" onClick={() => { setPhotoFile(null); setPhotoPreview(null); if (photoInputRef.current) photoInputRef.current.value = ""; }}
+                        style={{ marginLeft: 8, padding: "5px 10px", borderRadius: 7, border: "1px solid #fecdd3", background: "#fff1f2", color: "#b42318", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                        Remove
+                      </button>
+                    )}
                   </div>
                   <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handlePhotoChange} />
                 </div>
@@ -279,8 +286,14 @@ export default function AddStudentForm() {
                   <label className={s("field")}><span>Full Name *</span><input name="full_name" required value={form.full_name} onChange={handleChange} placeholder="e.g. Ram Sharma" /></label>
                 </div>
                 <div className={s("field-row")}>
-                  <label className={s("field")}><span>Gender</span><select name="gender" value={form.gender} onChange={handleChange}><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></label>
-                  {/* ✅ BS-aware date picker */}
+                  <label className={s("field")}>
+                    <span>Gender</span>
+                    <select name="gender" value={form.gender} onChange={handleChange}>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
                   <label className={s("field")}>
                     <span>Date of Birth *</span>
                     <DateInput name="date_of_birth" required value={form.date_of_birth} onChange={handleChange} />
@@ -312,14 +325,13 @@ export default function AddStudentForm() {
                 </div>
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>Country</span><input name="country" value={form.country} onChange={handleChange} /></label>
-                  {/* ✅ BS-aware date picker */}
                   <label className={s("field")}>
                     <span>Admission Date *</span>
                     <DateInput name="admission_date" required value={form.admission_date} onChange={handleChange} />
                   </label>
                 </div>
 
-                {/* Disability */}
+                {/* Disability toggle */}
                 <div style={{ padding: "12px 14px", borderRadius: 10, background: form.disability ? "#fff7ed" : "#f8fafc", border: `1px solid ${form.disability ? "#fed7aa" : "#e2e8f0"}`, marginTop: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div onClick={handleDisabilityToggle} style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", background: form.disability ? "#ff9b51" : "#d1d5db", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
@@ -329,7 +341,10 @@ export default function AddStudentForm() {
                   </div>
                   {form.disability && (
                     <div style={{ marginTop: 10 }}>
-                      <label className={s("field")}><span>Disability Description</span><textarea name="disability_description" value={form.disability_description} onChange={handleChange} placeholder="Describe the disability…" style={textareaStyle} /></label>
+                      <label className={s("field")}>
+                        <span>Disability Description</span>
+                        <textarea name="disability_description" value={form.disability_description} onChange={handleChange} placeholder="Describe the disability…" style={textareaStyle} />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -338,23 +353,38 @@ export default function AddStudentForm() {
 
             {/* Right: Guardian + Enrollment */}
             <article className={s("panel")}>
-              <div className={s("panel-head")}><div><h2>Guardian & Enrollment</h2><p className={s("muted")}>Guardian details and class assignment</p></div></div>
+              <div className={s("panel-head")}>
+                <div><h2>Guardian & Enrollment</h2><p className={s("muted")}>Guardian details and class assignment</p></div>
+              </div>
               <div className={s("form-body")}>
+
                 <label className={s("field")}><span>Guardian Name *</span><input name="guardian_name" required value={form.guardian_name} onChange={handleChange} /></label>
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>Guardian Phone *</span><input name="guardian_phone" required type="tel" value={form.guardian_phone} onChange={handleChange} /></label>
-                  <label className={s("field")}><span>Relation *</span><select name="guardian_relation" value={form.guardian_relation} onChange={handleChange}><option value="Father">Father</option><option value="Mother">Mother</option><option value="Guardian">Guardian</option><option value="Other">Other</option></select></label>
+                  <label className={s("field")}>
+                    <span>Relation *</span>
+                    <select name="guardian_relation" value={form.guardian_relation} onChange={handleChange}>
+                      <option value="Father">Father</option>
+                      <option value="Mother">Mother</option>
+                      <option value="Guardian">Guardian</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
                 </div>
                 <div className={s("field-row")}>
                   <label className={s("field")}><span>Guardian Email</span><input name="guardian_email" type="email" value={form.guardian_email} onChange={handleChange} placeholder="Optional" /></label>
                   <label className={s("field")}><span>Guardian Occupation</span><input name="guardian_occupation" value={form.guardian_occupation} onChange={handleChange} placeholder="Optional" /></label>
                 </div>
-                <label className={s("field")}><span>Guardian Address</span><textarea name="guardian_address" value={form.guardian_address} onChange={handleChange} placeholder="Optional" style={textareaStyle} /></label>
+                <label className={s("field")}>
+                  <span>Guardian Address</span>
+                  <textarea name="guardian_address" value={form.guardian_address} onChange={handleChange} placeholder="Optional" style={textareaStyle} />
+                </label>
 
                 {/* Scholarship */}
                 <div style={{ paddingTop: 12, borderTop: "1px solid #eef2f3" }}>
                   <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 8 }}>
-                    <i className="fa-solid fa-graduation-cap" style={{ marginRight: 6, color: "#ff9b51" }} />Scholarship (optional)
+                    <i className="fa-solid fa-graduation-cap" style={{ marginRight: 6, color: "#ff9b51" }} />
+                    Scholarship (optional)
                   </p>
                   <div className={s("field-row")}>
                     <label className={s("field")}>
@@ -382,7 +412,8 @@ export default function AddStudentForm() {
                   )}
                   {scholarshipPct && scholarshipPct > 0 && (
                     <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: "#dcfce7", border: "1px solid #bbf7d0", fontSize: 12, fontWeight: 700, color: "#15803d" }}>
-                      <i className="fa-solid fa-tag" style={{ marginRight: 6 }} />{scholarshipPct}% discount will be auto-applied to all fee collections
+                      <i className="fa-solid fa-tag" style={{ marginRight: 6 }} />
+                      {scholarshipPct}% discount will be auto-applied to all fee collections
                     </div>
                   )}
                 </div>
@@ -390,7 +421,8 @@ export default function AddStudentForm() {
                 {/* Class & Section */}
                 <div style={{ paddingTop: 12, borderTop: "1px solid #eef2f3" }}>
                   <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 8 }}>
-                    <i className="fa-solid fa-school" style={{ marginRight: 6, color: "#ff9b51" }} />Class & Section *
+                    <i className="fa-solid fa-school" style={{ marginRight: 6, color: "#ff9b51" }} />
+                    Class & Section *
                   </p>
                   <div className={s("field-row")}>
                     <label className={s("field")}>
@@ -402,17 +434,17 @@ export default function AddStudentForm() {
                     </label>
                     <label className={s("field")}>
                       <span>Section *</span>
-                      <select value={enrollment.section_id} onChange={e => setEnrollment({ ...enrollment, section_id: e.target.value })} disabled={!enrollment.class_id || sectionsLoading}>
+                      <select value={enrollment.section_id} onChange={e => setEnrollment(prev => ({ ...prev, section_id: e.target.value }))} disabled={!enrollment.class_id || sectionsLoading}>
                         <option value="">{sectionsLoading ? "Loading…" : "Select section"}</option>
                         {sections.map(sec => <option key={sec.id} value={sec.id}>Section {sec.name}</option>)}
                       </select>
                     </label>
                   </div>
                   <div className={s("field-row")} style={{ marginTop: 8 }}>
-                    <label className={s("field")}><span>Roll Number</span><input value={enrollment.roll_number} onChange={e => setEnrollment({ ...enrollment, roll_number: e.target.value })} placeholder="Optional" /></label>
+                    <label className={s("field")}><span>Roll Number</span><input value={enrollment.roll_number} onChange={e => setEnrollment(prev => ({ ...prev, roll_number: e.target.value }))} placeholder="Optional" /></label>
                     <label className={s("field")}>
                       <span>Stream</span>
-                      <select value={enrollment.stream} onChange={e => setEnrollment({ ...enrollment, stream: e.target.value })}>
+                      <select value={enrollment.stream} onChange={e => setEnrollment(prev => ({ ...prev, stream: e.target.value }))}>
                         <option value="not_applicable">Not Applicable</option>
                         <option value="science">Science</option>
                         <option value="commerce">Commerce</option>
@@ -421,98 +453,24 @@ export default function AddStudentForm() {
                     </label>
                   </div>
                 </div>
+
               </div>
             </article>
           </section>
 
           <div className={s("form-actions")} style={{ marginTop: "1.5rem", padding: "1rem 0", borderTop: "1px solid #eee" }}>
             <Link className={s("btn")} href="/students">Cancel</Link>
-            <button type="submit" className={cx(s("btn"), s("btn-primary"))} disabled={isSubmitting}>
-              {isSubmitting ? <><Spinner size={16} /> {photoFile ? "Saving & Uploading…" : "Saving…"}</> : <>Save Student <i className="fa-solid fa-check" /></>}
+            <button type="submit" className={cx(s("btn"), s("btn-primary"))} disabled={isSubmitting || photoUploading}>
+              {isSubmitting
+                ? <><Spinner size={16} /> {photoFile ? "Saving & Uploading…" : "Saving…"}</>
+                : <>Save Student <i className="fa-solid fa-check" /></>
+              }
             </button>
           </div>
         </form>
       )}
 
-      {/* ═══ STEP 2: Fees (unchanged UI) ═══ */}
-      {step === "fees" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ padding: "16px 20px", borderRadius: 12, background: "#fff", border: "1px solid rgba(191,201,209,0.7)", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 2px 12px rgba(37,52,63,0.08)" }}>
-            <div style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0, overflow: "hidden", background: "#ff9b51", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {uploadedPhotoUrl || photoPreview ? <img src={uploadedPhotoUrl || photoPreview!} alt={form.full_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 18, fontWeight: 900, color: "#25343f" }}>{form.full_name.charAt(0)}</span>}
-            </div>
-            <div style={{ flex: 1 }}>
-              <strong style={{ fontSize: 15, fontWeight: 900 }}>{form.full_name}</strong>
-              <p style={{ fontSize: 12, color: "#6b7b86", fontWeight: 700, marginTop: 2 }}>
-                {classes?.find(c => c.id.toString() === enrollment.class_id)?.name} · Section {sections.find(sec => sec.id.toString() === enrollment.section_id)?.name} · {form.admission_number}
-              </p>
-            </div>
-            <span style={{ padding: "4px 12px", borderRadius: 999, background: "#dcfce7", color: "#15803d", fontSize: 12, fontWeight: 900 }}>
-              <i className="fa-solid fa-circle-check" style={{ marginRight: 5 }} />Student Created
-            </span>
-          </div>
-
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid rgba(191,201,209,0.7)", overflow: "hidden", boxShadow: "0 2px 12px rgba(37,52,63,0.08)" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #eef2f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div><h2 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>Assign Fee Structures</h2></div>
-              {feeStructures.length > 0 && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setSelectedFees(new Set(feeStructures.map(f => f.id)))} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2", background: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>Select All</button>
-                  <button onClick={() => setSelectedFees(new Set())} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #d4dde2", background: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>Deselect All</button>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: "16px 20px" }}>
-              {feesLoading ? <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={28} color="#ff9b51" /></div>
-                : feeStructures.length === 0 ? <div style={{ padding: "2rem", textAlign: "center", color: "#6b7b86" }}>No fee structures for this class.</div>
-                : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {feeStructures.map(fee => {
-                      const selected = selectedFees.has(fee.id);
-                      const grossTotal = calcFeeTotal(fee, form.admission_date, yearEnd);
-                      const discountAmt = scholarshipPct ? Math.round(grossTotal * (scholarshipPct / 100) * 100) / 100 : 0;
-                      const netTotal = grossTotal - discountAmt;
-                      return (
-                        <div key={fee.id} onClick={() => toggleFee(fee.id)} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", border: `1.5px solid ${selected ? "#ff9b51" : "#d4dde2"}`, background: selected ? "#fff7ed" : "#f8fafc", display: "flex", alignItems: "flex-start", gap: 14 }}>
-                          <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 2, border: `2px solid ${selected ? "#ff9b51" : "#c6d0d7"}`, background: selected ? "#ff9b51" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {selected && <i className="fa-solid fa-check" style={{ color: "#fff", fontSize: 10 }} />}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <strong style={{ fontSize: 14, fontWeight: 900 }}>{fee.fee_name}</strong>
-                            <p style={{ fontSize: 12, color: "#6b7b86", fontWeight: 700, marginTop: 2, textTransform: "capitalize" }}>{fee.frequency}</p>
-                          </div>
-                          <div style={{ textAlign: "right", flexShrink: 0 }}>
-                            {discountAmt > 0 ? (
-                              <><div style={{ fontSize: 12, color: "#94a3b8", textDecoration: "line-through" }}>₹{grossTotal.toLocaleString()}</div><strong style={{ fontSize: 18, fontWeight: 900, color: selected ? "#15803d" : "#25343f" }}>₹{netTotal.toLocaleString()}</strong></>
-                            ) : <strong style={{ fontSize: 18, fontWeight: 900, color: selected ? "#c2410c" : "#25343f" }}>₹{grossTotal.toLocaleString()}</strong>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-            </div>
-          </div>
-
-          {(selectedFees.size > 0 || miscItems.length > 0) && (
-            <div style={{ padding: "16px 20px", borderRadius: 12, background: "#25343f", color: "#eaecef" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div><p style={{ fontSize: 11, fontWeight: 800, color: "#9db5c2", margin: 0 }}>GROSS TOTAL</p><strong style={{ fontSize: 20, fontWeight: 900 }}>₹{(feeGrossTotal + miscTotal).toLocaleString()}</strong></div>
-                <div><p style={{ fontSize: 11, fontWeight: 800, color: "#9db5c2", margin: 0 }}>NET PAYABLE</p><strong style={{ fontSize: 22, fontWeight: 900, color: "#ff9b51" }}>₹{grandNetTotal.toLocaleString()}</strong></div>
-              </div>
-            </div>
-          )}
-
-          <div style={{ padding: "14px 0", borderTop: "1px solid #eef2f3", display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button onClick={handleSkipFees} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d4dde2", background: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Skip for now</button>
-            <button onClick={handleAssignFees} disabled={assigningFees || (selectedFees.size === 0 && miscItems.length === 0)} className={cx(s("btn"), s("btn-primary"))}>
-              {assigningFees ? <><Spinner size={14} /> Assigning…</> : <><i className="fa-solid fa-check" /> Assign {selectedFees.size} Fee{selectedFees.size !== 1 ? "s" : ""}</>}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ STEP 3: Done ═══ */}
+      {/* ═══ STEP 2: Done ═══ */}
       {step === "done" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 2rem", gap: 20, textAlign: "center" }}>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -520,13 +478,23 @@ export default function AddStudentForm() {
           </div>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>Student Admitted Successfully!</h2>
-            <p style={{ color: "#6b7b86", fontWeight: 700, marginTop: 6 }}>{form.full_name} has been registered and enrolled. Their class fee plan will be billed from Fee Management.</p>
+            <p style={{ color: "#6b7b86", fontWeight: 700, marginTop: 6 }}>
+              {form.full_name} has been registered and enrolled. One-time fees have been auto-assigned. Monthly fees will be billed from Fee Management.
+            </p>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            <Link className={cx(s("btn"), s("btn-primary"))} href={createdStudent?.id ? `/students/profile?id=${createdStudent.id}` : "/students"}><i className="fa-solid fa-user" /> View Profile</Link>
-            <Link className={cx(s("btn"), s("btn-outline"))} href={createdStudent?.id ? `/fees/collect?student_id=${createdStudent.id}` : "/fees"}><i className="fa-solid fa-file-invoice-dollar" /> Open Billing</Link>
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/students/add"><i className="fa-solid fa-plus" /> Add Another Student</Link>
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/students"><i className="fa-solid fa-list" /> Back to Students</Link>
+            <Link className={cx(s("btn"), s("btn-primary"))} href={createdStudent?.id ? `/students/profile?id=${createdStudent.id}` : "/students"}>
+              <i className="fa-solid fa-user" /> View Profile
+            </Link>
+            <Link className={cx(s("btn"), s("btn-outline"))} href={createdStudent?.id ? `/fees/collect?student_id=${createdStudent.id}` : "/fees"}>
+              <i className="fa-solid fa-file-invoice-dollar" /> Open Billing
+            </Link>
+            <Link className={cx(s("btn"), s("btn-outline"))} href="/students/add">
+              <i className="fa-solid fa-plus" /> Add Another Student
+            </Link>
+            <Link className={cx(s("btn"), s("btn-outline"))} href="/students">
+              <i className="fa-solid fa-list" /> Back to Students
+            </Link>
           </div>
         </div>
       )}
