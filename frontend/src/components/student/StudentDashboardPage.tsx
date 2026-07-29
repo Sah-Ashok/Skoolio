@@ -148,12 +148,17 @@ export default function StudentDashboardPage() {
   const attMap = { this_month:{data:attThis,loading:loadThis}, last_month:{data:attLast,loading:loadLast}, full_year:{data:attYear,loading:loadYear} };
   const { data: curAtt, loading: curLoading } = attMap[period];
 
-  const pct     = Math.round(Number(curAtt?.attendance_percentage ?? 0));
   const present = Number(curAtt?.total_present      ?? 0);
   const absent  = Number(curAtt?.total_absent       ?? 0);
   const late    = Number(curAtt?.total_late         ?? 0);
   const leave   = Number(curAtt?.total_leave        ?? 0);
   const total   = Number(curAtt?.total_working_days ?? 0);
+  // Formula: Attendance % = (Working Days - Absent) / Working Days x 100
+  // Leave is NOT counted as absent (matches the standard formula)
+  const pct = total > 0
+    ? Math.max(0, Math.round(((total - absent) / total) * 100))
+    : Math.round(Number(curAtt?.attendance_percentage ?? 0));
+
 
   /* upcoming events — next 3 within 30 days */
   const upcomingEvents = (calendarEvents || [])
