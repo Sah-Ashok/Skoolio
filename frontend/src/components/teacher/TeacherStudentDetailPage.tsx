@@ -5,273 +5,346 @@ import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
-import { useDateFormat } from "@/lib/useDateFormat";
 
 interface Props { studentId: number; }
 
-const C = {
-  brand: "#FF9B51", brandLight: "#fff7ed", brandDark: "#c2410c",
-  dark: "#1f2d36", mid: "#6a7882", light: "#eef2f3", white: "#fff",
-  border: "#dce5e9", green: "#12805c", greenBg: "#e2f6ee",
-  blue: "#1a73e8", blueBg: "#e8f0fe",
-  pink: "#c2185b", pinkBg: "#fce4ec",
-  purple: "#7c3aed", purpleBg: "#f3eeff",
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmtDate = (d?: string | null) =>
+  d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" }) : null;
 
-const fmtDate = (d?: string | null, isBS = false) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
+const gInfo = (g?: string) => ({
+  male:   { color:"#1a73e8", bg:"#e8f0fe", border:"#bfdbfe", label:"Male"   },
+  female: { color:"#c2185b", bg:"#fce4ec", border:"#fbcfe8", label:"Female" },
+  other:  { color:"#7c3aed", bg:"#f3eeff", border:"#ddd6fe", label:"Other"  },
+}[g ?? "other"] ?? { color:"#7c3aed", bg:"#f3eeff", border:"#ddd6fe", label: g || "—" });
+
+const initials = (name?: string) =>
+  (name ?? "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background:"#fff", borderRadius:14, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 2px 10px rgba(30,45,60,.06)" }}>
+      <div style={{ padding:"13px 18px", borderBottom:"1px solid #f0f4f8", display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ width:30, height:30, borderRadius:8, background:"#fff7ed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <i className={`fa-solid ${icon}`} style={{ fontSize:13, color:"#FF9B51" }} />
+        </div>
+        <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>{title}</span>
+      </div>
+      <div style={{ padding:"6px 18px 16px" }}>{children}</div>
+    </div>
+  );
+}
 
 function InfoRow({ icon, label, value, mono = false }: { icon: string; label: string; value?: string | null; mono?: boolean }) {
-  const empty = !value || value === "—";
+  const empty = !value;
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.light}` }}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: C.light, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <i className={`fa-solid ${icon}`} style={{ fontSize: 12, color: empty ? "#c6d0d7" : C.brand }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</p>
-        <p style={{ margin: "2px 0 0", fontSize: 13, fontWeight: 800, color: empty ? "#c6d0d7" : C.dark, fontFamily: mono ? "monospace" : "inherit" }}>
-          {empty ? "Not available" : value}
-        </p>
-      </div>
+    <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f5f7f9" }}>
+      <i className={`fa-solid ${icon}`} style={{ width:14, textAlign:"center", fontSize:11, color: empty ? "#d4dde2" : "#FF9B51", flexShrink:0 }} />
+      <span style={{ fontSize:12, fontWeight:700, color:"#6a7882", flex:1 }}>{label}</span>
+      <span style={{ fontSize:13, fontWeight:800, color: empty ? "#d4dde2" : "#1f2d36", fontFamily: mono ? "monospace" : "inherit" }}>
+        {empty ? "—" : value}
+      </span>
     </div>
   );
 }
 
-function Card({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+function DonutRing({ pct, color, size = 80, stroke = 10 }: { pct: number; color: string; size?: number; stroke?: number }) {
+  const r   = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const arc  = (pct / 100) * circ;
   return (
-    <div style={{ background: C.white, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(31,45,54,.06)" }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.light}`, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: C.brandLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <i className={`fa-solid ${icon}`} style={{ fontSize: 12, color: C.brand }} />
-        </div>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: C.dark }}>{title}</p>
-      </div>
-      <div style={{ padding: "4px 20px 16px" }}>{children}</div>
-    </div>
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ transform:"rotate(-90deg)", flexShrink:0 }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${arc} ${circ}`} strokeLinecap="round" />
+    </svg>
   );
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function TeacherStudentDetailPage({ studentId }: Props) {
-  const router  = useRouter();
+  const router     = useRouter();
   const { activeYear } = useAcademicYear();
-  const { formatDate, isBS } = useDateFormat();
 
-  // Fetch student profile
   const { data: student, loading: sLoad } = useApi<any>(
     studentId ? `/students/${studentId}` : "", [studentId]
   );
-
-  // Fetch enrollment for roll no + section info
   const { data: enrollments, loading: eLoad } = useApi<any[]>(
     studentId && activeYear?.id
       ? `/students/enrollments?student_id=${studentId}&academic_year_id=${activeYear.id}`
       : "",
     [studentId, activeYear?.id]
   );
-
-  // Fetch attendance summary
-  const { data: attSummary } = useApi<any>(
+  // Yearly summary
+  const { data: yearlySummary } = useApi<any>(
     studentId && activeYear?.id
       ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}`
       : "",
     [studentId, activeYear?.id]
   );
+  // Current month
+  const now      = new Date();
+  const { data: currMonthData } = useApi<any>(
+    studentId
+      ? `/attendance/student/${studentId}/monthly?year=${now.getFullYear()}&month=${now.getMonth()+1}`
+      : "",
+    [studentId]
+  );
+  // Previous month
+  const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const { data: prevMonthData } = useApi<any>(
+    studentId
+      ? `/attendance/student/${studentId}/monthly?year=${prevDate.getFullYear()}&month=${prevDate.getMonth()+1}`
+      : "",
+    [studentId]
+  );
 
-  const loading = sLoad || eLoad;
+  const loading    = sLoad || eLoad;
   const enrollment = enrollments?.[0] ?? null;
+  const g          = gInfo(student?.gender);
 
-  const gColor = student?.gender === "male"   ? C.blue  : student?.gender === "female" ? C.pink   : C.purple;
-  const gBg    = student?.gender === "male"   ? C.blueBg : student?.gender === "female" ? C.pinkBg : C.purpleBg;
-  const gLabel = student?.gender === "male"   ? "Male"   : student?.gender === "female" ? "Female"  : student?.gender || "—";
+  // Attendance helpers
+  const countStatus = (records: any[] = [], s: string) => records.filter(r => r.status === s).length;
+  const monthRecords = (data: any): any[] => Array.isArray(data) ? data : (data?.records ?? []);
 
-  const initials = (student?.full_name ?? "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  const currRecs = monthRecords(currMonthData);
+  const prevRecs = monthRecords(prevMonthData);
 
-  const present = Number(attSummary?.total_present  ?? 0);
-  const absent  = Number(attSummary?.total_absent   ?? 0);
-  const leave   = Number(attSummary?.total_leave    ?? 0);
-  const total   = present + absent + leave;
-  const pct     = total > 0 ? Math.round((present / total) * 100) : null;
+  const currMonthName = now.toLocaleDateString("en-IN", { month:"long", year:"numeric" });
+  const prevMonthName = prevDate.toLocaleDateString("en-IN", { month:"long", year:"numeric" });
+
+  const yearly = {
+    present: Number(yearlySummary?.total_present ?? 0),
+    absent:  Number(yearlySummary?.total_absent  ?? 0),
+    leave:   Number(yearlySummary?.total_leave   ?? 0),
+    working: Number(yearlySummary?.total_working_days ?? 0),
+  };
+  const yearlyTotal = yearly.present + yearly.absent + yearly.leave;
+  const yearlyPct   = yearlyTotal > 0 ? Math.round((yearly.present / yearlyTotal) * 100) : 0;
+  const yearlyColor = yearlyPct >= 75 ? "#12805c" : yearlyPct >= 50 ? "#c46a14" : "#b42318";
+
+  const monthStat = (recs: any[]) => ({
+    present: countStatus(recs, "present"),
+    absent:  countStatus(recs, "absent"),
+    leave:   countStatus(recs, "leave"),
+    total:   recs.length,
+  });
+  const curr = monthStat(currRecs);
+  const prev = monthStat(prevRecs);
+  const currPct = curr.total > 0 ? Math.round((curr.present / curr.total) * 100) : 0;
+  const prevPct = prev.total > 0 ? Math.round((prev.present / prev.total) * 100) : 0;
+  const currColor = currPct >= 75 ? "#12805c" : currPct >= 50 ? "#c46a14" : "#b42318";
+  const prevColor = prevPct >= 75 ? "#12805c" : prevPct >= 50 ? "#c46a14" : "#b42318";
 
   return (
     <>
       <style>{`
-        .tsd-root { min-height:100vh; background:${C.light}; }
-        .tsd-main { padding:20px; max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
-        @media(min-width:720px){ .tsd-main{ padding:28px 28px 56px; } }
+        .tsd { min-height:100vh; background:#f0f4f8; }
+        .tsd-wrap { padding:20px; max-width:1040px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+        @media(min-width:760px){ .tsd-wrap{ padding:28px 32px 60px; } }
         .tsd-grid { display:grid; grid-template-columns:1fr; gap:16px; }
-        @media(min-width:720px){ .tsd-grid{ grid-template-columns:300px 1fr; align-items:start; } }
-        .tsd-stat { flex:1; padding:14px 16px; border-radius:12px; text-align:center; }
+        @media(min-width:760px){ .tsd-grid{ grid-template-columns:300px 1fr; align-items:start; } }
+        .att-month-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        @media(max-width:480px){ .att-month-grid{ grid-template-columns:1fr; } }
       `}</style>
 
-      <div className="tsd-root">
+      <div className="tsd">
         <Topbar title="Student Profile" subtitle="Detailed student information" />
-        <div className="tsd-main">
+        <div className="tsd-wrap">
 
-          {/* Back button */}
+          {/* Back */}
           <button onClick={() => router.back()}
-            style={{ alignSelf:"flex-start", display:"flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, fontSize:13, fontWeight:800, color:C.mid, cursor:"pointer" }}>
+            style={{ alignSelf:"flex-start", display:"flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:9, border:"1px solid #dce5e9", background:"#fff", fontSize:13, fontWeight:800, color:"#475569", cursor:"pointer" }}>
             <i className="fa-solid fa-arrow-left" style={{ fontSize:11 }} /> Back to My Students
           </button>
 
           {loading ? (
-            <div style={{ padding:"5rem", textAlign:"center" }}><Spinner size={32} color={C.brand} /></div>
+            <div style={{ padding:"6rem", textAlign:"center" }}><Spinner size={32} color="#FF9B51" /></div>
           ) : !student ? (
-            <div style={{ padding:"4rem", textAlign:"center", background:C.white, borderRadius:14, border:`1px solid ${C.border}` }}>
+            <div style={{ padding:"4rem", textAlign:"center", background:"#fff", borderRadius:14, border:"1px solid #dce5e9" }}>
               <i className="fa-solid fa-user-slash" style={{ fontSize:40, color:"#d4dde2", display:"block", marginBottom:14 }} />
-              <p style={{ fontSize:15, fontWeight:800, color:C.dark }}>Student not found</p>
+              <p style={{ fontSize:15, fontWeight:800, color:"#1f2d36", margin:0 }}>Student not found</p>
             </div>
           ) : (
             <div className="tsd-grid">
 
-              {/* ── Left column: profile card ── */}
-              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              {/* ══ LEFT COLUMN ══ */}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-                {/* Profile hero */}
-                <div style={{ background:C.white, borderRadius:16, border:`1px solid ${C.border}`, overflow:"hidden", boxShadow:"0 4px 16px rgba(31,45,54,.08)" }}>
-                  {/* Gradient banner */}
-                  <div style={{ height:72, background:"linear-gradient(135deg,#25343F 0%,#1e2d38 60%,#FF9B51 100%)" }} />
-                  {/* Avatar */}
-                  <div style={{ padding:"0 20px 20px", marginTop:-32 }}>
-                    <div style={{ display:"flex", alignItems:"flex-end", gap:12, marginBottom:14 }}>
-                      {student.photo ? (
-                        <img src={student.photo} alt={student.full_name}
-                          style={{ width:64, height:64, borderRadius:14, border:"3px solid #fff", objectFit:"cover", boxShadow:"0 4px 12px rgba(0,0,0,.15)" }} />
-                      ) : (
-                        <div style={{ width:64, height:64, borderRadius:14, background:gBg, color:gColor, border:"3px solid #fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, boxShadow:"0 4px 12px rgba(0,0,0,.12)" }}>
-                          {initials}
-                        </div>
-                      )}
-                      <div style={{ paddingBottom:4 }}>
-                        <span style={{ fontSize:11, fontWeight:800, color:gColor, background:gBg, padding:"2px 10px", borderRadius:99, display:"inline-block", marginBottom:4 }}>
-                          {gLabel}
-                        </span>
+                {/* Profile hero card */}
+                <div style={{ background:"#fff", borderRadius:16, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 4px 16px rgba(30,45,60,.08)" }}>
+                  {/* Banner */}
+                  <div style={{ height:80, background:`linear-gradient(135deg, #1e2d38 0%, ${g.color}88 100%)`, position:"relative" }}>
+                    <div style={{ position:"absolute", bottom:-28, left:20 }}>
+                      <div style={{ width:56, height:56, borderRadius:14, background:g.bg, border:`3px solid #fff`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:g.color, boxShadow:"0 4px 14px rgba(0,0,0,.12)" }}>
+                        {initials(student.full_name)}
                       </div>
                     </div>
-                    <h1 style={{ margin:"0 0 4px", fontSize:18, fontWeight:900, color:C.dark }}>{student.full_name}</h1>
+                  </div>
+
+                  <div style={{ padding:"36px 20px 18px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                      <h1 style={{ margin:0, fontSize:18, fontWeight:900, color:"#1f2d36" }}>{student.full_name}</h1>
+                      <span style={{ padding:"2px 9px", borderRadius:99, fontSize:11, fontWeight:800, background:g.bg, color:g.color, border:`1px solid ${g.border}`, flexShrink:0 }}>{g.label}</span>
+                    </div>
                     {enrollment && (
-                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.mid }}>
+                      <p style={{ margin:"0 0 14px", fontSize:12, fontWeight:700, color:"#6a7882" }}>
                         {enrollment.class_name} · Section {enrollment.section_name}
-                        {enrollment.roll_number && ` · Roll #${enrollment.roll_number}`}
+                        {enrollment.roll_number && <> · <strong style={{ color:"#1f2d36" }}>Roll #{enrollment.roll_number}</strong></>}
                       </p>
                     )}
+
+                    {/* Quick chips */}
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                      {[
+                        student.blood_group    && { icon:"fa-droplet",       val: student.blood_group,              bg:"#fde7e7", color:"#b42318" },
+                        student.date_of_birth  && { icon:"fa-cake-candles",  val: fmtDate(student.date_of_birth),   bg:"#fff7ed", color:"#c46a14" },
+                        student.nationality    && { icon:"fa-flag",          val: student.nationality,              bg:"#e8f0fe", color:"#1a73e8" },
+                      ].filter(Boolean).map((c: any) => (
+                        <div key={c.icon} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:c.bg, fontSize:11, fontWeight:700, color:c.color }}>
+                          <i className={`fa-solid ${c.icon}`} style={{ fontSize:10 }} /> {c.val}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Attendance mini-summary */}
-                {attSummary && (
-                  <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, padding:"16px 20px", boxShadow:"0 2px 8px rgba(31,45,54,.06)" }}>
-                    <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:900, color:C.dark }}>
-                      <i className="fa-solid fa-chart-pie" style={{ color:C.brand, marginRight:7 }} />
-                      Attendance This Year
-                    </p>
-                    {pct !== null && (
-                      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
-                        {/* Mini ring */}
-                        <div style={{ position:"relative", flexShrink:0 }}>
-                          <svg viewBox="0 0 60 60" width={54} height={54} style={{ transform:"rotate(-90deg)" }}>
-                            <circle cx="30" cy="30" r="22" fill="none" stroke="#f1f5f9" strokeWidth="8" />
-                            <circle cx="30" cy="30" r="22" fill="none"
-                              stroke={pct >= 75 ? "#12805c" : pct >= 50 ? "#c46a14" : "#b42318"} strokeWidth="8"
-                              strokeDasharray={`${(pct/100)*138.2} 138.2`} strokeLinecap="round" />
-                          </svg>
-                          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                            <span style={{ fontSize:11, fontWeight:900, color:C.dark }}>{pct}%</span>
-                          </div>
+                {/* Quick Info */}
+                <SectionCard title="Quick Info" icon="fa-tags">
+                  <InfoRow icon="fa-id-badge"     label="Admission No."   value={student.admission_number} mono />
+                  <InfoRow icon="fa-list-ol"      label="Roll Number"     value={enrollment?.roll_number?.toString() || "Not assigned"} />
+                  <InfoRow icon="fa-person"        label="Guardian"        value={student.guardian_name} />
+                  <InfoRow icon="fa-phone"         label="Parent Phone"    value={student.guardian_phone} />
+                  <InfoRow icon="fa-calendar-plus" label="Admitted On"     value={fmtDate(student.admission_date)} />
+                </SectionCard>
+
+                {/* Guardian */}
+                <SectionCard title="Guardian" icon="fa-shield-halved">
+                  <InfoRow icon="fa-person-shelter" label="Name"         value={student.guardian_name} />
+                  <InfoRow icon="fa-people-roof"    label="Relation"     value={student.guardian_relation} />
+                  <InfoRow icon="fa-phone-flip"     label="Phone"        value={student.guardian_phone} />
+                  <InfoRow icon="fa-envelope"       label="Email"        value={student.guardian_email} />
+                </SectionCard>
+              </div>
+
+              {/* ══ RIGHT COLUMN ══ */}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+                {/* ── Attendance Section ── */}
+                <div style={{ background:"#fff", borderRadius:14, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 2px 10px rgba(30,45,60,.06)" }}>
+                  <div style={{ padding:"13px 18px", borderBottom:"1px solid #f0f4f8", display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:30, height:30, borderRadius:8, background:"#fff7ed", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <i className="fa-solid fa-chart-pie" style={{ fontSize:13, color:"#FF9B51" }} />
+                    </div>
+                    <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>Attendance Overview</span>
+                  </div>
+                  <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:16 }}>
+
+                    {/* Yearly */}
+                    <div style={{ display:"flex", alignItems:"center", gap:16, padding:"14px 16px", borderRadius:12, background:"#f7fafb", border:"1px solid #e2eaf0", borderLeft:`4px solid ${yearlyColor}` }}>
+                      <div style={{ position:"relative", flexShrink:0 }}>
+                        <DonutRing pct={yearlyPct} color={yearlyColor} size={80} stroke={10} />
+                        <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>{yearlyPct}%</span>
+                          <span style={{ fontSize:8, fontWeight:700, color:"#6a7882" }}>yearly</span>
                         </div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:5, flex:1 }}>
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:900, color:"#1f2d36" }}>Full Year · {activeYear?.year_name}</p>
+                        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                           {[
-                            { label:"Present", val:present, color:C.green  },
-                            { label:"Absent",  val:absent,  color:"#b42318"},
-                            { label:"Leave",   val:leave,   color:C.purple },
+                            { label:"Present", val:yearly.present, color:"#12805c" },
+                            { label:"Absent",  val:yearly.absent,  color:"#b42318" },
+                            { label:"Leave",   val:yearly.leave,   color:"#7c3aed" },
                           ].map(r => (
                             <div key={r.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
                               <span style={{ width:7, height:7, borderRadius:2, background:r.color, flexShrink:0 }} />
-                              <span style={{ fontSize:11, color:C.mid, fontWeight:600 }}>{r.label}</span>
-                              <span style={{ fontSize:11, fontWeight:900, color:C.dark, marginLeft:"auto" }}>{r.val}</span>
+                              <span style={{ fontSize:11, fontWeight:600, color:"#6a7882", flex:1 }}>{r.label}</span>
+                              <strong style={{ fontSize:12, fontWeight:900, color:r.color }}>{r.val}</strong>
                             </div>
                           ))}
+                          {yearly.working > 0 && (
+                            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, paddingTop:6, borderTop:"1px solid #e2eaf0" }}>
+                              <span style={{ width:7, height:7, borderRadius:2, background:"#64748b", flexShrink:0 }} />
+                              <span style={{ fontSize:11, fontWeight:600, color:"#6a7882", flex:1 }}>Working Days</span>
+                              <strong style={{ fontSize:12, fontWeight:900, color:"#1f2d36" }}>{yearly.working}</strong>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
 
-                {/* Quick badges */}
-                <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, padding:"16px 20px", boxShadow:"0 2px 8px rgba(31,45,54,.06)" }}>
-                  <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:900, color:C.dark }}>
-                    <i className="fa-solid fa-tags" style={{ color:C.brand, marginRight:7 }} />
-                    Quick Info
-                  </p>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {[
-                      { label:"Admission No.",  val: student.admission_number,         icon:"fa-id-badge",    mono:true  },
-                      { label:"Roll Number",    val: enrollment?.roll_number || "Not assigned", icon:"fa-list-ol" },
-                      { label:"Guardian",       val: student.guardian_name,             icon:"fa-person"      },
-                      { label:"Date of Birth",  val: fmtDate(student.date_of_birth),   icon:"fa-cake-candles" },
-                    ].map(f => (
-                      <div key={f.label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.light}` }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                          <i className={`fa-solid ${f.icon}`} style={{ fontSize:11, color:"#94a3b8", width:14, textAlign:"center" }} />
-                          <span style={{ fontSize:12, fontWeight:700, color:C.mid }}>{f.label}</span>
+                    {/* Monthly — current + previous */}
+                    <div className="att-month-grid">
+                      {[
+                        { label: currMonthName, stat: curr, pct: currPct, color: currColor },
+                        { label: prevMonthName, stat: prev, pct: prevPct, color: prevColor },
+                      ].map(m => (
+                        <div key={m.label} style={{ padding:"13px 14px", borderRadius:12, background:"#f7fafb", border:"1px solid #e2eaf0", borderLeft:`4px solid ${m.color}` }}>
+                          <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:900, color:"#1f2d36" }}>{m.label}</p>
+                          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                            <div style={{ position:"relative", flexShrink:0 }}>
+                              <DonutRing pct={m.pct} color={m.color} size={56} stroke={7} />
+                              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                <span style={{ fontSize:11, fontWeight:900, color:"#1f2d36" }}>{m.pct}%</span>
+                              </div>
+                            </div>
+                            <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
+                              {[
+                                { label:"P", val:m.stat.present, color:"#12805c", bg:"#e2f6ee" },
+                                { label:"A", val:m.stat.absent,  color:"#b42318", bg:"#fde7e7" },
+                                { label:"Lv",val:m.stat.leave,   color:"#7c3aed", bg:"#f3eeff" },
+                              ].map(r => (
+                                <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                  <span style={{ fontSize:9, fontWeight:800, color:r.color, background:r.bg, padding:"1px 5px", borderRadius:4, flexShrink:0 }}>{r.label}</span>
+                                  <strong style={{ fontSize:12, fontWeight:900, color:r.color, marginLeft:"auto" }}>{r.val}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <span style={{ fontSize:12, fontWeight:900, color:f.val && f.val !== "Not assigned" ? C.dark : "#d4dde2", fontFamily: f.mono ? "monospace" : "inherit" }}>
-                          {f.val || "—"}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* ── Right column: detail cards ── */}
-              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
                 {/* Personal Details */}
-                <Card title="Personal Details" icon="fa-user">
-                  <InfoRow icon="fa-user"          label="Full Name"       value={student.full_name} />
-                  <InfoRow icon="fa-cake-candles"  label="Date of Birth"   value={fmtDate(student.date_of_birth)} />
-                  <InfoRow icon="fa-venus-mars"    label="Gender"          value={gLabel} />
-                  <InfoRow icon="fa-droplet"       label="Blood Group"     value={student.blood_group} />
-                  <InfoRow icon="fa-earth-asia"    label="Religion"        value={student.religion} />
-                  <InfoRow icon="fa-flag"          label="Nationality"     value={student.nationality} />
-                </Card>
+                <SectionCard title="Personal Details" icon="fa-user">
+                  <InfoRow icon="fa-cake-candles"  label="Date of Birth" value={fmtDate(student.date_of_birth)} />
+                  <InfoRow icon="fa-venus-mars"    label="Gender"        value={g.label} />
+                  <InfoRow icon="fa-droplet"       label="Blood Group"   value={student.blood_group} />
+                  <InfoRow icon="fa-earth-asia"    label="Religion"      value={student.religion} />
+                  <InfoRow icon="fa-people-group"  label="Ethnicity"     value={student.ethnicity} />
+                  <InfoRow icon="fa-flag"          label="Nationality"   value={student.nationality} />
+                </SectionCard>
 
-                {/* Academic Info */}
-                <Card title="Academic Info" icon="fa-graduation-cap">
-                  <InfoRow icon="fa-id-badge"      label="Admission Number"  value={student.admission_number} mono />
+                {/* Academic */}
+                <SectionCard title="Academic Info" icon="fa-graduation-cap">
+                  <InfoRow icon="fa-id-badge"      label="Admission No."     value={student.admission_number} mono />
                   <InfoRow icon="fa-calendar-plus" label="Admission Date"    value={fmtDate(student.admission_date)} />
-                  <InfoRow icon="fa-list-ol"       label="Roll Number"       value={enrollment?.roll_number || "Not assigned"} />
-                  <InfoRow icon="fa-chalkboard"    label="Class & Section"   value={enrollment ? `${enrollment.class_name} — Section ${enrollment.section_name}` : "—"} />
+                  <InfoRow icon="fa-chalkboard"    label="Class & Section"   value={enrollment ? `${enrollment.class_name} — Section ${enrollment.section_name}` : null} />
+                  <InfoRow icon="fa-list-ol"       label="Roll Number"       value={enrollment?.roll_number?.toString()} />
                   <InfoRow icon="fa-file-lines"    label="Registration No."  value={enrollment?.registration_number} mono />
                   <InfoRow icon="fa-hashtag"       label="Symbol Number"     value={enrollment?.symbol_number} mono />
-                </Card>
+                </SectionCard>
 
                 {/* Contact */}
-                <Card title="Contact Information" icon="fa-address-book">
-                  <InfoRow icon="fa-phone"         label="Student Phone"   value={student.phone} />
-                  <InfoRow icon="fa-envelope"      label="Student Email"   value={student.email} />
-                  <InfoRow icon="fa-city"          label="City"            value={student.city} />
-                  <InfoRow icon="fa-map"           label="State"           value={student.state} />
-                  <InfoRow icon="fa-flag"          label="Country"         value={student.country} />
-                </Card>
-
-                {/* Guardian */}
-                <Card title="Guardian / Emergency" icon="fa-shield-halved">
-                  <InfoRow icon="fa-person-shelter" label="Guardian Name"    value={student.guardian_name} />
-                  <InfoRow icon="fa-phone-flip"     label="Guardian Phone"   value={student.guardian_phone} />
-                  <InfoRow icon="fa-envelope"       label="Guardian Email"   value={student.guardian_email} />
-                  <InfoRow icon="fa-people-roof"    label="Relationship"     value={student.guardian_relation} />
-                  <InfoRow icon="fa-briefcase"      label="Occupation"       value={student.guardian_occupation} />
-                </Card>
+                <SectionCard title="Contact" icon="fa-address-book">
+                  <InfoRow icon="fa-phone"      label="Phone"   value={student.phone} />
+                  <InfoRow icon="fa-envelope"   label="Email"   value={student.email} />
+                  <InfoRow icon="fa-city"       label="City"    value={student.city} />
+                  <InfoRow icon="fa-map"        label="State"   value={student.state} />
+                  <InfoRow icon="fa-earth-asia" label="Country" value={student.country} />
+                </SectionCard>
 
               </div>
             </div>
           )}
 
           {/* Note */}
-          <div style={{ padding:"11px 16px", borderRadius:10, background:"#fff7ed", border:"1px solid #fed7aa", display:"flex", gap:9, alignItems:"flex-start" }}>
-            <i className="fa-solid fa-circle-info" style={{ color:C.brandDark, fontSize:13, flexShrink:0, marginTop:1 }} />
+          <div style={{ padding:"11px 16px", borderRadius:10, background:"#fff7ed", border:"1px solid #fed7aa", borderLeft:"4px solid #FF9B51", display:"flex", gap:9, alignItems:"flex-start" }}>
+            <i className="fa-solid fa-circle-info" style={{ color:"#c2410c", fontSize:13, flexShrink:0, marginTop:1 }} />
             <span style={{ fontSize:12, fontWeight:700, color:"#92400e" }}>
               You can only edit <strong>Roll Number</strong> and <strong>Remarks</strong> from the students list. All other details can only be changed by the school admin.
             </span>

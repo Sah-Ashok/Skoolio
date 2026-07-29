@@ -33,7 +33,8 @@ export const getTeacherByIdService = async (id: number, school_id: number) => {
   const teacher = await getTeacherById(id, school_id);
   if (!teacher) throw new AppError('Teacher not found.', 404);
   const subjects = await getSubjectsByTeacher(id, school_id);
-  return { ...teacher, subjects };
+  const sections = await getSectionsByCoordinator(id, school_id);
+  return { ...teacher, subjects, sections };
 };
 
 export const updateTeacherService = async (id: number, school_id: number, data: IUpdateTeacher) => {

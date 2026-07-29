@@ -6,491 +6,430 @@ import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
 import { Spinner } from "@/components/shared/Loader";
 
-/* ── tiny helpers ── */
-const fmt = (d: string | undefined | null) =>
+/* ── helpers ── */
+const fmt = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-const today = new Date().toLocaleDateString("en-US", {
-  weekday: "long", day: "2-digit", month: "long", year: "numeric",
-});
+const relDate = (iso: string) => {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7)  return `${diff}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+};
 
-const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
+const hour     = new Date().getHours();
+const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+const dateStr  = new Date().toLocaleDateString("en-US", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
 
-/* ── colour tokens ── */
-const SUBJECT_COLORS = [
-  { bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-  { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  { bg: "#fdf4ff", color: "#7e22ce", border: "#e9d5ff" },
-  { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" },
-  { bg: "#f0fdfa", color: "#0f766e", border: "#99f6e4" },
-];
+const PRIORITY: Record<string, { dot: string; label: string }> = {
+  urgent: { dot:"#ef4444", label:"Urgent"  },
+  high:   { dot:"#f97316", label:"High"    },
+  normal: { dot:"#3b82f6", label:"Notice"  },
+  low:    { dot:"#94a3b8", label:"Info"    },
+};
 
-/* ═══════════════════════════════════════════════════════
-   STAT CHIP
-═══════════════════════════════════════════════════════ */
-function StatChip({
-  icon, label, value, accent = "#FF9B51", bg = "#fff7ed",
-}: {
-  icon: string; label: string; value: React.ReactNode;
-  accent?: string; bg?: string;
-}) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 14,
-      background: "#fff", borderRadius: 14, padding: "16px 20px",
-      border: "1.5px solid #e0e8ec",
-      boxShadow: "0 2px 12px rgba(37,52,63,0.06)",
-      flex: "1 1 180px",
-    }}>
-      <div style={{
-        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-        background: bg, color: accent,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 18,
-      }}>
-        <i className={`fa-solid ${icon}`} />
-      </div>
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 700, color: "#6a7882", margin: 0, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</p>
-        <p style={{ fontSize: 17, fontWeight: 900, color: "#25343F", margin: "2px 0 0", lineHeight: 1.2 }}>{value || "—"}</p>
-      </div>
-    </div>
-  );
-}
+const SUBJECT_COLORS = ["#6366f1","#0891b2","#16a34a","#dc2626","#9333ea","#0284c7","#d97706","#059669"];
 
-/* ═══════════════════════════════════════════════════════
-   QUICK ACTION BUTTON
-═══════════════════════════════════════════════════════ */
-function ActionBtn({
-  href, icon, label, sub, primary,
-}: {
-  href: string; icon: string; label: string; sub: string; primary?: boolean;
-}) {
-  return (
-    <Link href={href} style={{
-      display: "flex", alignItems: "center", gap: 14,
-      padding: "14px 18px", borderRadius: 12, textDecoration: "none",
-      background: primary ? "#FF9B51" : "#fff",
-      border: primary ? "none" : "1.5px solid #e0e8ec",
-      boxShadow: primary ? "0 4px 16px rgba(255,155,81,0.28)" : "0 1px 4px rgba(37,52,63,0.06)",
-      transition: "transform 0.15s, box-shadow 0.15s",
-    }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = primary ? "0 8px 24px rgba(255,155,81,0.36)" : "0 6px 20px rgba(37,52,63,0.10)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = primary ? "0 4px 16px rgba(255,155,81,0.28)" : "0 1px 4px rgba(37,52,63,0.06)"; }}
-    >
-      <div style={{
-        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-        background: primary ? "rgba(255,255,255,0.2)" : "#fff7ed",
-        color: primary ? "#fff" : "#FF9B51",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-      }}>
-        <i className={`fa-solid ${icon}`} />
-      </div>
-      <div>
-        <p style={{ fontSize: 13, fontWeight: 900, color: primary ? "#fff" : "#25343F", margin: 0 }}>{label}</p>
-        <p style={{ fontSize: 11, fontWeight: 600, color: primary ? "rgba(255,255,255,0.8)" : "#6a7882", margin: "2px 0 0" }}>{sub}</p>
-      </div>
-      <i className="fa-solid fa-arrow-right" style={{ marginLeft: "auto", fontSize: 11, color: primary ? "rgba(255,255,255,0.7)" : "#c0cdd4" }} />
-    </Link>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT
-═══════════════════════════════════════════════════════ */
 export default function TeacherDashboardPage() {
-  const { user } = useAppSelector((s) => s.auth);
+  const { user }     = useAppSelector((s) => s.auth);
   const { data: me, loading } = useApi<any>("/auth/me");
+  const { data: noticesRaw }  = useApi<any>("/notices/teacher");
+  const { data: attSummary }  = useApi<any>("/teachers/me/attendance/yearly");
 
-  /* derived values */
-  const initials = (me?.full_name || user?.full_name || "T")
-    .split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+  const notices: any[]  = (noticesRaw?.data ?? noticesRaw ?? []).slice(0, 6);
+  const subjects: any[] = me?.subjects ?? [];
+  const sections: any[] = me?.sections ?? [];
+  const name = me?.full_name || user?.full_name || "Teacher";
 
-  const subjects: any[]  = me?.subjects  || [];
-  const sections: any[]  = me?.sections  || [];
+  const present  = Number(attSummary?.total_present ?? 0);
+  const absent   = Number(attSummary?.total_absent  ?? 0);
+  const totalAtt = present + absent;
+  const attPct   = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : null;
 
-  const statusColor = me?.status === "active"
-    ? { bg: "#dcfce7", color: "#15803d" }
-    : { bg: "#fee2e2", color: "#b91c1c" };
+  const circ = 2 * Math.PI * 20;
+  const arc  = attPct !== null ? (attPct / 100) * circ : 0;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#EAEFEF" }}>
-      <Topbar title="Dashboard" subtitle={`Good morning · ${today}`} />
+    <>
+      <style>{`
+        *,*::before,*::after{box-sizing:border-box;}
 
-      <main style={{ padding: "24px 28px 48px" }}>
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "6rem 0", gap: 16 }}>
-            <Spinner size={36} color="#FF9B51" />
-            <p style={{ color: "#6a7882", fontWeight: 700, fontSize: 13 }}>Loading your dashboard…</p>
-          </div>
-        ) : (
-          <>
+        .td{min-height:100vh;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+        .td-wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px;}
+        @media(min-width:700px){.td-wrap{padding:28px 28px 60px;}}
 
-            {/* ══════════════════════════════════════
-                PAGE HEADING — School name as H1
-            ══════════════════════════════════════ */}
-            <div style={{ marginBottom: 20 }}>
-              <h1 style={{
-                fontSize: 26, fontWeight: 900, color: "#25343F",
-                letterSpacing: "-0.4px", margin: 0, lineHeight: 1.15,
-                display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-              }}>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 36, height: 36, borderRadius: 9,
-                  background: "#FF9B51", color: "#25343F",
-                  fontSize: 15, fontWeight: 900, flexShrink: 0,
-                }}>
-                  {(me?.school_name || "S").charAt(0).toUpperCase()}
-                </span>
-                {me?.school_name || "Your School"}
-              </h1>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#6a7882", margin: "5px 0 0" }}>
-                {today}
-              </p>
+        /* greeting row */
+        .td-greeting{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px;}
+        .td-name{font-size:clamp(22px,4vw,30px);font-weight:900;color:#1f2d36;letter-spacing:-0.5px;line-height:1.1;margin:0 0 4px;}
+        .td-sub{font-size:12px;font-weight:600;color:#6a7882;margin:0;}
+        .td-status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;border:1px solid #bbf7d0;background:#f0fdf4;font-size:10px;font-weight:800;color:#15803d;margin-left:10px;}
+        .td-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;}
+
+        /* stat row */
+        .td-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+        @media(max-width:640px){.td-stats{grid-template-columns:repeat(2,1fr);gap:8px;}}
+        .td-stat{background:#fff;border:1px solid #e8eef0;border-radius:12px;padding:16px;}
+        .td-stat-val{font-size:20px;font-weight:900;color:#1f2d36;margin:0 0 2px;}
+        .td-stat-lbl{font-size:10px;font-weight:700;color:#6a7882;text-transform:uppercase;letter-spacing:.5px;margin:0;}
+
+        /* main layout */
+        .td-layout{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;}
+        @media(max-width:860px){.td-layout{grid-template-columns:1fr;}}
+
+        /* left col */
+        .td-left{display:flex;flex-direction:column;gap:16px;}
+
+        /* cards */
+        .td-card{background:#fff;border:1px solid #e8eef0;border-radius:14px;overflow:hidden;}
+        .td-card-head{padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+        .td-card-title{font-size:13px;font-weight:900;color:#1f2d36;margin:0;display:flex;align-items:center;gap:7px;}
+        .td-card-link{font-size:11px;font-weight:700;color:#FF9B51;text-decoration:none;}
+        .td-card-body{padding:14px 18px;}
+
+        /* quick actions grid */
+        .td-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+        @media(max-width:480px){.td-actions{grid-template-columns:repeat(2,1fr);}}
+        .td-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:14px 8px;border-radius:10px;border:1px solid #e8eef0;text-decoration:none;background:#fff;transition:border-color .12s,background .12s;text-align:center;}
+        .td-action:hover{border-color:#FF9B51;background:#fff7ed;}
+        .td-action.primary{background:#FF9B51;border-color:#FF9B51;}
+        .td-action.primary:hover{background:#f08b42;border-color:#f08b42;}
+        .td-action-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+        .td-action-label{font-size:11px;font-weight:800;color:#1f2d36;line-height:1.2;}
+        .td-action.primary .td-action-label{color:#fff;}
+
+        /* subjects */
+        .td-subjects{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+        .td-subject{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;border:1px solid #e8eef0;}
+        .td-subject-dot{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0;}
+        .td-subject-name{font-size:12px;font-weight:800;color:#1f2d36;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .td-subject-code{font-size:10px;font-weight:700;color:#94a3b8;margin-top:1px;}
+
+        /* sections */
+        .td-section{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid #e8eef0;margin-bottom:8px;text-decoration:none;}
+        .td-section:last-child{margin-bottom:0;}
+        .td-section:hover{border-color:#FF9B51;background:#fff7ed;}
+        .td-section-badge{width:36px;height:36px;border-radius:9px;background:#1f2d36;color:#FF9B51;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;}
+
+        /* right sidebar */
+        .td-right{display:flex;flex-direction:column;gap:14px;}
+
+        /* profile card */
+        .td-profile{background:#fff;border:1px solid #e8eef0;border-radius:14px;overflow:hidden;}
+        .td-profile-top{background:#1f2d36;padding:20px 18px 52px;position:relative;}
+        .td-avatar-wrap{position:absolute;bottom:-28px;left:18px;}
+        .td-avatar{width:56px;height:56px;border-radius:14px;background:#FF9B51;color:#fff;font-size:20px;font-weight:900;display:flex;align-items:center;justify-content:center;border:3px solid #fff;}
+        .td-profile-info{padding:36px 18px 14px;}
+        .td-profile-name{font-size:15px;font-weight:900;color:#1f2d36;margin:0 0 2px;}
+        .td-profile-meta{font-size:11px;font-weight:700;color:#6a7882;margin:0;}
+        .td-profile-rows{border-top:1px solid #f1f5f9;padding:10px 18px;}
+        .td-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f8fafc;}
+        .td-row:last-child{border-bottom:none;}
+        .td-row-label{font-size:11px;font-weight:700;color:#94a3b8;display:flex;align-items:center;gap:6px;}
+        .td-row-val{font-size:12px;font-weight:800;color:#1f2d36;text-align:right;text-transform:capitalize;}
+
+        /* attendance ring */
+        .td-att{background:#fff;border:1px solid #e8eef0;border-radius:14px;padding:16px 18px;}
+        .td-att-head{font-size:12px;font-weight:900;color:#1f2d36;margin:0 0 12px;}
+        .td-att-row{display:flex;align-items:center;gap:14px;}
+        .td-att-stats{display:flex;flex-direction:column;gap:6px;flex:1;}
+        .td-att-line{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+        .td-att-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+
+        /* notices */
+        .td-notice{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f8fafc;}
+        .td-notice:last-child{border-bottom:none;}
+        .td-notice-dot{width:6px;flex-shrink:0;border-radius:3px;margin-top:4px;align-self:stretch;}
+
+        /* empty */
+        .td-empty{padding:24px;text-align:center;color:#94a3b8;}
+        .td-empty i{font-size:24px;display:block;margin-bottom:8px;opacity:.5;}
+        .td-empty p{font-size:12px;font-weight:700;margin:0;}
+
+        @media(max-width:480px){
+          .td-card-body{padding:12px 14px;}
+          .td-profile-info{padding:34px 14px 12px;}
+          .td-profile-rows{padding:8px 14px;}
+        }
+      `}</style>
+
+      <div className="td">
+        <Topbar title="Dashboard" subtitle={`${greeting} · ${dateStr}`} />
+
+        <div className="td-wrap">
+          {loading ? (
+            <div style={{ padding:"5rem 0", textAlign:"center" }}>
+              <Spinner size={28} color="#FF9B51" />
+              <p style={{ marginTop:12, fontSize:12, fontWeight:700, color:"#94a3b8" }}>Loading dashboard…</p>
             </div>
-            <div style={{
-              background: "linear-gradient(135deg, #25343F 0%, #314653 55%, #3d5060 100%)",
-              borderRadius: 20, padding: "28px 32px", marginBottom: 24,
-              display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap",
-              boxShadow: "0 8px 32px rgba(37,52,63,0.22)",
-              position: "relative", overflow: "hidden",
-            }}>
-              {/* decorative orbs */}
-              <div style={{ position: "absolute", top: -40, right: -30, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,155,81,0.07)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", bottom: -60, right: 160, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,155,81,0.04)", pointerEvents: "none" }} />
-
-              {/* Avatar */}
-              <div style={{
-                width: 72, height: 72, borderRadius: 20, flexShrink: 0,
-                background: "linear-gradient(135deg, #FF9B51 0%, #e8883e 100%)",
-                color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 26, fontWeight: 900,
-                boxShadow: "0 4px 18px rgba(255,155,81,0.4)",
-                zIndex: 1,
-              }}>
-                {initials}
-              </div>
-
-              {/* Name & meta */}
-              <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-                  <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", margin: 0, letterSpacing: "-0.3px" }}>
-                    {me?.full_name || user?.full_name || "Teacher"}
-                  </h2>
-                  <span style={{
-                    padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-                    background: statusColor.bg, color: statusColor.color, textTransform: "capitalize",
-                  }}>
-                    {me?.status || "active"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 20px" }}>
-                  {me?.email && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#BFC9D1", display: "flex", alignItems: "center", gap: 6 }}>
-                      <i className="fa-solid fa-envelope" style={{ color: "#FF9B51", fontSize: 11 }} />
-                      {me.email}
-                    </span>
-                  )}
-                  {me?.phone && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#BFC9D1", display: "flex", alignItems: "center", gap: 6 }}>
-                      <i className="fa-solid fa-phone" style={{ color: "#FF9B51", fontSize: 11 }} />
-                      {me.phone}
-                    </span>
-                  )}
-                  {me?.qualification && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#BFC9D1", display: "flex", alignItems: "center", gap: 6 }}>
-                      <i className="fa-solid fa-graduation-cap" style={{ color: "#FF9B51", fontSize: 11 }} />
-                      {me.qualification}
-                    </span>
-                  )}
+          ) : (
+            <>
+              {/* ── Greeting ── */}
+              <div className="td-greeting">
+                <div>
+                  <h1 className="td-name">
+                    {greeting}, {name.split(" ")[0]}
+                    <span className="td-status">{me?.status ?? "Active"}</span>
+                  </h1>
+                  <p className="td-sub">{me?.school_name ?? "Skoolio School"} · {dateStr}</p>
                 </div>
               </div>
 
-              {/* Right info chips */}
-              <div style={{ display: "flex", gap: 10, flexShrink: 0, flexWrap: "wrap", zIndex: 1 }}>
+              {/* ── Stat chips ── */}
+              <div className="td-stats">
                 {[
-                  { label: "Subjects", value: subjects.length || "—" },
-                  { label: "Experience", value: me?.experience_years ? `${me.experience_years} yrs` : "—" },
-                  { label: "Joined", value: me?.join_date ? new Date(me.join_date).getFullYear() : "—" },
+                  { val: sections.length || "—", lbl: "My Sections",   accent: "#FF9B51" },
+                  { val: subjects.length || "—", lbl: "My Subjects",   accent: "#6366f1" },
+                  { val: me?.experience_years ? `${me.experience_years} yrs` : "—", lbl: "Experience", accent: "#16a34a" },
+                  { val: attPct !== null ? `${attPct}%` : "—", lbl: "My Attendance", accent: "#0891b2" },
                 ].map(c => (
-                  <div key={c.label} style={{
-                    background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(6px)", borderRadius: 10, padding: "10px 16px", textAlign: "center", minWidth: 80,
-                  }}>
-                    <p style={{ fontSize: 20, fontWeight: 900, color: "#FF9B51", margin: 0, lineHeight: 1 }}>{c.value}</p>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: "#BFC9D1", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.5px" }}>{c.label}</p>
+                  <div key={c.lbl} className="td-stat" style={{ borderLeft:`3px solid ${c.accent}` }}>
+                    <p className="td-stat-val" style={{ color: c.accent }}>{c.val}</p>
+                    <p className="td-stat-lbl">{c.lbl}</p>
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* ══════════════════════════════════════
-                STAT CHIPS ROW
-            ══════════════════════════════════════ */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-              <StatChip icon="fa-graduation-cap"   label="Qualification"  value={me?.qualification || "—"}                         accent="#6366f1" bg="#eef2ff" />
-              <StatChip icon="fa-calendar-check"   label="Experience"     value={me?.experience_years ? `${me.experience_years} yrs` : "—"} accent="#16a34a" bg="#f0fdf4" />
-              <StatChip icon="fa-calendar-day"     label="Join Date"      value={fmt(me?.join_date)}                                accent="#0284c7" bg="#eff6ff" />
-              <StatChip icon="fa-chalkboard-user"  label="Today"          value={dayOfWeek}                                         accent="#FF9B51" bg="#fff7ed" />
-            </div>
+              {/* ── Main layout ── */}
+              <div className="td-layout">
 
-            {/* ══════════════════════════════════════
-                MAIN GRID — 3 columns
-            ══════════════════════════════════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+                {/* LEFT */}
+                <div className="td-left">
 
-              {/* ── Quick Actions ── */}
-              <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e0e8ec", boxShadow: "0 2px 12px rgba(37,52,63,0.06)", overflow: "hidden", gridColumn: "1" }}>
-                <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f0f4f6", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: "#fff7ed", color: "#FF9B51", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                    <i className="fa-solid fa-bolt" />
-                  </div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: "#25343F", margin: 0 }}>Quick Actions</h3>
-                </div>
-                <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                  <ActionBtn href="/teacher/attendance/class" icon="fa-clipboard-check" label="Mark Attendance"        sub="Take today's class roll"     primary />
-                  <ActionBtn href="/teacher/attendance"       icon="fa-user-check"      label="Attendance Overview"    sub="View all records"            />
-                  <ActionBtn href="/teacher/results"          icon="fa-pen-to-square"   label="Enter Exam Results"     sub="Update student marks"        />
-                  <ActionBtn href="/teacher/profile"          icon="fa-id-badge"        label="My Profile"             sub="Personal & professional info" />
-                </div>
-              </div>
-
-              {/* ── My Subjects ── */}
-              <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e0e8ec", boxShadow: "0 2px 12px rgba(37,52,63,0.06)", overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f0f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: "#eef2ff", color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                      <i className="fa-solid fa-book" />
+                  {/* Quick Actions */}
+                  <div className="td-card">
+                    <div className="td-card-head">
+                      <p className="td-card-title"><i className="fa-solid fa-bolt" style={{ color:"#FF9B51" }} /> Quick Actions</p>
                     </div>
-                    <h3 style={{ fontSize: 14, fontWeight: 900, color: "#25343F", margin: 0 }}>My Subjects</h3>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#6a7882", background: "#f0f4f6", padding: "2px 8px", borderRadius: 6 }}>
-                    {subjects.length} assigned
-                  </span>
-                </div>
-                <div style={{ padding: "16px" }}>
-                  {subjects.length > 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {subjects.map((sub: any, i: number) => {
-                        const c = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
-                        return (
-                          <div key={sub.id} style={{
-                            display: "flex", alignItems: "center", gap: 12,
-                            padding: "10px 14px", borderRadius: 10,
-                            background: c.bg, border: `1px solid ${c.border}`,
-                          }}>
-                            <div style={{
-                              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                              background: c.color + "22", color: c.color,
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 13, fontWeight: 900,
+                    <div className="td-card-body">
+                      <div className="td-actions">
+                        {[
+                          { href:"/teacher/attendance/class", icon:"fa-clipboard-check", label:"Mark Attendance",  primary:true  },
+                          { href:"/teacher/students",          icon:"fa-users",           label:"My Students",     primary:false },
+                          { href:"/teacher/results",           icon:"fa-pen-to-square",   label:"Enter Results",   primary:false },
+                          { href:"/teacher/attendance",        icon:"fa-user-check",      label:"My Attendance",   primary:false },
+                          { href:"/teacher/salary",            icon:"fa-money-bill-wave", label:"My Salary",       primary:false },
+                          { href:"/teacher/calendar",          icon:"fa-calendar",        label:"Calendar",        primary:false },
+                        ].map(a => (
+                          <Link key={a.href} href={a.href} className={`td-action${a.primary ? " primary" : ""}`}>
+                            <div className="td-action-icon" style={{
+                              background: a.primary ? "rgba(255,255,255,.2)" : "#fff7ed",
+                              color: a.primary ? "#fff" : "#FF9B51",
                             }}>
-                              {(sub.name || sub.subject_name || "S").charAt(0).toUpperCase()}
+                              <i className={`fa-solid ${a.icon}`} />
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 13, fontWeight: 900, color: "#25343F", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {sub.name || sub.subject_name}
-                              </p>
-                              {sub.code && <p style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882", margin: "2px 0 0" }}>{sub.code}</p>}
+                            <span className="td-action-label">{a.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* My Sections */}
+                  <div className="td-card">
+                    <div className="td-card-head">
+                      <p className="td-card-title"><i className="fa-solid fa-chalkboard-user" style={{ color:"#1f2d36" }} /> My Sections</p>
+                      <Link href="/teacher/students" className="td-card-link">View students →</Link>
+                    </div>
+                    <div className="td-card-body">
+                      {sections.length === 0 ? (
+                        <div className="td-empty"><i className="fa-solid fa-chalkboard" /><p>No sections assigned yet</p></div>
+                      ) : sections.map((sec: any, i: number) => (
+                        <Link key={sec.id ?? i} href="/teacher/students" className="td-section">
+                          <div className="td-section-badge">{(sec.name || "?").charAt(0)}</div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <p style={{ margin:0, fontSize:13, fontWeight:900, color:"#1f2d36" }}>
+                              {sec.class_name ? `${sec.class_name} —` : ""} Section {sec.name}
+                            </p>
+                            <p style={{ margin:"2px 0 0", fontSize:11, fontWeight:600, color:"#6a7882" }}>
+                              {sec.room_no ? `Room ${sec.room_no} · ` : ""}Section Coordinator
+                            </p>
+                          </div>
+                          <span style={{ fontSize:10, fontWeight:800, padding:"2px 8px", borderRadius:5, background:sec.status==="inactive"?"#f1f5f9":"#f0fdf4", color:sec.status==="inactive"?"#6a7882":"#15803d", flexShrink:0, border:`1px solid ${sec.status==="inactive"?"#e2e8f0":"#bbf7d0"}` }}>
+                            {sec.status ?? "Active"}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* My Subjects */}
+                  <div className="td-card">
+                    <div className="td-card-head">
+                      <p className="td-card-title"><i className="fa-solid fa-book" style={{ color:"#6366f1" }} /> My Subjects</p>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#6a7882", background:"#f1f5f9", padding:"2px 8px", borderRadius:5 }}>{subjects.length} assigned</span>
+                    </div>
+                    <div className="td-card-body">
+                      {subjects.length === 0 ? (
+                        <div className="td-empty"><i className="fa-solid fa-book-open" /><p>No subjects assigned</p></div>
+                      ) : (
+                        <div className="td-subjects">
+                          {subjects.map((sub: any, i: number) => {
+                            const color = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
+                            return (
+                              <div key={sub.id ?? i} className="td-subject">
+                                <div className="td-subject-dot" style={{ background:`${color}15`, color }}>
+                                  {(sub.name || sub.subject_name || "S").charAt(0)}
+                                </div>
+                                <div style={{ minWidth:0 }}>
+                                  <p className="td-subject-name">{sub.name || sub.subject_name}</p>
+                                  {sub.code && <p className="td-subject-code">{sub.code}</p>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notice Board */}
+                  <div className="td-card">
+                    <div className="td-card-head">
+                      <p className="td-card-title"><i className="fa-solid fa-bullhorn" style={{ color:"#3b82f6" }} /> Notice Board</p>
+                      <Link href="/teacher/notices" className="td-card-link">See all →</Link>
+                    </div>
+                    <div className="td-card-body" style={{ padding:"4px 18px" }}>
+                      {notices.length === 0 ? (
+                        <div className="td-empty" style={{ padding:"18px 0" }}>
+                          <i className="fa-solid fa-bell-slash" /><p>No notices right now</p>
+                        </div>
+                      ) : notices.map((n: any) => {
+                        const p = PRIORITY[n.priority ?? "normal"] ?? PRIORITY.normal;
+                        return (
+                          <div key={n.id} className="td-notice">
+                            <div className="td-notice-dot" style={{ background: p.dot }} />
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                                <span style={{ fontSize:10, fontWeight:700, color:p.dot }}>{p.label}</span>
+                                <span style={{ fontSize:10, color:"#94a3b8" }}>·</span>
+                                <span style={{ fontSize:10, color:"#94a3b8", fontWeight:600 }}>
+                                  {relDate(n.created_at ?? n.date ?? new Date().toISOString())}
+                                </span>
+                              </div>
+                              <p style={{ margin:0, fontSize:13, fontWeight:800, color:"#1f2d36", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.title}</p>
+                              {n.message && (
+                                <p style={{ margin:"2px 0 0", fontSize:11, color:"#6a7882", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.message}</p>
+                              )}
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: c.color, background: c.border + "88", padding: "2px 7px", borderRadius: 5, flexShrink: 0 }}>
-                              Subject
-                            </span>
                           </div>
                         );
                       })}
                     </div>
-                  ) : (
-                    <div style={{ padding: "28px 0", textAlign: "center" }}>
-                      <i className="fa-solid fa-book-open" style={{ fontSize: 28, color: "#d4dde2", marginBottom: 10 }} />
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#6a7882", margin: "0 0 4px" }}>No subjects yet</p>
-                      <p style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, margin: 0 }}>Contact your school admin.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── My Sections / Classes ── */}
-              <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e0e8ec", boxShadow: "0 2px 12px rgba(37,52,63,0.06)", overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f0f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                      <i className="fa-solid fa-table-cells" />
-                    </div>
-                    <h3 style={{ fontSize: 14, fontWeight: 900, color: "#25343F", margin: 0 }}>My Sections</h3>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#6a7882", background: "#f0f4f6", padding: "2px 8px", borderRadius: 6 }}>
-                    {sections.length} section{sections.length !== 1 ? "s" : ""}
-                  </span>
+
                 </div>
-                <div style={{ padding: "16px" }}>
-                  {sections.length > 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {sections.map((sec: any, i: number) => (
-                        <div key={sec.id || i} style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          padding: "10px 14px", borderRadius: 10,
-                          background: "#f8fafc", border: "1px solid #e0e8ec",
-                        }}>
-                          <div style={{
-                            width: 36, height: 36, borderRadius: 9, flexShrink: 0,
-                            background: "#25343F", color: "#FF9B51",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 14, fontWeight: 900,
-                          }}>
-                            {(sec.name || "S").charAt(0)}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 13, fontWeight: 900, color: "#25343F", margin: 0 }}>
-                              Section {sec.name}
-                              {sec.class_name && <span style={{ color: "#6a7882", fontWeight: 700 }}> · {sec.class_name}</span>}
-                            </p>
-                            <div style={{ display: "flex", gap: 10, marginTop: 3, flexWrap: "wrap" }}>
-                              {sec.room_no && (
-                                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882" }}>
-                                  <i className="fa-solid fa-door-open" style={{ marginRight: 3, fontSize: 9 }} />
-                                  {sec.room_no}
-                                </span>
-                              )}
-                              {sec.capacity && (
-                                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882" }}>
-                                  <i className="fa-solid fa-users" style={{ marginRight: 3, fontSize: 9 }} />
-                                  {sec.capacity} cap
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span style={{
-                            fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5,
-                            background: sec.status === "inactive" ? "#f1f5f9" : "#dcfce7",
-                            color: sec.status === "inactive" ? "#6a7882" : "#15803d",
-                            textTransform: "capitalize", flexShrink: 0,
-                          }}>
-                            {sec.status || "active"}
+
+                {/* RIGHT sidebar */}
+                <div className="td-right">
+
+                  {/* Profile card */}
+                  <div className="td-profile">
+                    <div className="td-profile-top">
+                      <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".6px" }}>{me?.school_name ?? "Teacher Portal"}</p>
+                      <p style={{ margin:0, fontSize:12, fontWeight:600, color:"#bfc9d1" }}>{me?.role === "faculty" ? "Faculty Member" : "Teacher"}</p>
+                      <div className="td-avatar-wrap">
+                        <div className="td-avatar">
+                          {name.split(" ").map((n: string) => n[0]).slice(0,2).join("").toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="td-profile-info">
+                      <p className="td-profile-name">{name}</p>
+                      <p className="td-profile-meta">{me?.qualification ?? "Faculty"} · Joined {fmt(me?.join_date)}</p>
+                    </div>
+                    <div className="td-profile-rows">
+                      {[
+                        { icon:"fa-venus-mars",   label:"Gender",   val:me?.gender          },
+                        { icon:"fa-phone",        label:"Phone",    val:me?.phone            },
+                        { icon:"fa-envelope",     label:"Email",    val:me?.email            },
+                        { icon:"fa-cake-candles", label:"Birthday", val:fmt(me?.date_of_birth) },
+                      ].map(r => (
+                        <div key={r.label} className="td-row">
+                          <span className="td-row-label">
+                            <i className={`fa-solid ${r.icon}`} style={{ fontSize:10, color:"#c6d0d7", width:12 }} />
+                            {r.label}
                           </span>
+                          <span className="td-row-val">{r.val || "—"}</span>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div style={{ padding: "28px 0", textAlign: "center" }}>
-                      <i className="fa-solid fa-table-cells" style={{ fontSize: 28, color: "#d4dde2", marginBottom: 10 }} />
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#6a7882", margin: "0 0 4px" }}>No sections assigned</p>
-                      <p style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, margin: 0 }}>Contact your school admin.</p>
+                    <div style={{ padding:"10px 18px 14px" }}>
+                      <Link href="/teacher/profile" style={{ display:"block", width:"100%", padding:"9px 0", borderRadius:9, border:"1.5px solid #FF9B51", background:"transparent", color:"#FF9B51", fontSize:12, fontWeight:900, textAlign:"center", textDecoration:"none", transition:"background .12s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background="#fff7ed"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background="transparent"; }}>
+                        <i className="fa-solid fa-pen" style={{ marginRight:6 }} /> Edit Profile
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Attendance card */}
+                  {attPct !== null && (
+                    <div className="td-att">
+                      <p className="td-att-head">My Attendance · This Year</p>
+                      <div className="td-att-row">
+                        {/* SVG ring */}
+                        <svg viewBox="0 0 52 52" width={56} height={56} style={{ flexShrink:0 }}>
+                          <circle cx="26" cy="26" r="20" fill="none" stroke="#f1f5f9" strokeWidth="6" />
+                          <circle cx="26" cy="26" r="20" fill="none"
+                            stroke={attPct >= 75 ? "#22c55e" : attPct >= 50 ? "#f97316" : "#ef4444"}
+                            strokeWidth="6"
+                            strokeDasharray={`${arc} ${circ}`}
+                            strokeDashoffset={circ / 4}
+                            strokeLinecap="round"
+                          />
+                          <text x="26" y="30" textAnchor="middle" fontSize="9" fontWeight="900" fill="#1f2d36">{attPct}%</text>
+                        </svg>
+                        <div className="td-att-stats">
+                          {[
+                            { label:"Present", val:present, color:"#22c55e" },
+                            { label:"Absent",  val:absent,  color:"#ef4444" },
+                          ].map(r => (
+                            <div key={r.label} className="td-att-line">
+                              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                <span className="td-att-dot" style={{ background:r.color }} />
+                                <span style={{ fontSize:11, fontWeight:700, color:"#6a7882" }}>{r.label}</span>
+                              </div>
+                              <span style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{r.val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <Link href="/teacher/attendance" style={{ display:"block", marginTop:12, fontSize:11, fontWeight:700, color:"#FF9B51", textDecoration:"none", textAlign:"right" }}>
+                        View full record →
+                      </Link>
                     </div>
                   )}
-                </div>
-              </div>
 
-            </div>
-
-            {/* ══════════════════════════════════════
-                BOTTOM ROW — School info + Personal details
-            ══════════════════════════════════════ */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
-
-              {/* School Information */}
-              <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e0e8ec", boxShadow: "0 2px 12px rgba(37,52,63,0.06)", overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f0f4f6", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: "#fff7ed", color: "#FF9B51", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                    <i className="fa-solid fa-building-columns" />
-                  </div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: "#25343F", margin: 0 }}>School Information</h3>
-                </div>
-                <div style={{ padding: "18px 20px" }}>
-                  {/* School name banner */}
-                  <div style={{
-                    background: "linear-gradient(135deg, #25343F 0%, #3d5060 100%)",
-                    borderRadius: 12, padding: "16px 18px", marginBottom: 16,
-                    display: "flex", alignItems: "center", gap: 14,
-                  }}>
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                      background: "#FF9B51", color: "#25343F",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 18, fontWeight: 900,
-                    }}>
-                      {(me?.school_name || "S").charAt(0).toUpperCase()}
+                  {/* School info */}
+                  <div className="td-card">
+                    <div className="td-card-head">
+                      <p className="td-card-title"><i className="fa-solid fa-building-columns" style={{ color:"#6a7882" }} /> School</p>
                     </div>
-                    <div>
-                      <p style={{ fontSize: 15, fontWeight: 900, color: "#fff", margin: 0 }}>{me?.school_name || "Your School"}</p>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#BFC9D1", margin: "3px 0 0" }}>
-                        {me?.role === "faculty" ? "Faculty Member" : "Teacher"} · {me?.status || "active"}
-                      </p>
+                    <div className="td-card-body" style={{ padding:"10px 18px" }}>
+                      {[
+                        { icon:"fa-building",      label:"Name",    val:me?.school_name },
+                        { icon:"fa-location-dot",  label:"City",    val:me?.city        },
+                        { icon:"fa-phone",         label:"Phone",   val:me?.school_phone ?? me?.phone },
+                        { icon:"fa-envelope",      label:"Email",   val:me?.school_email ?? me?.email },
+                      ].map(r => (
+                        <div key={r.label} className="td-row">
+                          <span className="td-row-label">
+                            <i className={`fa-solid ${r.icon}`} style={{ fontSize:10, color:"#c6d0d7", width:12 }} />
+                            {r.label}
+                          </span>
+                          <span style={{ fontSize:12, fontWeight:700, color:"#1f2d36", textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"55%" }}>{r.val || "—"}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  {/* details grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    {[
-                      { icon: "fa-envelope",        label: "School Email", value: me?.email },
-                      { icon: "fa-phone",            label: "Phone",       value: me?.phone },
-                      { icon: "fa-location-dot",     label: "City",        value: me?.city  },
-                      { icon: "fa-earth-asia",       label: "Country",     value: me?.country },
-                    ].map(r => (
-                      <div key={r.label} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <i className={`fa-solid ${r.icon}`} style={{ color: "#FF9B51", fontSize: 12, marginTop: 2, flexShrink: 0 }} />
-                        <div>
-                          <p style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882", margin: 0, textTransform: "uppercase", letterSpacing: "0.4px" }}>{r.label}</p>
-                          <p style={{ fontSize: 13, fontWeight: 800, color: "#25343F", margin: "2px 0 0" }}>{r.value || "—"}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+
                 </div>
               </div>
-
-              {/* Personal Details */}
-              <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e0e8ec", boxShadow: "0 2px 12px rgba(37,52,63,0.06)", overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f0f4f6", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: "#eff6ff", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                    <i className="fa-solid fa-id-badge" />
-                  </div>
-                  <h3 style={{ fontSize: 14, fontWeight: 900, color: "#25343F", margin: 0 }}>Personal Details</h3>
-                  <Link href="/teacher/profile" style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#FF9B51", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-                    Edit <i className="fa-solid fa-pen" style={{ fontSize: 9 }} />
-                  </Link>
-                </div>
-                <div style={{ padding: "18px 20px" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    {[
-                      { icon: "fa-user",             label: "Full Name",     value: me?.full_name },
-                      { icon: "fa-venus-mars",        label: "Gender",        value: me?.gender },
-                      { icon: "fa-cake-candles",      label: "Date of Birth", value: fmt(me?.date_of_birth) },
-                      { icon: "fa-graduation-cap",    label: "Qualification", value: me?.qualification },
-                      { icon: "fa-briefcase",         label: "Experience",    value: me?.experience_years ? `${me.experience_years} years` : null },
-                      { icon: "fa-calendar-plus",     label: "Joined",        value: fmt(me?.join_date) },
-                    ].map(r => (
-                      <div key={r.label} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <i className={`fa-solid ${r.icon}`} style={{ color: "#0284c7", fontSize: 12, marginTop: 2, flexShrink: 0 }} />
-                        <div>
-                          <p style={{ fontSize: 10.5, fontWeight: 700, color: "#6a7882", margin: 0, textTransform: "uppercase", letterSpacing: "0.4px" }}>{r.label}</p>
-                          <p style={{ fontSize: 13, fontWeight: 800, color: "#25343F", margin: "2px 0 0", textTransform: "capitalize" }}>{r.value || "—"}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-          </>
-        )}
-      </main>
-
-      {/* responsive overrides */}
-      <style>{`
-        @media (max-width: 1100px) {
-          main > div:nth-of-type(2) { grid-template-columns: 1fr 1fr !important; }
-          main > div:nth-of-type(2) > div:first-child { grid-column: 1 / -1; }
-        }
-        @media (max-width: 768px) {
-          main { padding: 16px !important; }
-          main > div:nth-of-type(2) { grid-template-columns: 1fr !important; }
-          main > div:nth-of-type(3) { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-    </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

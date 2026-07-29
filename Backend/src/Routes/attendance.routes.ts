@@ -29,8 +29,8 @@ router.get('/overview/all-classes', restrictTo('admin', 'super_admin'), getAllCl
 router.get('/overview/class/:classId', restrictTo('admin', 'super_admin'), getClassAttendanceOverview);
 
 // ── STUDENT LOOKUP (admin) — MUST be before /:id ──
-router.get('/student/:id/summary', restrictTo('admin', 'super_admin'), getStudentAttendanceSummary);
-router.get('/student/:id/monthly', restrictTo('admin', 'super_admin'), getStudentMonthlyAttendance);
+router.get('/student/:id/summary', restrictTo('admin', 'super_admin', 'faculty'), getStudentAttendanceSummary);
+router.get('/student/:id/monthly', restrictTo('admin', 'super_admin', 'faculty'), getStudentMonthlyAttendance);
 
 // ── SECTION TEACHER — MUST be before /section/:sectionId ──
 router.post('/section-teacher', restrictTo('admin', 'super_admin'), assignSectionTeacher);
