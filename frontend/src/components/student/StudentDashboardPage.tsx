@@ -5,6 +5,8 @@ import React from "react";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
+import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
+
 
 /* ══════════════════════════════════════════════════════════
    Mini Donut
@@ -29,90 +31,32 @@ function MiniDonut({ pct }: { pct: number }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════
-   Big Donut for Attendance section
-══════════════════════════════════════════════════════════ */
-function BigDonut({ pct, present, absent, late, leave, total }: {
-  pct: number; present: number; absent: number; late: number; leave: number; total: number;
-}) {
-  const r = 58, circ = 2 * Math.PI * r;
-  const arc  = (pct / 100) * circ;
-  const color = pct >= 85 ? "#22c55e" : pct >= 70 ? "#f97316" : "#ef4444";
-  const segments = [
-    { val: present, color: "#6366f1", label: "Present" },
-    { val: absent,  color: "#f43f5e", label: "Absent"  },
-    { val: late,    color: "#fb923c", label: "Late"     },
-    { val: leave,   color: "#a78bfa", label: "Leave"    },
-  ].filter(s => s.val > 0);
-
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:28, flexWrap:"wrap" }}>
-      <div style={{ position:"relative", flexShrink:0 }}>
-        <svg width={140} height={140} viewBox="0 0 140 140">
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="16" />
-          {total > 0 && (
-            <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="16"
-              strokeDasharray={`${arc} ${circ - arc}`}
-              strokeDashoffset={circ * 0.25}
-              strokeLinecap="round" />
-          )}
-        </svg>
-        <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-          <span style={{ fontSize:26, fontWeight:900, color: total > 0 ? color : "#94a3b8", lineHeight:1 }}>
-            {total > 0 ? `${pct}%` : "—"}
-          </span>
-          <span style={{ fontSize:10, fontWeight:700, color:"#94a3b8", marginTop:3 }}>attendance</span>
-        </div>
-      </div>
-      <div style={{ flex:1, minWidth:140, display:"flex", flexDirection:"column", gap:8 }}>
-        {[
-          { color:"#6366f1", label:"Present", value:present },
-          { color:"#f43f5e", label:"Absent",  value:absent  },
-          { color:"#fb923c", label:"Late",     value:late    },
-          { color:"#a78bfa", label:"Leave",    value:leave   },
-        ].map(item => (
-          <div key={item.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ width:8, height:8, borderRadius:2, background:item.color, flexShrink:0 }} />
-              <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>{item.label}</span>
-            </div>
-            <span style={{ fontSize:14, fontWeight:800, color:"#1e293b" }}>{item.value}d</span>
-          </div>
-        ))}
-        <div style={{ fontSize:11, color:"#94a3b8", fontWeight:600, marginTop:4, paddingTop:8, borderTop:"1px solid #f1f5f9" }}>
-          {total > 0 ? `${total} working days total` : "Not yet marked"}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ══════════════════════════════════════════════════════════
    Main Page
 ══════════════════════════════════════════════════════════ */
-type Period = "this_month" | "last_month" | "full_year";
-
 export default function StudentDashboardPage() {
   const { user }                         = useAppSelector(s => s.auth);
   const { data: me, loading: meLoading } = useApi<any>("/auth/me");
   const { data: activeYear }             = useApi<any>("/academic-years/active");
 
   /* attendance */
-  const today          = new Date();
-  const todayStr       = today.toISOString().split("T")[0];
-  const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
-  const lastMonthStart = new Date(today.getFullYear(), today.getMonth()-1, 1).toISOString().split("T")[0];
-  const lastMonthEnd   = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split("T")[0];
-  const yearStart      = activeYear?.start_date || `${today.getFullYear()}-01-01`;
+  const today     = new Date();
+  const todayStr  = today.toISOString().split("T")[0];
+  const yearStart = activeYear?.start_date || `${today.getFullYear()}-01-01`;
 
-  const { data: attThis, loading: loadThis } = useApi<any>(
-    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${thisMonthStart}&end_date=${todayStr}` : "", [activeYear?.id]);
-  const { data: attLast, loading: loadLast } = useApi<any>(
-    activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${lastMonthStart}&end_date=${lastMonthEnd}` : "", [activeYear?.id]);
-  const { data: attYear, loading: loadYear } = useApi<any>(
+  // Full-year summary — used only for the top stat card attendance %
+  const { data: attYear } = useApi<any>(
     activeYear?.id ? `/attendance/me/summary?academic_year_id=${activeYear.id}&start_date=${yearStart}&end_date=${todayStr}` : "", [activeYear?.id]);
 
-  /* fees */
+  const absent  = Number(attYear?.total_absent       ?? 0);
+  const total   = Number(attYear?.total_working_days ?? 0);
+  // Formula: (Working Days - Absent) / Working Days x 100
+  const pct = total > 0
+    ? Math.max(0, Math.round(((total - absent) / total) * 100))
+    : Math.round(Number(attYear?.attendance_percentage ?? 0));
+
+
   const { data: feeCollections } = useApi<any[]>(
     activeYear?.id ? `/fees/me/collections?academic_year_id=${activeYear.id}` : "", [activeYear?.id]);
   const pendingFees  = (feeCollections || []).filter(f => f.status !== "paid");
@@ -143,22 +87,6 @@ export default function StudentDashboardPage() {
   const firstName = (me?.full_name || (user as any)?.full_name || "Student").split(" ")[0];
   const initials  = firstName.slice(0,2).toUpperCase();
   const schoolName = me?.school_name || (user as any)?.school_name || "";
-
-  const [period, setPeriod] = React.useState<Period>("this_month");
-  const attMap = { this_month:{data:attThis,loading:loadThis}, last_month:{data:attLast,loading:loadLast}, full_year:{data:attYear,loading:loadYear} };
-  const { data: curAtt, loading: curLoading } = attMap[period];
-
-  const present = Number(curAtt?.total_present      ?? 0);
-  const absent  = Number(curAtt?.total_absent       ?? 0);
-  const late    = Number(curAtt?.total_late         ?? 0);
-  const leave   = Number(curAtt?.total_leave        ?? 0);
-  const total   = Number(curAtt?.total_working_days ?? 0);
-  // Formula: Attendance % = (Working Days - Absent) / Working Days x 100
-  // Leave is NOT counted as absent (matches the standard formula)
-  const pct = total > 0
-    ? Math.max(0, Math.round(((total - absent) / total) * 100))
-    : Math.round(Number(curAtt?.attendance_percentage ?? 0));
-
 
   /* upcoming events — next 3 within 30 days */
   const upcomingEvents = (calendarEvents || [])
@@ -454,22 +382,21 @@ export default function StudentDashboardPage() {
               {/* LEFT column */}
               <div className="d-col-main">
 
-                {/* ── Attendance detail ── */}
+                {/* ── Attendance Overview ── */}
                 <div>
                   <div className="d-section-title"><span>📊</span> Attendance Overview</div>
                   <div className="d-card">
-                    <div className="d-tabs">
-                      {([["this_month","This Month"],["last_month","Last Month"],["full_year","Full Year"]] as [Period,string][]).map(([k,l]) => (
-                        <button key={k} className={`d-tab${period===k?" on":""}`} onClick={() => setPeriod(k)}>{l}</button>
-                      ))}
-                    </div>
-                    {curLoading ? (
-                      <div style={{ display:"flex", justifyContent:"center", padding:"32px 0" }}><Spinner size={28} color="#6366f1" /></div>
-                    ) : (
-                      <BigDonut pct={pct} present={present} absent={absent} late={late} leave={leave} total={total} />
-                    )}
-                    <div className="d-see-all">
-                      <Link href="/student/attendance">Full calendar <i className="fa-solid fa-arrow-right" style={{ fontSize:10 }} /></Link>
+                    <AttendanceOverviewCard
+                      activeYear={activeYear}
+                      summaryBaseUrl="/attendance/me/summary"
+                      monthlyUrl={(year, month) =>
+                        activeYear?.id
+                          ? `/attendance/me/monthly?year=${year}&month=${month}&academic_year_id=${activeYear.id}`
+                          : ""
+                      }
+                    />
+                    <div className="d-see-all" style={{ marginTop: 12 }}>
+                      <Link href="/student/attendance">Full calendar <i className="fa-solid fa-arrow-right" style={{ fontSize: 10 }} /></Link>
                     </div>
                   </div>
                 </div>

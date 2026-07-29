@@ -6,8 +6,8 @@ import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { adToBS, bsToAD, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
-import { useMemo } from "react";
+import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
+
 
 interface Props { studentId: number; }
 
@@ -117,11 +117,10 @@ function AttCard({ label, pct, present, absent, leave, color, working, elapsed }
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 export default function TeacherStudentDetailPage({ studentId }: Props) {
   const router                      = useRouter();
   const { activeYear }              = useAcademicYear();
-  const { formatDate, formatMonth } = useDateFormat();
+  const { formatDate }              = useDateFormat();
 
   const { data: student,     loading: sLoad } = useApi<any>(
     studentId ? `/students/${studentId}` : "", [studentId]
@@ -132,202 +131,16 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
       : "",
     [studentId, activeYear?.id]
   );
-  const { data: yearlySummary } = useApi<any>(
-    studentId && activeYear?.id
-      ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}`
-      : "",
-    [studentId, activeYear?.id]
-  );
-
-  const now      = new Date();
-  const todayISO = now.toISOString().split('T')[0];
-
-  // â”€â”€ Full-year working days (academic year start â†’ end) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const { data: yearWorkingData } = useApi<any>(
-    studentId && activeYear?.id && activeYear?.start_date && activeYear?.end_date
-      ? `/calendar/working-days?academic_year_id=${activeYear.id}&start_date=${String(activeYear.start_date).slice(0,10)}&end_date=${String(activeYear.end_date).slice(0,10)}`
-      : "",
-    [activeYear?.id]
-  );
-
-  // â”€â”€ Elapsed working days (academic year start â†’ today) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // This uses year start, NOT admission date, so it matches the student's
-  // own attendance page (which also shows elapsed from year start = 66).
-  const { data: elapsedData } = useApi<any>(
-    studentId && activeYear?.id && activeYear?.start_date
-      ? `/calendar/working-days?academic_year_id=${activeYear.id}&start_date=${String(activeYear.start_date).slice(0,10)}&end_date=${todayISO}`
-      : "",
-    [activeYear?.id, todayISO]
-  );
-
-  // â”€â”€ BS/AD-aware month calculation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Follow the same approach as OwnAttendancePage:
-  // 1. Get current month in BS (or AD)
-  // 2. Convert BS month start day â†’ AD for API params
-  // 3. A BS month may span two AD months â†’ need two API calls
-  const { isBS: isBSHook } = useDateFormat();
-
-  const todayBS = useMemo(() => adToBS(now), []);
-
-  // Current and previous month in display coordinates (BS or AD)
-  const currDisp = useMemo(() => {
-    if (isBSHook) {
-      return { year: todayBS.year, month: todayBS.month };
-    }
-    return { year: now.getFullYear(), month: now.getMonth() + 1 };
-  }, [isBSHook, todayBS]);
-
-  const prevDisp = useMemo(() => {
-    if (isBSHook) {
-      const m = todayBS.month - 1;
-      return m <= 0 ? { year: todayBS.year - 1, month: 12 } : { year: todayBS.year, month: m };
-    }
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return { year: d.getFullYear(), month: d.getMonth() + 1 };
-  }, [isBSHook, todayBS]);
-
-  // Convert display month to AD API params (BS month start â†’ AD year/month)
-  const dispToADParams = (disp: { year: number; month: number }) => {
-    if (isBSHook) {
-      const adStart = bsToAD({ year: disp.year, month: disp.month, day: 1 });
-      const lastDay = daysInBSMonth(disp.year, disp.month);
-      const adEnd   = bsToAD({ year: disp.year, month: disp.month, day: lastDay });
-      const p1 = { year: adStart.getFullYear(), month: adStart.getMonth() + 1 };
-      // Check if month end falls in a different AD month
-      const p2 = (adEnd.getFullYear() !== p1.year || adEnd.getMonth() + 1 !== p1.month)
-        ? { year: adEnd.getFullYear(), month: adEnd.getMonth() + 1 }
-        : null;
-      return { p1, p2 };
-    }
-    return { p1: disp, p2: null };
-  };
-
-  const currParams = useMemo(() => dispToADParams(currDisp), [currDisp, isBSHook]);
-  const prevParams = useMemo(() => dispToADParams(prevDisp), [prevDisp, isBSHook]);
-
-  // Month display labels
-  const cLabel = isBSHook
-    ? `${BS_MONTH_NAMES[currDisp.month - 1]} ${currDisp.year}`
-    : `${['January','February','March','April','May','June','July','August','September','October','November','December'][currDisp.month - 1]} ${currDisp.year}`;
-  const pLabel = isBSHook
-    ? `${BS_MONTH_NAMES[prevDisp.month - 1]} ${prevDisp.year}`
-    : `${['January','February','March','April','May','June','July','August','September','October','November','December'][prevDisp.month - 1]} ${prevDisp.year}`;
-
-  const mkUrl = (p: { year: number; month: number } | null) =>
-    p && studentId && activeYear?.id
-      ? `/attendance/student/${studentId}/monthly?year=${p.year}&month=${p.month}&academic_year_id=${activeYear.id}`
-      : "";
-
-  const { data: currRaw1 } = useApi<any>(mkUrl(currParams.p1), [mkUrl(currParams.p1)]);
-  const { data: currRaw2 } = useApi<any>(mkUrl(currParams.p2), [mkUrl(currParams.p2)]);
-  const { data: prevRaw1 } = useApi<any>(mkUrl(prevParams.p1), [mkUrl(prevParams.p1)]);
-  const { data: prevRaw2 } = useApi<any>(mkUrl(prevParams.p2), [mkUrl(prevParams.p2)]);
-
-  // ── Per-month working days from the school calendar ─────────────────────
-  // Needed so percentage formula = (working_days - absent) / working_days x 100
-  const getMonthADRange = (disp: { year: number; month: number }, capToday: boolean) => {
-    if (isBSHook) {
-      const adS     = bsToAD({ year: disp.year, month: disp.month, day: 1 });
-      const lastDay = daysInBSMonth(disp.year, disp.month);
-      const adE     = bsToAD({ year: disp.year, month: disp.month, day: lastDay });
-      return {
-        start: adS.toISOString().split('T')[0],
-        end:   (capToday && adE > now ? now : adE).toISOString().split('T')[0],
-      };
-    }
-    const lastDay = new Date(disp.year, disp.month, 0).getDate();
-    const adE     = new Date(disp.year, disp.month - 1, lastDay);
-    return {
-      start: `${disp.year}-${String(disp.month).padStart(2,'0')}-01`,
-      end:   (capToday && adE > now ? now : adE).toISOString().split('T')[0],
-    };
-  };
-
-  const currRange = useMemo(() => getMonthADRange(currDisp, true),  [currDisp, isBSHook]);
-  const prevRange = useMemo(() => getMonthADRange(prevDisp, false), [prevDisp, isBSHook]);
-
-  const mkWDUrl = (range: { start: string; end: string }) =>
-    activeYear?.id
-      ? `/calendar/working-days?academic_year_id=${activeYear.id}&start_date=${range.start}&end_date=${range.end}`
-      : "";
-
-  const { data: currWDData } = useApi<any>(mkWDUrl(currRange), [mkWDUrl(currRange)]);
-  const { data: prevWDData } = useApi<any>(mkWDUrl(prevRange), [mkWDUrl(prevRange)]);
 
   const loading    = sLoad || eLoad;
   const enrollment = enrollments?.[0] ?? null;
   const gs         = gStyle(student?.gender);
 
-  // Unwrap and merge API responses (BS months may span two AD months)
-  const normalise = (raw: any): any[] => {
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    if (Array.isArray(raw.data)) return raw.data;
-    if (Array.isArray(raw.records)) return raw.records;
-    return [];
-  };
-
-  // For BS schools, a BS month may span two AD months.
-  // After merging, filter to only include records whose date falls within
-  // the BS month's actual start and end AD dates (prevents the next BS month's
-  // records from bleeding in from the second AD month call).
-  const filterToBSMonth = (records: any[], disp: { year: number; month: number }): any[] => {
-    if (!isBSHook) return records; // AD mode: no filtering needed
-    const adStart  = bsToAD({ year: disp.year, month: disp.month, day: 1 });
-    const lastDay  = daysInBSMonth(disp.year, disp.month);
-    const adEnd    = bsToAD({ year: disp.year, month: disp.month, day: lastDay });
-    const startISO = adStart.toISOString().split('T')[0];
-    const endISO   = adEnd.toISOString().split('T')[0];
-    return records.filter(r => {
-      const d = String(r.date ?? r.attendance_date ?? "").slice(0, 10);
-      return d >= startISO && d <= endISO;
-    });
-  };
-
-  const currRecs = useMemo(
-    () => filterToBSMonth([...normalise(currRaw1), ...normalise(currRaw2)], currDisp),
-    [currRaw1, currRaw2, currDisp, isBSHook]
-  );
-  const prevRecs = useMemo(
-    () => filterToBSMonth([...normalise(prevRaw1), ...normalise(prevRaw2)], prevDisp),
-    [prevRaw1, prevRaw2, prevDisp, isBSHook]
-  );
-
-
-  const yPresent     = Number(yearlySummary?.total_present        ?? 0);
-  const yAbsent      = Number(yearlySummary?.total_absent         ?? 0);
-  const yLeave       = Number(yearlySummary?.total_leave          ?? 0);
-  // Use year-start-to-today working days (same as student's own attendance page)
-  const yElapsed     = Number(elapsedData?.working_days           ?? yearlySummary?.total_working_days ?? 0);
-  const yTotalWD     = Number(yearWorkingData?.working_days       ?? yElapsed); // full academic year working days
-
-  // Attendance % = (Working Days - Absent) / Working Days x 100
-  // Leave is NOT counted as absent (matches student dashboard formula)
-  const yPct   = yElapsed > 0
-    ? Math.max(0, Math.round(((yElapsed - yAbsent) / yElapsed) * 100))
-    : 0;
-  const yColor = yPct >= 85 ? "#12805c" : yPct >= 70 ? "#c46a14" : "#b42318";
-
-  const countS = (arr: any[], s: string) => arr.filter((r: any) => r.status === s).length;
-  // Formula: Attendance % = (Working Days - Absent) / Working Days x 100
-  // Working days come from the school calendar API (same as yearly formula).
-  // Leave is NOT counted as absent.
-  const mStat = (recs: any[], workingDays: number) => {
-    const p  = countS(recs, "present"), a = countS(recs, "absent"), l = countS(recs, "leave");
-    const d  = p + a + l;                               // marked days
-    const wd = workingDays > 0 ? workingDays : d;      // fall back to marked if no calendar data
-    const pct = wd > 0 ? Math.max(0, Math.round(((wd - a) / wd) * 100)) : 0;
-    return { p, a, l, d, pct };
-  };
-
-  const currWD = Number(currWDData?.working_days ?? 0);
-  const prevWD = Number(prevWDData?.working_days ?? 0);
-
-  const curr   = mStat(currRecs, currWD);
-  const prev   = mStat(prevRecs, prevWD);
-  const cColor = curr.pct >= 85 ? "#12805c" : curr.pct >= 70 ? "#c46a14" : "#b42318";
-  const pColor = prev.pct >= 85 ? "#12805c" : prev.pct >= 70 ? "#c46a14" : "#b42318";
-
+  // Monthly URL builder for the shared AttendanceOverviewCard
+  const attMonthlyUrl = (year: number, month: number): string =>
+    studentId && activeYear?.id
+      ? `/attendance/student/${studentId}/monthly?year=${year}&month=${month}&academic_year_id=${activeYear.id}`
+      : "";
 
   return (
     <>
@@ -437,17 +250,12 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
                 {/* Attendance */}
                 <Card>
                   <CardHead icon="fa-chart-pie" title="Attendance Overview" />
-                  <div style={{ padding:"14px 18px", display:"flex", flexDirection:"column", gap:12 }}>
-                    <AttCard
-                      label={activeYear?.year_name ? `AY ${activeYear.year_name}` : "Full Year"}
-                      pct={yPct} present={yPresent} absent={yAbsent} leave={yLeave}
-                      color={yColor} working={yTotalWD > 0 ? yTotalWD : undefined}
-                      elapsed={yElapsed > 0 ? yElapsed : undefined}
+                  <div style={{ padding: "14px 18px" }}>
+                    <AttendanceOverviewCard
+                      activeYear={activeYear}
+                      summaryBaseUrl={studentId ? `/attendance/student/${studentId}/summary` : null}
+                      monthlyUrl={attMonthlyUrl}
                     />
-                    <div className="att-2col">
-                      <AttCard label={cLabel} pct={curr.pct} present={curr.p} absent={curr.a} leave={curr.l} color={cColor} />
-                      <AttCard label={pLabel} pct={prev.pct} present={prev.p} absent={prev.a} leave={prev.l} color={pColor} />
-                    </div>
                   </div>
                 </Card>
 
