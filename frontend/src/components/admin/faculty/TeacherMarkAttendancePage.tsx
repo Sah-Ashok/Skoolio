@@ -9,6 +9,10 @@ import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import DateInput from "@/components/shared/DateInput";
+import {
+  CalendarDayStatusBanner,
+  useCalendarDayStatus,
+} from "@/components/shared/CalendarDayStatus";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -95,6 +99,10 @@ export default function TeacherMarkAttendancePage() {
       setSectionId(String(mySections[0].id));
     }
   }, [mySections]);
+
+  // ── Calendar day status (holiday / weekly-off check via shared hook) ────
+  const { isNonWorkingDay, holidayEvent, isWeeklyOff } =
+    useCalendarDayStatus(date, activeYear?.id);
 
   const selectedSection = mySections?.find((s: any) => String(s.id) === sectionId);
   const isFutureDate    = date > TODAY;
@@ -493,6 +501,9 @@ export default function TeacherMarkAttendancePage() {
         </div>
 
         {/* ── Banners ── */}
+        {/* ── Holiday / Weekly-off banner (shared component, BS/AD aware dates) ── */}
+        <CalendarDayStatusBanner adDate={date} academicYearId={activeYear?.id} />
+
         {isFutureDate && (
           <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fde7e7", border: "1px solid #fca5a5", color: "#b42318", fontWeight: 700, fontSize: 13, display: "flex", gap: 10, alignItems: "center" }}>
             <i className="fa-solid fa-triangle-exclamation" /> Cannot mark attendance for a future date.
@@ -514,8 +525,8 @@ export default function TeacherMarkAttendancePage() {
           </div>
         )}
 
-        {/* ── Student table ── */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d4dde2", overflow: "hidden", boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
+        {/* ── Student table (hidden on holidays / weekly-off) ── */}
+        {!isNonWorkingDay && <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d4dde2", overflow: "hidden", boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eef0" }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
               {selectedSection ? `${selectedSection.class_name} — Section ${selectedSection.name}` : "Students"}
@@ -586,10 +597,10 @@ export default function TeacherMarkAttendancePage() {
               </table>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Quick mark by roll number ── */}
-        {!readonly && !isClassSuspended && students.length > 0 && (
+        {!isNonWorkingDay && !readonly && !isClassSuspended && students.length > 0 && (
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d4dde2", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10, boxShadow: "0 2px 8px rgba(31,45,54,.05)" }}>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>
@@ -645,7 +656,7 @@ export default function TeacherMarkAttendancePage() {
         )}
 
         {/* ── Bottom: stat pills + Save button (new records only) ── */}
-        {!isClassSuspended && students.length > 0 && (
+        {!isNonWorkingDay && !isClassSuspended && students.length > 0 && (
           <div className="mka-bottom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {[

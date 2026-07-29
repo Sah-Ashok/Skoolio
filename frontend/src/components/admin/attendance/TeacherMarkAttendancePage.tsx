@@ -17,8 +17,8 @@ const s  = (name: string) => styles[name] || name;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
 type AttendanceStatus = "present" | "absent" | "leave";
+type DayStatus        = "working" | "weekly_off" | "holiday" | "checking";
 
-// P / A / Lv per-row toggle buttons (all three kept for manual per-student use)
 const PAL: { key: AttendanceStatus; label: string; activeClass: string }[] = [
   { key: "present", label: "P",  activeClass: "palActiveP" },
   { key: "absent",  label: "A",  activeClass: "palActiveA" },
@@ -43,7 +43,6 @@ const statusLabel: Record<AttendanceStatus, string> = {
   leave:   "Leave",
 };
 
-// Quick-mark by roll number: Leave excluded — teacher adds leave manually per student
 const QUICK_STATUSES: { key: AttendanceStatus; label: string; color: string; bg: string }[] = [
   { key: "present", label: "Present", color: "#12805c", bg: "#e2f6ee" },
   { key: "absent",  label: "Absent",  color: "#b42318", bg: "#fde7e7" },
@@ -61,51 +60,94 @@ export default function TeacherMarkAttendancePage() {
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [sectionId, setSectionId]       = useState("");
-
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
-  const [statusMap, setStatusMap] = useState<Record<string, AttendanceStatus>>({});
+  const [statusMap, setStatusMap]               = useState<Record<string, AttendanceStatus>>({});
+  const [existingRecord, setExistingRecord]     = useState<any | null>(null);
+  const [isLocked, setIsLocked]                 = useState(false);
+  const [dataLoading, setDataLoading]           = useState(false);
 
-  const [existingRecord, setExistingRecord] = useState<any | null>(null);
-  const [isLocked, setIsLocked]             = useState(false);
-  const [dataLoading, setDataLoading]       = useState(false);
+  // Day-status: checked against calendar before rendering the form
+  const [dayStatus, setDayStatus]       = useState<DayStatus>("checking");
+  const [dayEventName, setDayEventName] = useState<string | null>(null);
 
   const { execute: createAttendance, loading: saving } = useMutation("/attendance", "POST");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting]           = useState(false);
   const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
-  const [loadVersion, setLoadVersion] = useState(0);
+  const [loadVersion, setLoadVersion]         = useState(0);
 
-  // Quick-mark state
   const [quickRolls, setQuickRolls]   = useState("");
   const [quickStatus, setQuickStatus] = useState<AttendanceStatus>("absent");
   const quickInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-select first section
   useEffect(() => {
-    if (mySections?.length && !sectionId) {
-      setSectionId(String(mySections[0].id));
-    }
+    if (mySections?.length && !sectionId) setSectionId(String(mySections[0].id));
   }, [mySections, sectionId]);
 
-  // Load data whenever section or date changes
+  // Load data when section / date / academicYear changes
   useEffect(() => {
     if (!sectionId || !selectedDate || !academicYearId) return;
 
     const load = async () => {
       setDataLoading(true);
+      setDayStatus("checking");
+      setDayEventName(null);
       setExistingRecord(null);
       setIsLocked(false);
       setEnrolledStudents([]);
 
+      // ── Step 1: check if selected date is a working day ─────────────────
+      // GET /calendar/working-days with start=end=date → working_days=1 means ok
       try {
-        const attRes = await apiRequest<{ data: any[] }>(`/attendance/section/${sectionId}`);
-        const records = attRes.data || [];
-        const match = records.find(
-          (r: any) => (r.date ?? "").split("T")[0] === selectedDate
+        const wdRes = await apiRequest<{ data: { working_days: number; weekend_days: number; holidays: number } }>(
+          `/calendar/working-days?academic_year_id=${academicYearId}&start_date=${selectedDate}&end_date=${selectedDate}`
         );
+        const wd = wdRes.data;
+        if (wd.working_days === 0) {
+          const reason: DayStatus = wd.weekend_days > 0 ? "weekly_off" : "holiday";
+          setDayStatus(reason);
+
+          // If holiday, try to resolve the event name from calendar
+          if (reason === "holiday") {
+            try {
+              const calRes = await apiRequest<{ data: { id: number } }>(
+                `/calendar?academic_year_id=${academicYearId}`
+              );
+              if (calRes.data?.id) {
+                const evRes = await apiRequest<{ data: any[] }>(
+                  `/calendar/${calRes.data.id}/events`
+                );
+                const events: any[] = evRes.data || [];
+                const matching = events.find((ev: any) => {
+                  const start = (ev.event_date ?? "").slice(0, 10);
+                  const end   = (ev.end_date   ?? start).slice(0, 10);
+                  return selectedDate >= start && selectedDate <= end && ev.affects_attendance === true;
+                });
+                if (matching) setDayEventName(matching.title ?? matching.name ?? null);
+              }
+            } catch { /* non-critical */ }
+          }
+
+          setDataLoading(false);
+          return; // don't load students on non-working days
+        }
+        setDayStatus("working");
+      } catch {
+        // working-day check failed (network) — fall through; backend will reject on save
+        setDayStatus("working");
+      }
+
+      // ── Step 2: load attendance record / enrollments ─────────────────────
+      try {
+        const attRes = await apiRequest<{ data: any[] }>(
+          `/attendance/section/${sectionId}?academic_year_id=${academicYearId}`
+        );
+        const records = attRes.data || [];
+        const match   = records.find((r: any) => (r.date ?? "").split("T")[0] === selectedDate);
 
         if (match) {
           setExistingRecord(match);
-          const detRes = await apiRequest<{ data: any }>(`/attendance/${match.id}`);
+          const detRes  = await apiRequest<{ data: any }>(`/attendance/${match.id}`);
           const details: any[] = detRes.data?.details ?? [];
           setEnrolledStudents(details.map((d: any) => ({
             student_id:       d.student_id,
@@ -114,33 +156,24 @@ export default function TeacherMarkAttendancePage() {
             roll_no:          d.roll_number ?? null,
             guardian_name:    d.guardian_name ?? null,
           })));
-          setStatusMap(
-            Object.fromEntries(
-              details.map((d: any) => [
-                d.student_id,
-                (["present","absent","leave"].includes(d.status) ? d.status : "present") as AttendanceStatus,
-              ])
-            )
-          );
+          setStatusMap(Object.fromEntries(
+            details.map((d: any) => [
+              d.student_id,
+              (["present", "absent", "leave"].includes(d.status) ? d.status : "present") as AttendanceStatus,
+            ])
+          ));
           setIsLocked(match.status === "submitted");
         } else {
           const enRes = await apiRequest<{ data: any[] }>(
             `/students/enrollments?academic_year_id=${academicYearId}&section_id=${sectionId}`
           );
-          const filtered = (enRes.data || []).filter(
-            (en: any) => String(en.section_id) === sectionId
-          );
-          filtered.sort((a: any, b: any) => {
-            const ra = Number(a.roll_number ?? 9999);
-            const rb = Number(b.roll_number ?? 9999);
-            return ra - rb;
-          });
+          const filtered = (enRes.data || [])
+            .filter((en: any) => String(en.section_id) === sectionId)
+            .sort((a: any, b: any) => Number(a.roll_number ?? 9999) - Number(b.roll_number ?? 9999));
           setEnrolledStudents(filtered.map((en: any) => ({ ...en, roll_no: en.roll_number ?? null })));
-          setStatusMap(
-            Object.fromEntries(
-              filtered.map((en: any) => [en.student_id, "present" as AttendanceStatus])
-            )
-          );
+          setStatusMap(Object.fromEntries(
+            filtered.map((en: any) => [en.student_id, "present" as AttendanceStatus])
+          ));
         }
       } catch {
         dispatch(showToast({ type: "error", title: "Error", message: "Could not load attendance data." }));
@@ -158,7 +191,6 @@ export default function TeacherMarkAttendancePage() {
     setStatusMap(curr => ({ ...curr, [studentId]: status }));
   };
 
-  // Bulk mark all (only Present / Absent via buttons — Leave is per-student)
   const markAll = (status: AttendanceStatus) => {
     if (isLocked) return;
     const next: Record<string, AttendanceStatus> = {};
@@ -166,20 +198,14 @@ export default function TeacherMarkAttendancePage() {
     setStatusMap(next);
   };
 
-  // Quick-mark by roll numbers.
-  // Listed roll numbers → selected status. ALL others → Present automatically.
   const applyQuickMark = () => {
     if (isLocked || !quickRolls.trim()) return;
     const rollNums = quickRolls.split(",").map(r => r.trim()).filter(Boolean);
     const next = { ...statusMap };
     let matched = 0;
     enrolledStudents.forEach(en => {
-      if (rollNums.includes(String(en.roll_no))) {
-        next[en.student_id] = quickStatus;
-        matched++;
-      } else {
-        next[en.student_id] = "present";
-      }
+      if (rollNums.includes(String(en.roll_no))) { next[en.student_id] = quickStatus; matched++; }
+      else { next[en.student_id] = "present"; }
     });
     if (matched === 0) {
       dispatch(showToast({ type: "warning", title: "No match", message: "No students found with those roll numbers." }));
@@ -187,8 +213,7 @@ export default function TeacherMarkAttendancePage() {
     }
     setStatusMap(next);
     setQuickRolls("");
-    const unmarked = enrolledStudents.length - matched;
-    dispatch(showToast({ type: "success", title: "Applied", message: `${matched} marked as ${statusLabel[quickStatus]}, ${unmarked} marked as Present.` }));
+    dispatch(showToast({ type: "success", title: "Applied", message: `${matched} marked as ${statusLabel[quickStatus]}, ${enrolledStudents.length - matched} marked as Present.` }));
     quickInputRef.current?.focus();
   };
 
@@ -196,12 +221,11 @@ export default function TeacherMarkAttendancePage() {
   const absentCount    = enrolledStudents.filter(e => statusMap[e.student_id] === "absent").length;
   const leaveCount     = enrolledStudents.filter(e => statusMap[e.student_id] === "leave").length;
   const classSuspended = Boolean(existingRecord?.is_holiday);
-
-  const markedBy        = mySections?.find((sec: any) => String(sec.id) === sectionId)?.coordinator_id ?? null;
+  const markedBy       = mySections?.find((sec: any) => String(sec.id) === sectionId)?.coordinator_id ?? null;
   const selectedSection = mySections?.find((sec: any) => String(sec.id) === sectionId);
 
   const saveAttendance = async () => {
-    if (!activeYear?.id || !sectionId) {
+    if (!academicYearId || !sectionId) {
       dispatch(showToast({ type: "warning", title: "Validation", message: "Please select a section." }));
       return;
     }
@@ -223,47 +247,23 @@ export default function TeacherMarkAttendancePage() {
     try {
       if (existingRecord && existingRecord.status === "draft") {
         setSubmitting(true);
-        const detRes = await apiRequest<{ data: any }>(`/attendance/${existingRecord.id}`);
+        const detRes  = await apiRequest<{ data: any }>(`/attendance/${existingRecord.id}`);
         const details: any[] = detRes.data?.details ?? [];
-
-        await Promise.all(
-          details.map((d: any) => {
-            const newStatus = statusMap[d.student_id] || "present";
-            if (d.status === newStatus) return Promise.resolve();
-            return apiRequest(`/attendance/details/${d.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ status: newStatus, attendance_id: existingRecord.id }),
-            });
-          })
-        );
-
+        await Promise.all(details.map((d: any) => {
+          const newStatus = statusMap[d.student_id] || "present";
+          if (d.status === newStatus) return Promise.resolve();
+          return apiRequest(`/attendance/details/${d.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: newStatus, attendance_id: existingRecord.id }),
+          });
+        }));
         await apiRequest(`/attendance/${existingRecord.id}/submit`, { method: "PATCH" });
+        dispatch(showToast({ type: "success", title: "Attendance submitted", message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv — visible to students.` }));
 
-        dispatch(showToast({
-          type: "success",
-          title: "Attendance submitted",
-          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv — visible to students.`,
-        }));
-      } else if (existingRecord) {
-        // Already submitted — patch each detail that changed
-        setSubmitting(true);
-        const detRes = await apiRequest<{ data: any }>(`/attendance/${existingRecord.id}`);
-        const details: any[] = detRes.data?.details ?? [];
-        await Promise.all(
-          details.map((d: any) => {
-            const newStatus = statusMap[d.student_id] || "present";
-            if (d.status === newStatus) return Promise.resolve();
-            return apiRequest(`/attendance/details/${d.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ status: newStatus, attendance_id: existingRecord.id }),
-            });
-          })
-        );
-        dispatch(showToast({
-          type: "success",
-          title: "Attendance updated",
-          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv — changes applied.`,
-        }));
+      } else if (existingRecord && existingRecord.status === "submitted") {
+        dispatch(showToast({ type: "warning", title: "Attendance Locked", message: "This attendance is already submitted. Contact your admin to make changes." }));
+        return;
+
       } else {
         await createAttendance({
           academic_year_id: academicYearId,
@@ -273,11 +273,7 @@ export default function TeacherMarkAttendancePage() {
           marked_by:        markedBy,
           students,
         });
-        dispatch(showToast({
-          type: "success",
-          title: "Attendance saved",
-          message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv saved.`,
-        }));
+        dispatch(showToast({ type: "success", title: "Attendance saved", message: `${presentCount}P · ${absentCount}A · ${leaveCount}Lv saved.` }));
       }
       setLoadVersion(v => v + 1);
     } catch (err: any) {
@@ -295,18 +291,18 @@ export default function TeacherMarkAttendancePage() {
   };
 
   const suspendClassForDay = async () => {
-    if (!activeYear?.id || !sectionId || !markedBy || !selectedSection) return;
+    if (!academicYearId || !sectionId || !markedBy || !selectedSection) return;
     try {
       setSubmitting(true);
       await createAttendance({
         academic_year_id: academicYearId,
-        class_id: selectedSection.class_id,
-        section_id: Number(sectionId),
-        date: selectedDate,
-        marked_by: markedBy,
-        is_holiday: true,
-        remarks: "Class suspended",
-        students: [],
+        class_id:         selectedSection.class_id,
+        section_id:       Number(sectionId),
+        date:             selectedDate,
+        marked_by:        markedBy,
+        is_holiday:       true,
+        remarks:          "Class suspended",
+        students:         [],
       });
       setShowSuspendConfirm(false);
       setLoadVersion(v => v + 1);
@@ -316,8 +312,11 @@ export default function TeacherMarkAttendancePage() {
     } finally { setSubmitting(false); }
   };
 
-  const displayDateLabel = formatDate(selectedDate);
+  const displayDateLabel  = formatDate(selectedDate);
+  const isNonWorkingDay   = dayStatus === "weekly_off" || dayStatus === "holiday";
+  const showStudentTable  = dayStatus === "working" || dayStatus === "checking";
 
+  // ── Empty sections guard ─────────────────────────────────────────────────
   if (!sectionsLoading && academicYearId && mySections?.length === 0) {
     return (
       <div className={s("page")}>
@@ -344,7 +343,6 @@ export default function TeacherMarkAttendancePage() {
   return (
     <div className={s("page")}>
       <style>{`
-        /* ── Responsive overrides ── */
         .atnd-head { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; }
         .atnd-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
         .atnd-hero { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -376,16 +374,15 @@ export default function TeacherMarkAttendancePage() {
             <h1>Mark Attendance</h1>
             <p>
               Your section — {selectedSection?.class_name ?? "…"} · {selectedSection ? `Section ${selectedSection.name}` : ""}
-              {" · "}
-              <strong>{displayDateLabel}</strong>
+              {" · "}<strong>{displayDateLabel}</strong>
             </p>
           </div>
           <div className={cx(s("actions"), "atnd-actions")}>
             <Link className={cx(s("btn"), s("btnOutline"))} href="/teacher/attendance">
               <i className="fa-solid fa-arrow-left" /> Back
             </Link>
-            {/* Suspend class button — only shown when no attendance record yet */}
-            {!existingRecord && !dataLoading && !classSuspended && (
+            {/* Suspend only on working days with no existing record */}
+            {!existingRecord && !dataLoading && !classSuspended && dayStatus === "working" && (
               <button
                 className={cx(s("btn"), s("btnOutline"))}
                 type="button"
@@ -398,15 +395,13 @@ export default function TeacherMarkAttendancePage() {
           </div>
         </section>
 
-        {/* ── Filters + quick actions ── */}
+        {/* ── Filters ── */}
         <section className={cx(s("markHero"), "atnd-hero")}>
           <label>
             <span>Section</span>
             <select value={sectionId} onChange={e => setSectionId(e.target.value)} disabled={sectionsLoading}>
               {mySections?.map((sec: any) => (
-                <option key={sec.id} value={sec.id}>
-                  {sec.class_name} — Section {sec.name}
-                </option>
+                <option key={sec.id} value={sec.id}>{sec.class_name} — Section {sec.name}</option>
               ))}
             </select>
           </label>
@@ -419,51 +414,70 @@ export default function TeacherMarkAttendancePage() {
               onChange={e => setSelectedDate(fromInputValue(e.target.value))}
             />
           </label>
-
-          {/* Quick mark all — Present and Absent only; Leave must be set per student */}
           <label style={{ gridColumn: "span 2" }}>
             <span>Quick mark all</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
               {(["present", "absent"] as AttendanceStatus[]).map(st => (
                 <button
-                  key={st}
-                  type="button"
-                  onClick={() => markAll(st)}
-                  disabled={isLocked || dataLoading}
-                  style={{
-                    padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                    fontSize: 12, fontWeight: 800,
-                    background: statusBg[st], color: statusColor[st],
-                    opacity: isLocked ? 0.5 : 1,
-                  }}
+                  key={st} type="button" onClick={() => markAll(st)}
+                  disabled={isLocked || dataLoading || isNonWorkingDay}
+                  style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: 800, background: statusBg[st], color: statusColor[st],
+                    opacity: (isLocked || isNonWorkingDay) ? 0.4 : 1 }}
                 >
                   All {statusLabel[st]}
                 </button>
               ))}
-              {/* Suspend class for a day — inline here for easy access */}
-              {!existingRecord && !dataLoading && !classSuspended && (
+              {!existingRecord && !dataLoading && !classSuspended && dayStatus === "working" && (
                 <button
-                  type="button"
-                  onClick={() => setShowSuspendConfirm(true)}
-                  disabled={isLocked}
-                  style={{
-                    padding: "6px 14px", borderRadius: 8,
-                    border: "1px solid #c4b5fd",
-                    cursor: "pointer", fontSize: 12, fontWeight: 800,
-                    background: "#f5f3ff", color: "#6d28d9",
-                  }}
+                  type="button" onClick={() => setShowSuspendConfirm(true)} disabled={isLocked}
+                  style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #c4b5fd",
+                    cursor: "pointer", fontSize: 12, fontWeight: 800, background: "#f5f3ff", color: "#6d28d9" }}
                 >
-                  <i className="fa-solid fa-ban" style={{ marginRight: 5 }} />
-                  Suspend class for a day
+                  <i className="fa-solid fa-ban" style={{ marginRight: 5 }} /> Suspend class for a day
                 </button>
               )}
             </div>
           </label>
         </section>
 
+        {/* ── Holiday / Weekly-off banner ── */}
+        {isNonWorkingDay && (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 14,
+            padding: "18px 20px", borderRadius: 14,
+            background: dayStatus === "weekly_off" ? "#fdf2f8" : "#fff7ed",
+            border: `1px solid ${dayStatus === "weekly_off" ? "#f9a8d4" : "#fed7aa"}`,
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+              background: dayStatus === "weekly_off" ? "#fce7f3" : "#ffedd5",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 20, color: dayStatus === "weekly_off" ? "#be185d" : "#c2410c",
+            }}>
+              <i className={dayStatus === "weekly_off" ? "fa-solid fa-calendar-xmark" : "fa-solid fa-umbrella-beach"} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 900, fontSize: 15,
+                color: dayStatus === "weekly_off" ? "#9d174d" : "#92400e" }}>
+                {dayStatus === "weekly_off"
+                  ? "Weekly Off — No Attendance Required"
+                  : `Holiday${dayEventName ? `: ${dayEventName}` : ""}`}
+              </p>
+              <p style={{ margin: "5px 0 0", fontWeight: 600, fontSize: 13,
+                color: dayStatus === "weekly_off" ? "#be185d" : "#b45309" }}>
+                {dayStatus === "weekly_off"
+                  ? `${displayDateLabel} is a weekly off day. Attendance cannot be marked.`
+                  : `${displayDateLabel} is a school holiday. Attendance cannot be marked on this day.`}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── Suspended banner ── */}
         {classSuspended && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 12, background: "#f5f3ff", border: "1px solid #c4b5fd" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px",
+            borderRadius: 12, background: "#f5f3ff", border: "1px solid #c4b5fd" }}>
             <i className="fa-solid fa-ban" style={{ color: "#6d28d9", fontSize: 18 }} />
             <div>
               <strong style={{ color: "#5b21b6", fontSize: 14 }}>Class suspended for this day</strong>
@@ -474,8 +488,10 @@ export default function TeacherMarkAttendancePage() {
 
         {/* ── Lock banner ── */}
         {isLocked && (
-          <div style={{ padding: "14px 18px", borderRadius: 12, background: "#fff8ee", border: "1px solid #fdd5b0", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff1df", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ padding: "14px 18px", borderRadius: 12, background: "#fff8ee",
+            border: "1px solid #fdd5b0", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff1df",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <i className="fa-solid fa-lock" style={{ color: "#c46a14", fontSize: 16 }} />
             </div>
             <div>
@@ -488,117 +504,106 @@ export default function TeacherMarkAttendancePage() {
           </div>
         )}
 
-        {/* ── Existing record notice ── */}
+        {/* ── Existing draft notice ── */}
         {existingRecord && !isLocked && !classSuspended && (
-          <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
+          <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff",
+            border: "1px solid #bfdbfe", display: "flex", alignItems: "center", gap: 10,
+            fontSize: 13, fontWeight: 700, color: "#1e40af" }}>
             <i className="fa-solid fa-circle-info" style={{ flexShrink: 0 }} />
             Attendance already recorded for {formatDateShort(existingRecord?.date ?? selectedDate)}. You can edit and click Apply Changes.
           </div>
         )}
 
-        {/* ── Student table ── */}
-        <article className={s("card")}>
-          <div className={s("cardHead")}>
-            <div>
-              <h2>{selectedSection?.class_name ?? "Class"} — Section {selectedSection?.name ?? ""}</h2>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 700 }}>
-                {displayDateLabel}
-              </p>
-              <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6a7882" }}>
-                {isLocked
-                  ? "Read-only — submitted attendance cannot be edited here."
-                  : "Tap P · A · Lv to set each student's status."}
-              </p>
-            </div>
-          </div>
-
-          <div className={cx(s("attendanceTableWrap"), "atnd-table-wrap")}>
-            {classSuspended ? (
-              <div style={{ padding: "2.5rem", textAlign: "center", color: "#5b21b6" }}>
-                <i className="fa-solid fa-ban" style={{ fontSize: 28, display: "block", marginBottom: 10 }} />
-                <strong style={{ fontSize: 14 }}>Class suspended — attendance is not required for this section today.</strong>
+        {/* ── Student table — only on working / checking days ── */}
+        {showStudentTable && (
+          <article className={s("card")}>
+            <div className={s("cardHead")}>
+              <div>
+                <h2>{selectedSection?.class_name ?? "Class"} — Section {selectedSection?.name ?? ""}</h2>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 700 }}>{displayDateLabel}</p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6a7882" }}>
+                  {isLocked ? "Read-only — submitted attendance cannot be edited here." : "Tap P · A · Lv to set each student's status."}
+                </p>
               </div>
-            ) : (sectionsLoading || dataLoading) ? (
-              <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={32} /></div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th>Roll no.</th>
-                    <th>Student</th>
-                    <th>Father / Guardian</th>
-                    <th>Status</th>
-                    <th>Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrolledStudents.map((en, idx) => (
-                    <tr className={rowClass(en.student_id)} key={en.student_id}>
-                      <td style={{ textAlign: "center", fontWeight: 900, fontSize: 13, color: "#6a7882" }}>{idx + 1}</td>
-                      <td style={{ fontWeight: 900, fontSize: 13, color: "#1f2d36" }}>{en.roll_no ?? "—"}</td>
-                      <td>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: "#1f2d36" }}>{en.full_name}</div>
-                      </td>
-                      <td style={{ fontSize: 13, fontWeight: 700, color: "#51606a" }}>{en.guardian_name ?? "—"}</td>
-                      <td>
-                        {isLocked ? (
-                          <div style={{
-                            display: "inline-flex", alignItems: "center", gap: 6,
-                            padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 900,
-                            background: statusBg[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
-                            color: statusColor[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
-                          }}>
-                            {statusLabel[(statusMap[en.student_id] ?? "present") as AttendanceStatus]}
-                          </div>
-                        ) : (
-                          <div className={s("palToggle")}>
-                            {PAL.map(({ key, label, activeClass }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className={cx(s("palBtn"), statusMap[en.student_id] === key && s(activeClass))}
-                                onClick={() => setStudentStatus(en.student_id, key)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <input
-                          placeholder="Optional remark…"
-                          disabled={isLocked}
-                          style={{
-                            width: "100%", padding: "6px 10px", borderRadius: 8,
-                            border: "1px solid #dce5e9", fontSize: 12,
-                            background: isLocked ? "#f8fafc" : "#fff",
-                            outline: "none",
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {enrolledStudents.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
-                        No students found for this section.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </article>
+            </div>
 
-        {/* ── Quick-mark by roll number ── */}
-        {!isLocked && !classSuspended && enrolledStudents.length > 0 && (
-          <div style={{
-            background: "#fff", border: "1px solid #dce5e9", borderRadius: 14,
-            padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10,
-          }}>
+            <div className={cx(s("attendanceTableWrap"), "atnd-table-wrap")}>
+              {classSuspended ? (
+                <div style={{ padding: "2.5rem", textAlign: "center", color: "#5b21b6" }}>
+                  <i className="fa-solid fa-ban" style={{ fontSize: 28, display: "block", marginBottom: 10 }} />
+                  <strong style={{ fontSize: 14 }}>Class suspended — attendance is not required for this section today.</strong>
+                </div>
+              ) : (sectionsLoading || dataLoading) ? (
+                <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={32} /></div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40, textAlign: "center" }}>#</th>
+                      <th>Roll no.</th>
+                      <th>Student</th>
+                      <th>Father / Guardian</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrolledStudents.map((en, idx) => (
+                      <tr className={rowClass(en.student_id)} key={en.student_id}>
+                        <td style={{ textAlign: "center", fontWeight: 900, fontSize: 13, color: "#6a7882" }}>{idx + 1}</td>
+                        <td style={{ fontWeight: 900, fontSize: 13, color: "#1f2d36" }}>{en.roll_no ?? "—"}</td>
+                        <td><div style={{ fontWeight: 800, fontSize: 13, color: "#1f2d36" }}>{en.full_name}</div></td>
+                        <td style={{ fontSize: 13, fontWeight: 700, color: "#51606a" }}>{en.guardian_name ?? "—"}</td>
+                        <td>
+                          {isLocked ? (
+                            <div style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 900,
+                              background: statusBg[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
+                              color: statusColor[(statusMap[en.student_id] ?? "present") as AttendanceStatus],
+                            }}>
+                              {statusLabel[(statusMap[en.student_id] ?? "present") as AttendanceStatus]}
+                            </div>
+                          ) : (
+                            <div className={s("palToggle")}>
+                              {PAL.map(({ key, label, activeClass }) => (
+                                <button
+                                  key={key} type="button"
+                                  className={cx(s("palBtn"), statusMap[en.student_id] === key && s(activeClass))}
+                                  onClick={() => setStudentStatus(en.student_id, key)}
+                                >{label}</button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <input
+                            placeholder="Optional remark…" disabled={isLocked}
+                            style={{ width: "100%", padding: "6px 10px", borderRadius: 8,
+                              border: "1px solid #dce5e9", fontSize: 12,
+                              background: isLocked ? "#f8fafc" : "#fff", outline: "none" }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                    {enrolledStudents.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#6a7882" }}>
+                          No students found for this section.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </article>
+        )}
+
+        {/* ── Quick-mark by roll number — only on working days ── */}
+        {dayStatus === "working" && !isLocked && !classSuspended && enrolledStudents.length > 0 && (
+          <div style={{ background: "#fff", border: "1px solid #dce5e9", borderRadius: 14,
+            padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>
                 <i className="fa-solid fa-bolt" style={{ color: "#ff9b51", marginRight: 7 }} />
@@ -610,57 +615,38 @@ export default function TeacherMarkAttendancePage() {
             </div>
             <div className="atnd-qm-row">
               <input
-                ref={quickInputRef}
-                value={quickRolls}
+                ref={quickInputRef} value={quickRolls}
                 onChange={e => setQuickRolls(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && applyQuickMark()}
                 placeholder="e.g. 3, 7, 12, 15"
-                style={{
-                  flex: 1, minWidth: 160, padding: "8px 12px", borderRadius: 9,
-                  border: "1px solid #dce5e9", fontSize: 13, fontWeight: 700,
-                  outline: "none",
-                }}
+                style={{ flex: 1, minWidth: 160, padding: "8px 12px", borderRadius: 9,
+                  border: "1px solid #dce5e9", fontSize: 13, fontWeight: 700, outline: "none" }}
               />
-              {/* Status: only Present / Absent — Leave set manually per row */}
               <div className="qm-statuses" style={{ display: "flex", gap: 5 }}>
                 {QUICK_STATUSES.map(qs => (
-                  <button
-                    key={qs.key}
-                    type="button"
-                    onClick={() => setQuickStatus(qs.key)}
-                    style={{
-                      padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                      fontSize: 12, fontWeight: 800,
-                      background: quickStatus === qs.key ? qs.color : qs.bg,
-                      color:      quickStatus === qs.key ? "#fff"    : qs.color,
-                      boxShadow:  quickStatus === qs.key ? `0 0 0 2px ${qs.color}44` : "none",
-                      transition: "all .15s",
-                    }}
-                  >
-                    {qs.label}
-                  </button>
+                  <button key={qs.key} type="button" onClick={() => setQuickStatus(qs.key)} style={{
+                    padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: 800,
+                    background: quickStatus === qs.key ? qs.color : qs.bg,
+                    color:      quickStatus === qs.key ? "#fff"    : qs.color,
+                    boxShadow:  quickStatus === qs.key ? `0 0 0 2px ${qs.color}44` : "none",
+                    transition: "all .15s",
+                  }}>{qs.label}</button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={applyQuickMark}
-                disabled={!quickRolls.trim()}
-                style={{
-                  padding: "8px 18px", borderRadius: 9, border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 900,
-                  background: quickRolls.trim() ? "#ff9b51" : "#e2e8f0",
-                  color:      quickRolls.trim() ? "#fff"    : "#94a3b8",
-                  transition: "all .15s",
-                }}
-              >
-                Apply
-              </button>
+              <button type="button" onClick={applyQuickMark} disabled={!quickRolls.trim()} style={{
+                padding: "8px 18px", borderRadius: 9, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 900,
+                background: quickRolls.trim() ? "#ff9b51" : "#e2e8f0",
+                color:      quickRolls.trim() ? "#fff"    : "#94a3b8",
+                transition: "all .15s",
+              }}>Apply</button>
             </div>
           </div>
         )}
 
-        {/* ── Bottom: compact stats strip + action button ── */}
-        {!isLocked && !classSuspended && enrolledStudents.length > 0 && (
+        {/* ── Bottom stats + save button — only on working days ── */}
+        {dayStatus === "working" && !isLocked && !classSuspended && enrolledStudents.length > 0 && (
           <div className="atnd-bottom">
             <div className="atnd-pills">
               {[
@@ -669,21 +655,16 @@ export default function TeacherMarkAttendancePage() {
                 { label: "Absent",  val: absentCount,             color: "#b42318", bg: "#fde7e7", border: "#fca5a5" },
                 { label: "Leave",   val: leaveCount,              color: "#7c3aed", bg: "#f3eeff", border: "#ddd6fe" },
               ].map(c => (
-                <div key={c.label} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", borderRadius: 999,
-                  background: c.bg, border: `1px solid ${c.border}`,
-                }}>
+                <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: 999, background: c.bg, border: `1px solid ${c.border}` }}>
                   <strong style={{ fontSize: 15, fontWeight: 900, color: c.color }}>{c.val}</strong>
                   <span style={{ fontSize: 11, fontWeight: 700, color: c.color, opacity: 0.85 }}>{c.label}</span>
                 </div>
               ))}
             </div>
-            {/* Apply Changes when editing existing; Save Attendance for new */}
             <button
               className={cx(s("btn"), s("btnPrimary"))}
-              type="button"
-              onClick={saveAttendance}
+              type="button" onClick={saveAttendance}
               disabled={saving || submitting || dataLoading}
             >
               {(saving || submitting) ? <Spinner size={16} /> : (
@@ -700,13 +681,14 @@ export default function TeacherMarkAttendancePage() {
       {/* ── Suspend confirm modal ── */}
       {showSuspendConfirm && (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="suspend-class-title"
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          role="dialog" aria-modal="true" aria-labelledby="suspend-class-title"
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.48)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
         >
-          <div style={{ width: "min(460px,100%)", background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 24px 70px rgba(15,23,42,.3)" }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", color: "#6d28d9", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 14 }}>
+          <div style={{ width: "min(460px,100%)", background: "#fff", borderRadius: 16, padding: 24,
+            boxShadow: "0 24px 70px rgba(15,23,42,.3)" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", color: "#6d28d9",
+              display: "grid", placeItems: "center", fontSize: 18, marginBottom: 14 }}>
               <i className="fa-solid fa-ban" />
             </div>
             <h2 id="suspend-class-title" style={{ margin: 0, color: "#1f2d36", fontSize: 18, fontWeight: 900 }}>Suspend this class for the day?</h2>

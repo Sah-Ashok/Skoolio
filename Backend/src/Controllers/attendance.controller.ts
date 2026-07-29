@@ -70,21 +70,24 @@ export const updateAttendanceDetail = catchAsync(async (req: Request, res: Respo
   sendResponse(res, 200, true, 'Attendance detail updated successfully', result);
 });
 
-// ── STUDENT ATTENDANCE SUMMARY (ADMIN) ──
+// ── STUDENT ATTENDANCE SUMMARY (ADMIN + FACULTY) ──
 export const getStudentAttendanceSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const timezone  = user.timezone ?? 'UTC';
   const { academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
   const result = await getStudentAttendanceSummaryService(
-    Number(req.params.id), school_id, Number(academic_year_id),
+    Number(req.params.id), school_id, Number(academic_year_id), timezone,
   );
   sendResponse(res, 200, true, 'Attendance summary fetched successfully', result);
 });
 
 export const getStudentMonthlyAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
   const { year, month, academic_year_id } = req.query;
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);

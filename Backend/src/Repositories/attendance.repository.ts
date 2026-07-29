@@ -15,7 +15,7 @@ export const createAttendance = async (
     `INSERT INTO attendance
       (school_id, academic_year_id, class_id, section_id, date,
        marked_by, is_holiday, remarks, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'submitted')
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
      RETURNING id, school_id, academic_year_id, class_id, section_id,
        date::text, marked_by, total_present, total_absent, total_late,
        total_leave, status, is_holiday, remarks, created_at, updated_at`,

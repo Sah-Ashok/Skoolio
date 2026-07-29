@@ -5,69 +5,125 @@ import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { adToBS, bsToAD, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
+import { useMemo } from "react";
 
 interface Props { studentId: number; }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" }) : null;
-
-const gInfo = (g?: string) => ({
-  male:   { color:"#1a73e8", bg:"#e8f0fe", border:"#bfdbfe", label:"Male"   },
-  female: { color:"#c2185b", bg:"#fce4ec", border:"#fbcfe8", label:"Female" },
-  other:  { color:"#7c3aed", bg:"#f3eeff", border:"#ddd6fe", label:"Other"  },
-}[g ?? "other"] ?? { color:"#7c3aed", bg:"#f3eeff", border:"#ddd6fe", label: g || "—" });
+const cap = (s?: string | null) =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null;
 
 const initials = (name?: string) =>
   (name ?? "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+const gStyle = (g?: string) => ({
+  male:   { color:"#1a73e8", bg:"#e8f0fe", border:"#bfdbfe" },
+  female: { color:"#c2185b", bg:"#fce4ec", border:"#fbcfe8" },
+}[g ?? ""] ?? { color:"#6a7882", bg:"#f1f5f9", border:"#e2e8f0" });
+
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background:"#fff", borderRadius:14, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 2px 10px rgba(30,45,60,.06)" }}>
-      <div style={{ padding:"13px 18px", borderBottom:"1px solid #f0f4f8", display:"flex", alignItems:"center", gap:10 }}>
-        <div style={{ width:30, height:30, borderRadius:8, background:"#fff7ed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <i className={`fa-solid ${icon}`} style={{ fontSize:13, color:"#FF9B51" }} />
-        </div>
-        <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>{title}</span>
-      </div>
-      <div style={{ padding:"6px 18px 16px" }}>{children}</div>
+    <div style={{ background:"#fff", borderRadius:14, border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 1px 8px rgba(31,45,54,.07)", ...style }}>
+      {children}
     </div>
   );
 }
 
-function InfoRow({ icon, label, value, mono = false }: { icon: string; label: string; value?: string | null; mono?: boolean }) {
+function CardHead({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div style={{ padding:"13px 20px", borderBottom:"1px solid #f0f4f5", display:"flex", alignItems:"center", gap:10 }}>
+      <div style={{ width:30, height:30, borderRadius:8, background:"#fff7ed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <i className={`fa-solid ${icon}`} style={{ fontSize:12, color:"#FF9B51" }} />
+      </div>
+      <span style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{title}</span>
+    </div>
+  );
+}
+
+function Row({ icon, label, value, mono }: { icon: string; label: string; value?: string | null; mono?: boolean }) {
   const empty = !value;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f5f7f9" }}>
-      <i className={`fa-solid ${icon}`} style={{ width:14, textAlign:"center", fontSize:11, color: empty ? "#d4dde2" : "#FF9B51", flexShrink:0 }} />
-      <span style={{ fontSize:12, fontWeight:700, color:"#6a7882", flex:1 }}>{label}</span>
-      <span style={{ fontSize:13, fontWeight:800, color: empty ? "#d4dde2" : "#1f2d36", fontFamily: mono ? "monospace" : "inherit" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f7fafb" }}>
+      <i className={`fa-solid ${icon}`} style={{ width:14, textAlign:"center", fontSize:11, color: empty ? "#dce5e9" : "#c6d0d7", flexShrink:0 }} />
+      <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", flex:"0 0 130px" }}>{label}</span>
+      <span style={{ fontSize:13, fontWeight:700, color: empty ? "#dce5e9" : "#1f2d36", fontFamily: mono ? "monospace" : "inherit", wordBreak:"break-all" }}>
         {empty ? "—" : value}
       </span>
     </div>
   );
 }
 
-function DonutRing({ pct, color, size = 80, stroke = 10 }: { pct: number; color: string; size?: number; stroke?: number }) {
-  const r   = (size - stroke) / 2;
+function DonutRing({ pct, color, size = 72, stroke = 9 }: { pct: number; color: string; size?: number; stroke?: number }) {
+  const r    = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const arc  = (pct / 100) * circ;
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ transform:"rotate(-90deg)", flexShrink:0 }}>
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ flexShrink:0 }}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-        strokeDasharray={`${arc} ${circ}`} strokeLinecap="round" />
+      {pct > 0 && (
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={`${arc} ${circ - arc}`} strokeDashoffset={0} strokeLinecap="butt"
+          style={{ transform:"rotate(-90deg)", transformOrigin:`${size/2}px ${size/2}px` }} />
+      )}
     </svg>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-export default function TeacherStudentDetailPage({ studentId }: Props) {
-  const router     = useRouter();
-  const { activeYear } = useAcademicYear();
+function AttCard({ label, pct, present, absent, leave, color, working, elapsed }: {
+  label: string; pct: number; present: number; absent: number; leave: number; color: string; working?: number; elapsed?: number;
+}) {
+  return (
+    <div style={{ padding:"14px 16px", borderRadius:12, border:"1px solid #e2e8f0", borderLeft:`4px solid ${color}`, display:"flex", flexDirection:"column", gap:12 }}>
+      <p style={{ margin:0, fontSize:11, fontWeight:900, color:"#6a7882", textTransform:"uppercase", letterSpacing:"0.5px" }}>{label}</p>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <DonutRing pct={pct} color={color} size={72} stroke={9} />
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <span style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{pct}%</span>
+          </div>
+        </div>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+          {[
+            { short:"P",  label:"Present", val:present, color:"#12805c", bg:"#e2f6ee" },
+            { short:"A",  label:"Absent",  val:absent,  color:"#b42318", bg:"#fde7e7" },
+            { short:"Lv", label:"Leave",   val:leave,   color:"#7c3aed", bg:"#f3eeff" },
+          ].map(r => (
+            <div key={r.short} style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:9, fontWeight:900, color:r.color, background:r.bg, padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>{r.short}</span>
+              <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>{r.label}</span>
+              <strong style={{ fontSize:13, fontWeight:900, color:r.val === 0 ? "#c6d0d7" : r.color }}>{r.val}</strong>
+            </div>
+          ))}
+          {working !== undefined && working > 0 && (
+            <div style={{ display:"flex", flexDirection:"column", gap:4, paddingTop:6, borderTop:"1px solid #f0f4f5", marginTop:2 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:9, fontWeight:900, color:"#6a7882", background:"#f1f5f9", padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>W</span>
+                <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>{elapsed !== undefined ? "Total Days" : "Working"}</span>
+                <strong style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{working}</strong>
+              </div>
+              {elapsed !== undefined && elapsed > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:9, fontWeight:900, color:"#1a73e8", background:"#e8f0fe", padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>E</span>
+                  <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>Elapsed</span>
+                  <strong style={{ fontSize:13, fontWeight:900, color:"#1a73e8" }}>{elapsed}</strong>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const { data: student, loading: sLoad } = useApi<any>(
+// ═════════════════════════════════════════════════════════════════════════════
+export default function TeacherStudentDetailPage({ studentId }: Props) {
+  const router                      = useRouter();
+  const { activeYear }              = useAcademicYear();
+  const { formatDate, formatMonth } = useDateFormat();
+
+  const { data: student,     loading: sLoad } = useApi<any>(
     studentId ? `/students/${studentId}` : "", [studentId]
   );
   const { data: enrollments, loading: eLoad } = useApi<any[]>(
@@ -76,77 +132,139 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
       : "",
     [studentId, activeYear?.id]
   );
-  // Yearly summary
   const { data: yearlySummary } = useApi<any>(
     studentId && activeYear?.id
       ? `/attendance/student/${studentId}/summary?academic_year_id=${activeYear.id}`
       : "",
     [studentId, activeYear?.id]
   );
-  // Current month
-  const now      = new Date();
-  const { data: currMonthData } = useApi<any>(
-    studentId
-      ? `/attendance/student/${studentId}/monthly?year=${now.getFullYear()}&month=${now.getMonth()+1}`
+
+  const now    = new Date();
+
+  // ── Fetch full-year working days from calendar (accurate total from school calendar)
+  // The summary API only counts elapsed working days (up to today),
+  // but the user wants total working days for the whole academic year.
+  const { data: yearWorkingData } = useApi<any>(
+    studentId && activeYear?.id && activeYear?.start_date && activeYear?.end_date
+      ? `/calendar/working-days?academic_year_id=${activeYear.id}&start_date=${String(activeYear.start_date).slice(0,10)}&end_date=${String(activeYear.end_date).slice(0,10)}`
       : "",
-    [studentId]
+    [activeYear?.id]
   );
-  // Previous month
-  const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const { data: prevMonthData } = useApi<any>(
-    studentId
-      ? `/attendance/student/${studentId}/monthly?year=${prevDate.getFullYear()}&month=${prevDate.getMonth()+1}`
-      : "",
-    [studentId]
-  );
+  // Elapsed working days (start to today) come from summary API's total_working_days
+
+  // ── BS/AD-aware month calculation ────────────────────────────────
+  // Follow the same approach as OwnAttendancePage:
+  // 1. Get current month in BS (or AD)
+  // 2. Convert BS month start day → AD for API params
+  // 3. A BS month may span two AD months → need two API calls
+  const { isBS: isBSHook } = useDateFormat();
+
+  const todayBS = useMemo(() => adToBS(now), []);
+
+  // Current and previous month in display coordinates (BS or AD)
+  const currDisp = useMemo(() => {
+    if (isBSHook) {
+      return { year: todayBS.year, month: todayBS.month };
+    }
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }, [isBSHook, todayBS]);
+
+  const prevDisp = useMemo(() => {
+    if (isBSHook) {
+      const m = todayBS.month - 1;
+      return m <= 0 ? { year: todayBS.year - 1, month: 12 } : { year: todayBS.year, month: m };
+    }
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  }, [isBSHook, todayBS]);
+
+  // Convert display month to AD API params (BS month start → AD year/month)
+  const dispToADParams = (disp: { year: number; month: number }) => {
+    if (isBSHook) {
+      const adStart = bsToAD({ year: disp.year, month: disp.month, day: 1 });
+      const lastDay = daysInBSMonth(disp.year, disp.month);
+      const adEnd   = bsToAD({ year: disp.year, month: disp.month, day: lastDay });
+      const p1 = { year: adStart.getFullYear(), month: adStart.getMonth() + 1 };
+      // Check if month end falls in a different AD month
+      const p2 = (adEnd.getFullYear() !== p1.year || adEnd.getMonth() + 1 !== p1.month)
+        ? { year: adEnd.getFullYear(), month: adEnd.getMonth() + 1 }
+        : null;
+      return { p1, p2 };
+    }
+    return { p1: disp, p2: null };
+  };
+
+  const currParams = useMemo(() => dispToADParams(currDisp), [currDisp, isBSHook]);
+  const prevParams = useMemo(() => dispToADParams(prevDisp), [prevDisp, isBSHook]);
+
+  // Month display labels
+  const cLabel = isBSHook
+    ? `${BS_MONTH_NAMES[currDisp.month - 1]} ${currDisp.year}`
+    : `${['January','February','March','April','May','June','July','August','September','October','November','December'][currDisp.month - 1]} ${currDisp.year}`;
+  const pLabel = isBSHook
+    ? `${BS_MONTH_NAMES[prevDisp.month - 1]} ${prevDisp.year}`
+    : `${['January','February','March','April','May','June','July','August','September','October','November','December'][prevDisp.month - 1]} ${prevDisp.year}`;
+
+  const mkUrl = (p: { year: number; month: number } | null) =>
+    p && studentId && activeYear?.id
+      ? `/attendance/student/${studentId}/monthly?year=${p.year}&month=${p.month}&academic_year_id=${activeYear.id}`
+      : "";
+
+  const { data: currRaw1 } = useApi<any>(mkUrl(currParams.p1), [mkUrl(currParams.p1)]);
+  const { data: currRaw2 } = useApi<any>(mkUrl(currParams.p2), [mkUrl(currParams.p2)]);
+  const { data: prevRaw1 } = useApi<any>(mkUrl(prevParams.p1), [mkUrl(prevParams.p1)]);
+  const { data: prevRaw2 } = useApi<any>(mkUrl(prevParams.p2), [mkUrl(prevParams.p2)]);
+
 
   const loading    = sLoad || eLoad;
   const enrollment = enrollments?.[0] ?? null;
-  const g          = gInfo(student?.gender);
+  const gs         = gStyle(student?.gender);
 
-  // Attendance helpers
-  const countStatus = (records: any[] = [], s: string) => records.filter(r => r.status === s).length;
-  const monthRecords = (data: any): any[] => Array.isArray(data) ? data : (data?.records ?? []);
-
-  const currRecs = monthRecords(currMonthData);
-  const prevRecs = monthRecords(prevMonthData);
-
-  const currMonthName = now.toLocaleDateString("en-IN", { month:"long", year:"numeric" });
-  const prevMonthName = prevDate.toLocaleDateString("en-IN", { month:"long", year:"numeric" });
-
-  const yearly = {
-    present: Number(yearlySummary?.total_present ?? 0),
-    absent:  Number(yearlySummary?.total_absent  ?? 0),
-    leave:   Number(yearlySummary?.total_leave   ?? 0),
-    working: Number(yearlySummary?.total_working_days ?? 0),
+  // Unwrap and merge API responses (BS months may span two AD months)
+  const normalise = (raw: any): any[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw.data)) return raw.data;
+    if (Array.isArray(raw.records)) return raw.records;
+    return [];
   };
-  const yearlyTotal = yearly.present + yearly.absent + yearly.leave;
-  const yearlyPct   = yearlyTotal > 0 ? Math.round((yearly.present / yearlyTotal) * 100) : 0;
-  const yearlyColor = yearlyPct >= 75 ? "#12805c" : yearlyPct >= 50 ? "#c46a14" : "#b42318";
 
-  const monthStat = (recs: any[]) => ({
-    present: countStatus(recs, "present"),
-    absent:  countStatus(recs, "absent"),
-    leave:   countStatus(recs, "leave"),
-    total:   recs.length,
-  });
-  const curr = monthStat(currRecs);
-  const prev = monthStat(prevRecs);
-  const currPct = curr.total > 0 ? Math.round((curr.present / curr.total) * 100) : 0;
-  const prevPct = prev.total > 0 ? Math.round((prev.present / prev.total) * 100) : 0;
-  const currColor = currPct >= 75 ? "#12805c" : currPct >= 50 ? "#c46a14" : "#b42318";
-  const prevColor = prevPct >= 75 ? "#12805c" : prevPct >= 50 ? "#c46a14" : "#b42318";
+  const currRecs = useMemo(() => [...normalise(currRaw1), ...normalise(currRaw2)], [currRaw1, currRaw2]);
+  const prevRecs = useMemo(() => [...normalise(prevRaw1), ...normalise(prevRaw2)], [prevRaw1, prevRaw2]);
+
+  const yPresent     = Number(yearlySummary?.total_present        ?? 0);
+  const yAbsent      = Number(yearlySummary?.total_absent         ?? 0);
+  const yLeave       = Number(yearlySummary?.total_leave          ?? 0);
+  const yElapsed     = Number(yearlySummary?.total_working_days   ?? 0); // working days up to today
+  const yTotalWD     = Number(yearWorkingData?.working_days       ?? yElapsed); // full year working days
+  // Use the API's computed attendance_percentage (includes late/present/absent correctly)
+  const apiPct       = Number(yearlySummary?.attendance_percentage ?? 0);
+  const yMarked      = yPresent + yAbsent + yLeave;
+  const yPct         = apiPct > 0 ? Math.round(apiPct)
+                     : yMarked > 0 ? Math.round((yPresent / yMarked) * 100) : 0;
+  const yColor   = yPct >= 85 ? "#12805c" : yPct >= 70 ? "#c46a14" : "#b42318";
+
+  const countS = (arr: any[], s: string) => arr.filter((r: any) => r.status === s).length;
+  const mStat  = (recs: any[]) => {
+    const p = countS(recs, "present"), a = countS(recs, "absent"), l = countS(recs, "leave");
+    const d = p + a + l;
+    return { p, a, l, d, pct: d > 0 ? Math.max(0, Math.round(((d - a) / d) * 100)) : 0 };
+  };
+
+  const curr   = mStat(currRecs);
+  const prev   = mStat(prevRecs);
+  const cColor = curr.pct >= 85 ? "#12805c" : curr.pct >= 70 ? "#c46a14" : "#b42318";
+  const pColor = prev.pct >= 85 ? "#12805c" : prev.pct >= 70 ? "#c46a14" : "#b42318";
 
   return (
     <>
       <style>{`
-        .tsd { min-height:100vh; background:#f0f4f8; }
+        .tsd { min-height:100vh; background:#eef2f3; }
         .tsd-wrap { padding:20px; max-width:1040px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
-        @media(min-width:760px){ .tsd-wrap{ padding:28px 32px 60px; } }
-        .tsd-grid { display:grid; grid-template-columns:1fr; gap:16px; }
-        @media(min-width:760px){ .tsd-grid{ grid-template-columns:300px 1fr; align-items:start; } }
-        .att-month-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        @media(max-width:480px){ .att-month-grid{ grid-template-columns:1fr; } }
+        .tsd-cols { display:grid; grid-template-columns:1fr; gap:16px; }
+        @media(min-width:760px){ .tsd-cols { grid-template-columns:300px 1fr; align-items:start; } }
+        .att-2col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        @media(max-width:480px){ .att-2col { grid-template-columns:1fr; } }
       `}</style>
 
       <div className="tsd">
@@ -155,200 +273,150 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
 
           {/* Back */}
           <button onClick={() => router.back()}
-            style={{ alignSelf:"flex-start", display:"flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:9, border:"1px solid #dce5e9", background:"#fff", fontSize:13, fontWeight:800, color:"#475569", cursor:"pointer" }}>
+            style={{ alignSelf:"flex-start", display:"inline-flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:9, border:"1px solid #dce5e9", background:"#fff", fontSize:13, fontWeight:800, color:"#475569", cursor:"pointer", boxShadow:"0 1px 4px rgba(31,45,54,.06)" }}>
             <i className="fa-solid fa-arrow-left" style={{ fontSize:11 }} /> Back to My Students
           </button>
 
           {loading ? (
             <div style={{ padding:"6rem", textAlign:"center" }}><Spinner size={32} color="#FF9B51" /></div>
           ) : !student ? (
-            <div style={{ padding:"4rem", textAlign:"center", background:"#fff", borderRadius:14, border:"1px solid #dce5e9" }}>
+            <Card style={{ padding:"4rem", textAlign:"center" }}>
               <i className="fa-solid fa-user-slash" style={{ fontSize:40, color:"#d4dde2", display:"block", marginBottom:14 }} />
               <p style={{ fontSize:15, fontWeight:800, color:"#1f2d36", margin:0 }}>Student not found</p>
-            </div>
+            </Card>
           ) : (
-            <div className="tsd-grid">
+            <div className="tsd-cols">
 
-              {/* ══ LEFT COLUMN ══ */}
+              {/* ══ LEFT ══ */}
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-                {/* Profile hero card */}
-                <div style={{ background:"#fff", borderRadius:16, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 4px 16px rgba(30,45,60,.08)" }}>
-                  {/* Banner */}
-                  <div style={{ height:80, background:`linear-gradient(135deg, #1e2d38 0%, ${g.color}88 100%)`, position:"relative" }}>
-                    <div style={{ position:"absolute", bottom:-28, left:20 }}>
-                      <div style={{ width:56, height:56, borderRadius:14, background:g.bg, border:`3px solid #fff`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:g.color, boxShadow:"0 4px 14px rgba(0,0,0,.12)" }}>
+                {/* Hero */}
+                <Card>
+                  <div style={{ display:"flex" }}>
+                    <div style={{ width:90, background:"#25343F", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 0", flexShrink:0 }}>
+                      <div style={{ width:54, height:54, borderRadius:14, background:gs.bg, border:`2px solid ${gs.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:gs.color }}>
                         {initials(student.full_name)}
                       </div>
                     </div>
-                  </div>
-
-                  <div style={{ padding:"36px 20px 18px" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                      <h1 style={{ margin:0, fontSize:18, fontWeight:900, color:"#1f2d36" }}>{student.full_name}</h1>
-                      <span style={{ padding:"2px 9px", borderRadius:99, fontSize:11, fontWeight:800, background:g.bg, color:g.color, border:`1px solid ${g.border}`, flexShrink:0 }}>{g.label}</span>
-                    </div>
-                    {enrollment && (
-                      <p style={{ margin:"0 0 14px", fontSize:12, fontWeight:700, color:"#6a7882" }}>
-                        {enrollment.class_name} · Section {enrollment.section_name}
-                        {enrollment.roll_number && <> · <strong style={{ color:"#1f2d36" }}>Roll #{enrollment.roll_number}</strong></>}
-                      </p>
-                    )}
-
-                    {/* Quick chips */}
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                      {[
-                        student.blood_group    && { icon:"fa-droplet",       val: student.blood_group,              bg:"#fde7e7", color:"#b42318" },
-                        student.date_of_birth  && { icon:"fa-cake-candles",  val: fmtDate(student.date_of_birth),   bg:"#fff7ed", color:"#c46a14" },
-                        student.nationality    && { icon:"fa-flag",          val: student.nationality,              bg:"#e8f0fe", color:"#1a73e8" },
-                      ].filter(Boolean).map((c: any) => (
-                        <div key={c.icon} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:c.bg, fontSize:11, fontWeight:700, color:c.color }}>
-                          <i className={`fa-solid ${c.icon}`} style={{ fontSize:10 }} /> {c.val}
-                        </div>
-                      ))}
+                    <div style={{ flex:1, padding:"18px 16px" }}>
+                      <h1 style={{ margin:"0 0 4px", fontSize:17, fontWeight:900, color:"#1f2d36", lineHeight:1.2 }}>{student.full_name}</h1>
+                      <span style={{ display:"inline-block", padding:"2px 9px", borderRadius:99, fontSize:11, fontWeight:800, background:gs.bg, color:gs.color, border:`1px solid ${gs.border}` }}>
+                        {cap(student.gender) || "—"}
+                      </span>
+                      {enrollment && (
+                        <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:700, color:"#6a7882" }}>
+                          {enrollment.class_name} · Sec {enrollment.section_name}
+                          {enrollment.roll_number && <> · <strong style={{ color:"#1f2d36" }}>Roll {enrollment.roll_number}</strong></>}
+                        </p>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Quick Info */}
-                <SectionCard title="Quick Info" icon="fa-tags">
-                  <InfoRow icon="fa-id-badge"     label="Admission No."   value={student.admission_number} mono />
-                  <InfoRow icon="fa-list-ol"      label="Roll Number"     value={enrollment?.roll_number?.toString() || "Not assigned"} />
-                  <InfoRow icon="fa-person"        label="Guardian"        value={student.guardian_name} />
-                  <InfoRow icon="fa-phone"         label="Parent Phone"    value={student.guardian_phone} />
-                  <InfoRow icon="fa-calendar-plus" label="Admitted On"     value={fmtDate(student.admission_date)} />
-                </SectionCard>
+                  {/* Chips */}
+                  {(student.blood_group || student.date_of_birth || student.nationality) && (
+                    <div style={{ padding:"10px 16px 14px", borderTop:"1px solid #f0f4f5", display:"flex", flexWrap:"wrap", gap:6 }}>
+                      {student.blood_group && (
+                        <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:"#fde7e7", color:"#b42318", fontSize:11, fontWeight:800, border:"1px solid #fca5a5" }}>
+                          <i className="fa-solid fa-droplet" style={{ fontSize:9 }} /> {student.blood_group}
+                        </span>
+                      )}
+                      {student.date_of_birth && (
+                        <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:"#fff7ed", color:"#c46a14", fontSize:11, fontWeight:800, border:"1px solid #fde68a" }}>
+                          <i className="fa-solid fa-cake-candles" style={{ fontSize:9 }} /> {formatDate(student.date_of_birth)}
+                        </span>
+                      )}
+                      {student.nationality && (
+                        <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:"#e8f0fe", color:"#1a73e8", fontSize:11, fontWeight:800, border:"1px solid #bfdbfe" }}>
+                          <i className="fa-solid fa-flag" style={{ fontSize:9 }} /> {student.nationality}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </Card>
 
                 {/* Guardian */}
-                <SectionCard title="Guardian" icon="fa-shield-halved">
-                  <InfoRow icon="fa-person-shelter" label="Name"         value={student.guardian_name} />
-                  <InfoRow icon="fa-people-roof"    label="Relation"     value={student.guardian_relation} />
-                  <InfoRow icon="fa-phone-flip"     label="Phone"        value={student.guardian_phone} />
-                  <InfoRow icon="fa-envelope"       label="Email"        value={student.guardian_email} />
-                </SectionCard>
-              </div>
-
-              {/* ══ RIGHT COLUMN ══ */}
-              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-                {/* ── Attendance Section ── */}
-                <div style={{ background:"#fff", borderRadius:14, border:"1px solid #e2eaf0", overflow:"hidden", boxShadow:"0 2px 10px rgba(30,45,60,.06)" }}>
-                  <div style={{ padding:"13px 18px", borderBottom:"1px solid #f0f4f8", display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:30, height:30, borderRadius:8, background:"#fff7ed", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <i className="fa-solid fa-chart-pie" style={{ fontSize:13, color:"#FF9B51" }} />
-                    </div>
-                    <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>Attendance Overview</span>
+                <Card>
+                  <CardHead icon="fa-shield-halved" title="Guardian" />
+                  <div style={{ padding:"4px 20px 12px" }}>
+                    <Row icon="fa-person-shelter" label="Name"     value={student.guardian_name} />
+                    <Row icon="fa-people-roof"    label="Relation" value={cap(student.guardian_relation)} />
+                    <Row icon="fa-phone-flip"     label="Phone"    value={student.guardian_phone} />
+                    <Row icon="fa-envelope"       label="Email"    value={student.guardian_email} />
                   </div>
-                  <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:16 }}>
-
-                    {/* Yearly */}
-                    <div style={{ display:"flex", alignItems:"center", gap:16, padding:"14px 16px", borderRadius:12, background:"#f7fafb", border:"1px solid #e2eaf0", borderLeft:`4px solid ${yearlyColor}` }}>
-                      <div style={{ position:"relative", flexShrink:0 }}>
-                        <DonutRing pct={yearlyPct} color={yearlyColor} size={80} stroke={10} />
-                        <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                          <span style={{ fontSize:14, fontWeight:900, color:"#1f2d36" }}>{yearlyPct}%</span>
-                          <span style={{ fontSize:8, fontWeight:700, color:"#6a7882" }}>yearly</span>
-                        </div>
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:900, color:"#1f2d36" }}>Full Year · {activeYear?.year_name}</p>
-                        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                          {[
-                            { label:"Present", val:yearly.present, color:"#12805c" },
-                            { label:"Absent",  val:yearly.absent,  color:"#b42318" },
-                            { label:"Leave",   val:yearly.leave,   color:"#7c3aed" },
-                          ].map(r => (
-                            <div key={r.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ width:7, height:7, borderRadius:2, background:r.color, flexShrink:0 }} />
-                              <span style={{ fontSize:11, fontWeight:600, color:"#6a7882", flex:1 }}>{r.label}</span>
-                              <strong style={{ fontSize:12, fontWeight:900, color:r.color }}>{r.val}</strong>
-                            </div>
-                          ))}
-                          {yearly.working > 0 && (
-                            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, paddingTop:6, borderTop:"1px solid #e2eaf0" }}>
-                              <span style={{ width:7, height:7, borderRadius:2, background:"#64748b", flexShrink:0 }} />
-                              <span style={{ fontSize:11, fontWeight:600, color:"#6a7882", flex:1 }}>Working Days</span>
-                              <strong style={{ fontSize:12, fontWeight:900, color:"#1f2d36" }}>{yearly.working}</strong>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Monthly — current + previous */}
-                    <div className="att-month-grid">
-                      {[
-                        { label: currMonthName, stat: curr, pct: currPct, color: currColor },
-                        { label: prevMonthName, stat: prev, pct: prevPct, color: prevColor },
-                      ].map(m => (
-                        <div key={m.label} style={{ padding:"13px 14px", borderRadius:12, background:"#f7fafb", border:"1px solid #e2eaf0", borderLeft:`4px solid ${m.color}` }}>
-                          <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:900, color:"#1f2d36" }}>{m.label}</p>
-                          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                            <div style={{ position:"relative", flexShrink:0 }}>
-                              <DonutRing pct={m.pct} color={m.color} size={56} stroke={7} />
-                              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                <span style={{ fontSize:11, fontWeight:900, color:"#1f2d36" }}>{m.pct}%</span>
-                              </div>
-                            </div>
-                            <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
-                              {[
-                                { label:"P", val:m.stat.present, color:"#12805c", bg:"#e2f6ee" },
-                                { label:"A", val:m.stat.absent,  color:"#b42318", bg:"#fde7e7" },
-                                { label:"Lv",val:m.stat.leave,   color:"#7c3aed", bg:"#f3eeff" },
-                              ].map(r => (
-                                <div key={r.label} style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                  <span style={{ fontSize:9, fontWeight:800, color:r.color, background:r.bg, padding:"1px 5px", borderRadius:4, flexShrink:0 }}>{r.label}</span>
-                                  <strong style={{ fontSize:12, fontWeight:900, color:r.color, marginLeft:"auto" }}>{r.val}</strong>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Personal Details */}
-                <SectionCard title="Personal Details" icon="fa-user">
-                  <InfoRow icon="fa-cake-candles"  label="Date of Birth" value={fmtDate(student.date_of_birth)} />
-                  <InfoRow icon="fa-venus-mars"    label="Gender"        value={g.label} />
-                  <InfoRow icon="fa-droplet"       label="Blood Group"   value={student.blood_group} />
-                  <InfoRow icon="fa-earth-asia"    label="Religion"      value={student.religion} />
-                  <InfoRow icon="fa-people-group"  label="Ethnicity"     value={student.ethnicity} />
-                  <InfoRow icon="fa-flag"          label="Nationality"   value={student.nationality} />
-                </SectionCard>
-
-                {/* Academic */}
-                <SectionCard title="Academic Info" icon="fa-graduation-cap">
-                  <InfoRow icon="fa-id-badge"      label="Admission No."     value={student.admission_number} mono />
-                  <InfoRow icon="fa-calendar-plus" label="Admission Date"    value={fmtDate(student.admission_date)} />
-                  <InfoRow icon="fa-chalkboard"    label="Class & Section"   value={enrollment ? `${enrollment.class_name} — Section ${enrollment.section_name}` : null} />
-                  <InfoRow icon="fa-list-ol"       label="Roll Number"       value={enrollment?.roll_number?.toString()} />
-                  <InfoRow icon="fa-file-lines"    label="Registration No."  value={enrollment?.registration_number} mono />
-                  <InfoRow icon="fa-hashtag"       label="Symbol Number"     value={enrollment?.symbol_number} mono />
-                </SectionCard>
+                </Card>
 
                 {/* Contact */}
-                <SectionCard title="Contact" icon="fa-address-book">
-                  <InfoRow icon="fa-phone"      label="Phone"   value={student.phone} />
-                  <InfoRow icon="fa-envelope"   label="Email"   value={student.email} />
-                  <InfoRow icon="fa-city"       label="City"    value={student.city} />
-                  <InfoRow icon="fa-map"        label="State"   value={student.state} />
-                  <InfoRow icon="fa-earth-asia" label="Country" value={student.country} />
-                </SectionCard>
+                <Card>
+                  <CardHead icon="fa-address-book" title="Contact" />
+                  <div style={{ padding:"4px 20px 12px" }}>
+                    <Row icon="fa-phone"      label="Student Phone" value={student.phone} />
+                    <Row icon="fa-envelope"   label="Email"         value={student.email} />
+                    <Row icon="fa-city"       label="City"          value={student.city} />
+                    <Row icon="fa-map"        label="State"         value={student.state} />
+                    <Row icon="fa-earth-asia" label="Country"       value={student.country} />
+                  </div>
+                </Card>
+              </div>
+
+              {/* ══ RIGHT ══ */}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+                {/* Attendance */}
+                <Card>
+                  <CardHead icon="fa-chart-pie" title="Attendance Overview" />
+                  <div style={{ padding:"14px 18px", display:"flex", flexDirection:"column", gap:12 }}>
+                    <AttCard
+                      label={`Full Year · ${activeYear?.year_name ?? ""}`}
+                      pct={yPct} present={yPresent} absent={yAbsent} leave={yLeave}
+                      color={yColor} working={yTotalWD > 0 ? yTotalWD : undefined}
+                      elapsed={yElapsed > 0 ? yElapsed : undefined}
+                    />
+                    <div className="att-2col">
+                      <AttCard label={cLabel} pct={curr.pct} present={curr.p} absent={curr.a} leave={curr.l} color={cColor} />
+                      <AttCard label={pLabel} pct={prev.pct} present={prev.p} absent={prev.a} leave={prev.l} color={pColor} />
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Academic */}
+                <Card>
+                  <CardHead icon="fa-graduation-cap" title="Academic Info" />
+                  <div style={{ padding:"4px 20px 12px" }}>
+                    <Row icon="fa-id-badge"      label="Admission No."    value={student.admission_number} mono />
+                    <Row icon="fa-calendar-plus" label="Admission Date"   value={formatDate(student.admission_date)} />
+                    <Row icon="fa-school"        label="Class"            value={enrollment?.class_name} />
+                    <Row icon="fa-table-cells"   label="Section"          value={enrollment?.section_name} />
+                    <Row icon="fa-list-ol"       label="Roll Number"      value={enrollment?.roll_number?.toString() || "Not assigned"} />
+                    <Row icon="fa-file-lines"    label="Registration No." value={enrollment?.registration_number} mono />
+                    <Row icon="fa-hashtag"       label="Symbol Number"    value={enrollment?.symbol_number} mono />
+                  </div>
+                </Card>
+
+                {/* Personal */}
+                <Card>
+                  <CardHead icon="fa-user" title="Personal Details" />
+                  <div style={{ padding:"4px 20px 12px" }}>
+                    <Row icon="fa-cake-candles"  label="Date of Birth" value={formatDate(student.date_of_birth)} />
+                    <Row icon="fa-venus-mars"    label="Gender"        value={cap(student.gender)} />
+                    <Row icon="fa-droplet"       label="Blood Group"   value={student.blood_group} />
+                    <Row icon="fa-pray"          label="Religion"      value={student.religion} />
+                    <Row icon="fa-people-group"  label="Ethnicity"     value={student.ethnicity} />
+                    <Row icon="fa-flag"          label="Nationality"   value={student.nationality} />
+                  </div>
+                </Card>
 
               </div>
             </div>
           )}
 
-          {/* Note */}
-          <div style={{ padding:"11px 16px", borderRadius:10, background:"#fff7ed", border:"1px solid #fed7aa", borderLeft:"4px solid #FF9B51", display:"flex", gap:9, alignItems:"flex-start" }}>
+          {/* Footer note */}
+          <div style={{ padding:"10px 16px", borderRadius:10, background:"#fff7ed", border:"1px solid #fed7aa", borderLeft:"4px solid #FF9B51", display:"flex", gap:9, alignItems:"flex-start" }}>
             <i className="fa-solid fa-circle-info" style={{ color:"#c2410c", fontSize:13, flexShrink:0, marginTop:1 }} />
             <span style={{ fontSize:12, fontWeight:700, color:"#92400e" }}>
-              You can only edit <strong>Roll Number</strong> and <strong>Remarks</strong> from the students list. All other details can only be changed by the school admin.
+              Only <strong>Roll Number</strong> and <strong>Remarks</strong> can be edited from the Students list. All other details are managed by the school admin.
             </span>
           </div>
+
         </div>
       </div>
     </>
