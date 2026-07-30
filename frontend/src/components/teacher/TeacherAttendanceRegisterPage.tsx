@@ -143,7 +143,9 @@ export default function TeacherAttendanceRegisterPage() {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   // Map: iso → event title (for holidays that affect attendance)
-  const [holidayMap, setHolidayMap] = useState<Map<string, string>>(new Map());
+  const [holidayMap,  setHolidayMap]  = useState<Map<string, string>>(new Map());
+  // Set of day-of-week numbers (0=Sun … 6=Sat) that are weekly offs for this school
+  const [weekendDows, setWeekendDows] = useState<Set<number>>(new Set([0, 6])); // fallback
 
   // Auto-select first section
   useEffect(() => {
@@ -214,7 +216,7 @@ export default function TeacherAttendanceRegisterPage() {
         apiRequest<any>(
           `/attendance/section/${sectionId}/register?academic_year_id=${academicYearId}&year=${fallbackYear}&month=${fallbackMonth}&start_date=${selectedMonth.startDate}&end_date=${selectedMonth.endDate}`
         ),
-        apiRequest<{ data: { id: number } }>(
+        apiRequest<{ data: { id: number; weekend_type?: string } }>(
           `/calendar?academic_year_id=${academicYearId}`
         ).catch(() => null),
       ]);
@@ -222,11 +224,30 @@ export default function TeacherAttendanceRegisterPage() {
       const data: RegisterRow[] = Array.isArray(regRes) ? regRes : (regRes?.data ?? []);
       setRows(data);
 
-      // Load holidays
+      // Load calendar events (holidays) + weekly offs
       if (calRes?.data?.id) {
+        const calId = calRes.data.id;
         try {
-          const evRes = await apiRequest<{ data: any[] }>(`/calendar/${calRes.data.id}/events`);
-          const events: any[] = evRes.data || [];
+          const [evRes, offRes] = await Promise.all([
+            apiRequest<{ data: any[] }>(`/calendar/${calId}/events`),
+            apiRequest<{ data: any[] }>(`/calendar/${calId}/weekly-offs`).catch(() => ({ data: [] })),
+          ]);
+
+          // ── Weekly offs ──
+          const offs: any[] = offRes?.data ?? [];
+          if (offs.length > 0) {
+            // calendar_weekly_offs rows have day_of_week (0–6)
+            setWeekendDows(new Set(offs.map((o: any) => Number(o.day_of_week))));
+          } else {
+            // Fallback to calendar.weekend_type
+            const wt = calRes.data.weekend_type ?? "sunday_only";
+            if (wt === "sunday_only")        setWeekendDows(new Set([0]));
+            else if (wt === "saturday_only") setWeekendDows(new Set([6]));
+            else                             setWeekendDows(new Set([0, 6]));
+          }
+
+          // ── Holidays ──
+          const events: any[] = evRes?.data ?? [];
           const allDates = buildDateRange(selectedMonth.startDate, selectedMonth.endDate);
           const hMap = new Map<string, string>();
           for (const dateStr of allDates) {
@@ -267,18 +288,19 @@ export default function TeacherAttendanceRegisterPage() {
   );
 
   // Build column descriptors (working | weekend | holiday)
+  // holidays take priority over weekly offs (a holiday on a weekend is still a holiday)
   const dayCols = useMemo((): DayCol[] => {
     return allDates.map(iso => {
-      const dow = localDow(iso);
       if (holidayMap.has(iso)) {
         return { iso, kind: "holiday", label: holidayMap.get(iso)! };
       }
-      if (dow === 0 || dow === 6) {
+      const dow = localDow(iso);
+      if (weekendDows.has(dow)) {
         return { iso, kind: "weekend", label: "Weekly Off" };
       }
       return { iso, kind: "working", label: "" };
     });
-  }, [allDates, holidayMap]);
+  }, [allDates, holidayMap, weekendDows]);
 
   const workingCols  = useMemo(() => dayCols.filter(c => c.kind === "working"),  [dayCols]);
   const markedDays   = useMemo(() => {
@@ -539,8 +561,22 @@ export default function TeacherAttendanceRegisterPage() {
           background: #f8fafc;
           border-bottom: 1px solid #f1f5f9;
           vertical-align: middle;
+          position: relative;
         }
-        .td-off.is-holiday { background: #fdf4ff; }
+        .td-off::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 3px;
+          background: #cbd5e1;
+          border-radius: 0;
+        }
+        .td-off.is-holiday {
+          background: #fff5f5;
+        }
+        .td-off.is-holiday::before {
+          background: #ef4444;
+        }
 
         /* Total cells */
         .td-tot {
@@ -856,13 +892,25 @@ export default function TeacherAttendanceRegisterPage() {
                         {/* Day cells — ALL calendar days */}
                         {dayCols.map(col => {
                           if (col.kind !== "working") {
-                            // Weekend / holiday — shaded, no badge
+                            // Weekend / holiday — shaded with small label
+                            const isHol = col.kind === "holiday";
                             return (
                               <td
                                 key={col.iso}
-                                className={`td-off ${col.kind === "holiday" ? "is-holiday" : ""}`}
-                                style={{ width: W_OFF }}
-                              />
+                                className={`td-off ${isHol ? "is-holiday" : ""}`}
+                                style={{ width: W_OFF, textAlign: "center", verticalAlign: "middle" }}
+                              >
+                                <span style={{
+                                  display: "inline-block",
+                                  fontSize: 9,
+                                  fontWeight: 800,
+                                  color: isHol ? "#c084fc" : "#cbd5e1",
+                                  letterSpacing: "-0.2px",
+                                  lineHeight: 1,
+                                }}>
+                                  {isHol ? "H" : "Off"}
+                                </span>
+                              </td>
                             );
                           }
                           // Working day
