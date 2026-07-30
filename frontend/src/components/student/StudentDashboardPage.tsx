@@ -94,16 +94,16 @@ export default function StudentDashboardPage() {
     { href: "/student/results",             icon: "fa-file-circle-check", label: "Results",     color: "#22c55e", bg: "#f0fdf4", border: "#bbf7d0" },
     { href: "/student/calendar",            icon: "fa-calendar-days",     label: "Calendar",    color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
     { href: "/student/profile",             icon: "fa-user",              label: "Profile",     color: "#ec4899", bg: "#fdf2f8", border: "#fbcfe8" },
-    { href: "/student/fees/submit-pay-form",icon: "fa-paper-plane",       label: "Pay Now",     color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd" },
-    { href: "/student/fees/bank-details",   icon: "fa-building-columns",  label: "Bank Info",   color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
-    { href: "/student/fees/my-submissions", icon: "fa-clock-rotate-left", label: "My Payments", color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe" },
+    { href: "/student/fees/submit-pay-form",icon: "fa-paper-plane",       label: "Payment form",     color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd" },
+    { href: "/student/fees/bank-details",   icon: "fa-building-columns",  label: "School Bank Info",   color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
+    { href: "/student/fees/my-submissions", icon: "fa-clock-rotate-left", label: "Payment submission", color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe" },
   ];
 
   return (
     <>
       <style>{`
         .sdb { background: var(--bg-main); min-height: 100vh; }
-        .sdb-content { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+        .sdb-content { padding: 45px 10rem 40px 45px; display: flex; flex-direction: column; gap: 20px; }
 
         /* ── Hero (no container — bare layout) ── */
         .sdb-hero {
@@ -113,7 +113,7 @@ export default function StudentDashboardPage() {
           gap: 16px;
           padding: 4px 2px 0;
         }
-        .sdb-hero-left { flex: 1; min-width: 0; }
+        .sdb-hero-left { flex: 1; min-width: 0; padding-left: 1.3rem }
         .sdb-hero-school {
           font-size: 55px;
           font-weight: 900;
@@ -343,11 +343,11 @@ export default function StudentDashboardPage() {
         }
         @media (max-width: 560px) {
           .sdb-content { padding: 14px; gap: 14px; }
-          .sdb-hero { flex-direction: column; align-items: flex-start; }
+          .sdb-hero { flex-direction: column; align-items: flex-start; padding : 2rem 0 1rem 0}
           .sdb-hero-right { display: none; }
-          .sdb-hero-school { font-size: 22px; }
-          .sdb-hero-greeting { font-size: 15px; }
-          .sdb-hero-name { font-size: 26px; }
+          .sdb-hero-school { font-size: 32px; margin-bottom: 1rem }
+          .sdb-hero-greeting { font-size: 30px; }
+          .sdb-hero-name { font-size: 30px; }
           .sdb-stat-value { font-size: 24px; }
         }
         @media (max-width: 400px) {
@@ -379,8 +379,8 @@ export default function StudentDashboardPage() {
                   <Image
                     src={greeting.img}
                     alt={greeting.text}
-                    width={28}
-                    height={28}
+                    width={78}
+                    height={78}
                     style={{ objectFit: "contain" }}
                   />
                   {greeting.text},

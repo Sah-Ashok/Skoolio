@@ -55,19 +55,14 @@ export const getSectionRegister = async (
   section_id: number,
   school_id: number,
   academic_year_id: number,
-  year: number,
-  month: number           // 1-indexed
+  startDate: string,
+  endDate: string
 ): Promise<any[]> => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const monthStart = `${year}-${pad(month)}-01`;
-  const lastDay    = new Date(year, month, 0).getDate();
-  const monthEnd   = `${year}-${pad(month)}-${pad(lastDay)}`;
-
   const result = await pool.query(
     `SELECT
        s.id                                                      AS student_id,
        s.full_name,
-       s.admission_number,
+       se.roll_number,
        a.date::text                                              AS date,
        ad.status,
        yt.year_present,
@@ -108,8 +103,8 @@ export const getSectionRegister = async (
        AND se.school_id         = $2
        AND se.academic_year_id  = $3
        AND se.status            = 'active'
-     ORDER BY s.full_name ASC, a.date ASC`,
-    [section_id, school_id, academic_year_id, monthStart, monthEnd]
+     ORDER BY se.roll_number ASC NULLS LAST, s.full_name ASC, a.date ASC`,
+    [section_id, school_id, academic_year_id, startDate, endDate]
   );
   return result.rows;
 };

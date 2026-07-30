@@ -409,10 +409,10 @@ export const getSectionRegisterService = async (
   section_id:       number,
   school_id:        number,
   academic_year_id: number,
-  year:             number,
-  month:            number,
+  startDate:        string,
+  endDate:          string,
   teacherId?:       number
 ) => {
   await assertCoordinator(section_id, school_id, teacherId);
-  return getSectionRegister(section_id, school_id, academic_year_id, year, month);
+  return getSectionRegister(section_id, school_id, academic_year_id, startDate, endDate);
 };

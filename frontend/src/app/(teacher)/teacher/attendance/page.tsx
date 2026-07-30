@@ -3,12 +3,14 @@
 import { useState } from "react";
 import TeacherAttendanceOverviewPage from "@/components/teacher/TeacherAttendanceOverviewPage";
 import TeacherOwnAttendancePage from "@/components/teacher/TeacherOwnAttendancePage";
+import TeacherAttendanceRegisterPage from "@/components/teacher/TeacherAttendanceRegisterPage";
 
-type Tab = "own" | "class";
+type Tab = "own" | "class" | "register";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: "own",   label: "My Attendance",  icon: "fa-user-check"     },
-  { key: "class", label: "Class Overview", icon: "fa-clipboard-list" },
+  { key: "own",      label: "My Attendance",     icon: "fa-user-check"     },
+  { key: "class",    label: "Class Overview",    icon: "fa-clipboard-list" },
+  { key: "register", label: "Attendance Register", icon: "fa-table-list"   },
 ];
 
 export default function TeacherAttendanceRoutePage() {
@@ -42,6 +44,7 @@ export default function TeacherAttendanceRoutePage() {
               alignItems: "center",
               gap: 7,
               transition: "color .15s",
+              whiteSpace: "nowrap",
             }}
           >
             <i className={`fa-solid ${t.icon}`} style={{ fontSize: 12 }} />
@@ -52,8 +55,9 @@ export default function TeacherAttendanceRoutePage() {
 
       {/* Tab content */}
       <div style={{ flex: 1 }}>
-        {tab === "own"   && <TeacherOwnAttendancePage />}
-        {tab === "class" && <TeacherAttendanceOverviewPage />}
+        {tab === "own"      && <TeacherOwnAttendancePage />}
+        {tab === "class"    && <TeacherAttendanceOverviewPage />}
+        {tab === "register" && <TeacherAttendanceRegisterPage />}
       </div>
     </div>
   );
