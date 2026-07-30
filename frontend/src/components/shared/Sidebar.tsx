@@ -191,14 +191,34 @@ export default function Sidebar({ role }: SidebarProps) {
       : (user?.full_name || user?.email?.split('@')[0] || 'User')
 
   const initials = displayName.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()
+  const schoolName = user?.school_name || 'Skoolio'
+  const schoolInitials = schoolName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(word => word[0])
+    .join('')
+    .toUpperCase() || 'S'
+  const isSchoolPortal = activeRole === 'faculty' || activeRole === 'student'
 
-  const isActive = (path: string) =>
-    pathname === path || pathname.startsWith(`${path}/`)
-      ? 'nav-item active'
-      : 'nav-item'
+  // Exact match always wins.
+  // For parent-level paths (depth < 4), allow prefix match so e.g. /teacher/attendance
+  // lights up for /teacher/attendance/class. For leaf-level payment pages (depth ≥ 4)
+  // use EXACT match only — prevents /student/fees/submit-pay-form from being active
+  // while on /student/fees/bank-details (they are siblings, not parent/child).
+  const isActive = (path: string) => {
+    if (pathname === path) return 'nav-item active'
+    const depth = path.split('/').filter(Boolean).length
+    if (depth < 3 && pathname.startsWith(`${path}/`)) return 'nav-item active'
+    return 'nav-item'
+  }
 
-  const isMobileActive = (path: string) =>
-    pathname === path || pathname.startsWith(`${path}/`)
+  const isMobileActive = (path: string) => {
+    if (pathname === path) return true
+    const depth = path.split('/').filter(Boolean).length
+    return depth < 3 && pathname.startsWith(`${path}/`)
+  }
 
   const handleLogout = async () => {
     await dispatch(logoutThunk())
@@ -209,11 +229,21 @@ export default function Sidebar({ role }: SidebarProps) {
     <>
       {/* ══ DESKTOP SIDEBAR ══ */}
       <aside className="sidebar">
-        <div className="sidebar-logo" style={{ background: '#fff', flexDirection: 'column', alignItems: 'center', padding: '18px 20px' }}>
-          <Link href="/" style={{ display: 'block', lineHeight: 0, textDecoration: 'none' }}>
-            <Image src="/Logo.png" alt="Skoolio" width={200} height={60} priority
-              style={{ objectFit: 'contain', width: 'auto', height: 56, maxWidth: '100%' }} />
-          </Link>
+        <div className={`sidebar-logo${isSchoolPortal ? ' sidebar-school-logo' : ''}`}>
+          {isSchoolPortal ? (
+            <Link href={activeRole === 'faculty' ? '/teacher/dashboard' : '/student/dashboard'} className="school-brand">
+              <span className="school-monogram" aria-hidden="true">{schoolInitials}</span>
+              <span className="school-brand-copy">
+                <strong>{schoolName}</strong>
+                <small>{roleLabel[activeRole]}</small>
+              </span>
+            </Link>
+          ) : (
+            <Link href="/" className="skoolio-brand">
+              <Image src="/Logo.png" alt="Skoolio" width={200} height={60} priority
+                style={{ objectFit: 'contain', width: 'auto', height: 48, maxWidth: '100%' }} />
+            </Link>
+          )}
         </div>
 
         <nav className="nav">
