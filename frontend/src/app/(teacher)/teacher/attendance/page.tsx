@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import TeacherAttendanceOverviewPage from "@/components/teacher/TeacherAttendanceOverviewPage";
+
 import TeacherOwnAttendancePage from "@/components/teacher/TeacherOwnAttendancePage";
 import TeacherAttendanceRegisterPage from "@/components/teacher/TeacherAttendanceRegisterPage";
 
@@ -9,7 +9,6 @@ type Tab = "own" | "class" | "register";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: "own",      label: "My Attendance",     icon: "fa-user-check"     },
-  { key: "class",    label: "Class Overview",    icon: "fa-clipboard-list" },
   { key: "register", label: "Attendance Register", icon: "fa-table-list"   },
 ];
 
@@ -25,6 +24,8 @@ export default function TeacherAttendanceRoutePage() {
         borderBottom: "2px solid #dce5e9",
         padding: "0 28px",
         flexShrink: 0,
+        overflowX: "auto",
+        WebkitOverflowScrolling: "touch",
       }}>
         {TABS.map(t => (
           <button
@@ -54,9 +55,8 @@ export default function TeacherAttendanceRoutePage() {
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         {tab === "own"      && <TeacherOwnAttendancePage />}
-        {tab === "class"    && <TeacherAttendanceOverviewPage />}
         {tab === "register" && <TeacherAttendanceRegisterPage />}
       </div>
     </div>

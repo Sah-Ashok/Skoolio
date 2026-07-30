@@ -425,21 +425,25 @@ export default function TeacherAttendanceRegisterPage() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 9px 14px;
+          padding: 10px 16px;
           border-radius: 8px;
-          background: #FF9B51;
+          background: linear-gradient(135deg, #FF9B51, #f08840);
           color: #fff;
           font-weight: 800;
-          font-size: 12px;
+          font-size: 13px;
           text-decoration: none;
           white-space: nowrap;
-          transition: background .15s;
+          transition: transform .15s, box-shadow .15s;
+          box-shadow: 0 4px 10px rgba(255, 155, 81, 0.3);
         }
-        .mark-btn:hover { background: #f08840; }
+        .mark-btn:hover { 
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(255, 155, 81, 0.4); 
+        }
 
         /* Sub-header */
         .reg-subhdr {
-          padding: 10px 20px;
+          padding: 14px 22px;
           background: #fff;
           border-bottom: 1px solid #e8edf2;
           display: flex;
@@ -455,9 +459,9 @@ export default function TeacherAttendanceRegisterPage() {
           overflow: auto;
           margin: 16px 20px 20px;
           border: 1px solid #e2e8f0;
-          border-radius: 10px;
+          border-radius: 12px;
           background: #fff;
-          box-shadow: 0 1px 3px rgba(0,0,0,.04);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
         .reg-table {
           border-collapse: separate;
@@ -472,7 +476,6 @@ export default function TeacherAttendanceRegisterPage() {
           background: inherit;
         }
         .col-name {
-          position: sticky; left: ${W_ROLL}px; z-index: 4;
           background: inherit;
         }
 
@@ -517,30 +520,25 @@ export default function TeacherAttendanceRegisterPage() {
           background: #fef9f9;
           color: #94a3b8;
         }
-        /* Weekend / holiday header — vertical text */
+        /* Weekend / holiday header */
         .th-off {
-          background: #f1f5f9;
+          background: #f8fafc;
           color: #94a3b8;
           font-size: 9px;
-          padding: 4px 2px;
-          vertical-align: bottom;
+          padding: 6px 2px;
+          vertical-align: middle;
         }
-        .th-off-inner {
-          writing-mode: vertical-lr;
-          transform: rotate(180deg);
-          white-space: nowrap;
-          max-height: 72px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          font-weight: 700;
-          font-size: 9px;
-          letter-spacing: .03em;
-          color: #94a3b8;
-          display: block;
-          line-height: 1.2;
+        .th-off-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 20px;
+          width: 20px;
+          margin: 0 auto;
+          border-radius: 5px;
         }
-        .th-off.is-weekend .th-off-inner { color: #94a3b8; }
-        .th-off.is-holiday .th-off-inner { color: #f472b6; }
+        .th-off.is-weekend .th-off-icon { background: #f1f5f9; color: #94a3b8; }
+        .th-off.is-holiday .th-off-icon { background: #fce7f3; color: #ec4899; }
 
         /* Sub-header row (day numbers) */
         .th-day-num {
@@ -551,7 +549,7 @@ export default function TeacherAttendanceRegisterPage() {
 
         /* Body cells */
         .td-base {
-          padding: 6px 4px;
+          padding: 8px 4px;
           border-bottom: 1px solid #f1f5f9;
           vertical-align: middle;
           text-align: center;
@@ -563,19 +561,8 @@ export default function TeacherAttendanceRegisterPage() {
           vertical-align: middle;
           position: relative;
         }
-        .td-off::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 3px;
-          background: #cbd5e1;
-          border-radius: 0;
-        }
         .td-off.is-holiday {
-          background: #fff5f5;
-        }
-        .td-off.is-holiday::before {
-          background: #ef4444;
+          background: #fffafa;
         }
 
         /* Total cells */
@@ -609,12 +596,11 @@ export default function TeacherAttendanceRegisterPage() {
           left: 0;
           z-index: 2;
           background: #f8fafc;
-          text-align: right;
-          padding-right: 12px;
+          text-align: center;
           color: #b45309;
           font-size: 10px;
           letter-spacing: .05em;
-          border-right: 2px solid #e2e8f0;
+          border-right: 1px solid #e8edf2;
         }
         .foot-p { color: #16a34a; line-height: 1.3; }
         .foot-a { color: #dc2626; line-height: 1.3; }
@@ -629,7 +615,7 @@ export default function TeacherAttendanceRegisterPage() {
         }
       `}</style>
 
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 52px)", background: "#f6f8fa" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 52px)", background: "#f6f8fa", minWidth: 0, maxWidth: "100%" }}>
 
         {/* ── Controls ── */}
         <div className="reg-controls">
@@ -745,7 +731,7 @@ export default function TeacherAttendanceRegisterPage() {
                       rowSpan={2}
                       className="th-base th-roll-name col-name"
                       style={{
-                        width: W_NAME, left: W_ROLL,
+                        width: W_NAME,
                         background: "#1e293b", color: "#64748b",
                         borderRight: "2px solid #2d3f55",
                         textAlign: "left", paddingLeft: 14,
@@ -779,7 +765,7 @@ export default function TeacherAttendanceRegisterPage() {
                       const isWorking = col.kind === "working";
 
                       if (!isWorking) {
-                        // Weekend / holiday — vertical label
+                        // Weekend / holiday
                         return (
                           <th
                             key={col.iso}
@@ -788,14 +774,21 @@ export default function TeacherAttendanceRegisterPage() {
                               width: W_OFF, top: 25, zIndex: 3,
                               borderRight: "1px solid #e8edf2",
                             }}
+                            title={col.label}
                           >
-                            <div style={{ fontWeight: 800, fontSize: 10, color: col.kind === "holiday" ? "#c084fc" : "#cbd5e1", lineHeight: 1, marginBottom: 2 }}>
+                            <div style={{ fontWeight: 800, fontSize: 10, color: col.kind === "holiday" ? "#ec4899" : "#cbd5e1", lineHeight: 1, marginBottom: 2 }}>
                               {getDisplayDay(col.iso)}
                             </div>
-                            <div style={{ fontSize: 8, color: col.kind === "holiday" ? "#c084fc" : "#cbd5e1", marginBottom: 3 }}>
+                            <div style={{ fontSize: 8, color: col.kind === "holiday" ? "#ec4899" : "#cbd5e1", marginBottom: 4 }}>
                               {DAY_SHORT[localDow(col.iso)]}
                             </div>
-                            <span className="th-off-inner">{col.label}</span>
+                            <div className="th-off-icon">
+                              {col.kind === "holiday" ? (
+                                <i className="fa-solid fa-gift" style={{ fontSize: 10 }} />
+                              ) : (
+                                <i className="fa-solid fa-mug-hot" style={{ fontSize: 10 }} />
+                              )}
+                            </div>
                           </th>
                         );
                       }
@@ -871,7 +864,6 @@ export default function TeacherAttendanceRegisterPage() {
                         <td
                           className="col-name"
                           style={{
-                            position: "sticky", left: W_ROLL, zIndex: 2,
                             padding: "8px 8px 8px 14px",
                             borderBottom: "1px solid #f1f5f9",
                             borderRight: "2px solid #e8edf2",
@@ -899,16 +891,22 @@ export default function TeacherAttendanceRegisterPage() {
                                 key={col.iso}
                                 className={`td-off ${isHol ? "is-holiday" : ""}`}
                                 style={{ width: W_OFF, textAlign: "center", verticalAlign: "middle" }}
+                                title={col.label}
                               >
                                 <span style={{
-                                  display: "inline-block",
-                                  fontSize: 9,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: 22,
+                                  height: 22,
+                                  margin: "0 auto",
+                                  borderRadius: 5,
+                                  fontSize: 10,
                                   fontWeight: 800,
-                                  color: isHol ? "#c084fc" : "#cbd5e1",
-                                  letterSpacing: "-0.2px",
-                                  lineHeight: 1,
+                                  background: isHol ? "#fce7f3" : "#f1f5f9",
+                                  color: isHol ? "#ec4899" : "#94a3b8",
                                 }}>
-                                  {isHol ? "H" : "Off"}
+                                  {isHol ? "H" : "W"}
                                 </span>
                               </td>
                             );
@@ -946,12 +944,12 @@ export default function TeacherAttendanceRegisterPage() {
                   {/* Day total footer */}
                   <tr className="tr-foot">
                     <td
-                      colSpan={2}
                       className="foot-label"
-                      style={{ width: W_ROLL + W_NAME }}
+                      style={{ width: W_ROLL }}
                     >
-                      Day Total
+                      DT
                     </td>
+                    <td style={{ width: W_NAME, borderRight: "2px solid #e2e8f0" }}></td>
                     {dayCols.map(col => {
                       if (col.kind !== "working") {
                         return (
