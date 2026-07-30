@@ -1,0 +1,319 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--sidebar-w:220px;--accent:#F97316;--accent2:#6366F1;--accent3:#10B981;--accent4:#EC4899;--accent5:#3B82F6;--accent6:#F59E0B}
+body{font-family:var(--font-sans);background:var(--surface-0);color:var(--text-primary)}
+.shell{display:flex;min-height:600px}
+.sidebar{width:var(--sidebar-w);background:var(--surface-2);border-right:0.5px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-logo{padding:20px 16px 16px;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid var(--border)}
+.logo-mark{width:36px;height:36px;border-radius:8px;background:var(--surface-0);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-weight:500;font-size:13px;color:var(--accent);flex-shrink:0}
+.logo-text{font-size:12px;font-weight:500;color:var(--text-primary);line-height:1.3}
+.logo-sub{font-size:10px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.nav-section{padding:16px 10px 4px}
+.nav-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 6px 6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:var(--radius);cursor:pointer;color:var(--text-secondary);font-size:13px;margin-bottom:2px;border:0.5px solid transparent;transition:all .15s}
+.nav-item:hover{background:var(--surface-1);color:var(--text-primary)}
+.nav-item.active{background:var(--surface-1);color:var(--text-primary);border-color:var(--border);font-weight:500}
+.nav-item.active .ni{color:var(--accent)}
+.ni{font-size:15px;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:12px;border-top:0.5px solid var(--border)}
+.user-chip{display:flex;align-items:center;gap:9px;padding:8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface-1)}
+.avatar{width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--accent);background:var(--surface-0);flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:10px;color:var(--text-muted)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:56px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--surface-2);flex-shrink:0}
+.topbar-left{display:flex;align-items:center;gap:8px}
+.greeting{font-size:14px;font-weight:500}
+.school-tag{font-size:11px;color:var(--text-muted)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-icon{width:32px;height:32px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface-1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);position:relative}
+.topbar-icon:hover{background:var(--surface-0)}
+.badge-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--accent);border:1.5px solid var(--surface-2)}
+.profile-btn{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface-1);cursor:pointer;font-size:12px;color:var(--text-secondary)}
+.profile-btn:hover{background:var(--surface-0)}
+.content{flex:1;padding:24px;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+.hero{background:var(--surface-2);border-radius:12px;border:0.5px solid var(--border);border-left:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.hero-left{}
+.hero-eyebrow{font-size:11px;color:var(--text-muted);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.sun{color:var(--accent6)}
+.hero-name{font-size:22px;font-weight:500;color:var(--text-primary);margin-bottom:2px}
+.hero-school{font-size:13px;color:var(--text-secondary);margin-bottom:12px}
+.hero-tags{display:flex;gap:8px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--border);color:var(--text-secondary);background:var(--surface-1)}
+.tag i{font-size:12px}
+.status-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid;color:var(--text-success);border-color:var(--border-success);background:var(--bg-success)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text-success)}
+.hero-avatar{width:64px;height:64px;border-radius:12px;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;color:var(--accent);background:var(--surface-1);flex-shrink:0}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat-card{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:2px 0 0 2px}
+.stat-card.c-orange::before{background:var(--accent)}
+.stat-card.c-green::before{background:var(--text-success)}
+.stat-card.c-blue::before{background:var(--text-accent)}
+.stat-card.c-purple::before{background:var(--text-pro)}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.stat-label i{font-size:14px}
+.stat-value{font-size:26px;font-weight:500;line-height:1;margin-bottom:4px}
+.stat-sub{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:5px}
+.ring{position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);display:flex;align-items:center;gap:7px}
+.section-title i{font-size:15px}
+.see-all{font-size:11px;color:var(--text-accent);cursor:pointer;display:flex;align-items:center;gap:4px}
+.quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.quick-card{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all .15s;position:relative;overflow:hidden}
+.quick-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
+.quick-card.qc1::after{background:var(--accent)}
+.quick-card.qc2::after{background:var(--accent6)}
+.quick-card.qc3::after{background:var(--text-success)}
+.quick-card.qc4::after{background:var(--text-accent)}
+.quick-card.qc5::after{background:var(--accent4)}
+.quick-card.qc6::after{background:var(--text-pro)}
+.quick-card.qc7::after{background:#0EA5E9}
+.quick-card.qc8::after{background:var(--accent2)}
+.quick-card:hover{background:var(--surface-1);transform:translateY(-1px)}
+.qc-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:18px;border:0.5px solid var(--border)}
+.qc-label{font-size:11px;font-weight:500;color:var(--text-secondary)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.panel{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px}
+.notice-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)}
+.notice-item:last-child{border-bottom:none;padding-bottom:0}
+.notice-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:5px;flex-shrink:0}
+.notice-read .notice-dot{background:var(--border-strong)}
+.notice-title{font-size:12px;font-weight:500;margin-bottom:2px}
+.notice-meta{font-size:10px;color:var(--text-muted)}
+.pay-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border)}
+.pay-item:last-child{border-bottom:none;padding-bottom:0}
+.pay-left{display:flex;align-items:center;gap:9px}
+.pay-icon{width:28px;height:28px;border-radius:6px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-secondary)}
+.pay-name{font-size:12px;font-weight:500}
+.pay-date{font-size:10px;color:var(--text-muted)}
+.pay-amount{font-size:12px;font-weight:500;color:var(--text-success)}
+.paid-chip{font-size:9px;padding:2px 7px;border-radius:20px;background:var(--bg-success);color:var(--text-success);border:0.5px solid var(--border-success)}
+@media(max-width:620px){
+.sidebar{display:none}
+.two-col{grid-template-columns:1fr}
+.stats-row{grid-template-columns:1fr 1fr}
+.hero{flex-direction:column;align-items:flex-start}
+}
+</style>
+
+<h2 class="sr-only">Nepal Test School — Student portal dashboard showing attendance, fees, notices, and quick access links</h2>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">NT</div>
+      <div class="logo-text">Nepal Test School<div class="logo-sub">Student Portal</div></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active"><i class="ti ti-layout-dashboard ni" aria-hidden="true"></i> Dashboard</div>
+      <div class="nav-item"><i class="ti ti-user ni" aria-hidden="true"></i> My Profile</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">My Records</div>
+      <div class="nav-item"><i class="ti ti-calendar-stats ni" aria-hidden="true"></i> Attendance</div>
+      <div class="nav-item"><i class="ti ti-file-certificate ni" aria-hidden="true"></i> Results</div>
+      <div class="nav-item"><i class="ti ti-receipt ni" aria-hidden="true"></i> My Fees</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Payments</div>
+      <div class="nav-item"><i class="ti ti-send ni" aria-hidden="true"></i> Submit Payment</div>
+      <div class="nav-item"><i class="ti ti-building-bank ni" aria-hidden="true"></i> Bank Details</div>
+      <div class="nav-item"><i class="ti ti-clock-hour-3 ni" aria-hidden="true"></i> My Submissions</div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">DE</div>
+        <div class="user-info">
+          <div class="user-name">Dev</div>
+          <div class="user-role">Student Portal</div>
+        </div>
+        <i class="ti ti-logout" aria-hidden="true" style="font-size:14px;color:var(--text-muted);cursor:pointer"></i>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <i class="ti ti-sun" style="font-size:16px;color:var(--accent6)" aria-hidden="true"></i>
+        <span class="greeting">Good morning, Dev!</span>
+        <span class="school-tag">— Nepal Test School</span>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-icon">
+          <i class="ti ti-bell" style="font-size:15px" aria-hidden="true"></i>
+          <span class="badge-dot"></span>
+        </div>
+        <div class="topbar-icon">
+          <i class="ti ti-search" style="font-size:15px" aria-hidden="true"></i>
+        </div>
+        <div class="profile-btn"><i class="ti ti-user-circle" style="font-size:14px" aria-hidden="true"></i> My Profile</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="hero">
+        <div class="hero-left">
+          <div class="hero-eyebrow"><i class="ti ti-sun sun" style="font-size:14px" aria-hidden="true"></i> Good morning</div>
+          <div class="hero-name">Dev</div>
+          <div class="hero-school">Nepal Test School</div>
+          <div class="hero-tags">
+            <span class="tag"><i class="ti ti-id-badge" aria-hidden="true"></i> Adm# 2083-0001</span>
+            <span class="tag"><i class="ti ti-calendar" aria-hidden="true"></i> 2082–2083</span>
+            <span class="status-chip"><span class="dot"></span>Active</span>
+          </div>
+        </div>
+        <div class="hero-avatar">DE</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card c-orange">
+          <div class="stat-label"><i class="ti ti-calendar-check" aria-hidden="true"></i> Attendance</div>
+          <div class="stat-value" style="color:var(--accent)">95%</div>
+          <div class="stat-sub"><i class="ti ti-trending-up" style="color:var(--text-success);font-size:12px" aria-hidden="true"></i> Good standing</div>
+          <svg class="ring" width="48" height="48" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="18" fill="none" stroke="var(--border)" stroke-width="3"/>
+            <circle cx="24" cy="24" r="18" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="107 113" stroke-dashoffset="28" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="stat-card c-green">
+          <div class="stat-label"><i class="ti ti-currency-rupee" aria-hidden="true"></i> Fees Due</div>
+          <div class="stat-value" style="color:var(--text-success)">Clear</div>
+          <div class="stat-sub"><i class="ti ti-circle-check" style="color:var(--text-success);font-size:12px" aria-hidden="true"></i> All paid</div>
+        </div>
+        <div class="stat-card c-blue">
+          <div class="stat-label"><i class="ti ti-bell" aria-hidden="true"></i> Notices</div>
+          <div class="stat-value" style="color:var(--text-accent)">1</div>
+          <div class="stat-sub" style="color:var(--text-accent)">Unread notice</div>
+        </div>
+        <div class="stat-card c-purple">
+          <div class="stat-label"><i class="ti ti-star" aria-hidden="true"></i> Overall Grade</div>
+          <div class="stat-value" style="color:var(--text-pro)">A+</div>
+          <div class="stat-sub">Term 2 · 2082-83</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-header">
+          <div class="section-title"><i class="ti ti-bolt" aria-hidden="true"></i> Quick access</div>
+          <div class="see-all">View all <i class="ti ti-chevron-right" style="font-size:11px" aria-hidden="true"></i></div>
+        </div>
+        <div class="quick-grid">
+          <div class="quick-card qc1">
+            <div class="qc-icon" style="color:var(--accent)"><i class="ti ti-calendar-stats" aria-hidden="true"></i></div>
+            <div class="qc-label">Attendance</div>
+          </div>
+          <div class="quick-card qc2">
+            <div class="qc-icon" style="color:var(--accent6)"><i class="ti ti-receipt" aria-hidden="true"></i></div>
+            <div class="qc-label">My Fees</div>
+          </div>
+          <div class="quick-card qc3">
+            <div class="qc-icon" style="color:var(--text-success)"><i class="ti ti-file-certificate" aria-hidden="true"></i></div>
+            <div class="qc-label">Results</div>
+          </div>
+          <div class="quick-card qc4">
+            <div class="qc-icon" style="color:var(--text-accent)"><i class="ti ti-calendar-event" aria-hidden="true"></i></div>
+            <div class="qc-label">Calendar</div>
+          </div>
+          <div class="quick-card qc5">
+            <div class="qc-icon" style="color:var(--accent4)"><i class="ti ti-user-circle" aria-hidden="true"></i></div>
+            <div class="qc-label">Profile</div>
+          </div>
+          <div class="quick-card qc7">
+            <div class="qc-icon" style="color:#0EA5E9"><i class="ti ti-send" aria-hidden="true"></i></div>
+            <div class="qc-label">Pay Now</div>
+          </div>
+          <div class="quick-card qc8">
+            <div class="qc-icon" style="color:var(--accent2)"><i class="ti ti-building-bank" aria-hidden="true"></i></div>
+            <div class="qc-label">Bank Info</div>
+          </div>
+          <div class="quick-card qc6">
+            <div class="qc-icon" style="color:var(--text-pro)"><i class="ti ti-clock-hour-3" aria-hidden="true"></i></div>
+            <div class="qc-label">My Payments</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="section-header" style="margin-bottom:8px">
+            <div class="section-title"><i class="ti ti-bell" aria-hidden="true"></i> Notices</div>
+            <div class="see-all">Mark all read</div>
+          </div>
+          <div class="notice-item">
+            <span class="notice-dot"></span>
+            <div>
+              <div class="notice-title">Exam schedule for Term 3 published</div>
+              <div class="notice-meta">Today · 9:14 AM</div>
+            </div>
+          </div>
+          <div class="notice-item notice-read">
+            <span class="notice-dot"></span>
+            <div>
+              <div class="notice-title" style="color:var(--text-secondary);font-weight:400">Sports day rescheduled to Bhadra 12</div>
+              <div class="notice-meta">Yesterday · 3:05 PM</div>
+            </div>
+          </div>
+          <div class="notice-item notice-read">
+            <span class="notice-dot"></span>
+            <div>
+              <div class="notice-title" style="color:var(--text-secondary);font-weight:400">Library hours extended until 6 PM</div>
+              <div class="notice-meta">2 days ago</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-header" style="margin-bottom:8px">
+            <div class="section-title"><i class="ti ti-history" aria-hidden="true"></i> Recent Payments</div>
+            <div class="see-all">View all <i class="ti ti-chevron-right" style="font-size:11px" aria-hidden="true"></i></div>
+          </div>
+          <div class="pay-item">
+            <div class="pay-left">
+              <div class="pay-icon"><i class="ti ti-receipt" aria-hidden="true"></i></div>
+              <div>
+                <div class="pay-name">Tuition — Term 2</div>
+                <div class="pay-date">Shrawan 15, 2083</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="pay-amount">₹ 12,500</div>
+              <span class="paid-chip">Paid</span>
+            </div>
+          </div>
+          <div class="pay-item">
+            <div class="pay-left">
+              <div class="pay-icon"><i class="ti ti-book" aria-hidden="true"></i></div>
+              <div>
+                <div class="pay-name">Library Fee</div>
+                <div class="pay-date">Ashad 30, 2083</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="pay-amount">₹ 500</div>
+              <span class="paid-chip">Paid</span>
+            </div>
+          </div>
+          <div class="pay-item">
+            <div class="pay-left">
+              <div class="pay-icon"><i class="ti ti-shirt" aria-hidden="true"></i></div>
+              <div>
+                <div class="pay-name">Sports Kit</div>
+                <div class="pay-date">Ashad 12, 2083</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="pay-amount">₹ 1,800</div>
+              <span class="paid-chip">Paid</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
