@@ -5,6 +5,7 @@ import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 import {
   createAttendanceService, getAttendanceBySectionService,
   getAttendanceByIdService, updateAttendanceService, submitAttendanceService,
+  deleteAttendanceService,
   updateAttendanceDetailService, getStudentAttendanceSummaryService,
   getStudentMonthlyAttendanceService, assignSectionTeacherService,
   getSectionTeacherHistoryService,
@@ -55,6 +56,17 @@ export const submitAttendance = catchAsync(async (req: Request, res: Response, n
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const result = await submitAttendanceService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Attendance submitted successfully', result);
+});
+
+// ── DELETE ATTENDANCE (faculty only — for unsuspending a class) ──
+// Only allows deletion of is_holiday=true (suspension) records.
+// Submitted normal attendance cannot be deleted by teacher — admin only.
+export const deleteAttendance = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
+  await deleteAttendanceService(Number(req.params.id), school_id, teacherId);
+  sendResponse(res, 200, true, 'Attendance record deleted successfully', null);
 });
 
 export const updateAttendanceDetail = catchAsync(async (req: Request, res: Response, next: NextFunction) => {

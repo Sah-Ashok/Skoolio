@@ -1,6 +1,8 @@
 // Enums
 export type AttendanceStatus = 'draft' | 'submitted';
-export type StudentAttendanceStatus = 'present' | 'absent' | 'late' | 'leave';
+// 'suspended' is a SECTION-LEVEL flag (attendance.is_holiday = true + remarks = 'suspended')
+// NOT a per-student status. Per-student only has: present | absent | leave
+export type StudentAttendanceStatus = 'present' | 'absent' | 'leave';
 
 // ── ATTENDANCE ──
 export interface IAttendance {
@@ -9,15 +11,14 @@ export interface IAttendance {
   academic_year_id: number;
   class_id: number;
   section_id: number;
-  date: string;          // BUG-12 FIX: req.body sends a string; DB returns date::text
+  date: string;
   marked_by: number;
   total_present: number;
   total_absent: number;
-  total_late: number;
   total_leave: number;
   status: AttendanceStatus;
-  is_holiday: boolean;
-  remarks?: string;
+  is_holiday: boolean;   // true = class suspended / holiday (no per-student rows)
+  remarks?: string;      // e.g. "Class suspended due to flooding"
   created_at: Date;
   updated_at: Date;
 }
@@ -32,8 +33,7 @@ export type ICreateAttendance = Pick<
 > & {
   is_holiday?: boolean;
   remarks?: string;
-  // A class suspension is recorded at section level and intentionally has no
-  // per-student rows.
+  // Empty array when is_holiday = true (class suspended — no per-student rows)
   students: ICreateAttendanceDetail[];
 };
 
@@ -61,11 +61,9 @@ export type ICreateAttendanceDetail = Pick<
   'student_id' | 'enrollment_id' | 'status'
 > & {
   check_in_time?: string | null;
-  remarks?: string | null;
+  remarks?:       string | null;
 };
 
-// BUG-08 FIX: fields typed as `T | null | undefined` so the repository
-// can distinguish "not sent" (undefined = skip) from "clear it" (null = set NULL).
 export type IUpdateAttendanceDetail = {
   status?:        StudentAttendanceStatus | undefined;
   check_in_time?: string | null | undefined;
@@ -99,11 +97,10 @@ export type ICreateSectionTeacherHistory = Pick<
 // ── ATTENDANCE SUMMARY ──
 export interface IAttendanceSummary {
   total_working_days:    number;
-  total_marked_days:     number;   // days teacher has submitted attendance
-  total_remaining:       number;   // working days teacher hasn't filled yet
+  total_marked_days:     number;
+  total_remaining:       number;
   total_present:         number;
   total_absent:          number;
-  total_late:            number;
   total_leave:           number;
   attendance_percentage: number;
 }

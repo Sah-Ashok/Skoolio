@@ -1,247 +1,192 @@
-'use client'
+'use client';
 
-import Image from 'next/image'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useAppSelector, useAppDispatch } from '@/store/hooks'
-import { logoutThunk } from '@/store/authSlice'
+export {};
 
-export type SidebarProps = {
-  role?: "super-admin" | "admin" | "teacher" | "student"
+import Link from 'next/link';
+import Image from 'next/image';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { logout, logoutThunk } from '@/store/authSlice';
+
+type SidebarRole = 'admin' | 'teacher' | 'student';
+
+interface NavItem {
+  href: string;
+  icon: string;
+  label: string;
+  badge?: string;
+  exact?: boolean;
 }
 
-type NavLink    = { href: string; icon: string; label: string }
-type NavSection = { label: string; links: NavLink[] }
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const roleLabel: Record<SidebarRole, string> = {
+  admin: 'School Admin',
+  teacher: 'Faculty',
+  student: 'Student',
+};
 
 const adminNav: NavSection[] = [
   {
     label: 'Main',
-    links: [
-      { href: '/dashboard',        icon: 'fa-gauge-high',            label: 'Dashboard'        },
-      { href: '/students',         icon: 'fa-user-graduate',         label: 'Students'         },
-      { href: '/teachers',         icon: 'fa-chalkboard-user',       label: 'Faculty'          },
-      { href: '/subscription',     icon: 'fa-id-card-clip',          label: 'My Subscription'  },
-      { href: '/settings',         icon: 'fa-gear',                  label: 'Settings'         },
-      { href: '/history',          icon: 'fa-clock-rotate-left',     label: 'History'          },
+    items: [
+      { href: '/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/students', icon: 'fa-user-graduate', label: 'Students' },
+      { href: '/classes', icon: 'fa-school', label: 'Classes' },
+      { href: '/teachers', icon: 'fa-chalkboard-teacher', label: 'Teachers' },
+      { href: '/staff', icon: 'fa-user-tie', label: 'Staff' },
+    ],
+  },
+  {
+    label: 'Academics',
+    items: [
+      { href: '/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
+      { href: '/exams', icon: 'fa-file-alt', label: 'Exams' },
+      { href: '/notices', icon: 'fa-bullhorn', label: 'Notices' },
+      { href: '/calendar', icon: 'fa-calendar-days', label: 'Calendar' },
     ],
   },
   {
     label: 'Finance',
-    links: [
-      { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Management'   },
-      { href: '/fees/monthly-billing',  icon: 'fa-calendar-check',      label: 'Monthly Billing'  },
-      { href: '/fees/payment-requests', icon: 'fa-money-bill-transfer', label: 'Payment Requests' },
-      { href: '/fees/bank-accounts',    icon: 'fa-building-columns',    label: 'Bank Accounts'    },
-      { href: '/expenses',              icon: 'fa-wallet',              label: 'Expenses'         },
-      { href: '/salary',                icon: 'fa-money-bill-wave',     label: 'Faculty Salary'   },
-      { href: '/staff/salary',          icon: 'fa-coins',               label: 'Staff Salary'     },
-    ],
-  },
-  {
-    label: 'Academic',
-    links: [
-      { href: '/manage',         icon: 'fa-layer-group',      label: 'Manage Academic' },
-      { href: '/academic-years', icon: 'fa-calendar-plus',    label: 'Academic Years'  },
-      { href: '/classes',        icon: 'fa-school',           label: 'Classes'         },
-      { href: '/sections',       icon: 'fa-table-cells',      label: 'Sections'        },
-      { href: '/subjects',       icon: 'fa-book',             label: 'Subjects'        },
-      { href: '/calendar',       icon: 'fa-calendar-days',    label: 'Calendar'        },
-      { href: '/attendance',     icon: 'fa-chart-column',     label: 'Attendance'      },
-      { href: '/exams',          icon: 'fa-pen-to-square',    label: 'Exams & Results' },
-    ],
-  },
-  {
-    label: 'Communication',
-    links: [
-      { href: '/notices', icon: 'fa-bullhorn', label: 'Notice Board' },
+    items: [
+      { href: '/fees', icon: 'fa-file-invoice-dollar', label: 'Fees' },
+      { href: '/expenses', icon: 'fa-receipt', label: 'Expenses' },
+      { href: '/salary', icon: 'fa-money-bill-wave', label: 'Salary' },
     ],
   },
   {
     label: 'Facilities',
-    links: [
-      { href: '/transport', icon: 'fa-bus',      label: 'Transport' },
-      { href: '/hostel',    icon: 'fa-building', label: 'Hostel'    },
+    items: [
+      { href: '/transport', icon: 'fa-bus', label: 'Transport' },
+      { href: '/hostel', icon: 'fa-building', label: 'Hostel' },
     ],
   },
   {
-    label: 'Staff',
-    links: [
-      { href: '/staff',            icon: 'fa-users-gear',      label: 'Staff Members'        },
-      { href: '/staff/attendance', icon: 'fa-clipboard-check', label: 'Staff & Teacher Att.' },
+    label: 'System',
+    items: [
+      { href: '/settings', icon: 'fa-gear', label: 'Settings' },
+      { href: '/subscription', icon: 'fa-crown', label: 'Subscription' },
     ],
   },
-]
+];
 
 const teacherNav: NavSection[] = [
   {
     label: 'Main',
-    links: [
-      { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard'  },
-      { href: '/teacher/profile',   icon: 'fa-id-badge',   label: 'My Profile' },
+    items: [
+      { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Mark Attendance', exact: true },
+      { href: '/teacher/attendance', icon: 'fa-user-check', label: 'My Attendance', exact: true },
+      { href: '/teacher/students', icon: 'fa-users', label: 'My Students' },
+      { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Enter Results' },
     ],
   },
   {
-    label: 'Classroom',
-    links: [
-      { href: '/teacher/students',         icon: 'fa-users',           label: 'My Students'         },
-      { href: '/teacher/attendance',       icon: 'fa-user-check',      label: 'Attendance Overview' },
-      { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Mark Attendance'     },
-      { href: '/teacher/results',          icon: 'fa-pen-to-square',   label: 'Enter Results'       },
-    ],
-  },
-  {
-    label: 'Payroll',
-    links: [
+    label: 'Info',
+    items: [
+      { href: '/teacher/notices', icon: 'fa-bullhorn', label: 'Notices' },
+      { href: '/teacher/calendar', icon: 'fa-calendar-days', label: 'Calendar' },
       { href: '/teacher/salary', icon: 'fa-money-bill-wave', label: 'My Salary' },
+      { href: '/teacher/profile', icon: 'fa-user', label: 'Profile' },
     ],
   },
-  {
-    label: 'School',
-    links: [
-      { href: '/teacher/calendar', icon: 'fa-calendar-days', label: 'Calendar'     },
-      { href: '/teacher/notices',  icon: 'fa-bullhorn',      label: 'Notice Board' },
-    ],
-  },
-]
+];
 
 const studentNav: NavSection[] = [
   {
     label: 'Main',
-    links: [
-      { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard'  },
-      { href: '/student/profile',   icon: 'fa-id-badge',   label: 'My Profile' },
+    items: [
+      { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/student/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
+      { href: '/student/results', icon: 'fa-file-circle-check', label: 'Results' },
+      { href: '/student/fees', icon: 'fa-file-invoice-dollar', label: 'Fee Status' },
+      { href: '/student/notices', icon: 'fa-bullhorn', label: 'Notices' },
     ],
   },
   {
-    label: 'My Records',
-    links: [
-      { href: '/student/attendance', icon: 'fa-user-check',          label: 'My Attendance' },
-      { href: '/student/results',    icon: 'fa-file-circle-check',   label: 'My Results'    },
-      { href: '/student/fees',       icon: 'fa-file-invoice-dollar', label: 'My Fees'       },
+    label: 'Info',
+    items: [
+      { href: '/student/profile', icon: 'fa-user', label: 'Profile' },
+      { href: '/student/calendar', icon: 'fa-calendar-days', label: 'Calendar' },
     ],
   },
-  {
-    label: 'Payments',
-    links: [
-      { href: '/student/fees/submit-pay-form', icon: 'fa-paper-plane',       label: 'Submit Payment' },
-      { href: '/student/fees/bank-details',    icon: 'fa-building-columns',  label: 'Bank Details'   },
-      { href: '/student/fees/my-submissions',  icon: 'fa-clock-rotate-left', label: 'My Submissions' },
-    ],
-  },
-  {
-    label: 'School',
-    links: [
-      { href: '/student/calendar', icon: 'fa-calendar-days', label: 'Calendar'     },
-      { href: '/student/notices',  icon: 'fa-bullhorn',      label: 'Notice Board' },
-    ],
-  },
-]
+];
 
-const superAdminNav: NavSection[] = [
-  {
-    label: 'Platform',
-    links: [
-      { href: '/super-admin/dashboard',     icon: 'fa-gauge-high',       label: 'Dashboard'     },
-      { href: '/super-admin/schools',       icon: 'fa-building-columns', label: 'Schools'       },
-      { href: '/super-admin/subscriptions', icon: 'fa-credit-card',      label: 'Subscriptions' },
-      { href: '/super-admin/settings',      icon: 'fa-gear',             label: 'Settings'      },
-    ],
-  },
-]
+const navMap: Record<SidebarRole, NavSection[]> = {
+  admin: adminNav,
+  teacher: teacherNav,
+  student: studentNav,
+};
 
-type MobileGroup = { sectionLabel: string; links: NavLink[] }
-const adminMobileGroups:      MobileGroup[] = adminNav.map(s => ({ sectionLabel: s.label, links: s.links }))
-const teacherMobileGroups:    MobileGroup[] = teacherNav.map(s => ({ sectionLabel: s.label, links: s.links }))
-const studentMobileGroups:    MobileGroup[] = studentNav.map(s => ({ sectionLabel: s.label, links: s.links }))
-const superAdminMobileGroups: MobileGroup[] = superAdminNav.map(s => ({ sectionLabel: s.label, links: s.links }))
+function isNavItemActive(pathname: string, item: NavItem) {
+  if (item.exact) {
+    return pathname === item.href;
+  }
+
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
+
+interface SidebarProps {
+  role: SidebarRole;
+}
 
 export default function Sidebar({ role }: SidebarProps) {
-  const pathname = usePathname()
-  const router   = useRouter()
-  const dispatch = useAppDispatch()
-  const { user } = useAppSelector(state => state.auth)
-
-  const activeRole =
-    user?.role ||
-    (role === 'super-admin' ? 'super_admin' : role === 'teacher' ? 'faculty' : role) ||
-    'admin'
-
-  const roleLabel: Record<string, string> = {
-    super_admin: 'Super Admin',
-    admin:       'Admin Panel',
-    faculty:     'Teacher Portal',
-    student:     'Student Portal',
-  }
-
-  const navSections: NavSection[] =
-    activeRole === 'super_admin' ? superAdminNav :
-    activeRole === 'faculty'     ? teacherNav    :
-    activeRole === 'student'     ? studentNav    :
-    adminNav
-
-  const mobileGroups: MobileGroup[] =
-    activeRole === 'super_admin' ? superAdminMobileGroups :
-    activeRole === 'faculty'     ? teacherMobileGroups    :
-    activeRole === 'student'     ? studentMobileGroups    :
-    adminMobileGroups
-
-  const displayName =
-    activeRole === 'admin' || activeRole === 'super_admin'
-      ? (user?.school_name || 'Skoolio')
-      : (user?.full_name || user?.email?.split('@')[0] || 'User')
-
-  const initials = displayName.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()
-  const schoolName = user?.school_name || 'Skoolio'
-  const schoolInitials = schoolName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(word => word[0])
-    .join('')
-    .toUpperCase() || 'S'
-  const isSchoolPortal = activeRole === 'faculty' || activeRole === 'student'
-
-  // Exact match always wins.
-  // For parent-level paths (depth < 4), allow prefix match so e.g. /teacher/attendance
-  // lights up for /teacher/attendance/class. For leaf-level payment pages (depth ≥ 4)
-  // use EXACT match only — prevents /student/fees/submit-pay-form from being active
-  // while on /student/fees/bank-details (they are siblings, not parent/child).
-  const isActive = (path: string) => {
-    if (pathname === path) return 'nav-item active'
-    const depth = path.split('/').filter(Boolean).length
-    if (depth < 3 && pathname.startsWith(`${path}/`)) return 'nav-item active'
-    return 'nav-item'
-  }
-
-  const isMobileActive = (path: string) => {
-    if (pathname === path) return true
-    const depth = path.split('/').filter(Boolean).length
-    return depth < 3 && pathname.startsWith(`${path}/`)
-  }
+  const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector(s => s.auth);
+  const navSections = navMap[role];
+  const activeRole = role as SidebarRole;
 
   const handleLogout = async () => {
-    await dispatch(logoutThunk())
-    router.push('/login')
-  }
+    await dispatch(logoutThunk());
+    dispatch(logout());
+    router.push('/login');
+  };
+
+  const displayName = user?.full_name || user?.school_name || roleLabel[role];
+  const initials = displayName
+    .split(' ')
+    .map((w: string) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const allMobileItems = navSections.flatMap(s => s.items).slice(0, 6);
 
   return (
     <>
-      {/* ══ DESKTOP SIDEBAR ══ */}
       <aside className="sidebar">
-        <div className={`sidebar-logo${isSchoolPortal ? ' sidebar-school-logo' : ''}`}>
-          {isSchoolPortal ? (
-            <Link href={activeRole === 'faculty' ? '/teacher/dashboard' : '/student/dashboard'} className="school-brand">
-              <span className="school-monogram" aria-hidden="true">{schoolInitials}</span>
+        <div className="sidebar-logo">
+          {user?.logo ? (
+            <Link href="/" className="school-brand">
+              <div className="school-monogram">
+                <Image
+                  src={user.logo}
+                  alt={user.school_name || 'School'}
+                  width={58}
+                  height={58}
+                  style={{ objectFit: 'cover', borderRadius: 14, width: '100%', height: '100%' }}
+                />
+              </div>
               <span className="school-brand-copy">
-                <strong>{schoolName}</strong>
+                <strong>{user.school_name || 'School'}</strong>
                 <small>{roleLabel[activeRole]}</small>
               </span>
             </Link>
           ) : (
             <Link href="/" className="skoolio-brand">
-              <Image src="/Logo.png" alt="Skoolio" width={200} height={60} priority
-                style={{ objectFit: 'contain', width: 'auto', height: 48, maxWidth: '100%' }} />
+              <Image
+                src="/Logo.png"
+                alt="Skoolio"
+                width={160}
+                height={48}
+                priority
+                style={{ objectFit: 'contain', width: 'auto', height: 48 }}
+              />
             </Link>
           )}
         </div>
@@ -250,12 +195,20 @@ export default function Sidebar({ role }: SidebarProps) {
           {navSections.map(section => (
             <div key={section.label}>
               <div className="nav-label">{section.label}</div>
-              {section.links.map(link => (
-                <Link key={link.href} href={link.href} className={isActive(link.href)}>
-                  <i className={`fa-solid ${link.icon}`} />
-                  {link.label}
-                </Link>
-              ))}
+              {section.items.map(item => {
+                const isActive = isNavItemActive(pathname, item);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`nav-item${isActive ? ' active' : ''}`}
+                  >
+                    <i className={`fa-solid ${item.icon}`} />
+                    <span>{item.label}</span>
+                    {item.badge && <span className="nav-badge">{item.badge}</span>}
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </nav>
@@ -265,49 +218,37 @@ export default function Sidebar({ role }: SidebarProps) {
             <div className="s-avatar">{initials}</div>
             <div className="info">
               <p>{displayName}</p>
-              <span>{roleLabel[activeRole] || 'Admin Panel'}</span>
+              <span>{roleLabel[activeRole]}</span>
             </div>
-            <button className="logout-btn" onClick={handleLogout}
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }} title="Log out">
+            <button className="logout-btn" onClick={handleLogout} title="Logout">
               <i className="fa-solid fa-right-from-bracket" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* ══ MOBILE BOTTOM NAV ══ */}
-      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <div className="mobile-bottom-nav">
         <div className="mobile-nav-scroll">
-          {mobileGroups.map((group, gi) => (
-            <div key={group.sectionLabel} className="mobile-nav-group">
-              {gi > 0 && (
-                <div className="mobile-nav-divider" aria-hidden="true">
-                  <span>{group.sectionLabel}</span>
-                </div>
-              )}
-              {group.links.map(link => {
-                const active = isMobileActive(link.href)
-                return (
-                  <Link key={link.href} href={link.href}
-                    className={`mobile-nav-item${active ? ' mobile-nav-active' : ''}`}
-                    aria-current={active ? 'page' : undefined}>
-                    <i className={`fa-solid ${link.icon}`} />
-                    <span>{link.label}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
-          <div className="mobile-nav-group">
-            <div className="mobile-nav-divider" aria-hidden="true"><span>Account</span></div>
-            <button className="mobile-nav-item mobile-nav-logout" onClick={handleLogout} aria-label="Log out">
-              <i className="fa-solid fa-right-from-bracket" />
-              <span>Logout</span>
-            </button>
-          </div>
+          {allMobileItems.map(item => {
+            const isActive = isNavItemActive(pathname, item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`mobile-nav-item${isActive ? ' mobile-nav-active' : ''}`}
+              >
+                <i className={`fa-solid ${item.icon}`} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <button className="mobile-nav-item mobile-nav-logout" onClick={handleLogout}>
+            <i className="fa-solid fa-right-from-bracket" />
+            <span>Logout</span>
+          </button>
         </div>
-        <div className="mobile-nav-fade" aria-hidden="true" />
-      </nav>
+        <div className="mobile-nav-fade" />
+      </div>
     </>
-  )
+  );
 }

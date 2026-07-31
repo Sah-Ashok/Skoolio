@@ -3,7 +3,7 @@ import protect from '../middlewares/auth.middleware';
 import restrictTo from '../middlewares/role.middleware';
 import {
   createAttendance, getAttendanceBySection, getAttendanceById,
-  updateAttendance, submitAttendance, updateAttendanceDetail,
+  updateAttendance, submitAttendance, deleteAttendance, updateAttendanceDetail,
   getStudentAttendanceSummary, getStudentMonthlyAttendance,
   assignSectionTeacher, getSectionTeacherHistory,
   getMyAttendanceSummary, getMyMonthlyAttendance,
@@ -52,5 +52,6 @@ router.post  ('/',              restrictTo('faculty'), createAttendance);
 router.get   ('/:id',          restrictTo('admin', 'super_admin', 'faculty'), getAttendanceById);
 router.patch ('/:id',          restrictTo('faculty'), updateAttendance);
 router.patch ('/:id/submit',   restrictTo('faculty'), submitAttendance);
+router.delete('/:id',          restrictTo('faculty'), deleteAttendance);
 
 export default router;

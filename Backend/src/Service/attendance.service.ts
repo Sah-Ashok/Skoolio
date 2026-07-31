@@ -6,7 +6,7 @@ import {
   getSectionAttendanceSummary, getSectionRegister,
   getClassAttendanceOverview, getAllClassesAttendanceOverview,
   createSectionTeacherHistory, getSectionTeacherHistory, updateSectionTeacherHistory,
-  getAdminSectionSummary,
+  getAdminSectionSummary, deleteAttendanceById,
 } from '../Repositories/attendance.repository';
 import { calculateWorkingDays, isWorkingDayService } from './calendar.service';
 import {
@@ -17,7 +17,6 @@ import {
 import { getSectionById } from '../Repositories/class.repository';
 import { getStudentById } from '../Repositories/student.repository';
 import { getAcademicYearById } from '../Repositories/academic.repository';
-import { findSchoolById } from '../Repositories/auth.repository';
 import AppError from '../utils/AppError';
 
 // ── Helper: get today's date in the school's local timezone ─────────────────
@@ -25,7 +24,6 @@ const getTodayInTimezone = (timezone: string): string => {
   try {
     return new Date().toLocaleDateString('en-CA', { timeZone: timezone }); // 'en-CA' gives YYYY-MM-DD
   } catch {
-    // Fallback: use UTC if timezone string is invalid
     return new Date().toISOString().split('T')[0];
   }
 };
@@ -52,15 +50,29 @@ const toDateString = (date: string | Date): string =>
   typeof date === 'string' ? date.slice(0, 10) : date.toISOString().slice(0, 10);
 
 // ── CREATE ATTENDANCE ────────────────────────────────────────────────────────
+//
+// Two modes:
+//   1. Class suspension  → { is_holiday: true, remarks: "reason", students: [] }
+//      Sets attendance.is_holiday = true, no per-student rows, auto-submitted immediately.
+//      This records that the section had no class that day (teacher-declared, not a calendar holiday).
+//
+//   2. Normal attendance → { is_holiday: false/undefined, students: [...] }
+//      Creates per-student rows with status: 'present' | 'absent' | 'leave'.
+//      Stays as 'draft' until teacher manually submits.
+// ─────────────────────────────────────────────────────────────────────────────
 export const createAttendanceService = async (
   school_id: number,
   data: ICreateAttendance,
   teacherId?: number
 ) => {
   const isClassSuspension = data.is_holiday === true;
+
+  // Validate: normal attendance must have students
   if (!isClassSuspension && (!data.students || data.students.length === 0))
     throw new AppError('No students provided for attendance.', 400);
-  if (isClassSuspension && data.students.length > 0)
+
+  // Validate: suspension must NOT have student rows
+  if (isClassSuspension && data.students && data.students.length > 0)
     throw new AppError('A class suspension cannot contain individual student attendance.', 400);
 
   assertAttendanceDate(data.date);
@@ -81,19 +93,24 @@ export const createAttendanceService = async (
   const existing = await getAttendanceByDate(data.section_id, school_id, dateStr);
   if (existing) throw new AppError('Attendance already marked for this section on this date.', 400);
 
+  // Create the header row
   const attendance = await createAttendance(school_id, data);
-  const details    = isClassSuspension
-    ? []
-    : await createAttendanceDetails(school_id, attendance.id, data.students);
 
+  // Class suspension: no student rows, auto-submit immediately
+  if (isClassSuspension) {
+    const submitted = await updateAttendance(attendance.id, school_id, { status: 'submitted' });
+    return { ...submitted, total_present: 0, total_absent: 0, total_leave: 0, details: [] };
+  }
+
+  // Normal attendance: create per-student rows and cache counts
+  const details       = await createAttendanceDetails(school_id, attendance.id, data.students);
   const total_present = details.filter(d => d.status === 'present').length;
   const total_absent  = details.filter(d => d.status === 'absent').length;
-  const total_late    = details.filter(d => d.status === 'late').length;
   const total_leave   = details.filter(d => d.status === 'leave').length;
 
-  await updateAttendanceCounts(attendance.id, school_id, total_present, total_absent, total_late, total_leave);
+  await updateAttendanceCounts(attendance.id, school_id, total_present, total_absent, total_leave);
 
-  return { ...attendance, total_present, total_absent, total_late, total_leave, details };
+  return { ...attendance, total_present, total_absent, total_leave, details };
 };
 
 // ── GET BY SECTION ───────────────────────────────────────────────────────────
@@ -111,7 +128,8 @@ export const getAttendanceBySectionService = async (
 export const getAttendanceByIdService = async (id: number, school_id: number) => {
   const attendance = await getAttendanceById(id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
-  const details = await getAttendanceDetails(id, school_id);
+  // For class suspension, there are no detail rows — return empty array
+  const details = attendance.is_holiday ? [] : await getAttendanceDetails(id, school_id);
   return { ...attendance, details };
 };
 
@@ -123,7 +141,27 @@ export const updateAttendanceService = async (id: number, school_id: number, dat
   return updateAttendance(id, school_id, data);
 };
 
-// ── SUBMIT ATTENDANCE ────────────────────────────────────────────────────────
+// ── DELETE ATTENDANCE ────────────────────────────────────────────────────────
+// Faculty can only delete is_holiday=true (class suspension) records they own.
+// Normal submitted attendance cannot be deleted by a teacher.
+export const deleteAttendanceService = async (
+  id: number,
+  school_id: number,
+  teacherId?: number
+) => {
+  const attendance = await getAttendanceById(id, school_id);
+  if (!attendance) throw new AppError('Attendance record not found.', 404);
+
+  if (!attendance.is_holiday) {
+    throw new AppError('Only class suspension records can be deleted by a teacher. Contact admin to remove submitted attendance.', 403);
+  }
+
+  // Coordinator check — only the section coordinator can unsuspend
+  await assertCoordinator(attendance.section_id, school_id, teacherId);
+
+  await deleteAttendanceById(id, school_id);
+};
+
 export const submitAttendanceService = async (id: number, school_id: number) => {
   const attendance = await getAttendanceById(id, school_id);
   if (!attendance) throw new AppError('Attendance record not found.', 404);
@@ -142,6 +180,10 @@ export const updateAttendanceDetailService = async (
   if (!attendance) throw new AppError('Attendance record not found.', 404);
   if (attendance.status === 'submitted') throw new AppError('Cannot edit a submitted attendance record.', 400);
 
+  // Class suspension records have no per-student rows
+  if (attendance.is_holiday)
+    throw new AppError('Cannot edit individual student details on a suspended class day.', 400);
+
   const recordDate = new Date(attendance.date);
   const now        = new Date();
   const prevMonth1 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -159,29 +201,28 @@ export const updateAttendanceDetailService = async (
   const allDetails    = await getAttendanceDetails(attendance_id, school_id);
   const total_present = allDetails.filter(d => d.status === 'present').length;
   const total_absent  = allDetails.filter(d => d.status === 'absent').length;
-  const total_late    = allDetails.filter(d => d.status === 'late').length;
   const total_leave   = allDetails.filter(d => d.status === 'leave').length;
-  await updateAttendanceCounts(attendance_id, school_id, total_present, total_absent, total_late, total_leave);
+  await updateAttendanceCounts(attendance_id, school_id, total_present, total_absent, total_leave);
 
   return detail;
 };
 
 // ── STUDENT ATTENDANCE SUMMARY ────────────────────────────────────────────────
 //
-// LOGIC (Ashok's spec):
+// LOGIC:
 //   • start_date  = max(student.admission_date, academic_year.start_date)
 //   • end_date    = min(today, academic_year.end_date)
 //   • working_days = calendar working days in [start, end]
 //   • marked_days  = submitted attendance days in [start, end]
 //   • remaining   = working_days - marked_days  (teacher hasn't filled yet → neutral)
-//   • effective   = present + late + absent      (leave & remaining excluded from both sides)
-//   • percentage  = (present + late) / effective * 100
+//   • effective   = present + absent            (leave & suspended days excluded from both sides)
+//   • percentage  = present / effective * 100
 //                   → 100% when effective = 0 (nothing marked or all on leave)
 //
-//  present   → counts ✅ (increases %)
-//  late      → counts ✅ (same as present)
-//  absent    → decreases ❌
-//  leave     → neutral ➖ (excluded from both sides)
+//  present  → counts ✅ (increases %)
+//  absent   → decreases ❌
+//  leave    → neutral ➖ (excluded from both sides)
+//  suspended class day → no student rows exist, not counted for any student
 //  remaining → neutral ➖ (teacher not yet filled → excluded)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getStudentAttendanceSummaryService = async (
@@ -193,8 +234,6 @@ export const getStudentAttendanceSummaryService = async (
   override_end?:    string,
 ): Promise<IAttendanceSummary> => {
 
-  // Fetch student and academic year in parallel (no extra school lookup needed
-  // — timezone is passed in from the JWT payload via the controller)
   const [student, academicYear] = await Promise.all([
     getStudentById(student_id, school_id),
     getAcademicYearById(academic_year_id, school_id),
@@ -203,25 +242,18 @@ export const getStudentAttendanceSummaryService = async (
   if (!student)      throw new AppError('Student not found.', 404);
   if (!academicYear) throw new AppError('Academic year not found.', 404);
 
-  // DB returns date::text strings but IAcademicYear types them as Date — cast to string
-  const yearStart  = String(academicYear.start_date).slice(0, 10);
-  const yearEnd    = String(academicYear.end_date).slice(0, 10);
-  const admDate    = student.admission_date
+  const yearStart = String(academicYear.start_date).slice(0, 10);
+  const yearEnd   = String(academicYear.end_date).slice(0, 10);
+  const admDate   = student.admission_date
     ? String(student.admission_date).slice(0, 10)
     : yearStart;
 
-  // Use the school's local timezone so “today” matches attendance dates stored in local time.
-  // Without this, a school in UTC+5:45 (Nepal) sees UTC date which can be yesterday,
-  // causing start_date > end_date early-return and all-zero summaries.
+  // Use school timezone so "today" matches Nepal/India local date, not UTC
   const today = getTodayInTimezone(timezone);
 
-  // Computed bounds (full-year mode)
   const computedStart = admDate > yearStart ? admDate : yearStart;
   const computedEnd   = today < yearEnd ? today : yearEnd;
 
-  // When caller passes explicit date range (dashboard "this month" / "last month"),
-  // use those — but clamp to [computedStart, computedEnd] so we never go
-  // before admission_date or after today/year-end.
   const start_date = override_start
     ? (override_start > computedStart ? override_start : computedStart)
     : computedStart;
@@ -238,7 +270,6 @@ export const getStudentAttendanceSummaryService = async (
       total_remaining:       0,
       total_present:         0,
       total_absent:          0,
-      total_late:            0,
       total_leave:           0,
       attendance_percentage: 100,
     };
@@ -251,20 +282,16 @@ export const getStudentAttendanceSummaryService = async (
 
   const total_present = Number(summary.total_present || 0);
   const total_absent  = Number(summary.total_absent  || 0);
-  const total_late    = Number(summary.total_late    || 0);
   const total_leave   = Number(summary.total_leave   || 0);
   const total_marked  = Number(summary.total_marked  || 0);
 
   const total_working_days = workingDaysResult.working_days;
+  const total_remaining    = Math.max(0, total_working_days - total_marked);
 
-  // Remaining = working days where teacher hasn't submitted attendance yet
-  const total_remaining = Math.max(0, total_working_days - total_marked);
-
-  // Effective = days where teacher marked something countable (present/late/absent)
-  const effective = total_present + total_late + total_absent;
-
+  // Effective = present + absent only (leave is neutral; suspended class days have no rows)
+  const effective = total_present + total_absent;
   const attendance_percentage = effective > 0
-    ? Math.round(((total_present + total_late) / effective) * 10000) / 100
+    ? Math.round((total_present / effective) * 10000) / 100
     : 100;
 
   return {
@@ -273,7 +300,6 @@ export const getStudentAttendanceSummaryService = async (
     total_remaining,
     total_present,
     total_absent,
-    total_late,
     total_leave,
     attendance_percentage,
   };
@@ -315,7 +341,6 @@ export const getClassAttendanceOverviewService = async (
       ...sec,
       total_present:  present,
       total_absent:   Number(sec.total_absent || 0),
-      total_late:     Number(sec.total_late   || 0),
       total_leave:    Number(sec.total_leave  || 0),
       total_students: totalStudents,
       days_marked:    Number(sec.days_marked  || 0),

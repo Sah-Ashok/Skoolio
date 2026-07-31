@@ -17,7 +17,7 @@ export const createAttendance = async (
        marked_by, is_holiday, remarks, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
      RETURNING id, school_id, academic_year_id, class_id, section_id,
-       date::text, marked_by, total_present, total_absent, total_late,
+       date::text, marked_by, total_present, total_absent,
        total_leave, status, is_holiday, remarks, created_at, updated_at`,
     [
       school_id,
@@ -40,7 +40,7 @@ export const getAttendanceBySection = async (
 ): Promise<IAttendance[]> => {
   const result = await pool.query(
     `SELECT id, school_id, academic_year_id, class_id, section_id,
-       date::text, marked_by, total_present, total_absent, total_late,
+       date::text, marked_by, total_present, total_absent,
        total_leave, status, is_holiday, remarks, created_at, updated_at
      FROM attendance
      WHERE section_id = $1 AND school_id = $2 AND academic_year_id = $3
@@ -50,7 +50,7 @@ export const getAttendanceBySection = async (
   return result.rows;
 };
 
-// ── REGISTER QUERY — the core scalability fix ──────────────────────────────
+// ── REGISTER QUERY ──────────────────────────────────────────────────────────
 export const getSectionRegister = async (
   section_id: number,
   school_id: number,
@@ -64,10 +64,11 @@ export const getSectionRegister = async (
        s.full_name,
        se.roll_number,
        a.date::text                                              AS date,
+       a.is_holiday,
+       a.remarks                                                 AS suspension_reason,
        ad.status,
        yt.year_present,
        yt.year_absent,
-       yt.year_late,
        yt.year_leave,
        yt.year_total
      FROM student_enrollments se
@@ -86,9 +87,8 @@ export const getSectionRegister = async (
          ad2.student_id,
          COUNT(*) FILTER (WHERE ad2.status = 'present') AS year_present,
          COUNT(*) FILTER (WHERE ad2.status = 'absent')  AS year_absent,
-         COUNT(*) FILTER (WHERE ad2.status = 'late')    AS year_late,
          COUNT(*) FILTER (WHERE ad2.status = 'leave')   AS year_leave,
-         COUNT(*)                                        AS year_total
+         COUNT(*)                                         AS year_total
        FROM attendance_details ad2
        INNER JOIN attendance a2
          ON a2.id              = ad2.attendance_id
@@ -123,7 +123,7 @@ export const getAttendanceBySectionAndMonth = async (
 
   const result = await pool.query(
     `SELECT id, section_id, date::text, total_present, total_absent,
-            total_late, total_leave, status, marked_by
+            total_leave, status, marked_by
      FROM attendance
      WHERE section_id = $1 AND school_id = $2 AND academic_year_id = $3
        AND date BETWEEN $4 AND $5
@@ -140,7 +140,7 @@ export const getAttendanceByDate = async (
 ): Promise<IAttendance | null> => {
   const result = await pool.query(
     `SELECT id, school_id, academic_year_id, class_id, section_id,
-       date::text, marked_by, total_present, total_absent, total_late,
+       date::text, marked_by, total_present, total_absent,
        total_leave, status, is_holiday, remarks, created_at, updated_at
      FROM attendance
      WHERE section_id = $1 AND school_id = $2 AND date = $3`,
@@ -155,7 +155,7 @@ export const getAttendanceById = async (
 ): Promise<IAttendance | null> => {
   const result = await pool.query(
     `SELECT id, school_id, academic_year_id, class_id, section_id,
-       date::text, marked_by, total_present, total_absent, total_late,
+       date::text, marked_by, total_present, total_absent,
        total_leave, status, is_holiday, remarks, created_at, updated_at
      FROM attendance WHERE id = $1 AND school_id = $2`,
     [id, school_id]
@@ -176,7 +176,7 @@ export const updateAttendance = async (
       updated_at = NOW()
      WHERE id = $4 AND school_id = $5
      RETURNING id, school_id, academic_year_id, class_id, section_id,
-       date::text, marked_by, total_present, total_absent, total_late,
+       date::text, marked_by, total_present, total_absent,
        total_leave, status, is_holiday, remarks, created_at, updated_at`,
     [
       data.remarks ?? null,
@@ -189,23 +189,33 @@ export const updateAttendance = async (
   return result.rows[0] || null;
 };
 
+export const deleteAttendanceById = async (id: number, school_id: number): Promise<void> => {
+  // Delete details first (FK constraint), then header
+  await pool.query(
+    `DELETE FROM attendance_details WHERE attendance_id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  await pool.query(
+    `DELETE FROM attendance WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+};
+
 export const updateAttendanceCounts = async (
   id: number,
   school_id: number,
   total_present: number,
   total_absent: number,
-  total_late: number,
   total_leave: number
 ): Promise<void> => {
   await pool.query(
     `UPDATE attendance SET
       total_present = $1,
       total_absent  = $2,
-      total_late    = $3,
-      total_leave   = $4,
+      total_leave   = $3,
       updated_at    = NOW()
-     WHERE id = $5 AND school_id = $6`,
-    [total_present, total_absent, total_late, total_leave, id, school_id]
+     WHERE id = $4 AND school_id = $5`,
+    [total_present, total_absent, total_leave, id, school_id]
   );
 };
 
@@ -322,7 +332,7 @@ export const getSectionAttendanceSummary = async (
        COUNT(*) FILTER (WHERE ad.status = 'present') AS total_present,
        COUNT(*) FILTER (WHERE ad.status = 'absent')  AS total_absent,
        COUNT(*) FILTER (WHERE ad.status = 'leave')   AS total_leave,
-       COUNT(*)                                       AS total_marked
+       COUNT(*)                                        AS total_marked
      FROM attendance_details ad
      INNER JOIN attendance a ON a.id = ad.attendance_id
      WHERE a.section_id       = $1
@@ -336,8 +346,8 @@ export const getSectionAttendanceSummary = async (
   return result.rows;
 };
 
-// ── STUDENT ATTENDANCE SUMMARY ──
-
+// 'suspended' is class-level (attendance.is_holiday = true) — not stored per student.
+// Per-student statuses are: present | absent | leave only.
 export const getStudentAttendanceSummary = async (
   student_id: number,
   school_id: number,
@@ -349,9 +359,8 @@ export const getStudentAttendanceSummary = async (
     `SELECT
        COUNT(*) FILTER (WHERE ad.status = 'present') AS total_present,
        COUNT(*) FILTER (WHERE ad.status = 'absent')  AS total_absent,
-       COUNT(*) FILTER (WHERE ad.status = 'late')    AS total_late,
        COUNT(*) FILTER (WHERE ad.status = 'leave')   AS total_leave,
-       COUNT(*)                                       AS total_marked
+       COUNT(*)                                        AS total_marked
      FROM attendance_details ad
      INNER JOIN attendance a ON a.id = ad.attendance_id
      WHERE ad.student_id      = $1
@@ -407,10 +416,9 @@ export const getClassAttendanceOverview = async (
        sec.name                                                          AS section_name,
        COUNT(DISTINCT ad.student_id)                                     AS total_students,
        COUNT(DISTINCT a.id)                                              AS days_marked,
-       COUNT(*) FILTER (WHERE ad.status = 'present')                    AS total_present,
-       COUNT(*) FILTER (WHERE ad.status = 'absent')                     AS total_absent,
-       COUNT(*) FILTER (WHERE ad.status = 'late')                       AS total_late,
-       COUNT(*) FILTER (WHERE ad.status = 'leave')                      AS total_leave,
+       COUNT(*) FILTER (WHERE ad.status = 'present') AS total_present,
+       COUNT(*) FILTER (WHERE ad.status = 'absent')  AS total_absent,
+       COUNT(*) FILTER (WHERE ad.status = 'leave')   AS total_leave,
        ROUND(
          COUNT(*) FILTER (WHERE ad.status = 'present')::numeric /
          NULLIF(COUNT(*)::numeric, 0) * 100,

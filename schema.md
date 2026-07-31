@@ -465,11 +465,10 @@ One row per class-section per day.
 | marked_by | INTEGER FK → teachers | teacher record id — **NOT school id** |
 | total_present | INTEGER | cached count |
 | total_absent | INTEGER | cached count |
-| total_late | INTEGER | cached count |
 | total_leave | INTEGER | cached count |
 | status | ENUM | `draft` `submitted` |
-| is_holiday | BOOLEAN | |
-| remarks | TEXT | optional |
+| is_holiday | BOOLEAN | true = section suspended by teacher (no class that day, no per-student rows, auto-submitted) |
+| remarks | TEXT | suspension reason or general notes |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
 
@@ -489,7 +488,7 @@ One row per student per attendance record.
 | attendance_id | INTEGER FK → attendance | |
 | student_id | INTEGER FK → students | |
 | enrollment_id | INTEGER FK → student_enrollments | required |
-| status | ENUM | `present` `absent` `late` `leave` |
+| status | ENUM | `present` `absent` `leave` |
 | check_in_time | VARCHAR | optional |
 | remarks | TEXT | optional |
 | created_at | TIMESTAMP | |
