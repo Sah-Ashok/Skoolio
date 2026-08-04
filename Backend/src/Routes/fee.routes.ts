@@ -2,7 +2,9 @@ import { Router } from 'express';
 import protect from '../middlewares/auth.middleware';
 import restrictTo from '../middlewares/role.middleware';
 import {
-  createFeeStructure, getFeeStructures, updateFeeStructure, deleteFeeStructure,
+  createFeeStructure, getFeeStructures,
+  getFeeStructureByIdController,
+  updateFeeStructure, deleteFeeStructure,
   createFeeCollection, createMiscFeeCollection,
   getFeeCollections, getStudentFeeCollections, updateFeeCollection, waiveFeeCollection,
   createFeePayment, getPaymentsByCollection, getStudentPayments,
@@ -35,11 +37,13 @@ router.get ('/hostel/summary',     restrictTo('admin', 'super_admin'), getHostel
 // ── FEE STRUCTURES ──
 router.post  ('/structures',       restrictTo('admin', 'super_admin'), createFeeStructure);
 router.get   ('/structures',       restrictTo('admin', 'super_admin'), getFeeStructures);
+// GET single by ID — used by StudentFeeHistoryPage to show structure tag per bill
+router.get   ('/structures/:id',   restrictTo('admin', 'super_admin'), getFeeStructureByIdController);
 router.patch ('/structures/:id',   restrictTo('admin', 'super_admin'), updateFeeStructure);
 router.delete('/structures/:id',   restrictTo('admin', 'super_admin'), deleteFeeStructure);
 
 // ── FEE COLLECTIONS ──
-// P3 FIX: /collections/misc must be BEFORE /collections to avoid route conflict
+// /collections/misc must be BEFORE /collections to avoid route conflict
 router.post('/collections/misc',          restrictTo('admin', 'super_admin'), createMiscFeeCollection);
 router.post('/collections',               restrictTo('admin', 'super_admin'), createFeeCollection);
 router.get ('/collections',               restrictTo('admin', 'super_admin'), getFeeCollections);

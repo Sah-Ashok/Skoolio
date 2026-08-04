@@ -164,7 +164,11 @@ export const createAssignment = async (school_id: number, data: ICreateAssignmen
   return result.rows[0];
 };
 
-export const getAssignmentsByHostel = async (hostel_id: number, school_id: number): Promise<any[]> => {
+export const getAssignmentsByHostel = async (hostel_id: number, school_id: number, academic_year_id?: number): Promise<any[]> => {
+  const params: any[] = [hostel_id, school_id];
+  const yearFilter = academic_year_id
+    ? `AND ha.academic_year_id = $${params.push(academic_year_id)}`
+    : '';
   const result = await pool.query(
     `SELECT ha.*,
             s.full_name, s.admission_number, s.photo, s.gender,
@@ -173,8 +177,9 @@ export const getAssignmentsByHostel = async (hostel_id: number, school_id: numbe
      INNER JOIN students     s ON s.id = ha.student_id
      INNER JOIN hostel_rooms r ON r.id = ha.room_id
      WHERE ha.hostel_id = $1 AND ha.school_id = $2 AND ha.status = 'active'
+     ${yearFilter}
      ORDER BY r.floor ASC, r.room_number ASC, s.full_name ASC`,
-    [hostel_id, school_id]
+    params
   );
   return result.rows;
 };

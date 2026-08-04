@@ -183,10 +183,12 @@ export const waiveFeeCollection = async (
   school_id: number,
   reason:    string
 ): Promise<IFeeCollection | null> => {
+  // Store the waive reason in fine_reason (repurposed as a general admin note)
+  // to avoid overwriting the scholarship discount_reason set at billing time.
   const result = await pool.query(
     `UPDATE fee_collections SET
       status           = 'waived',
-      discount_reason  = $1,
+      fine_reason      = $1,
       remaining_amount = 0,
       updated_at       = NOW()
      WHERE id = $2 AND school_id = $3 AND status != 'paid'
@@ -303,15 +305,19 @@ export const getAcademicFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
   fee_structure_id: number,
-  due_date:         string
+  due_date:         string   // YYYY-MM-DD — we match on YYYY-MM (billing month) only
 ): Promise<IFeeCollection | null> => {
+  // Match on billing month (YYYY-MM), not the exact due_date day.
+  // This prevents double-billing if an admin changes the fee's due_day between
+  // runs (e.g. from day 10 to day 15 — both map to the same billing month).
+  const billing_month = due_date.slice(0, 7); // 'YYYY-MM'
   const result = await pool.query(
     `SELECT * FROM fee_collections
      WHERE school_id        = $1
        AND student_id       = $2
        AND fee_structure_id = $3
-       AND due_date         = $4::date`,
-    [school_id, student_id, fee_structure_id, due_date]
+       AND to_char(due_date, 'YYYY-MM') = $4`,
+    [school_id, student_id, fee_structure_id, billing_month]
   );
   return result.rows[0] || null;
 };
@@ -320,16 +326,20 @@ export const getTransportFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
   academic_year_id: number,
-  due_date:         string
+  due_date:         string   // YYYY-MM-DD — matched on YYYY-MM (billing month) only
 ): Promise<IFeeCollection | null> => {
+  // Match on billing month, not exact day.  If an admin ever adjusts the due day
+  // (e.g. from 1st to 10th) and reruns, the same billing month still resolves
+  // to one row — preventing a second transport bill for the same month.
+  const billing_month = due_date.slice(0, 7);
   const result = await pool.query(
     `SELECT * FROM fee_collections
-     WHERE school_id        = $1
-       AND student_id       = $2
-       AND academic_year_id = $3
-       AND fee_type         = 'transport'
-       AND due_date         = $4::date`,
-    [school_id, student_id, academic_year_id, due_date]
+     WHERE school_id              = $1
+       AND student_id             = $2
+       AND academic_year_id       = $3
+       AND fee_type               = 'transport'
+       AND to_char(due_date, 'YYYY-MM') = $4`,
+    [school_id, student_id, academic_year_id, billing_month]
   );
   return result.rows[0] || null;
 };
@@ -338,16 +348,17 @@ export const getHostelFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
   academic_year_id: number,
-  due_date:         string
+  due_date:         string   // YYYY-MM-DD — matched on YYYY-MM (billing month) only
 ): Promise<IFeeCollection | null> => {
+  const billing_month = due_date.slice(0, 7);
   const result = await pool.query(
     `SELECT * FROM fee_collections
-     WHERE school_id        = $1
-       AND student_id       = $2
-       AND academic_year_id = $3
-       AND fee_type         = 'hostel'
-       AND due_date         = $4::date`,
-    [school_id, student_id, academic_year_id, due_date]
+     WHERE school_id              = $1
+       AND student_id             = $2
+       AND academic_year_id       = $3
+       AND fee_type               = 'hostel'
+       AND to_char(due_date, 'YYYY-MM') = $4`,
+    [school_id, student_id, academic_year_id, billing_month]
   );
   return result.rows[0] || null;
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
@@ -152,57 +153,6 @@ function StaffFormFields({
         <textarea value={form.address} onChange={e => set("address", e.target.value)} placeholder="Home address…" />
       </div>
     </>
-  );
-}
-
-// ── Add Staff Modal ───────────────────────────────────────────────────────────
-function AddStaffModal({ roles, onClose, onSaved }: { roles: StaffRole[]; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<StaffForm>(emptyForm());
-  const [err,  setErr]  = useState("");
-  const { execute, loading } = useMutation("/staff", "POST");
-
-  const set = (k: keyof StaffForm, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleSubmit = async () => {
-    if (!form.full_name.trim()) return setErr("Full name is required.");
-    if (!form.staff_role_id)    return setErr("Please select a role.");
-    if (!form.joined_date)      return setErr("Joined date is required.");
-    setErr("");
-    try {
-      await execute({ ...form, staff_role_id: Number(form.staff_role_id) });
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      setErr(e.message || "Failed to add staff member.");
-    }
-  };
-
-  return (
-    <div className={s("overlay")} onClick={onClose}>
-      <div className={s("modal")} onClick={e => e.stopPropagation()}>
-        <div className={s("modalHead")}>
-          <div>
-            <h2>Add Staff Member</h2>
-            <p>Fill in the details for the new staff member.</p>
-          </div>
-          <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
-        </div>
-        <div className={s("formGrid")}>
-          <StaffFormFields form={form} set={set} roles={roles} />
-          {err && (
-            <p className={s("full")} style={{ margin: 0, color: "#b42318", fontSize: 13, fontWeight: 800 }}>
-              <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />{err}
-            </p>
-          )}
-        </div>
-        <div className={s("modalFoot")}>
-          <button className={cx(s("btn"), s("btnOutline"))} onClick={onClose}>Cancel</button>
-          <button className={cx(s("btn"), s("btnPrimary"))} onClick={handleSubmit} disabled={loading}>
-            {loading ? <Spinner size={14} color="#fff" /> : <><i className="fa-solid fa-plus" /> Add Staff</>}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -484,7 +434,6 @@ function SetSalaryModal({ staff, onClose, onSaved }: { staff: Staff; onClose: ()
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 type ModalState =
-  | { type: "add_staff" }
   | { type: "add_role" }
   | { type: "view";       staff: Staff }
   | { type: "edit";       staff: Staff }
@@ -527,9 +476,9 @@ export function StaffPage() {
             <button className={cx(s("btn"), s("btnOutline"))} onClick={() => setModal({ type: "add_role" })}>
               <i className="fa-solid fa-tag" /> New Role
             </button>
-            <button className={cx(s("btn"), s("btnPrimary"))} onClick={() => setModal({ type: "add_staff" })}>
+            <Link href="/staff/add" className={cx(s("btn"), s("btnPrimary"))}>
               <i className="fa-solid fa-plus" /> Add Staff
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -714,14 +663,6 @@ export function StaffPage() {
       </main>
 
       {/* ── Modals ── */}
-      {modal?.type === "add_staff" && (
-        <AddStaffModal
-          roles={roles ?? []}
-          onClose={() => setModal(null)}
-          onSaved={() => refetchStaff()}
-        />
-      )}
-
       {modal?.type === "add_role" && (
         <AddRoleModal
           onClose={() => setModal(null)}

@@ -9,11 +9,12 @@ import { setUser } from "@/store/authSlice";
 import { Spinner } from "@/components/shared/Loader";
 import styles from "./settings.module.css";
 import PaymentSettingsTab from "./PaymentSettingsTab";
+import PayrollPolicyTab from "./PayrollPolicyTab";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
-type Tab = "general" | "profile" | "security" | "appearance" | "payment";
+type Tab = "general" | "profile" | "security" | "appearance" | "payment" | "payroll";
 
 const TABS: { key: Tab; icon: string; label: string; desc: string }[] = [
   { key: "general",    icon: "fa-sliders",            label: "General",        desc: "Contact & region"    },
@@ -21,6 +22,7 @@ const TABS: { key: Tab; icon: string; label: string; desc: string }[] = [
   { key: "security",   icon: "fa-shield-halved",      label: "Security",       desc: "Password & 2FA"      },
   { key: "appearance", icon: "fa-palette",            label: "Appearance",     desc: "Theme & display"     },
   { key: "payment",    icon: "fa-building-columns",   label: "Payment Setup",  desc: "Bank accounts"       },
+  { key: "payroll",   icon: "fa-money-check-dollar", label: "Payroll Policy", desc: "Leave & deduction rules" },
 ];
 
 const TIMEZONES  = ["Asia/Kathmandu", "Asia/Kolkata", "Asia/Dhaka", "UTC"];
@@ -476,6 +478,9 @@ export default function AdminSettingsPage() {
 
             {/* ════ PAYMENT ════ */}
             {tab === "payment" && <PaymentSettingsTab />}
+
+            {/* ════ PAYROLL POLICY ════ */}
+            {tab === "payroll" && <PayrollPolicyTab />}
 
           </div>
         )}

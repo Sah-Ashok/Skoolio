@@ -208,7 +208,11 @@ export const createAssignment = async (school_id: number, data: ICreateAssignmen
   return result.rows[0];
 };
 
-export const getAssignmentsByRoute = async (route_id: number, school_id: number): Promise<any[]> => {
+export const getAssignmentsByRoute = async (route_id: number, school_id: number, academic_year_id?: number): Promise<any[]> => {
+  const params: any[] = [route_id, school_id];
+  const yearFilter = academic_year_id
+    ? `AND ta.academic_year_id = $${params.push(academic_year_id)}`
+    : '';
   const result = await pool.query(
     `SELECT ta.*,
             s.full_name, s.admission_number, s.photo,
@@ -217,8 +221,9 @@ export const getAssignmentsByRoute = async (route_id: number, school_id: number)
      INNER JOIN students s ON s.id = ta.student_id
      INNER JOIN transport_stops ts ON ts.id = ta.stop_id
      WHERE ta.route_id = $1 AND ta.school_id = $2 AND ta.status = 'active'
+     ${yearFilter}
      ORDER BY ts.stop_order ASC, s.full_name ASC`,
-    [route_id, school_id]
+    params
   );
   return result.rows;
 };
@@ -257,13 +262,9 @@ export const updateAssignment = async (id: number, school_id: number, data: IUpd
 export const getTransportSummary = async (school_id: number, academic_year_id: number): Promise<any> => {
   const result = await pool.query(
     `SELECT
-       COUNT(DISTINCT v.id) FILTER (WHERE v.status = 'active') AS active_vehicles,
-       COUNT(DISTINCT r.id) FILTER (WHERE r.status = 'active') AS active_routes,
-       COUNT(DISTINCT ta.student_id) FILTER (WHERE ta.status = 'active') AS students_assigned
-     FROM transport_vehicles v
-     FULL JOIN transport_routes r ON r.school_id = v.school_id
-     LEFT JOIN transport_assignments ta ON ta.route_id = r.id AND ta.academic_year_id = $2
-     WHERE COALESCE(v.school_id, r.school_id) = $1`,
+       (SELECT COUNT(*) FROM transport_vehicles    WHERE school_id = $1 AND status = 'active')                                                AS active_vehicles,
+       (SELECT COUNT(*) FROM transport_routes      WHERE school_id = $1 AND academic_year_id = $2 AND status = 'active')                     AS active_routes,
+       (SELECT COUNT(DISTINCT student_id) FROM transport_assignments WHERE school_id = $1 AND academic_year_id = $2 AND status = 'active')   AS students_assigned`,
     [school_id, academic_year_id]
   );
   return result.rows[0];

@@ -12,6 +12,7 @@ import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
+import { apiRequest } from "@/lib/api";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -29,8 +30,7 @@ function buildYearOptions(isBS: boolean): string[] {
   return Array.from({ length: 5 }, (_, i) => String(baseY - 3 + i));
 }
 
-/** Convert displayed (month-name, year) back to AD month integer + AD year.
- *  For BS schools the API always gets AD values, so we convert BS → AD using mid-month. */
+/** Convert displayed (month-name, year) back to AD month integer + AD year. */
 function displayToAD(
   monthName: string,
   yearStr: string,
@@ -40,7 +40,6 @@ function displayToAD(
   const displayMonthIdx = monthNames.indexOf(monthName); // 0-based
   if (!isBS) return { adMonth: displayMonthIdx + 1, adYear: parseInt(yearStr) };
 
-  // BS month/year → convert 15th of that BS month to AD
   const bsYear  = parseInt(yearStr);
   const bsMonth = displayMonthIdx + 1;
   const adISO   = bsToISO({ year: bsYear, month: bsMonth, day: 15 });
@@ -71,6 +70,7 @@ export default function PaySalaryPage() {
   // ── API ──
   const { data: facultyList, loading: facultyLoading } = useApi<any[]>("/teachers");
   const { data: activeYear }                            = useApi<any>("/academic-years/active");
+  const { data: payrollPolicy }                         = useApi<any>("/payroll-policy");
   const { execute: paySalary, loading: paying }         = useMutation("/teachers/salary", "POST");
 
   // ── Form state ──
@@ -89,6 +89,9 @@ export default function PaySalaryPage() {
   const [paymentDate,      setPaymentDate]      = useState("");
   const [remarks,          setRemarks]          = useState("");
 
+  // Track whether tax/PF has been auto-filled so we don't override manual edits
+  const [taxPFAutoFilled, setTaxPFAutoFilled] = useState(false);
+
   // Attendance-based fields (loaded from API, editable)
   const [workingDays,  setWorkingDays]  = useState("");
   const [presentDays,  setPresentDays]  = useState("");
@@ -104,10 +107,34 @@ export default function PaySalaryPage() {
 
   const selectedFaculty = facultyList?.find((f: any) => f.id.toString() === selectedFacultyId);
 
-  // Auto-fill basic salary when teacher selected
+  // Auto-fill basic salary + tax/PF when teacher is selected (or changes)
   useEffect(() => {
-    if (selectedFaculty?.monthly_salary) setBasicSalary(String(selectedFaculty.monthly_salary));
-  }, [selectedFacultyId, selectedFaculty?.monthly_salary]);
+    if (!selectedFaculty) return;
+
+    // Auto-fill basic salary from teacher's monthly_salary
+    if (selectedFaculty.monthly_salary) {
+      setBasicSalary(String(selectedFaculty.monthly_salary));
+    } else {
+      setBasicSalary("");
+    }
+
+    // Auto-fill tax/PF from payroll policy defaults based on this teacher's salary
+    const basic = parseFloat(selectedFaculty.monthly_salary || "0");
+    if (payrollPolicy && basic > 0) {
+      if (payrollPolicy.default_tax_percent > 0) {
+        setTaxAmount(String(Math.round((basic * payrollPolicy.default_tax_percent) / 100)));
+      } else {
+        setTaxAmount("0");
+      }
+      if (payrollPolicy.default_pf_percent > 0) {
+        setProvidentFund(String(Math.round((basic * payrollPolicy.default_pf_percent) / 100)));
+      } else {
+        setProvidentFund("0");
+      }
+      setTaxPFAutoFilled(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFacultyId, selectedFaculty?.monthly_salary, payrollPolicy]);
 
   // Reset attendance when month/faculty changes
   useEffect(() => {
@@ -120,28 +147,30 @@ export default function PaySalaryPage() {
     if (!selectedFacultyId || !adYear || !adMonth) return;
     setAttLoading(true);
     try {
-      const res = await fetch(
-        `/api/teachers/salary/${selectedFacultyId}/attendance?year=${adYear}&month=${adMonth}`,
-        { credentials: "include" }
+      const json = await apiRequest<any>(
+        `/teachers/salary/${selectedFacultyId}/attendance?year=${adYear}&month=${adMonth}`
       );
-      const json = await res.json();
-      if (json.success && json.data?.summary) {
-        const s = json.data.summary;
-        setPresentDays(String(s.present_days ?? ""));
-        setAbsentDays(String(s.absent_days ?? ""));
-        setHalfDays(String(s.half_days ?? ""));
-        setLeaveDays(String(s.leave_days ?? ""));
-        // Working days = total records in attendance (or manual entry)
-        const total = Number(s.total_records ?? 0);
+      // Backend returns: { success, data: { summary, records, teacher } }
+      const summary = json.data?.summary ?? json.summary;
+      if (summary) {
+        setPresentDays(String(summary.present_days  ?? ""));
+        setAbsentDays(String(summary.absent_days    ?? ""));
+        setHalfDays(String(summary.half_days        ?? ""));
+        setLeaveDays(String(summary.leave_days      ?? ""));
+        const total = Number(summary.total_records  ?? 0);
         if (total > 0) setWorkingDays(String(total));
         setAttLoaded(true);
+      } else {
+        // No records found for this month — clear fields but don't error
+        setPresentDays(""); setAbsentDays(""); setHalfDays(""); setLeaveDays(""); setWorkingDays("");
+        dispatch(showToast({ type: "error", title: "No Data", message: `No attendance records found for ${selectedMonth} ${selectedYear}` }));
       }
-    } catch {
-      dispatch(showToast({ type: "error", title: "Error", message: "Could not load attendance data" }));
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Error", message: err.message || "Could not load attendance data" }));
     } finally {
       setAttLoading(false);
     }
-  }, [selectedFacultyId, adYear, adMonth, dispatch]);
+  }, [selectedFacultyId, adYear, adMonth, selectedMonth, selectedYear, dispatch]);
 
   // ── Salary calculation ──
   const basic        = parseFloat(basicSalary || "0");
@@ -156,8 +185,18 @@ export default function PaySalaryPage() {
 
   const perDaySalary = working > 0 ? basic / working : 0;
 
-  // Attendance-based deduction: absent days at full rate, half-days at 0.5
-  const attendanceDeduction = perDaySalary * (absent + half * 0.5);
+  // Policy-driven rules
+  const paidLeaveQuota   = payrollPolicy?.paid_leave_days_per_month ?? 0;
+  const halfDayPayPct    = (payrollPolicy?.half_day_pay_percent ?? 50) / 100;
+  const leave            = parseFloat(leaveDays || "0");
+
+  // Attendance deductions
+  const unpaidLeaveDays  = Math.max(0, leave - paidLeaveQuota);
+  const halfDayDeduction = perDaySalary * (1 - halfDayPayPct) * half;
+  const absentDeduction  = perDaySalary * absent;
+  const leaveDeduction   = perDaySalary * unpaidLeaveDays;
+
+  const attendanceDeduction = absentDeduction + halfDayDeduction + leaveDeduction;
   const totalManualDeduct   = tax + pf + other;
   const totalDeduction      = totalManualDeduct + attendanceDeduction;
   const netPay              = Math.max(0, basic + bonusAmt - totalDeduction);
@@ -172,6 +211,10 @@ export default function PaySalaryPage() {
       dispatch(showToast({ type: "error", title: "Validation", message: "Please fill all required fields (faculty, basic salary, payment date)" }));
       return;
     }
+    if (!basicSalary || parseFloat(basicSalary) <= 0) {
+      dispatch(showToast({ type: "error", title: "Salary Required", message: "Enter the faculty's basic salary to proceed." }));
+      return;
+    }
     try {
       await paySalary({
         academic_year_id:  activeYear.id,
@@ -181,15 +224,16 @@ export default function PaySalaryPage() {
         year:              adYear,
         status:            "paid",
         bonus:             bonusAmt,
+        // Attendance deductions stored as separate columns (not bundled into other_deduction)
         tax_amount:        tax,
         provident_fund:    pf,
-        other_deduction:   other + attendanceDeduction, // total non-tax deduction
+        other_deduction:   other,
         deduction_remarks: deductionRemarks || undefined,
         working_days:      working || undefined,
         present_days:      effectivePresentDays || undefined,
         absent_days:       absent || undefined,
         half_days:         half   || undefined,
-        leave_days:        parseFloat(leaveDays || "0") || undefined,
+        leave_days:        leave  || undefined,
         per_day_salary:    perDaySalary || undefined,
         payment_date:      paymentDate,
         payment_method:    paymentMode,
@@ -201,6 +245,9 @@ export default function PaySalaryPage() {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Payment failed" }));
     }
   };
+
+  // ── No-salary warning ──
+  const noSalaryConfigured = selectedFaculty && !selectedFaculty.monthly_salary;
 
   return (
     <div className={s("page")}>
@@ -253,6 +300,29 @@ export default function PaySalaryPage() {
                   options={monthNames.map((m) => ({ label: m, value: m }))}
                 />
               </div>
+
+              {/* Warning if faculty has no salary configured */}
+              {noSalaryConfigured && (
+                <div style={{
+                  margin: "0 18px 14px",
+                  padding: "12px 14px",
+                  borderRadius: 8,
+                  background: "#fff7ed",
+                  border: "1px solid #fed7aa",
+                  color: "#c2410c",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                }}>
+                  <i className="fa-solid fa-triangle-exclamation" />
+                  <span>
+                    <strong>{selectedFaculty?.full_name}</strong> has no monthly salary set.
+                    Please <Link href={`/teachers/${selectedFaculty?.id}/edit`} style={{ color: "#c2410c", textDecoration: "underline" }}>update their profile</Link> to set a salary, or enter it manually below.
+                  </span>
+                </div>
+              )}
             </article>
 
             {/* ── Step 2: Attendance ──────────────────────────────────── */}
@@ -260,7 +330,7 @@ export default function PaySalaryPage() {
               <div className={s("cardHead")}>
                 <div>
                   <h3><i className="fa-solid fa-calendar-check" /> Step 2 — Attendance Summary</h3>
-                  <p>Load from attendance records or enter manually. Absent days are auto-deducted from salary.</p>
+                  <p>Load from attendance records or enter manually. Deductions are calculated automatically.</p>
                 </div>
                 <button
                   className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
@@ -274,6 +344,20 @@ export default function PaySalaryPage() {
                 </button>
               </div>
 
+              {/* Payroll policy banner */}
+              {payrollPolicy && (
+                <div className={s("attBanner")} style={{ background: "#fff7ed", borderColor: "#fed7aa", color: "#c2410c" }}>
+                  <i className="fa-solid fa-circle-info" />
+                  <span>
+                    Payroll policy: Paid leave quota: <strong>{paidLeaveQuota} day{paidLeaveQuota !== 1 ? "s" : ""}/month</strong>
+                    &nbsp;· Half-day pay: <strong>{payrollPolicy.half_day_pay_percent}%</strong>
+                    {payrollPolicy.default_tax_percent > 0 && <>&nbsp;· Tax: <strong>{payrollPolicy.default_tax_percent}%</strong></>}
+                    {payrollPolicy.default_pf_percent  > 0 && <>&nbsp;· PF: <strong>{payrollPolicy.default_pf_percent}%</strong></>}
+                    &nbsp;· Absent days deducted at full per-day rate.
+                  </span>
+                </div>
+              )}
+
               {attLoaded && (
                 <div className={s("attBanner")}>
                   <i className="fa-solid fa-circle-check" />
@@ -282,28 +366,39 @@ export default function PaySalaryPage() {
               )}
 
               <div className={s("formGrid")}>
-                <Field label="Working Days (total)" type="number" value={workingDays} onChange={setWorkingDays} placeholder="e.g. 26" />
-                <div /> {/* spacer */}
+                <Field label="Working Days (total this month)" type="number" value={workingDays} onChange={setWorkingDays} placeholder="e.g. 26" />
+                <div />{/* spacer */}
                 <Field label="Present Days" type="number" value={presentDays} onChange={setPresentDays} placeholder="e.g. 24" />
-                <Field label="Absent Days (deducted)" type="number" value={absentDays} onChange={setAbsentDays} placeholder="e.g. 1" />
-                <Field label="Half Days (0.5× each)" type="number" value={halfDays} onChange={setHalfDays} placeholder="e.g. 0" />
-                <Field label="Leave Days (approved, not deducted)" type="number" value={leaveDays} onChange={setLeaveDays} placeholder="e.g. 0" />
+                <Field label="Absent Days (full deduction each)" type="number" value={absentDays} onChange={setAbsentDays} placeholder="e.g. 1" />
+                <Field
+                  label={`Half Days (${100 - Math.round((payrollPolicy?.half_day_pay_percent ?? 50))}% deducted each)`}
+                  type="number" value={halfDays} onChange={setHalfDays} placeholder="e.g. 0"
+                />
+                <Field
+                  label={paidLeaveQuota > 0
+                    ? `Leave Days (${paidLeaveQuota} paid/mo, rest deducted)`
+                    : "Leave Days (all deducted — no paid quota)"}
+                  type="number" value={leaveDays} onChange={setLeaveDays} placeholder="e.g. 0"
+                />
               </div>
 
+              {/* Attendance deduction note */}
               {working > 0 && (
                 <div className={s("calcNote")}>
                   <i className="fa-solid fa-calculator" />
-                  Per-day salary = {fmt(basic)} ÷ {working} days =&nbsp;
-                  <strong>₹{perDaySalary.toFixed(2)}</strong>
-                  {(absent > 0 || half > 0) && (
+                  Per-day = ₹{perDaySalary.toFixed(2)}&nbsp;
+                  {paidLeaveQuota > 0 && (
+                    <span style={{ color: "#16a34a" }}>
+                      · Paid leave quota: {paidLeaveQuota} day{paidLeaveQuota !== 1 ? "s" : ""}/mo&nbsp;
+                    </span>
+                  )}
+                  {(absent > 0 || half > 0 || unpaidLeaveDays > 0) && (
                     <>
-                      &nbsp;| Attendance deduction =&nbsp;
-                      <strong className={s("redText")}>
-                        ₹{attendanceDeduction.toFixed(2)}
-                      </strong>
-                      &nbsp;({absent > 0 ? `${absent} absent` : ""}
-                      {absent > 0 && half > 0 ? ", " : ""}
-                      {half > 0 ? `${half} half-day` : ""})
+                      | Attendance deductions:&nbsp;
+                      {absent > 0 && <span className={s("redText")}>{absent}×absent (-₹{absentDeduction.toFixed(0)}) </span>}
+                      {half > 0 && <span style={{ color: "#c46a14" }}>{half}×half-day (-₹{halfDayDeduction.toFixed(0)}) </span>}
+                      {unpaidLeaveDays > 0 && <span className={s("redText")}>{unpaidLeaveDays} unpaid leave (-₹{leaveDeduction.toFixed(0)}) </span>}
+                      = <strong className={s("redText")}>-₹{attendanceDeduction.toFixed(0)}</strong>
                     </>
                   )}
                 </div>
@@ -314,22 +409,73 @@ export default function PaySalaryPage() {
             <article className={s("card")}>
               <div className={s("cardHead")}>
                 <div>
-                  <h3><i className="fa-solid fa-money-check" /> Step 3 — Payment Details</h3>
-                  <p>Enter salary components, deductions and payment info.</p>
+                  <h3><i className="fa-solid fa-money-check" /> Step 3 — Salary &amp; Deductions</h3>
+                  <p>Enter salary components, deductions, and payment info.</p>
                 </div>
               </div>
               <div className={s("formGrid")}>
-                <Field label="Basic Salary" type="number" value={basicSalary} onChange={setBasicSalary} placeholder="e.g. 30000" />
+                <div className={s("full")} style={{ padding: "0 0 4px" }}>
+                  {!basicSalary && selectedFacultyId && (
+                    <div style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      background: noSalaryConfigured ? "#fff7ed" : "#eff6ff",
+                      border: `1px solid ${noSalaryConfigured ? "#fed7aa" : "#bfdbfe"}`,
+                      color: noSalaryConfigured ? "#c2410c" : "#1d4ed8",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginBottom: 4,
+                    }}>
+                      <i className={`fa-solid ${noSalaryConfigured ? "fa-triangle-exclamation" : "fa-circle-info"}`} />
+                      {noSalaryConfigured
+                        ? "No monthly salary configured for this faculty. Enter it manually below."
+                        : "Enter the basic salary for this payment period."}
+                    </div>
+                  )}
+                </div>
+
+                <Field
+                  label="Basic Salary *"
+                  type="number"
+                  value={basicSalary}
+                  onChange={setBasicSalary}
+                  placeholder="e.g. 30000"
+                />
                 <Field label="Bonus / Allowance" type="number" value={bonus} onChange={setBonus} placeholder="0" />
 
                 <div className={s("full")} style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 4 }}>
                   <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", marginBottom: 10 }}>
                     <i className="fa-solid fa-circle-minus" style={{ color: "#b42318", marginRight: 6 }} />
-                    Manual Deductions (in addition to attendance deduction)
+                    Manual Deductions
+                    {taxPFAutoFilled && payrollPolicy && (
+                      <span style={{ marginLeft: 10, fontSize: 11, color: "#16a34a", fontWeight: 700 }}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 4 }} />
+                        Tax &amp; PF pre-filled from payroll policy — adjust if needed
+                      </span>
+                    )}
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                    <Field label="Tax / TDS" type="number" value={taxAmount} onChange={setTaxAmount} placeholder="0" />
-                    <Field label="Provident Fund (PF)" type="number" value={providentFund} onChange={setProvidentFund} placeholder="0" />
+                    <Field
+                      label={payrollPolicy?.default_tax_percent > 0
+                        ? `Tax / TDS (default ${payrollPolicy.default_tax_percent}%)`
+                        : "Tax / TDS"}
+                      type="number"
+                      value={taxAmount}
+                      onChange={(v) => { setTaxAmount(v); setTaxPFAutoFilled(false); }}
+                      placeholder="0"
+                    />
+                    <Field
+                      label={payrollPolicy?.default_pf_percent > 0
+                        ? `Provident Fund (default ${payrollPolicy.default_pf_percent}%)`
+                        : "Provident Fund (PF)"}
+                      type="number"
+                      value={providentFund}
+                      onChange={(v) => { setProvidentFund(v); setTaxPFAutoFilled(false); }}
+                      placeholder="0"
+                    />
                     <Field label="Other Deduction" type="number" value={otherDeduction} onChange={setOtherDeduction} placeholder="0" />
                   </div>
                   <div style={{ marginTop: 10 }}>
@@ -338,7 +484,7 @@ export default function PaySalaryPage() {
                 </div>
 
                 <label className={s("field")}>
-                  <span>Payment Date</span>
+                  <span>Payment Date *</span>
                   <DateInput value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
                 </label>
                 <Field
@@ -360,7 +506,7 @@ export default function PaySalaryPage() {
           {/* ── Summary Sidebar ──────────────────────────────────────── */}
           <aside className={s("summaryCard")}>
             <div className={s("summaryIcon")}><i className="fa-solid fa-receipt" /></div>
-            <h2>Salary Calculation</h2>
+            <h2>Salary Breakdown</h2>
 
             <div className={s("summaryRows")}>
               <span>
@@ -373,45 +519,98 @@ export default function PaySalaryPage() {
               </span>
               {selectedFaculty && (
                 <span>
-                  <b>Joined</b>
-                  <strong style={{ fontSize: 12 }}>{formatDate(selectedFaculty.join_date)}</strong>
+                  <b>Configured Salary</b>
+                  <strong style={{ color: selectedFaculty.monthly_salary ? "#12805c" : "#b42318", fontSize: 12 }}>
+                    {selectedFaculty.monthly_salary
+                      ? `₹${Number(selectedFaculty.monthly_salary).toLocaleString("en-IN")}/mo`
+                      : "Not configured"}
+                  </strong>
                 </span>
               )}
             </div>
 
             <div className={s("calcBreakdown")}>
+              {/* Earnings */}
               <div className={s("calcRow")}>
                 <span>Basic Salary</span>
                 <strong>₹{fmt(basic)}</strong>
               </div>
-              <div className={s("calcRow")}>
-                <span>Bonus / Allowance</span>
-                <strong style={{ color: "#16a34a" }}>+₹{fmt(bonusAmt)}</strong>
-              </div>
+              {bonusAmt > 0 && (
+                <div className={s("calcRow")}>
+                  <span>Bonus / Allowance</span>
+                  <strong style={{ color: "#16a34a" }}>+₹{fmt(bonusAmt)}</strong>
+                </div>
+              )}
 
               <div className={s("calcDivider")} />
 
-              {working > 0 && absent + half > 0 && (
+              {/* Attendance-based deductions */}
+              {working > 0 && absent > 0 && (
                 <div className={s("calcRow")}>
                   <span style={{ color: "#b42318" }}>
-                    Absent deduction<br />
-                    <small>({absent}×₹{perDaySalary.toFixed(0)} + {half}×₹{(perDaySalary*0.5).toFixed(0)})</small>
+                    Absent ({absent} day{absent !== 1 ? "s" : ""})<br />
+                    <small>₹{perDaySalary.toFixed(0)}/day × {absent}</small>
                   </span>
-                  <strong style={{ color: "#b42318" }}>-₹{fmt(attendanceDeduction.toFixed(0))}</strong>
+                  <strong style={{ color: "#b42318" }}>-₹{fmt(absentDeduction.toFixed(0))}</strong>
                 </div>
               )}
-              <div className={s("calcRow")}>
-                <span style={{ color: "#b42318" }}>Tax / TDS</span>
-                <strong style={{ color: "#b42318" }}>-₹{fmt(tax)}</strong>
-              </div>
-              <div className={s("calcRow")}>
-                <span style={{ color: "#b42318" }}>Provident Fund</span>
-                <strong style={{ color: "#b42318" }}>-₹{fmt(pf)}</strong>
-              </div>
-              <div className={s("calcRow")}>
-                <span style={{ color: "#b42318" }}>Other Deduction</span>
-                <strong style={{ color: "#b42318" }}>-₹{fmt(other)}</strong>
-              </div>
+              {working > 0 && half > 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#c46a14" }}>
+                    Half-day ({half} day{half !== 1 ? "s" : ""})<br />
+                    <small>{100 - Math.round((payrollPolicy?.half_day_pay_percent ?? 50))}% deducted per half-day</small>
+                  </span>
+                  <strong style={{ color: "#c46a14" }}>-₹{fmt(halfDayDeduction.toFixed(0))}</strong>
+                </div>
+              )}
+              {unpaidLeaveDays > 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#b42318" }}>
+                    Unpaid leave ({unpaidLeaveDays} day{unpaidLeaveDays !== 1 ? "s" : ""})<br />
+                    <small>{leave} taken, {paidLeaveQuota} paid quota</small>
+                  </span>
+                  <strong style={{ color: "#b42318" }}>-₹{fmt(leaveDeduction.toFixed(0))}</strong>
+                </div>
+              )}
+              {leave > 0 && unpaidLeaveDays === 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#16a34a" }}>
+                    Leave ({leave} day{leave !== 1 ? "s" : ""} — fully paid)<br />
+                    <small>Within {paidLeaveQuota}-day paid quota</small>
+                  </span>
+                  <strong style={{ color: "#16a34a" }}>₹0</strong>
+                </div>
+              )}
+
+              {/* Manual deductions */}
+              {tax > 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#b42318" }}>Tax / TDS</span>
+                  <strong style={{ color: "#b42318" }}>-₹{fmt(tax)}</strong>
+                </div>
+              )}
+              {pf > 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#b42318" }}>Provident Fund</span>
+                  <strong style={{ color: "#b42318" }}>-₹{fmt(pf)}</strong>
+                </div>
+              )}
+              {other > 0 && (
+                <div className={s("calcRow")}>
+                  <span style={{ color: "#b42318" }}>Other Deduction</span>
+                  <strong style={{ color: "#b42318" }}>-₹{fmt(other)}</strong>
+                </div>
+              )}
+
+              {totalDeduction > 0 && (
+                <>
+                  <div className={s("calcDivider")} />
+                  <div className={s("calcRow")}>
+                    <span style={{ color: "#b42318", fontWeight: 900 }}>Total Deductions</span>
+                    <strong style={{ color: "#b42318" }}>-₹{fmt(totalDeduction.toFixed(0))}</strong>
+                  </div>
+                </>
+              )}
 
               <div className={s("calcDivider")} />
 
@@ -423,12 +622,19 @@ export default function PaySalaryPage() {
               </div>
             </div>
 
+            {/* Attendance summary mini */}
             {working > 0 && (
               <div className={s("attMini")}>
                 <span><i className="fa-solid fa-calendar-days" /> {working} working days</span>
-                <span><i className="fa-solid fa-circle-check" style={{ color: "#12805c" }} /> {present || effectivePresentDays} present</span>
+                <span><i className="fa-solid fa-circle-check" style={{ color: "#12805c" }} /> {Math.round(effectivePresentDays * 10) / 10} present</span>
                 {absent > 0 && <span><i className="fa-solid fa-circle-xmark" style={{ color: "#b42318" }} /> {absent} absent</span>}
                 {half > 0   && <span><i className="fa-solid fa-circle-half-stroke" style={{ color: "#c46a14" }} /> {half} half-day</span>}
+                {leave > 0  && (
+                  <span>
+                    <i className="fa-solid fa-calendar-minus" style={{ color: unpaidLeaveDays > 0 ? "#b42318" : "#16a34a" }} />
+                    {leave} leave ({unpaidLeaveDays > 0 ? `${unpaidLeaveDays} unpaid` : "all paid"})
+                  </span>
+                )}
               </div>
             )}
 
@@ -436,11 +642,17 @@ export default function PaySalaryPage() {
               className={cx(s("btn"), s("btnPrimary"), s("wideBtn"))}
               type="button"
               onClick={handlePayment}
-              disabled={paying}
-              style={{ marginTop: 16 }}
+              disabled={paying || !basicSalary || parseFloat(basicSalary) <= 0}
+              style={{ marginTop: 16, opacity: (!basicSalary || parseFloat(basicSalary) <= 0) ? 0.6 : 1 }}
             >
               {paying ? <Spinner size={16} /> : <><i className="fa-solid fa-check" /> Process Payment</>}
             </button>
+
+            {!basicSalary && selectedFacultyId && (
+              <p style={{ marginTop: 8, fontSize: 11, color: "#b42318", fontWeight: 700, textAlign: "center" }}>
+                Enter basic salary above to enable payment
+              </p>
+            )}
           </aside>
         </section>
       </main>

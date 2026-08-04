@@ -82,7 +82,8 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
   const [preview,     setPreview]     = useState<AttPreview | null>(null);
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [err, setErr] = useState("");
-  const { execute, loading } = useMutation("/staff/salary/payments", "POST");
+  const { execute, loading }           = useMutation("/staff/salary/payments", "POST");
+  const { data: payrollPolicy }        = useApi<any>("/payroll-policy");
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -99,15 +100,40 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
         // Auto-fill gross from basic salary if not already typed
         if (p.salary_set) {
           setForm(f => ({ ...f, gross_amount: String(p.basic_salary) }));
-          // Auto-add absent deduction line if any absences
-          if (p.absent_deduction > 0) {
+
+          // Policy-aware deduction calculation
+          const paidLeaveQuota = payrollPolicy?.paid_leave_days_per_month ?? 0;
+          const halfPayPct     = (payrollPolicy?.half_day_pay_percent ?? 50) / 100;
+          const unpaidLeave    = Math.max(0, (p.leave_days ?? 0) - paidLeaveQuota);
+          const absentDeduct   = p.per_day_salary * p.absent_days;
+          const halfDeduct     = p.per_day_salary * (1 - halfPayPct) * (p.half_days ?? 0);
+          const leaveDeduct    = p.per_day_salary * unpaidLeave;
+          const totalAttDeduct = absentDeduct + halfDeduct + leaveDeduct;
+
+          if (totalAttDeduct > 0) {
+            const parts = [];
+            if (p.absent_days > 0) parts.push(`${p.absent_days} absent`);
+            if (p.half_days > 0)   parts.push(`${p.half_days} half-day`);
+            if (unpaidLeave > 0)   parts.push(`${unpaidLeave} unpaid leave`);
             setDeductions([{
               deduction_type: "absent",
-              amount: p.absent_deduction,
-              note: `${p.absent_days} absent + ${p.half_days} half-day @ ${fmt(p.per_day_salary)}/day`,
+              amount: Math.round(totalAttDeduct),
+              note: `${parts.join(" + ")} @ ${fmt(p.per_day_salary)}/day`,
             }]);
           } else {
             setDeductions([]);
+          }
+
+          // Auto-fill tax/PF from policy
+          const taxAmt = payrollPolicy?.default_tax_percent > 0
+            ? Math.round((p.basic_salary * payrollPolicy.default_tax_percent) / 100) : 0;
+          const pfAmt  = payrollPolicy?.default_pf_percent > 0
+            ? Math.round((p.basic_salary * payrollPolicy.default_pf_percent) / 100) : 0;
+          const extraDeductions: Deduction[] = [];
+          if (taxAmt > 0) extraDeductions.push({ deduction_type: "tax",            amount: taxAmt, note: `${payrollPolicy.default_tax_percent}% of basic` });
+          if (pfAmt  > 0) extraDeductions.push({ deduction_type: "provident_fund", amount: pfAmt,  note: `${payrollPolicy.default_pf_percent}% of basic`  });
+          if (extraDeductions.length > 0) {
+            setDeductions(prev => [...(totalAttDeduct > 0 ? prev : []), ...extraDeductions]);
           }
         }
       })
@@ -177,6 +203,19 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
             <label>Salary Month *</label>
             <input type="month" value={form.salary_month} onChange={e => set("salary_month", e.target.value)} />
           </div>
+
+          {/* Payroll policy banner */}
+          {payrollPolicy && (
+            <div className={s("full")} style={{ padding: "10px 14px", borderRadius: 9, background: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c", fontSize: 12, fontWeight: 700, display: "flex", gap: 8, alignItems: "center" }}>
+              <i className="fa-solid fa-circle-info" />
+              <span>
+                Policy: Paid leave quota <strong>{payrollPolicy.paid_leave_days_per_month ?? 0}/mo</strong>
+                &nbsp;· Half-day pay <strong>{payrollPolicy.half_day_pay_percent ?? 50}%</strong>
+                {payrollPolicy.default_tax_percent > 0 && <>&nbsp;· Tax <strong>{payrollPolicy.default_tax_percent}%</strong></>}
+                {payrollPolicy.default_pf_percent  > 0 && <>&nbsp;· PF <strong>{payrollPolicy.default_pf_percent}%</strong></>}
+              </span>
+            </div>
+          )}
 
           {/* Attendance preview card */}
           {form.staff_id && form.salary_month && (

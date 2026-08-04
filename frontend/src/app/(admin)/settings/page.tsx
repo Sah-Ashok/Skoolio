@@ -10,19 +10,16 @@ import { showToast } from '@/store/toastSlice';
 import { setUser } from '@/store/authSlice';
 import { Spinner } from '@/components/shared/Loader';
 import styles from './settings.module.css';
+import PayrollPolicyTab from '@/components/admin/settings/PayrollPolicyTab';
+import FeeBillingPolicyTab from '@/components/admin/settings/FeeBillingPolicyTab';
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(' ');
 
-type Tab = 'school' | 'payment' | 'security';
+type Tab = 'school' | 'payment' | 'security' | 'payroll' | 'fees';
 
 const SCHOOL_TYPES = ['Primary', 'Secondary', 'Higher_Secondary', 'College', 'University', 'Other'];
 const TIMEZONES    = ['Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Dhaka', 'UTC', 'Asia/Bangkok', 'Asia/Singapore'];
-
-// ── Country-aware bank account fields ────────────────────────────────────────
-// Nepal: bank_name, account_name, account_number, branch, esewa/khalti (upi_id field)
-// India: bank_name, account_name, account_number, ifsc_code, upi_id
-// Other: bank_name, account_name, account_number, branch, notes
 
 function getCountryRegion(country: string): 'NP' | 'IN' | 'OTHER' {
   const c = (country || '').toLowerCase().trim();
@@ -35,18 +32,10 @@ const emptyBankForm = {
   bank_name: '', account_name: '', account_number: '',
   branch: '', ifsc_code: '', upi_id: '', qr_image_url: '', notes: '',
 };
-
 type BankForm = typeof emptyBankForm;
 
-function BankAccountCard({
-  account,
-  region,
-  onToggle,
-  onDelete,
-  onEdit,
-}: {
-  account: any;
-  region:  'NP' | 'IN' | 'OTHER';
+function BankAccountCard({ account, region, onToggle, onDelete, onEdit }: {
+  account: any; region: 'NP' | 'IN' | 'OTHER';
   onToggle: (id: number, is_active: boolean) => void;
   onDelete: (id: number) => void;
   onEdit:   (account: any) => void;
@@ -69,11 +58,7 @@ function BankAccountCard({
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            padding: '3px 10px', borderRadius: 999, fontSize: 10, fontWeight: 900,
-            background: account.is_active ? '#e2f6ee' : '#f1f5f9',
-            color:      account.is_active ? '#12805c' : '#94a3b8',
-          }}>
+          <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 10, fontWeight: 900, background: account.is_active ? '#e2f6ee' : '#f1f5f9', color: account.is_active ? '#12805c' : '#94a3b8' }}>
             {account.is_active ? 'ACTIVE' : 'INACTIVE'}
           </span>
           <button onClick={() => onEdit(account)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(191,201,209,0.78)', background: '#fff', color: '#25343f', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
@@ -87,14 +72,13 @@ function BankAccountCard({
           </button>
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
         {[
           { label: 'Account Number', val: account.account_number },
-          account.branch   && { label: 'Branch',    val: account.branch },
+          account.branch    && { label: 'Branch',                                      val: account.branch    },
           account.ifsc_code && { label: region === 'NP' ? 'SWIFT/Code' : 'IFSC Code', val: account.ifsc_code },
-          account.upi_id   && { label: region === 'NP' ? 'eSewa / Khalti' : 'UPI ID', val: account.upi_id },
-          account.notes    && { label: 'Notes', val: account.notes },
+          account.upi_id    && { label: region === 'NP' ? 'eSewa / Khalti' : 'UPI ID',val: account.upi_id    },
+          account.notes     && { label: 'Notes',                                       val: account.notes     },
         ].filter(Boolean).map((item: any) => (
           <div key={item.label} style={{ padding: '8px 10px', borderRadius: 8, background: '#f7fafb', border: '1px solid #edf2f4' }}>
             <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.label}</div>
@@ -102,7 +86,6 @@ function BankAccountCard({
           </div>
         ))}
       </div>
-
       {account.qr_image_url && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img src={account.qr_image_url} alt="QR Code" style={{ width: 64, height: 64, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }} />
@@ -169,9 +152,9 @@ export default function AdminSettingsPage() {
   const [showPw, setShowPw]     = useState(false);
 
   const handleChangePassword = async () => {
-    if (!pwForm.current_password)                       { dispatch(showToast({ type: 'error', title: 'Required', message: 'Enter your current password.' })); return; }
-    if (pwForm.new_password.length < 6)                 { dispatch(showToast({ type: 'error', title: 'Too Short', message: 'New password must be at least 6 characters.' })); return; }
-    if (pwForm.new_password !== pwForm.confirm_password) { dispatch(showToast({ type: 'error', title: 'Mismatch', message: 'Passwords do not match.' })); return; }
+    if (!pwForm.current_password)                        { dispatch(showToast({ type: 'error', title: 'Required',  message: 'Enter your current password.' }));        return; }
+    if (pwForm.new_password.length < 6)                  { dispatch(showToast({ type: 'error', title: 'Too Short', message: 'New password must be at least 6 characters.' })); return; }
+    if (pwForm.new_password !== pwForm.confirm_password) { dispatch(showToast({ type: 'error', title: 'Mismatch',  message: 'Passwords do not match.' }));              return; }
     setSavingPw(true);
     try {
       await apiRequest('/school/change-password', { method: 'PATCH', body: JSON.stringify({ current_password: pwForm.current_password, new_password: pwForm.new_password }) });
@@ -185,11 +168,11 @@ export default function AdminSettingsPage() {
   // ── Bank Accounts ─────────────────────────────────────────────────────────
   const { data: bankAccounts, loading: bankLoading, refetch: refetchBanks } = useApi<any[]>('/online-payments/bank-accounts');
   const [showBankForm, setShowBankForm] = useState(false);
-  const [editingBank, setEditingBank]   = useState<any | null>(null);
-  const [bankForm, setBankForm]         = useState<BankForm>(emptyBankForm);
-  const [savingBank, setSavingBank]     = useState(false);
+  const [editingBank,  setEditingBank]  = useState<any | null>(null);
+  const [bankForm,     setBankForm]     = useState<BankForm>(emptyBankForm);
+  const [savingBank,   setSavingBank]   = useState(false);
 
-  const openAddBank = () => { setEditingBank(null); setBankForm(emptyBankForm); setShowBankForm(true); };
+  const openAddBank  = () => { setEditingBank(null); setBankForm(emptyBankForm); setShowBankForm(true); };
   const openEditBank = (account: any) => {
     setEditingBank(account);
     setBankForm({
@@ -278,9 +261,11 @@ export default function AdminSettingsPage() {
         {/* Tabs */}
         <div className={s('tabs')}>
           {([
-            ['school',  'fa-school',              'School Info'],
-            ['payment', 'fa-building-columns',    'Payment Setup'],
-            ['security','fa-lock',                'Security'],
+            ['school',   'fa-school',                'School Info'      ],
+            ['payment',  'fa-building-columns',      'Payment Setup'    ],
+            ['security', 'fa-lock',                  'Security'         ],
+            ['payroll',  'fa-money-check-dollar',    'Payroll Policy'   ],
+            ['fees',     'fa-file-invoice-dollar',   'Fee Billing'      ],
           ] as const).map(([key, icon, label]) => (
             <button key={key} className={cx(s('tab'), tab === key && s('tab-active'))} onClick={() => setTab(key)}>
               <i className={`fa-solid ${icon}`} /> {label}
@@ -357,7 +342,11 @@ export default function AdminSettingsPage() {
               </div>
             </div>
             <div style={{ padding: '0 18px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              {[['Email', school?.email], ['School Code', school?.school_code], ['2FA Status', school?.two_fa_enabled ? 'Enabled by admin' : 'Disabled']].map(([label, val]) => (
+              {[
+                ['Email',        school?.email],
+                ['School Code',  school?.school_code],
+                ['2FA Status',   school?.two_fa_enabled ? 'Enabled by admin' : 'Disabled'],
+              ].map(([label, val]) => (
                 <div key={label} style={{ padding: '12px 14px', border: '1px solid rgba(191,201,209,0.5)', borderRadius: 9, background: '#f8fbfb' }}>
                   <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7b86', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
                   <div style={{ fontSize: 13, fontWeight: 800 }}>{val || '—'}</div>
@@ -375,8 +364,6 @@ export default function AdminSettingsPage() {
         {/* ── Payment Setup Tab ── */}
         {!loading && tab === 'payment' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Info banner */}
             <div style={{ padding: '14px 18px', borderRadius: 11, background: '#fff7ed', border: '1px solid #fed7aa', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <i className="fa-solid fa-circle-info" style={{ color: '#c2410c', marginTop: 2, fontSize: 15, flexShrink: 0 }} />
               <div>
@@ -390,7 +377,6 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Bank accounts panel */}
             <div className={s('panel')}>
               <div className={s('panel-head')}>
                 <div>
@@ -401,7 +387,6 @@ export default function AdminSettingsPage() {
                   <i className="fa-solid fa-plus" /> Add Account
                 </button>
               </div>
-
               <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {bankLoading && <div style={{ padding: '2rem', textAlign: 'center' }}><Spinner size={24} color="#FF9B51" /></div>}
                 {!bankLoading && (!bankAccounts || bankAccounts.length === 0) && (
@@ -412,37 +397,24 @@ export default function AdminSettingsPage() {
                   </div>
                 )}
                 {(bankAccounts ?? []).map((acc: any) => (
-                  <BankAccountCard
-                    key={acc.id}
-                    account={acc}
-                    region={region}
-                    onToggle={handleToggleBank}
-                    onDelete={handleDeleteBank}
-                    onEdit={openEditBank}
-                  />
+                  <BankAccountCard key={acc.id} account={acc} region={region} onToggle={handleToggleBank} onDelete={handleDeleteBank} onEdit={openEditBank} />
                 ))}
               </div>
             </div>
 
-            {/* Add/Edit bank form modal-style panel */}
             {showBankForm && (
               <div className={s('panel')}>
                 <div className={s('panel-head')}>
                   <div>
-                    <h2><i className="fa-solid fa-plus" style={{ color: '#ff9b51', marginRight: 8 }} />
-                      {editingBank ? 'Edit Bank Account' : 'Add Bank Account'}
-                    </h2>
+                    <h2><i className="fa-solid fa-plus" style={{ color: '#ff9b51', marginRight: 8 }} />{editingBank ? 'Edit Bank Account' : 'Add Bank Account'}</h2>
                     <p>
                       {region === 'NP' && 'Nepal — eSewa/Khalti supported'}
                       {region === 'IN' && 'India — UPI/IFSC supported'}
                       {region === 'OTHER' && 'International bank transfer fields'}
                     </p>
                   </div>
-                  <button className={s('btn')} onClick={() => setShowBankForm(false)}>
-                    <i className="fa-solid fa-xmark" /> Cancel
-                  </button>
+                  <button className={s('btn')} onClick={() => setShowBankForm(false)}><i className="fa-solid fa-xmark" /> Cancel</button>
                 </div>
-
                 <div className={s('form-grid')}>
                   <label className={s('field')}>
                     <span>Bank Name <em>*</em></span>
@@ -457,42 +429,33 @@ export default function AdminSettingsPage() {
                     <span>Account Number <em>*</em></span>
                     <input value={bankForm.account_number} onChange={e => setBankForm({ ...bankForm, account_number: e.target.value })} placeholder="Bank account number" />
                   </label>
-
-                  {/* Nepal: branch instead of IFSC */}
                   {region !== 'IN' && (
                     <label className={s('field')}>
                       <span>Branch</span>
                       <input value={bankForm.branch} onChange={e => setBankForm({ ...bankForm, branch: e.target.value })} placeholder="e.g. Kathmandu Main Branch" />
                     </label>
                   )}
-
-                  {/* India: IFSC */}
                   {region === 'IN' && (
                     <label className={s('field')}>
                       <span>IFSC Code</span>
                       <input value={bankForm.ifsc_code} onChange={e => setBankForm({ ...bankForm, ifsc_code: e.target.value })} placeholder="e.g. SBIN0001234" />
                     </label>
                   )}
-
-                  {/* UPI — label differs by country */}
                   <label className={s('field')}>
                     <span>{region === 'NP' ? 'eSewa / Khalti Number' : region === 'IN' ? 'UPI ID' : 'Digital Payment ID'}</span>
                     <input value={bankForm.upi_id} onChange={e => setBankForm({ ...bankForm, upi_id: e.target.value })}
                       placeholder={region === 'NP' ? 'e.g. 98XXXXXXXX (eSewa/Khalti)' : region === 'IN' ? 'e.g. school@upi' : 'Optional'} />
                   </label>
-
                   <label className={s('field')}>
                     <span>QR Code Image URL</span>
                     <input value={bankForm.qr_image_url} onChange={e => setBankForm({ ...bankForm, qr_image_url: e.target.value })} placeholder="https://… (paste QR image URL)" />
                   </label>
-
                   <label className={cx(s('field'), s('full'))}>
                     <span>Notes / Instructions for Students</span>
                     <input value={bankForm.notes} onChange={e => setBankForm({ ...bankForm, notes: e.target.value })}
                       placeholder="e.g. Transfer during bank hours (10am–3pm). Include your name in remarks." />
                   </label>
                 </div>
-
                 <div className={s('form-actions')}>
                   <button className={s('btn')} onClick={() => setShowBankForm(false)}>Cancel</button>
                   <button className={cx(s('btn'), s('btn-primary'))} onClick={handleSaveBank} disabled={savingBank}>
@@ -587,6 +550,21 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         )}
+
+        {/* ── Payroll Policy Tab ── */}
+        {!loading && tab === 'payroll' && (
+          <div className={s('panel')}>
+            <PayrollPolicyTab />
+          </div>
+        )}
+
+        {/* ── Fee Billing Policy Tab ── */}
+        {!loading && tab === 'fees' && (
+          <div className={s('panel')}>
+            <FeeBillingPolicyTab />
+          </div>
+        )}
+
       </main>
     </div>
   );

@@ -101,6 +101,15 @@ export default function CollectFeePage() {
     setSelectedStudent(null); setQuery(""); setSearchResults([]); resetPayment();
   };
 
+  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
+  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
+  const isOverdueFn = (dueDate: string, status: string): boolean => {
+    if (status === "paid" || status === "waived") return false;
+    const due = new Date(dueDate);
+    due.setDate(due.getDate() + graceDays);
+    return due < new Date();
+  };
+
   // ── Collections ─────────────────────────────────────────────────────────────
   const [typeFilter, setTypeFilter] = useState("all");
   const { data: rawCollections, refetch: refetchCollections } = useApi<any[]>(
@@ -120,9 +129,7 @@ export default function CollectFeePage() {
 
   const totalDue  = allCollections.reduce((a: number, c: any) => a + parseFloat(c.remaining_amount || "0"), 0);
   const totalPaid = allCollections.reduce((a: number, c: any) => a + parseFloat(c.paid_amount      || "0"), 0);
-  const overdueCt = allCollections.filter((c: any) =>
-    c.status !== "paid" && c.status !== "waived" && new Date(c.due_date) < new Date()
-  ).length;
+  const overdueCt = allCollections.filter((c: any) => isOverdueFn(c.due_date, c.status)).length;
   const paidPct = (totalDue + totalPaid) > 0 ? (totalPaid / (totalDue + totalPaid)) * 100 : 0;
 
   // ── Bulk select ─────────────────────────────────────────────────────────────
@@ -240,6 +247,27 @@ export default function CollectFeePage() {
     } finally { setAddingMisc(false); }
   };
 
+  // ── Waive modal ───────────────────────────────────────────────────────────────
+  const [waiveTarget, setWaiveTarget]  = useState<any | null>(null);
+  const [waiveReason, setWaiveReason]  = useState("");
+  const [waiving,     setWaiving]      = useState(false);
+
+  const handleWaive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waiveTarget) return;
+    setWaiving(true);
+    try {
+      await apiRequest(`/fees/collections/${waiveTarget.id}/waive`, {
+        method: "POST",
+        body: JSON.stringify({ reason: waiveReason || "Waived by admin" }),
+      });
+      dispatch(showToast({ type: "success", title: "Fee Waived", message: `"${waiveTarget.fee_name}" has been waived.` }));
+      refetchCollections(); setWaiveTarget(null); setWaiveReason("");
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not waive fee." }));
+    } finally { setWaiving(false); }
+  };
+
   // ── Fine modal ────────────────────────────────────────────────────────────────
   const [fineTarget, setFineTarget] = useState<any | null>(null);
   const [fineAmount, setFineAmount] = useState("");
@@ -276,11 +304,24 @@ export default function CollectFeePage() {
             <p>Find a student → tick pending fees → process payment.</p>
           </div>
           <div className={s("head-actions")}>
+            {selectedStudent && (
+              <Link
+                className={cx(s("btn"), s("btn-outline"))}
+                href={`/students/profile?id=${selectedStudent.id}`}
+              >
+                <i className="fa-solid fa-user" /> Profile
+              </Link>
+            )}
+            {selectedStudent && (
+              <Link
+                className={cx(s("btn"), s("btn-outline"))}
+                href={`/fees/history?student_id=${selectedStudent.id}`}
+              >
+                <i className="fa-solid fa-clock-rotate-left" /> Fee History
+              </Link>
+            )}
             <Link className={cx(s("btn"), s("btn-outline"))} href="/fees/records">
               <i className="fa-solid fa-table-list" /> All Records
-            </Link>
-            <Link className={cx(s("btn"), s("btn-soft"))} href="/fees/structures">
-              <i className="fa-solid fa-list" /> Structures
             </Link>
             <Link className={cx(s("btn"), s("btn-outline"))} href="/fees">
               <i className="fa-solid fa-chart-pie" /> Overview
@@ -519,7 +560,7 @@ export default function CollectFeePage() {
                           </tr>
                         )}
                         {pendingCollections.map((c: any) => {
-                          const isOverdue  = new Date(c.due_date) < new Date();
+                          const isOverdue  = isOverdueFn(c.due_date, c.status);
                           const isSelected = selectedIds.has(c.id);
                           return (
                             <tr key={c.id}
@@ -543,7 +584,7 @@ export default function CollectFeePage() {
                                 {formatDate(c.due_date?.split("T")[0])}
                               </td>
                               <td><StatusBadge status={c.status} /></td>
-                              <td>
+                              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                 {isOverdue && (
                                   <button
                                     className={s("cf-fine-btn")}
@@ -552,6 +593,14 @@ export default function CollectFeePage() {
                                     <i className="fa-solid fa-bolt" /> Fine
                                   </button>
                                 )}
+                                <button
+                                  className={s("cf-fine-btn")}
+                                  style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }}
+                                  onClick={ev => { ev.stopPropagation(); setWaiveTarget(c); setWaiveReason(""); }}
+                                  title="Waive this fee"
+                                >
+                                  <i className="fa-solid fa-hand-holding-heart" /> Waive
+                                </button>
                               </td>
                             </tr>
                           );
@@ -581,9 +630,9 @@ export default function CollectFeePage() {
                                 <td className={s("cf-date")}>{formatDate(c.due_date?.split("T")[0])}</td>
                                 <td><StatusBadge status={c.status} /></td>
                                 <td>
-                                  {c.status === "paid" && (
-                                    <Link href="/fees/records" className={s("cf-receipts-link")}>
-                                      <i className="fa-solid fa-print" /> Receipts
+                                  {(c.status === "paid" || c.status === "waived") && (
+                                    <Link href={`/fees/history?student_id=${selectedStudent?.id}`} className={s("cf-receipts-link")}>
+                                      <i className="fa-solid fa-clock-rotate-left" /> History
                                     </Link>
                                   )}
                                 </td>
@@ -689,6 +738,40 @@ export default function CollectFeePage() {
           )}
         </div>
       </main>
+
+      {/* ── Waive modal ───────────────────────────────────────────────────── */}
+      {waiveTarget && (
+        <div className={s("cf-modal-overlay")} onClick={() => setWaiveTarget(null)}>
+          <div className={s("cf-modal")} onClick={e => e.stopPropagation()}>
+            <div className={s("cf-modal-head")}>
+              <div>
+                <h3>Waive Fee</h3>
+                <p>{waiveTarget.fee_name} · {fmt(waiveTarget.remaining_amount)} remaining</p>
+              </div>
+              <button onClick={() => setWaiveTarget(null)} className={s("cf-modal-close")}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <form onSubmit={handleWaive} className={s("cf-modal-body")}>
+              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 12px" }}>
+                Waiving sets the remaining balance to zero. This action cannot be undone.
+              </p>
+              <label className={s("cf-field")}>
+                <span>Reason (optional)</span>
+                <input value={waiveReason} onChange={e => setWaiveReason(e.target.value)} placeholder="e.g. Financial hardship, scholarship adjustment…" style={INP} />
+              </label>
+              <div className={s("cf-modal-actions")}>
+                <button type="submit" disabled={waiving} className={s("cf-fine-submit")} style={{ background: "#1d4ed8" }}>
+                  {waiving ? <><Spinner size={14} color="#fff" /> Waiving…</> : <><i className="fa-solid fa-hand-holding-heart" /> Confirm Waive</>}
+                </button>
+                <button type="button" onClick={() => setWaiveTarget(null)} className={s("cf-modal-cancel")}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Fine modal ────────────────────────────────────────────────────── */}
       {fineTarget && (

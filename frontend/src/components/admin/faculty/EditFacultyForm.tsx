@@ -43,6 +43,7 @@ export default function EditFacultyForm() {
     date_of_birth:    "",
     qualification:    "",
     experience_years: "",
+    monthly_salary:   "",
     join_date:        "",
     city:             "",
     state:            "",
@@ -67,6 +68,7 @@ export default function EditFacultyForm() {
         ? new Date(teacher.date_of_birth).toISOString().split("T")[0] : "",
       qualification:    teacher.qualification    ?? "",
       experience_years: teacher.experience_years?.toString() ?? "",
+      monthly_salary:   teacher.monthly_salary   != null ? String(teacher.monthly_salary) : "",
       join_date:        teacher.join_date
         ? new Date(teacher.join_date).toISOString().split("T")[0] : "",
       city:             teacher.city             ?? "",
@@ -128,6 +130,7 @@ export default function EditFacultyForm() {
     const payload: any = {
       ...form,
       experience_years: form.experience_years ? Number(form.experience_years) : undefined,
+      monthly_salary:   form.monthly_salary   ? Number(form.monthly_salary)   : undefined,
       date_of_birth:    form.date_of_birth    || undefined,
       join_date:        form.join_date        || undefined,
       city:             form.city             || undefined,
@@ -227,6 +230,11 @@ export default function EditFacultyForm() {
               {form.experience_years && (
                 <b className={cx(s("badge"), s("chip-green"))}>{form.experience_years} yrs exp</b>
               )}
+              {form.monthly_salary && (
+                <b className={cx(s("badge"), s("chip-orange"))} style={{ background: "#fff1df", color: "#a85f12" }}>
+                  ₹{Number(form.monthly_salary).toLocaleString("en-IN")}/mo
+                </b>
+              )}
             </div>
           </div>
           <div className={s("hero-metrics")}>
@@ -235,8 +243,10 @@ export default function EditFacultyForm() {
               <strong style={{ fontSize: 13, textTransform: "capitalize" }}>{form.status}</strong>
             </span>
             <span>
-              <b>Experience</b>
-              <strong style={{ fontSize: 13 }}>{form.experience_years ? `${form.experience_years} yrs` : "—"}</strong>
+              <b>Monthly Salary</b>
+              <strong style={{ fontSize: 13, color: form.monthly_salary ? "#12805c" : "#b42318" }}>
+                {form.monthly_salary ? `₹${Number(form.monthly_salary).toLocaleString("en-IN")}` : "Not set"}
+              </strong>
             </span>
             <span>
               <b>Join Date</b>
@@ -378,6 +388,23 @@ export default function EditFacultyForm() {
               <label className={s("field")}>
                 <span>Experience (Years)</span>
                 <input name="experience_years" type="number" min="0" max="60" value={form.experience_years} onChange={set} placeholder="e.g. 5" />
+              </label>
+              <label className={s("field")}>
+                <span>Monthly Salary <em>*</em></span>
+                <input
+                  name="monthly_salary"
+                  type="number"
+                  min="0"
+                  value={form.monthly_salary}
+                  onChange={set}
+                  placeholder="e.g. 25000"
+                />
+                {!form.monthly_salary && (
+                  <span style={{ fontSize: 11, color: "#c46a14", fontWeight: 700 }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 4 }} />
+                    Required for salary calculation
+                  </span>
+                )}
               </label>
               <label className={s("field")}>
                 <span>Join Date</span>

@@ -102,7 +102,10 @@ export default function FeeStructuresPage() {
       amount: curr.amount,
       billing_start_rule: curr.billing_start_rule || 'next_month',
       scholarship_applies: curr.scholarship_applies !== false,
-      annualTotal: curr.frequency === 'monthly' ? curr.amount * 12 : curr.frequency === 'quarterly' ? curr.amount * 4 : curr.amount,
+      annualTotal: curr.frequency === 'monthly' ? curr.amount * 12
+        : curr.frequency === 'quarterly'  ? curr.amount * 4
+        : curr.frequency === 'half_yearly' ? curr.amount * 2
+        : curr.amount,  // yearly / one_time
       year: activeYear?.year_name || curr.academic_year_id
     });
     return acc;
@@ -352,7 +355,7 @@ export default function FeeStructuresPage() {
                 </select>
               </label>
 
-              {editState.frequency === "monthly" && (
+              {(editState.frequency === "monthly" || editState.frequency === "quarterly" || editState.frequency === "half_yearly") && (
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
                   Billing Start Rule
                   <select
@@ -360,9 +363,9 @@ export default function FeeStructuresPage() {
                     onChange={(e) => setEditState({ ...editState, billing_start_rule: e.target.value })}
                     style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
                   >
-                    <option value="next_month">Next Month (Default)</option>
+                    <option value="next_month">Next Cycle (Default)</option>
                     <option value="skip_two_months">Skip 2 Months</option>
-                    <option value="academic_year">From Academic Year</option>
+                    <option value="academic_year">From Academic Year Start</option>
                   </select>
                 </label>
               )}

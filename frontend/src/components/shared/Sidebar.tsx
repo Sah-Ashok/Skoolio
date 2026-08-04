@@ -33,28 +33,30 @@ const adminNav: NavSection[] = [
   {
     label: 'Main',
     items: [
-      { href: '/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
-      { href: '/students', icon: 'fa-user-graduate', label: 'Students' },
-      { href: '/classes', icon: 'fa-school', label: 'Classes' },
-      { href: '/teachers', icon: 'fa-chalkboard-teacher', label: 'Teachers' },
-      { href: '/staff', icon: 'fa-user-tie', label: 'Staff' },
+      { href: '/dashboard', icon: 'fa-gauge-high',          label: 'Dashboard' },
+      { href: '/students',  icon: 'fa-user-graduate',       label: 'Students'  },
+      { href: '/classes',   icon: 'fa-school',              label: 'Classes'   },
+      { href: '/teachers',  icon: 'fa-chalkboard-teacher',  label: 'Teachers', exact: true },
+      { href: '/staff',     icon: 'fa-user-tie',            label: 'Staff',    exact: true },
     ],
   },
   {
     label: 'Academics',
     items: [
-      { href: '/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
-      { href: '/exams', icon: 'fa-file-alt', label: 'Exams' },
-      { href: '/notices', icon: 'fa-bullhorn', label: 'Notices' },
-      { href: '/calendar', icon: 'fa-calendar-days', label: 'Calendar' },
+      { href: '/attendance',          icon: 'fa-clipboard-check', label: 'Student Attendance', exact: true },
+      { href: '/teachers/attendance', icon: 'fa-user-clock',      label: 'Staff Attendance',   exact: true },
+      { href: '/exams',               icon: 'fa-file-alt',        label: 'Exams'   },
+      { href: '/notices',             icon: 'fa-bullhorn',        label: 'Notices' },
+      { href: '/calendar',            icon: 'fa-calendar-days',   label: 'Calendar'},
     ],
   },
   {
     label: 'Finance',
     items: [
-      { href: '/fees', icon: 'fa-file-invoice-dollar', label: 'Fees' },
-      { href: '/expenses', icon: 'fa-receipt', label: 'Expenses' },
-      { href: '/salary', icon: 'fa-money-bill-wave', label: 'Salary' },
+      { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fees',             exact: true },
+      { href: '/fees/monthly-billing',  icon: 'fa-calendar-plus',       label: 'Monthly Billing',  exact: true },
+      { href: '/expenses',              icon: 'fa-receipt',             label: 'Expenses' },
+      { href: '/salary',                icon: 'fa-money-bill-wave',     label: 'Salary'   },
     ],
   },
   {

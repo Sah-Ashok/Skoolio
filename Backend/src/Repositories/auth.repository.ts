@@ -5,7 +5,8 @@ import { IRegisterSchool, ISchool } from '../types/auth.types';
 const SAFE_COLS = `
   id, school_name, school_code, city, state, country, pincode, phone, email, owner_full_name,
   logo, established_year, school_type, role, is_account, is_verified, timezone, calendar_system,
-  two_fa_enabled, subscription_id, created_at, updated_at
+  two_fa_enabled, subscription_id,
+  created_at, updated_at
 `;
 
 // ── SCHOOL CRUD ──────────────────────────────────────────────────────────────
@@ -66,18 +67,18 @@ export const findSchoolByIdSafe = async (id: number): Promise<Omit<ISchool, 'pas
 // ── SCHOOL SETTINGS ──────────────────────────────────────────────────────────
 
 export type IUpdateSchoolSettings = {
-  school_name?:      string;
-  school_type?:      string;
-  established_year?: number | null;
-  city?:             string;
-  state?:            string;
-  country?:          string;
-  pincode?:          string;
-  phone?:            string;
-  logo?:             string;
-  timezone?:         string;
-  owner_full_name?:  string;
-  calendar_system?:  'AD' | 'BS';
+  school_name?:                string;
+  school_type?:                string;
+  established_year?:           number | null;
+  city?:                       string;
+  state?:                      string;
+  country?:                    string;
+  pincode?:                    string;
+  phone?:                      string;
+  logo?:                       string;
+  timezone?:                   string;
+  owner_full_name?:            string;
+  calendar_system?:            'AD' | 'BS';
 };
 
 export const updateSchoolSettingsRepo = async (

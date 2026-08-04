@@ -20,6 +20,13 @@ function getGreeting() {
   return       { text:"Good evening",   icon:"fa-moon"      };
 }
 
+function getHonorific(gender?: string | null) {
+  const value = (gender || "").trim().toLowerCase();
+  if (value === "male") return "Sir";
+  if (value === "female") return "Ma'am";
+  return "Respected Teacher";
+}
+
 const SUBJECT_COLORS = ["#6366f1","#0891b2","#16a34a","#dc2626","#9333ea","#0284c7","#d97706","#059669"];
 const PRIORITY: Record<string, { dot:string; label:string }> = {
   urgent: { dot:"#ef4444", label:"Urgent" },
@@ -32,8 +39,10 @@ export default function TeacherDashboardPage() {
   const { user } = useAppSelector(s => s.auth);
   const { data: me, loading } = useApi<any>("/auth/me");
   const { data: noticesRaw }  = useApi<any>("/notices/teacher");
-  const { data: attSummary }  = useApi<any>("/teachers/me/attendance/yearly");
   const { data: activeYear }  = useApi<any>("/academic-years/active");
+  const { data: attSummary }  = useApi<any>(
+    activeYear?.id ? `/teachers/me/attendance/yearly?academic_year_id=${activeYear.id}` : ""
+  );
 
   const notices: any[]  = (noticesRaw?.data ?? noticesRaw ?? []).slice(0, 5);
   const subjects: any[] = me?.subjects ?? [];
@@ -43,6 +52,7 @@ export default function TeacherDashboardPage() {
   const firstName  = name.split(" ")[0];
   const initials   = name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
   const schoolName = me?.school_name || user?.school_name || "";
+  const honorific  = getHonorific(me?.gender ?? (user as any)?.gender);
   const greeting   = getGreeting();
 
   const present   = Number(attSummary?.total_present ?? 0);
@@ -67,25 +77,20 @@ export default function TeacherDashboardPage() {
     <>
       <style>{`
         .td2{background:#f8fafc;min-height:100vh;color:#0f172a}
-        .td2-mob{height:56px;border-bottom:.5px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#fff}
-        .td2-mob-school{font-size:14px;font-weight:900;color:#1f2d36}
-        .td2-mob-right{display:flex;align-items:center;gap:8px}
         .td2-ibtn{width:32px;height:32px;border-radius:9px;border:.5px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#64748b;cursor:pointer;position:relative}
         .td2-ibtn-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:#f97316}
         .td2-pbtn{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:9px;border:.5px solid #e2e8f0;background:#f8fafc;font-size:12px;color:#475569;text-decoration:none;font-weight:700}
-        .td2-desk{display:none}
-        .td2-desk-r{display:flex;align-items:center;gap:10px}
-        .td2-wrap{padding:18px 16px 60px;display:flex;flex-direction:column;gap:18px;max-width:1080px;margin:0 auto}
-        @media(min-width:768px){.td2-wrap{padding:18px 28px 60px}}
-        .td2-hero{background:#fff;border-radius:14px;border:.5px solid #e2e8f0;border-left:4px solid #FF9B51;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-        .td2-eye{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;margin-bottom:6px}
-        .td2-name{font-size:clamp(28px,5vw,42px);font-weight:500;line-height:1;margin:0 0 4px}
-        .td2-sch{font-size:clamp(16px,3vw,24px);color:#334155;font-weight:500;margin:4px 0 10px}
+        .td2-wrap{padding:24px 16px 60px;display:flex;flex-direction:column;gap:18px;max-width:1080px;margin:0 auto}
+        @media(min-width:768px){.td2-wrap{padding:28px 28px 60px}}
+        .td2-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:4px 2px 0}
+        .td2-eye{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
+        .td2-name{font-size:clamp(28px,5vw,42px);font-weight:900;line-height:1;margin:0 0 8px;color:#1e293b}
+        .td2-sch{font-size:clamp(24px,4.5vw,40px);color:#FF9B51;font-weight:900;line-height:1.12;margin:0 0 8px}
         .td2-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .td2-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:.5px solid #e2e8f0;background:#fff;font-size:12px;color:#475569;font-weight:700}
         .td2-status{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:.5px solid #86efac;background:#dcfce7;color:#166534;font-size:12px;font-weight:700}
         .td2-sdot{width:7px;height:7px;border-radius:50%;background:#16a34a}
-        .td2-av{width:64px;height:64px;border-radius:14px;border:2px solid #FF9B51;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#FF9B51;background:#fff7ed;flex-shrink:0}
+        .td2-av{width:68px;height:68px;border-radius:16px;border:2.5px solid #FF9B51;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#FF9B51;background:#fff7ed;flex-shrink:0;box-shadow:0 4px 14px rgba(255,155,81,.18)}
         .td2-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
         @media(max-width:640px){.td2-stats{grid-template-columns:repeat(2,1fr);gap:8px}}
         .td2-stat{background:#fff;border:.5px solid #e2e8f0;border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
@@ -101,12 +106,11 @@ export default function TeacherDashboardPage() {
         .td2-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
         @media(max-width:640px){.td2-quick{grid-template-columns:repeat(2,1fr)}}
         @media(min-width:641px) and (max-width:900px){.td2-quick{grid-template-columns:repeat(3,1fr)}}
-        .td2-qc{background:#fff;border:.5px solid #e2e8f0;border-radius:12px;padding:14px 10px;text-decoration:none;text-align:center;position:relative;overflow:hidden;transition:border-color .12s,box-shadow .12s}
+        .td2-qc{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 10px;text-decoration:none;text-align:center;position:relative;overflow:hidden;transition:border-color .12s,box-shadow .12s}
         .td2-qc:hover{border-color:#FF9B51;box-shadow:0 4px 12px rgba(255,155,81,.12)}
-        .td2-qc::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px}
-        .td2-qc.tqc1::after{background:#FF9B51}.td2-qc.tqc2::after{background:#6366f1}.td2-qc.tqc3::after{background:#16a34a}.td2-qc.tqc4::after{background:#0891b2}
-        .td2-qc.tqc5::after{background:#f59e0b}.td2-qc.tqc6::after{background:#2563eb}.td2-qc.tqc7::after{background:#ef4444}.td2-qc.tqc8::after{background:#ec4899}
-        .td2-qi{width:36px;height:36px;border-radius:10px;border:.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;color:#64748b;background:#f8fafc}
+        .td2-qi{width:36px;height:36px;border-radius:10px;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;color:#64748b;background:#fff}
+        .td2-qc.tqc1 .td2-qi{border-color:#FF9B51;color:#FF9B51}.td2-qc.tqc2 .td2-qi{border-color:#6366f1;color:#6366f1}.td2-qc.tqc3 .td2-qi{border-color:#16a34a;color:#16a34a}.td2-qc.tqc4 .td2-qi{border-color:#0891b2;color:#0891b2}
+        .td2-qc.tqc5 .td2-qi{border-color:#f59e0b;color:#f59e0b}.td2-qc.tqc6 .td2-qi{border-color:#2563eb;color:#2563eb}.td2-qc.tqc7 .td2-qi{border-color:#ef4444;color:#ef4444}.td2-qc.tqc8 .td2-qi{border-color:#ec4899;color:#ec4899}
         .td2-ql{font-size:11px;font-weight:700;color:#334155}
         .td2-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
         @media(max-width:680px){.td2-two{grid-template-columns:1fr}}
@@ -128,39 +132,6 @@ export default function TeacherDashboardPage() {
       `}</style>
 
       <div className="td2">
-
-        {/* Mobile topbar */}
-        <div className="td2-mob">
-          <span className="td2-mob-school">{schoolName || "Skoolio"}</span>
-          <div className="td2-mob-right">
-            <button type="button" className="td2-ibtn">
-              <i className="fa-regular fa-bell" style={{ fontSize:13 }} />
-              {notices.length > 0 && <span className="td2-ibtn-dot" />}
-            </button>
-            <Link href="/teacher/profile" className="td2-pbtn">
-              <i className="fa-regular fa-user" /> My Profile
-            </Link>
-          </div>
-        </div>
-
-        {/* Desktop top row */}
-        <div className="td2-desk">
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <i className={`fa-solid ${greeting.icon}`} style={{ color:"#f59e0b", fontSize:15 }} />
-            <span style={{ fontSize:14, fontWeight:700, color:"#475569" }}>{greeting.text}, {firstName}!</span>
-            {schoolName && <span style={{ fontSize:12, color:"#94a3b8" }}>— {schoolName}</span>}
-          </div>
-          <div className="td2-desk-r">
-            <button type="button" className="td2-ibtn">
-              <i className="fa-regular fa-bell" style={{ fontSize:13 }} />
-              {notices.length > 0 && <span className="td2-ibtn-dot" />}
-            </button>
-            <Link href="/teacher/profile" className="td2-pbtn">
-              <i className="fa-regular fa-user" style={{ fontSize:12 }} /> My Profile
-            </Link>
-          </div>
-        </div>
-
         <div className="td2-wrap">
           {loading ? (
             <div style={{ padding:"6rem 0", textAlign:"center" }}>
@@ -171,13 +142,19 @@ export default function TeacherDashboardPage() {
 
             {/* Hero */}
             <div className="td2-hero">
-              <div>
+              <div style={{ flex:1, minWidth:0 }}>
+                {schoolName && <div className="td2-sch" style={{ fontSize:"clamp(24px,4.5vw,40px)", fontWeight:900, color:"#FF9B51", lineHeight:1.12, margin:0, marginBottom:8 }}>{schoolName}</div>}
                 <div className="td2-eye">
-                  <i className={`fa-solid ${greeting.icon}`} style={{ color:"#f59e0b", fontSize:13 }} />
-                  {greeting.text}
+                  <img
+                    src={greeting.icon === "fa-sun" ? "/icons/GoodMorning.svg" : greeting.icon === "fa-cloud-sun" ? "/icons/Afternoon.svg" : "/icons/GoodEvening.svg"}
+                    alt={greeting.text}
+                    width={44}
+                    height={44}
+                    style={{ objectFit:"contain" }}
+                  />
+                  {greeting.text},
                 </div>
-                <div className="td2-name">{firstName}</div>
-                {schoolName && <div className="td2-sch">{schoolName}</div>}
+                <div className="td2-name">{honorific} {firstName}</div>
                 <div className="td2-tags">
                   {me?.employee_id && <span className="td2-tag"><i className="fa-regular fa-id-badge" /> {me.employee_id}</span>}
                   {activeYear?.year_name && <span className="td2-tag"><i className="fa-regular fa-calendar" /> {activeYear.year_name}</span>}

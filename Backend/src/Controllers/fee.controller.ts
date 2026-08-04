@@ -18,6 +18,7 @@ import {
   assignOneTimeFeesService,
   getMonthlyBillingStatusService,
 } from '../Service/fee.service';
+import { getFeeStructureById } from '../Repositories/fee.repository';
 
 const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
   'school_id' in user ? user.school_id : user.id;
@@ -40,6 +41,14 @@ export const getFeeStructures = catchAsync(async (req: Request, res: Response, n
   sendResponse(res, 200, true, 'Fee structures fetched successfully', result);
 });
 
+// ── GET SINGLE FEE STRUCTURE BY ID (used by StudentFeeHistoryPage per-bill structure tag) ──
+export const getFeeStructureByIdController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const structure = await getFeeStructureById(Number(req.params.id), school_id);
+  if (!structure) return sendResponse(res, 404, false, 'Fee structure not found', null);
+  sendResponse(res, 200, true, 'Fee structure fetched successfully', structure);
+});
+
 export const updateFeeStructure = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await updateFeeStructureService(Number(req.params.id), school_id, req.body);
@@ -60,7 +69,6 @@ export const createFeeCollection = catchAsync(async (req: Request, res: Response
   sendResponse(res, 201, true, 'Fee collection created successfully', result);
 });
 
-// P3 FIX: Miscellaneous / one-time fee (no fee_structure required)
 export const createMiscFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { student_id, enrollment_id, academic_year_id, fee_name, due_date, total_amount, discount_amount, discount_reason } = req.body;
@@ -170,11 +178,14 @@ export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Resp
 
 export const generateTransportBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month } = req.body;
+  const { academic_year_id, billing_month, due_day } = req.body;
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
   }
-  const result = await generateTransportBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  const result = await generateTransportBillsService(
+    school_id, school_id, Number(academic_year_id), billing_month,
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1
+  );
   sendResponse(res, 201, true, `Transport bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
 
@@ -190,11 +201,14 @@ export const getTransportFeeSummary = catchAsync(async (req: Request, res: Respo
 
 export const generateHostelBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month } = req.body;
+  const { academic_year_id, billing_month, due_day } = req.body;
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
   }
-  const result = await generateHostelBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  const result = await generateHostelBillsService(
+    school_id, school_id, Number(academic_year_id), billing_month,
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1
+  );
   sendResponse(res, 201, true, `Hostel bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
 

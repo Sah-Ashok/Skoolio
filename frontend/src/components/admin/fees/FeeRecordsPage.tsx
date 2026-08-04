@@ -202,7 +202,7 @@ export default function FeeRecordsPage() {
   });
 
   const totalPaid    = (collections || []).reduce((s, c) => s + parseFloat(c.paid_amount      || "0"), 0);
-  const totalPending = (collections || []).filter(c => c.status !== "paid")
+  const totalPending = (collections || []).filter(c => c.status !== "paid" && c.status !== "waived")
     .reduce((s, c) => s + parseFloat(c.remaining_amount || "0"), 0);
   const transportBills = (collections || []).filter(c => (c.fee_type || "academic") === "transport").length;
 

@@ -22,6 +22,15 @@
 ## ⚠️ Pending migrations (run before using these tables)
 
 ```sql
+-- payroll_policy table (new — run migration_payroll_policy.sql)
+-- One row per school. Stores paid leave quota, half-day pay %, default tax/PF %.
+-- GET /api/payroll-policy  — returns current policy or defaults
+-- PUT /api/payroll-policy  — upsert (admin only)
+```
+
+
+
+```sql
 -- fee_collections is missing two columns added by the transport module
 ALTER TABLE fee_collections ADD COLUMN fee_type VARCHAR(20) NOT NULL DEFAULT 'academic';
 ALTER TABLE fee_collections ALTER COLUMN fee_structure_id DROP NOT NULL;
@@ -695,7 +704,29 @@ Single-row global table. Always exactly one row (id = 1).
 
 ---
 
-### 31. transport_vehicles
+### 31. payroll_policy
+
+One row per school. Controls how faculty salaries are calculated.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| school_id | INTEGER FK → schools | UNIQUE — one policy per school |
+| paid_leave_days_per_month | INTEGER | Leave days per month that are NOT deducted. Days beyond quota deducted at per_day rate. Default 0 |
+| half_day_pay_percent | INTEGER | 0–100: % of per-day salary earned on a half-day. 50 = half pay, 0 = full deduction, 100 = no deduction. Default 50 |
+| default_tax_percent | DECIMAL(5,2) | Default income tax % of basic salary — pre-fills PaySalaryPage. Default 0 |
+| default_pf_percent | DECIMAL(5,2) | Default provident fund % of basic salary — pre-fills PaySalaryPage. Default 0 |
+| working_days_basis | VARCHAR | `manual` or `calendar` (calendar = auto from weekly offs, future). Default `manual` |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+> **API:** `GET /api/payroll-policy` (returns defaults if not yet configured), `PUT /api/payroll-policy` (upsert).
+> **Used by:** PaySalaryPage auto-loads policy on mount — pre-fills tax/PF fields and applies leave quota + half-day % to live calculation.
+> **Settings UI:** Settings → Payroll Policy tab with live preview calculator.
+
+---
+
+### 32. transport_vehicles
 
 | Column | Type | Notes |
 |---|---|---|

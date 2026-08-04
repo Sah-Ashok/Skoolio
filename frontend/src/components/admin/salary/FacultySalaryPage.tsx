@@ -26,34 +26,21 @@ function formatCurrency(amount: number | string | null | undefined) {
   }).format(n);
 }
 
-/** Convert a DB AD month+year to a display month label respecting calendar system. */
 function monthLabel(month: number, year: number, isBS: boolean): string {
   if (!isBS) return `${AD_MONTH_NAMES[month - 1]} ${year}`;
-  // Use day-15 rule (same as useDateFormat) to get the BS month for this AD month
   const iso = `${year}-${String(month).padStart(2, "0")}-15`;
   const [y, m, d] = iso.split("-").map(Number);
   const bs = adToBS(new Date(y, m - 1, d));
   return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
 }
 
-/** How many months have elapsed since the teacher's join_date up to today.
- *  Used to calculate "expected salary months". */
-function monthsSinceJoin(joinDateStr: string | null | undefined): number {
-  if (!joinDateStr) return 0;
-  const join = new Date(joinDateStr);
-  const now  = new Date();
-  const diff =
-    (now.getFullYear() - join.getFullYear()) * 12 +
-    (now.getMonth() - join.getMonth());
-  return Math.max(0, diff);
-}
-
 // ── component ────────────────────────────────────────────────────────────────
 
 export default function FacultySalaryPage() {
   const { data: summary, loading } = useApi<any[]>("/teachers/salary/summary");
+  const { data: payrollPolicy }    = useApi<any>("/payroll-policy");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "uptodate">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "uptodate" | "no_salary">("all");
   const { isBS, formatDate } = useDateFormat();
 
   const list = useMemo(() => {
@@ -63,17 +50,19 @@ export default function FacultySalaryPage() {
         t.full_name.toLowerCase().includes(search.toLowerCase()) ||
         String(t.teacher_id).includes(search);
       if (!matchSearch) return false;
-      if (filter === "pending") return Number(t.total_pending) > 0;
-      if (filter === "uptodate") return Number(t.total_pending) === 0;
+      if (filter === "pending")   return Number(t.total_pending) > 0;
+      if (filter === "uptodate")  return Number(t.total_pending) === 0 && Number(t.monthly_salary) > 0;
+      if (filter === "no_salary") return !t.monthly_salary || Number(t.monthly_salary) === 0;
       return true;
     });
   }, [summary, search, filter]);
 
   // Aggregate stats
-  const totalTeachers    = summary?.length ?? 0;
-  const totalPending     = summary?.reduce((acc, t) => acc + Number(t.total_pending ?? 0), 0) ?? 0;
-  const totalPaidAll     = summary?.reduce((acc, t) => acc + Number(t.total_paid ?? 0), 0) ?? 0;
-  const withPending      = summary?.filter((t) => Number(t.total_pending) > 0).length ?? 0;
+  const totalTeachers = summary?.length ?? 0;
+  const totalPending  = summary?.reduce((acc, t) => acc + Number(t.total_pending ?? 0), 0) ?? 0;
+  const totalPaidAll  = summary?.reduce((acc, t) => acc + Number(t.total_paid ?? 0), 0) ?? 0;
+  const withPending   = summary?.filter((t) => Number(t.total_pending) > 0).length ?? 0;
+  const noSalary      = summary?.filter((t) => !t.monthly_salary || Number(t.monthly_salary) === 0).length ?? 0;
 
   return (
     <div className={s("page")}>
@@ -85,10 +74,62 @@ export default function FacultySalaryPage() {
             <h1>Faculty Salary</h1>
             <p>View payment status for all faculty members and process monthly payroll.</p>
           </div>
-          <Link className={cx(s("btn"), s("btnPrimary"))} href="/salary/pay">
-            <i className="fa-solid fa-money-check-dollar" /> Pay Salary
-          </Link>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Link className={cx(s("btn"), s("btnOutline"))} href="/settings?tab=payroll">
+              <i className="fa-solid fa-gear" /> Payroll Policy
+            </Link>
+            <Link className={cx(s("btn"), s("btnPrimary"))} href="/salary/pay">
+              <i className="fa-solid fa-money-check-dollar" /> Pay Salary
+            </Link>
+          </div>
         </section>
+
+        {/* ── Payroll policy info bar ─────────────────────────────────── */}
+        {payrollPolicy && (
+          <div style={{
+            marginBottom: 14,
+            padding: "10px 16px",
+            borderRadius: 10,
+            background: "#fff",
+            border: "1px solid #d4dde2",
+            boxShadow: "0 2px 12px rgba(31,45,54,0.06)",
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+            flexWrap: "wrap",
+            fontSize: 12,
+            fontWeight: 800,
+            color: "#4a5a65",
+          }}>
+            <span><i className="fa-solid fa-circle-info" style={{ color: "#ff9b51", marginRight: 6 }} />Payroll Policy Active</span>
+            <span>
+              <i className="fa-solid fa-calendar-xmark" style={{ color: "#b42318", marginRight: 5 }} />
+              Paid leave: <strong>{payrollPolicy.paid_leave_days_per_month} day{payrollPolicy.paid_leave_days_per_month !== 1 ? "s" : ""}/month</strong>
+            </span>
+            <span>
+              <i className="fa-solid fa-circle-half-stroke" style={{ color: "#c46a14", marginRight: 5 }} />
+              Half-day pay: <strong>{payrollPolicy.half_day_pay_percent}%</strong>
+            </span>
+            {payrollPolicy.default_tax_percent > 0 && (
+              <span>
+                <i className="fa-solid fa-percent" style={{ color: "#3b5bdb", marginRight: 5 }} />
+                Default Tax: <strong>{payrollPolicy.default_tax_percent}%</strong>
+              </span>
+            )}
+            {payrollPolicy.default_pf_percent > 0 && (
+              <span>
+                <i className="fa-solid fa-percent" style={{ color: "#3b5bdb", marginRight: 5 }} />
+                Default PF: <strong>{payrollPolicy.default_pf_percent}%</strong>
+              </span>
+            )}
+            <Link
+              href="/settings?tab=payroll"
+              style={{ marginLeft: "auto", fontSize: 11, color: "#ff9b51", fontWeight: 900, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <i className="fa-solid fa-pen-to-square" /> Edit Policy
+            </Link>
+          </div>
+        )}
 
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <section className={s("stats")}>
@@ -118,6 +159,29 @@ export default function FacultySalaryPage() {
           </div>
         </section>
 
+        {/* ── No salary warning ──────────────────────────────────────── */}
+        {noSalary > 0 && (
+          <div style={{
+            marginBottom: 14,
+            padding: "12px 16px",
+            borderRadius: 10,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#c2410c",
+            fontSize: 13,
+            fontWeight: 700,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}>
+            <i className="fa-solid fa-triangle-exclamation" style={{ flexShrink: 0 }} />
+            <span>
+              <strong>{noSalary} faculty member{noSalary !== 1 ? "s have" : " has"} no monthly salary configured.</strong>
+              {" "}Salary cannot be auto-calculated for them. Go to their profile → Professional tab to set a salary, or enter it manually when paying.
+            </span>
+          </div>
+        )}
+
         {/* ── Filter toolbar ──────────────────────────────────────────── */}
         <section className={s("salaryToolbar")}>
           <label className={s("search")}>
@@ -129,13 +193,18 @@ export default function FacultySalaryPage() {
             />
           </label>
           <div className={s("filterBtns")}>
-            {(["all", "pending", "uptodate"] as const).map((f) => (
+            {([
+              { key: "all",       label: "All Teachers"    },
+              { key: "pending",   label: "Has Pending"     },
+              { key: "uptodate",  label: "Up to Date"      },
+              { key: "no_salary", label: `No Salary (${noSalary})` },
+            ] as const).map((f) => (
               <button
-                key={f}
-                className={cx(s("filterBtn"), filter === f && s("filterBtnActive"))}
-                onClick={() => setFilter(f)}
+                key={f.key}
+                className={cx(s("filterBtn"), filter === f.key && s("filterBtnActive"))}
+                onClick={() => setFilter(f.key)}
               >
-                {f === "all" ? "All Teachers" : f === "pending" ? "Has Pending" : "Up to Date"}
+                {f.label}
               </button>
             ))}
           </div>
@@ -172,11 +241,12 @@ export default function FacultySalaryPage() {
                 </thead>
                 <tbody>
                   {list.map((t) => {
-                    const pending     = Number(t.total_pending ?? 0);
-                    const lastPeriod  = t.last_paid_period; // YYYYMM integer
-                    const lastYear    = lastPeriod ? Math.floor(lastPeriod / 100) : null;
-                    const lastMonth   = lastPeriod ? lastPeriod % 100 : null;
+                    const pending       = Number(t.total_pending ?? 0);
+                    const lastPeriod    = t.last_paid_period;
+                    const lastYear      = lastPeriod ? Math.floor(lastPeriod / 100) : null;
+                    const lastMonth     = lastPeriod ? lastPeriod % 100 : null;
                     const pendingMonths = Number(t.pending_months ?? 0);
+                    const hasSalary     = t.monthly_salary && Number(t.monthly_salary) > 0;
 
                     return (
                       <tr key={t.teacher_id} className={pending > 0 ? s("rowPending") : ""}>
@@ -197,10 +267,22 @@ export default function FacultySalaryPage() {
                           </div>
                         </td>
                         <td>
-                          <strong>{formatCurrency(t.monthly_salary)}</strong>
-                          <small style={{ display: "block", color: "#6a7882", fontSize: 11, marginTop: 2 }}>
-                            /month
-                          </small>
+                          {hasSalary ? (
+                            <>
+                              <strong>{formatCurrency(t.monthly_salary)}</strong>
+                              <small style={{ display: "block", color: "#6a7882", fontSize: 11, marginTop: 2 }}>/month</small>
+                            </>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ color: "#b42318", fontSize: 12, fontWeight: 800 }}>Not set</span>
+                              <Link
+                                href={`/teachers/${t.teacher_id}/edit`}
+                                style={{ fontSize: 11, color: "#ff9b51", fontWeight: 900, textDecoration: "none" }}
+                              >
+                                <i className="fa-solid fa-pen" style={{ marginRight: 3 }} />Set
+                              </Link>
+                            </div>
+                          )}
                         </td>
                         <td>
                           <span className={cx(s("badge"), s("paid"))}>
@@ -236,9 +318,7 @@ export default function FacultySalaryPage() {
                               {monthLabel(lastMonth, lastYear, isBS)}
                             </span>
                           ) : (
-                            <span style={{ color: "#b42318", fontSize: 12, fontWeight: 800 }}>
-                              Never paid
-                            </span>
+                            <span style={{ color: "#b42318", fontSize: 12, fontWeight: 800 }}>Never paid</span>
                           )}
                         </td>
                         <td style={{ fontSize: 12, fontWeight: 800, color: "#6a7882" }}>

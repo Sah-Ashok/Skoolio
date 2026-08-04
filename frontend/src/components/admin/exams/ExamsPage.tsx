@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Topbar from "@/components/shared/Topbar";
-import styles from "./exams.module.css";
+import s from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
-
-const s  = (c: string) => styles[c] || c;
-const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
 function getExamStatus(exam: any): "upcoming" | "active" | "completed" {
   const now   = new Date();
@@ -22,211 +18,250 @@ function getExamStatus(exam: any): "upcoming" | "active" | "completed" {
   return "active";
 }
 
-function StatusBadge({ exam }: { exam: any }) {
-  const status = getExamStatus(exam);
-  const map = {
-    upcoming:  { cls: "badgeBlue",   label: "Upcoming",  icon: "fa-clock" },
-    active:    { cls: "badgeGreen",  label: "Active",    icon: "fa-circle-play" },
-    completed: { cls: "badgeGray",   label: "Completed", icon: "fa-check-double" },
-  };
-  const { cls, label, icon } = map[status];
-  return (
-    <span className={cx(s("badge"), s(cls))}>
-      <i className={`fa-solid ${icon}`} style={{ fontSize: 9 }} /> {label}
-    </span>
-  );
-}
+const STATUS_META = {
+  upcoming:  { label: "Upcoming",  icon: "fa-clock",        cls: s.badgeBlue   },
+  active:    { label: "Active",    icon: "fa-circle-play",  cls: s.badgeGreen  },
+  completed: { label: "Completed", icon: "fa-check-double", cls: s.badgeGray   },
+} as const;
 
-function ExamTypePill({ type }: { type: string }) {
-  const labels: Record<string, string> = {
-    unit_test: "Unit Test", mid_term: "Mid Term",
-    final: "Final", practice: "Practice",
-  };
-  return <span className={s("typePill")}>{labels[type] ?? type}</span>;
-}
+const TYPE_LABELS: Record<string, string> = {
+  unit_test: "Unit Test",
+  mid_term:  "Mid Term",
+  final:     "Final",
+  practice:  "Practice",
+};
+
+const FILTER_TABS = ["all", "upcoming", "active", "completed"] as const;
+type Filter = typeof FILTER_TABS[number];
 
 export default function ExamsPage() {
   const dispatch = useAppDispatch();
   const { activeYear, academicYearId } = useAcademicYear();
-  const {
-    data: exams,
-    loading,
-    refetch,
-  } = useApi<any[]>(academicYearId ? `/exams?academic_year_id=${academicYearId}` : "");
+  const { data: exams, loading, refetch } = useApi<any[]>(
+    academicYearId ? `/exams?academic_year_id=${academicYearId}` : ""
+  );
   const { execute: deleteExam } = useMutation("/exams", "DELETE");
 
-  const [search, setSearch]   = useState("");
-  const [filter, setFilter]   = useState<"all" | "upcoming" | "active" | "completed">("all");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
 
-  const filtered = (exams ?? []).filter((ex) => {
+  const list = exams ?? [];
+  const counts = {
+    upcoming:  list.filter(e => getExamStatus(e) === "upcoming").length,
+    active:    list.filter(e => getExamStatus(e) === "active").length,
+    completed: list.filter(e => getExamStatus(e) === "completed").length,
+  };
+
+  const filtered = list.filter(ex => {
     const matchName   = ex.name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filter === "all" || getExamStatus(ex) === filter;
     return matchName && matchStatus;
   });
 
-  const upcomingCount  = exams?.filter((e) => getExamStatus(e) === "upcoming").length  ?? 0;
-  const activeCount    = exams?.filter((e) => getExamStatus(e) === "active").length    ?? 0;
-  const completedCount = exams?.filter((e) => getExamStatus(e) === "completed").length ?? 0;
-
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
       await deleteExam(undefined, `/exams/${id}`);
-      dispatch(showToast({ type: "success", title: "Deleted", message: `"${name}" has been removed.` }));
+      dispatch(showToast({ type: "success", title: "Deleted", message: `"${name}" removed.` }));
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Error", message: err.message ?? "Failed to delete exam." }));
+      dispatch(showToast({ type: "error", title: "Error", message: err.message ?? "Failed to delete." }));
     }
   };
 
   return (
-    <div className={s("page")}>
-      <Topbar title="Examinations" subtitle="Manage exams, schedules & marks" />
+    <div className={s.page}>
+      <div className={s.content}>
 
-      <main className={s("content")}>
-        {/* ── Header ── */}
-        <div className={s("head")}>
-          <div>
-            <h1>Exams — {activeYear?.year_name ?? "..."}</h1>
-            <p>Create and manage examinations for the current academic year</p>
+        {/* ── Page header ── */}
+        <div className={s.pageHeader}>
+          <div className={s.pageHeaderText}>
+            <p className={s.pageEyebrow}>Academic Year · {activeYear?.year_name ?? "…"}</p>
+            <h1 className={s.pageTitle}>Examinations</h1>
+            <p className={s.pageSubtitle}>Create and manage exams, schedules & marks</p>
           </div>
-          <div className={s("actions")}>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/exams/add">
-              <i className="fa-solid fa-plus" /> Create Exam
-            </Link>
-          </div>
+          <Link className={s.btnPrimary} href="/exams/add">
+            <i className="fa-solid fa-plus" />
+            Create Exam
+          </Link>
         </div>
 
         {/* ── Stat cards ── */}
-        <div className={s("stats")}>
-          <article className={cx(s("stat"), s("blue"))}>
-            <div className={s("statIcon")}><i className="fa-solid fa-file-lines" /></div>
-            <span className={s("statLabel")}>Total Exams</span>
-            <strong className={s("statValue")}>{exams?.length ?? 0}</strong>
-            <small className={s("statSub")}>This year</small>
-          </article>
-          <article className={cx(s("stat"), s("orange"))}>
-            <div className={s("statIcon")}><i className="fa-solid fa-clock" /></div>
-            <span className={s("statLabel")}>Upcoming</span>
-            <strong className={s("statValue")}>{upcomingCount}</strong>
-            <small className={s("statSub")}>Scheduled ahead</small>
-          </article>
-          <article className={cx(s("stat"), s("green"))}>
-            <div className={s("statIcon")}><i className="fa-solid fa-circle-play" /></div>
-            <span className={s("statLabel")}>Active</span>
-            <strong className={s("statValue")}>{activeCount}</strong>
-            <small className={s("statSub")}>Running now</small>
-          </article>
-          <article className={cx(s("stat"), s("red"))}>
-            <div className={s("statIcon")}><i className="fa-solid fa-check-double" /></div>
-            <span className={s("statLabel")}>Completed</span>
-            <strong className={s("statValue")}>{completedCount}</strong>
-            <small className={s("statSub")}>Past exams</small>
-          </article>
+        <div className={s.statsRow}>
+          <StatCard
+            color="blue"
+            icon="fa-file-lines"
+            label="Total Exams"
+            value={list.length}
+            sub="This year"
+          />
+          <StatCard
+            color="orange"
+            icon="fa-clock"
+            label="Upcoming"
+            value={counts.upcoming}
+            sub="Scheduled ahead"
+          />
+          <StatCard
+            color="green"
+            icon="fa-circle-play"
+            label="Active"
+            value={counts.active}
+            sub="Running now"
+          />
+          <StatCard
+            color="slate"
+            icon="fa-check-double"
+            label="Completed"
+            value={counts.completed}
+            sub="Past exams"
+          />
         </div>
 
         {/* ── Toolbar ── */}
-        <div className={s("toolbar")}>
-          <label className={s("search")}>
+        <div className={s.toolbar}>
+          <label className={s.searchBox}>
             <i className="fa-solid fa-magnifying-glass" />
             <input
               type="search"
               placeholder="Search exam name…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
             />
           </label>
-          {(["all", "upcoming", "active", "completed"] as const).map((f) => (
-            <button
-              key={f}
-              className={cx(s("btn"), filter === f ? s("btnPrimary") : s("btnOutline"), s("btnSm"))}
-              onClick={() => setFilter(f)}
-              style={{ textTransform: "capitalize" }}
-            >
-              {f}
-            </button>
-          ))}
+          <div className={s.filterTabs}>
+            {FILTER_TABS.map(f => (
+              <button
+                key={f}
+                className={filter === f ? s.tabActive : s.tab}
+                onClick={() => setFilter(f)}
+              >
+                {f === "all" ? "All" : STATUS_META[f].label}
+                {f !== "all" && (
+                  <span className={s.tabCount}>{counts[f]}</span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Table card ── */}
-        <div className={s("card")}>
-          <div className={s("cardHead")}>
+        <div className={s.card}>
+          <div className={s.cardHead}>
             <div>
-              <h2>Exam List</h2>
-              <p>{filtered.length} exam{filtered.length !== 1 ? "s" : ""} found</p>
+              <span className={s.cardTitle}>Exam List</span>
+              <span className={s.cardMeta}>{filtered.length} exam{filtered.length !== 1 ? "s" : ""} found</span>
             </div>
           </div>
 
-          <div className={s("tableWrap")}>
-            {loading ? (
-              <div className={s("loadingWrap")}><Spinner size={32} color="#FF9B51" /></div>
-            ) : filtered.length === 0 ? (
-              <div className={s("emptyState")}>
-                <div className={s("emptyIcon")}><i className="fa-solid fa-file-circle-xmark" /></div>
-                <h3>No exams found</h3>
-                <p>{search ? "Try a different search term or clear filters." : "Create your first exam to get started."}</p>
-                <Link className={cx(s("btn"), s("btnPrimary"))} href="/exams/add" style={{ marginTop: 8 }}>
+          {loading ? (
+            <div className={s.centerWrap}><Spinner size={28} color="#FF9B51" /></div>
+          ) : filtered.length === 0 ? (
+            <div className={s.emptyState}>
+              <div className={s.emptyIcon}>
+                <i className="fa-solid fa-file-circle-xmark" />
+              </div>
+              <p className={s.emptyTitle}>No exams found</p>
+              <p className={s.emptyMsg}>
+                {search ? "Try a different search or clear filters." : "Create your first exam to get started."}
+              </p>
+              {!search && (
+                <Link className={s.btnPrimary} href="/exams/add" style={{ marginTop: 4 }}>
                   <i className="fa-solid fa-plus" /> Create Exam
                 </Link>
-              </div>
-            ) : (
-              <table className={s("table")}>
+              )}
+            </div>
+          ) : (
+            <div className={s.tableWrap}>
+              <table className={s.table}>
                 <thead>
                   <tr>
-                    <th>Exam Name</th>
+                    <th>Exam</th>
                     <th>Type</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
+                    <th>Start</th>
+                    <th>End</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((ex) => (
-                    <tr key={ex.id}>
-                      <td>
-                        <div className={s("examName")}>
-                          <div className={s("examIcon")}>
-                            <i className="fa-solid fa-scroll" />
+                  {filtered.map(ex => {
+                    const status = getExamStatus(ex);
+                    const meta   = STATUS_META[status];
+                    return (
+                      <tr key={ex.id}>
+                        <td>
+                          <div className={s.examCell}>
+                            <div className={s.examDot} data-status={status} />
+                            <div>
+                              <div className={s.examName}>{ex.name}</div>
+                              <div className={s.examId}>ID #{ex.id}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className={s("examLabel")}>{ex.name}</div>
-                            <div className={s("examSub")}>ID #{ex.id}</div>
+                        </td>
+                        <td>
+                          <span className={s.typePill}>
+                            {TYPE_LABELS[ex.exam_type] ?? ex.exam_type}
+                          </span>
+                        </td>
+                        <td className={s.dateCell}>
+                          {new Date(ex.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td className={s.dateCell}>
+                          {new Date(ex.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td>
+                          <span className={`${s.badge} ${meta.cls}`}>
+                            <i className={`fa-solid ${meta.icon}`} />
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td>
+                          <div className={s.rowActions}>
+                            <Link className={s.actionBtn} href={`/exams/${ex.id}/schedule`} title="Schedule">
+                              <i className="fa-solid fa-calendar-days" />
+                              <span>Schedule</span>
+                            </Link>
+                            <Link className={s.actionBtn} href={`/exams/${ex.id}/results`} title="Results">
+                              <i className="fa-solid fa-chart-bar" />
+                              <span>Results</span>
+                            </Link>
+                            <button
+                              className={s.deleteBtn}
+                              onClick={() => handleDelete(ex.id, ex.name)}
+                              title="Delete"
+                            >
+                              <i className="fa-solid fa-trash" />
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      <td><ExamTypePill type={ex.exam_type} /></td>
-                      <td style={{ fontWeight: 600 }}>
-                        {new Date(ex.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>
-                        {new Date(ex.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </td>
-                      <td><StatusBadge exam={ex} /></td>
-                      <td>
-                        <div className={s("actions")}>
-                          <Link className={cx(s("btn"), s("btnSoft"), s("btnSm"))} href={`/exams/${ex.id}/schedule`}>
-                            <i className="fa-solid fa-calendar-days" /> Schedule
-                          </Link>
-                          <Link className={cx(s("btn"), s("btnOutline"), s("btnSm"))} href={`/exams/${ex.id}/results`}>
-                            <i className="fa-solid fa-chart-bar" /> Results
-                          </Link>
-                          <button
-                            className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
-                            onClick={() => handleDelete(ex.id, ex.name)}
-                          >
-                            <i className="fa-solid fa-trash" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </main>
+
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  color, icon, label, value, sub
+}: { color: string; icon: string; label: string; value: number; sub: string }) {
+  return (
+    <div className={`${s.statCard} ${s[`stat_${color}`]}`}>
+      <div className={s.statIconWrap}>
+        <i className={`fa-solid ${icon}`} />
+      </div>
+      <div className={s.statBody}>
+        <span className={s.statLabel}>{label}</span>
+        <strong className={s.statValue}>{value}</strong>
+        <span className={s.statSub}>{sub}</span>
+      </div>
     </div>
   );
 }
