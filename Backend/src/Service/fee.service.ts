@@ -260,8 +260,8 @@ export const createMiscFeeCollectionService = async (
   );
 };
 
-export const getFeeCollectionsService = async (school_id: number, academic_year_id: number) => {
-  return await getFeeCollectionsBySchool(school_id, academic_year_id);
+export const getFeeCollectionsService = async (school_id: number, academic_year_id: number, billing_month?: string) => {
+  return await getFeeCollectionsBySchool(school_id, academic_year_id, billing_month);
 };
 
 export const getStudentFeeCollectionsService = async (
@@ -573,10 +573,13 @@ export const generateTransportBillsService = async (
   created_by:       number,
   academic_year_id: number,
   billing_month:    string,
-  due_day:          number = 1
+  due_day:          number = 1,
+  student_ids:      number[] = [],
 ) => {
   await assertFeeManagementEnabled(school_id);
   await assertBillingMonthInAcademicYear(school_id, academic_year_id, billing_month);
+  if (!student_ids.length) throw new AppError('Select at least one student before generating bills.', 400);
+  const selected = new Set(student_ids.map(Number));
 
   const [ymYear, ymMonth] = billing_month.split('-').map(Number);
   const lastDayOfMonth = new Date(ymYear, ymMonth, 0).getDate();
@@ -593,6 +596,9 @@ export const generateTransportBillsService = async (
     const assignments = await getAssignmentsByRoute(route.id, school_id, academic_year_id);
     for (const assignment of assignments) {
       try {
+        if (!selected.has(Number(assignment.student_id))) { skipped++; continue; }
+        if ((assignment.start_date && String(assignment.start_date).slice(0, 10) > due_date) ||
+            (assignment.end_date && String(assignment.end_date).slice(0, 10) < `${billing_month}-01`)) { skipped++; continue; }
         const monthly_fee = Number(assignment.monthly_fee);
         if (!monthly_fee || monthly_fee <= 0) { skipped++; continue; }
 
@@ -620,16 +626,71 @@ export const getTransportFeeSummaryService = async (school_id: number, academic_
   return getTransportFeeSummary(school_id, academic_year_id);
 };
 
+type SpecialFeeType = 'transport' | 'hostel';
+
+/**
+ * The review list is deliberately calculated on the server.  The browser may
+ * display only selected students, but it must never be able to bill an
+ * arbitrary student id.
+ */
+export const getSpecialFeeBillingPreviewService = async (
+  school_id: number,
+  academic_year_id: number,
+  billing_month: string,
+  type: SpecialFeeType,
+) => {
+  await assertFeeManagementEnabled(school_id);
+  await assertBillingMonthInAcademicYear(school_id, academic_year_id, billing_month);
+
+  const [year, month] = billing_month.split('-').map(Number);
+  const firstDay = `${billing_month}-01`;
+  const lastDay = `${billing_month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+  const groups = type === 'transport'
+    ? await getRoutesBySchool(school_id, academic_year_id)
+    : await getHostelsBySchool(school_id);
+  const entries: any[] = [];
+
+  for (const group of groups) {
+    const assignments = type === 'transport'
+      ? await getAssignmentsByRoute(group.id, school_id, academic_year_id)
+      : await getAssignmentsByHostel(group.id, school_id, academic_year_id);
+    for (const assignment of assignments) {
+      const startsOn = assignment.start_date || assignment.joining_date;
+      const endsOn = assignment.end_date || assignment.leaving_date;
+      if ((startsOn && String(startsOn).slice(0, 10) > lastDay) || (endsOn && String(endsOn).slice(0, 10) < firstDay)) continue;
+      const amount = Number(assignment.monthly_fee);
+      if (!amount || amount <= 0) continue;
+      const exists = type === 'transport'
+        ? await getTransportFeeForPeriod(school_id, assignment.student_id, academic_year_id, firstDay)
+        : await getHostelFeeForPeriod(school_id, assignment.student_id, academic_year_id, firstDay);
+      entries.push({
+        student_id: assignment.student_id,
+        full_name: assignment.full_name,
+        admission_number: assignment.admission_number,
+        amount,
+        already_billed: Boolean(exists),
+        assignment: type === 'transport'
+          ? `${group.name} · ${assignment.stop_name}`
+          : `${group.name} · Room ${assignment.room_number}`,
+      });
+    }
+  }
+  return entries.sort((a, b) => a.full_name.localeCompare(b.full_name));
+};
+
 // ── GENERATE HOSTEL BILLS (batch) — B1 fixed ─────────────────────────────
 export const generateHostelBillsService = async (
   school_id:        number,
   created_by:       number,
   academic_year_id: number,
   billing_month:    string,
-  due_day:          number = 1
+  due_day:          number = 1,
+  student_ids:      number[] = [],
 ) => {
   await assertFeeManagementEnabled(school_id);
   await assertBillingMonthInAcademicYear(school_id, academic_year_id, billing_month);
+  if (!student_ids.length) throw new AppError('Select at least one student before generating bills.', 400);
+  const selected = new Set(student_ids.map(Number));
 
   const [ymYear, ymMonth] = billing_month.split('-').map(Number);
   const lastDayOfMonth = new Date(ymYear, ymMonth, 0).getDate();
@@ -646,6 +707,9 @@ export const generateHostelBillsService = async (
     const assignments = await getAssignmentsByHostel(hostel.id, school_id, academic_year_id);
     for (const assignment of assignments) {
       try {
+        if (!selected.has(Number(assignment.student_id))) { skipped++; continue; }
+        if ((assignment.joining_date && String(assignment.joining_date).slice(0, 10) > due_date) ||
+            (assignment.leaving_date && String(assignment.leaving_date).slice(0, 10) < `${billing_month}-01`)) { skipped++; continue; }
         const monthly_fee = Number(assignment.monthly_fee);
         if (!monthly_fee || monthly_fee <= 0) { skipped++; continue; }
 

@@ -10,8 +10,8 @@ import {
   createFeePayment, getPaymentsByCollection, getStudentPayments,
   getMyFeeCollections, getMyPayments,
   generateMonthlyFeeBills,
-  generateTransportBills, getTransportFeeSummary,
-  generateHostelBills, getHostelFeeSummary,
+  generateTransportBills, getTransportFeeSummary, getTransportBillingPreview,
+  generateHostelBills, getHostelFeeSummary, getHostelBillingPreview,
   getPaymentReceipt,
   assignOneTimeFeesController,
   getMonthlyBillingStatusController,
@@ -30,8 +30,10 @@ router.post('/monthly/generate',   restrictTo('admin', 'super_admin'), generateM
 router.get ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
 router.post('/one-time/assign',    restrictTo('admin', 'super_admin'), assignOneTimeFeesController);
 router.post('/transport/generate', restrictTo('admin', 'super_admin'), generateTransportBills);
+router.get ('/transport/preview',  restrictTo('admin', 'super_admin'), getTransportBillingPreview);
 router.get ('/transport/summary',  restrictTo('admin', 'super_admin'), getTransportFeeSummary);
 router.post('/hostel/generate',    restrictTo('admin', 'super_admin'), generateHostelBills);
+router.get ('/hostel/preview',     restrictTo('admin', 'super_admin'), getHostelBillingPreview);
 router.get ('/hostel/summary',     restrictTo('admin', 'super_admin'), getHostelFeeSummary);
 
 // ── FEE STRUCTURES ──

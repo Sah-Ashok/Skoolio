@@ -4,6 +4,7 @@ import PlanStatusBanner from "@/components/shared/PlanStatusBanner";
 import AppFooter from "@/components/shared/AppFooter";
 import OfflineGuard from "@/components/shared/OfflineGuard";
 import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
+import FeedbackWidget from "@/components/shared/FeedbackWidget";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -20,6 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <AppFooter role="admin" />
         </div>
       </div>
+      <FeedbackWidget />
     </RequireRole>
   );
 }

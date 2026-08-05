@@ -200,16 +200,25 @@ export const waiveFeeCollection = async (
 
 export const getFeeCollectionsBySchool = async (
   school_id: number,
-  academic_year_id: number
+  academic_year_id: number,
+  billing_month?: string,
 ): Promise<IFeeCollection[]> => {
+  const params: Array<number | string> = [school_id, academic_year_id];
+  const monthFilter = billing_month ? `AND to_char(fc.due_date, 'YYYY-MM') = $${params.push(billing_month)}` : '';
   const result = await pool.query(
     `SELECT fc.*, s.full_name, s.admission_number,
+            cl.name AS class_name, sec.name AS section_name,
             COALESCE(fc.fee_type, 'academic') AS fee_type
      FROM fee_collections fc
      INNER JOIN students s ON s.id = fc.student_id
+     LEFT JOIN student_enrollments se ON se.student_id = fc.student_id
+       AND se.school_id = fc.school_id AND se.academic_year_id = fc.academic_year_id AND se.status = 'active'
+     LEFT JOIN classes cl ON cl.id = se.class_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
      WHERE fc.school_id = $1 AND fc.academic_year_id = $2
+     ${monthFilter}
      ORDER BY fc.due_date DESC`,
-    [school_id, academic_year_id]
+    params
   );
   return result.rows;
 };

@@ -1,0 +1,253 @@
+/* FeedbackWidget.module.css — slim bottom-right slide-up card */
+
+/* ── Wrapper ──────────────────────────────────────────────────── */
+.wrap {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9000;
+  width: 300px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow:
+    0 2px 8px rgba(15, 35, 50, 0.08),
+    0 16px 48px rgba(15, 35, 50, 0.18);
+  border: 1px solid #e1e8eb;
+  overflow: hidden;
+  animation: slideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wrapOut {
+  animation: slideDown 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes slideDown {
+  from { opacity: 1; transform: translateY(0)    scale(1);    }
+  to   { opacity: 0; transform: translateY(14px) scale(0.97); }
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.head {
+  padding: 11px 14px 10px;
+  background: linear-gradient(135deg, #112733 0%, #1d3e51 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.headLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff9b51;
+  box-shadow: 0 0 0 2px rgba(255, 155, 81, 0.3);
+  flex-shrink: 0;
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 155, 81, 0.3); }
+  50%       { box-shadow: 0 0 0 5px rgba(255, 155, 81, 0.08); }
+}
+
+.headLeft strong {
+  font-size: 13px;
+  font-weight: 900;
+  color: #f0f6fa;
+}
+
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.snooze {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #8aacbe;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.snooze:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+.xBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #8aacbe;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+.xBtn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+/* ── Body ─────────────────────────────────────────────────────── */
+.body {
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Face/rating row ──────────────────────────────────────────── */
+.faces {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.face {
+  flex: 1;
+  aspect-ratio: 1;
+  border: 1.5px solid #e5ebee;
+  border-radius: 11px;
+  background: #f8fafc;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.face:hover {
+  transform: translateY(-3px);
+  border-color: #c6d0d7;
+}
+
+.faceActive {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Label row ────────────────────────────────────────────────── */
+.labelRow {
+  min-height: 18px;
+  text-align: center;
+}
+
+.rLabel {
+  font-size: 13px;
+  font-weight: 900;
+  animation: fadeIn 0.15s ease;
+}
+
+.rPlaceholder {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b0bec5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Note textarea ────────────────────────────────────────────── */
+.note {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1.5px solid #d1d9e0;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2d36;
+  background: #f8fafc;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  line-height: 1.5;
+}
+
+.note:focus {
+  border-color: #ff9b51;
+  box-shadow: 0 0 0 3px rgba(255, 155, 81, 0.12);
+  background: #fff;
+}
+
+.note::placeholder { color: #a0adb5; font-weight: 600; }
+
+/* ── Submit button ────────────────────────────────────────────── */
+.submitBtn {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 9px;
+  border: none;
+  background: #ff9b51;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: opacity 0.15s, transform 0.12s;
+}
+.submitBtn:hover:not(:disabled)  { opacity: 0.88; }
+.submitBtn:active:not(:disabled) { transform: scale(0.98); }
+.submitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Done state ───────────────────────────────────────────────── */
+.doneBody {
+  padding: 18px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.doneEmoji {
+  font-size: 32px;
+  line-height: 1;
+  animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pop {
+  from { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.2); }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.doneBody p {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6a7882;
+  margin: 0;
+}
+
+.doneBtn {
+  margin-top: 2px;
+  background: #1f2d36;
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .wrap {
+    bottom: 80px; /* above mobile bottom nav */
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}

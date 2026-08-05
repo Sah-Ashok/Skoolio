@@ -14,6 +14,7 @@ import {
   generateMonthlyFeeBillsService,
   generateTransportBillsService, getTransportFeeSummaryService,
   generateHostelBillsService, getHostelFeeSummaryService,
+  getSpecialFeeBillingPreviewService,
   getPaymentReceiptService,
   assignOneTimeFeesService,
   getMonthlyBillingStatusService,
@@ -92,11 +93,14 @@ export const createMiscFeeCollection = catchAsync(async (req: Request, res: Resp
 
 export const getFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id } = req.query;
+  const { academic_year_id, billing_month } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-  const result = await getFeeCollectionsService(school_id, Number(academic_year_id));
+  if (billing_month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(billing_month))) {
+    return sendResponse(res, 400, false, 'billing_month must use YYYY-MM format', null);
+  }
+  const result = await getFeeCollectionsService(school_id, Number(academic_year_id), billing_month ? String(billing_month) : undefined);
   sendResponse(res, 200, true, 'Fee collections fetched successfully', result);
 });
 
@@ -178,13 +182,13 @@ export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Resp
 
 export const generateTransportBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month, due_day } = req.body;
-  if (!academic_year_id || !billing_month) {
-    return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
+  const { academic_year_id, billing_month, due_day, student_ids } = req.body;
+  if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
+    return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
   }
   const result = await generateTransportBillsService(
     school_id, school_id, Number(academic_year_id), billing_month,
-    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1, student_ids.map(Number)
   );
   sendResponse(res, 201, true, `Transport bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
@@ -197,17 +201,25 @@ export const getTransportFeeSummary = catchAsync(async (req: Request, res: Respo
   sendResponse(res, 200, true, 'Transport fee summary fetched', result);
 });
 
+export const getTransportBillingPreview = catchAsync(async (req: Request, res: Response) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_month } = req.query;
+  if (!academic_year_id || !billing_month) return sendResponse(res, 400, false, 'academic_year_id and billing_month are required', null);
+  const result = await getSpecialFeeBillingPreviewService(school_id, Number(academic_year_id), String(billing_month), 'transport');
+  sendResponse(res, 200, true, 'Transport billing preview fetched', result);
+});
+
 // ── HOSTEL BILLING ──
 
 export const generateHostelBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month, due_day } = req.body;
-  if (!academic_year_id || !billing_month) {
-    return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
+  const { academic_year_id, billing_month, due_day, student_ids } = req.body;
+  if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
+    return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
   }
   const result = await generateHostelBillsService(
     school_id, school_id, Number(academic_year_id), billing_month,
-    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1, student_ids.map(Number)
   );
   sendResponse(res, 201, true, `Hostel bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
@@ -218,6 +230,14 @@ export const getHostelFeeSummary = catchAsync(async (req: Request, res: Response
   if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getHostelFeeSummaryService(school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Hostel fee summary fetched', result);
+});
+
+export const getHostelBillingPreview = catchAsync(async (req: Request, res: Response) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_month } = req.query;
+  if (!academic_year_id || !billing_month) return sendResponse(res, 400, false, 'academic_year_id and billing_month are required', null);
+  const result = await getSpecialFeeBillingPreviewService(school_id, Number(academic_year_id), String(billing_month), 'hostel');
+  sendResponse(res, 200, true, 'Hostel billing preview fetched', result);
 });
 
 // ── PAYMENT RECEIPT ──

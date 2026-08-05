@@ -127,7 +127,6 @@ function isNavItemActive(pathname: string, item: NavItem) {
   if (item.exact) {
     return pathname === item.href;
   }
-
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
@@ -136,17 +135,21 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ role }: SidebarProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const dispatch = useAppDispatch();
-  const { user } = useAppSelector(s => s.auth);
+  const pathname    = usePathname();
+  const router      = useRouter();
+  const dispatch    = useAppDispatch();
+  const { user }    = useAppSelector(s => s.auth);
   const navSections = navMap[role];
-  const activeRole = role as SidebarRole;
+  const activeRole  = role as SidebarRole;
 
   const handleLogout = async () => {
     await dispatch(logoutThunk());
     dispatch(logout());
     router.push('/login');
+  };
+
+  const openFeedback = () => {
+    if (typeof window !== 'undefined') (window as any).__openFeedback?.();
   };
 
   const displayName = user?.full_name || user?.school_name || roleLabel[role];
@@ -216,6 +219,16 @@ export default function Sidebar({ role }: SidebarProps) {
         </nav>
 
         <div className="sidebar-footer-wrap">
+
+          {/* ── Rate Skoolio button ── */}
+          <button className="sidebar-rate-btn" onClick={openFeedback} title="Rate Skoolio">
+            <span className="sidebar-rate-stars">
+              {[1,2,3,4,5].map(n => <i key={n} className="fa-solid fa-star" />)}
+            </span>
+            <span className="sidebar-rate-label">Rate Skoolio</span>
+            <i className="fa-solid fa-chevron-right sidebar-rate-arrow" />
+          </button>
+
           <div className="sidebar-footer">
             <div className="s-avatar">{initials}</div>
             <div className="info">
