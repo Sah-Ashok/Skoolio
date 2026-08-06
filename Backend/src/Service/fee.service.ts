@@ -14,6 +14,7 @@ import {
   assignOneTimeFees,
   getMonthlyBillingStatus,
   voidMonthBilling,
+  getUnbilledStudents,
 } from '../Repositories/fee.repository';
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
@@ -992,4 +993,19 @@ export const getMonthlyBillingStatusService = async (
     throw new AppError('billing_month must use YYYY-MM format.', 400);
   }
   return await getMonthlyBillingStatus(school_id, academic_year_id, billing_month);
+};
+
+// ── UNBILLED STUDENTS ─────────────────────────────────────────────────────────
+// Returns active students who have NO bill for any of the given months + fee_type.
+export const getUnbilledStudentsService = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_months:   string[],
+  fee_type:         string
+) => {
+  const validMonths = billing_months.filter(m => /^\d{4}-(0[1-9]|1[0-2])$/.test(m));
+  if (!validMonths.length) throw new AppError('At least one valid billing_month (YYYY-MM) is required.', 400);
+  const validTypes = ['academic', 'transport', 'hostel'];
+  if (!validTypes.includes(fee_type)) throw new AppError('fee_type must be academic, transport, or hostel.', 400);
+  return await getUnbilledStudents(school_id, academic_year_id, validMonths, fee_type);
 };

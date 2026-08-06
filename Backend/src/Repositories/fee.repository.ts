@@ -767,6 +767,71 @@ export const voidMonthBilling = async (
   return { voided, protected_paid, protected_partial };
 };
 
+// ── UNBILLED STUDENTS ──────────────────────────────────────────────────────
+// Returns active enrolled students who have NO bill for ANY of the given months
+// for the given fee_type. For transport/hostel, also filters to only those with
+// an active assignment.
+export const getUnbilledStudents = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_months:   string[],   // array of YYYY-MM strings
+  fee_type:         string      // 'academic' | 'transport' | 'hostel'
+): Promise<any[]> => {
+  if (!billing_months.length) return [];
+
+  // Build $4, $5, … placeholders for the billing_months array
+  const monthParams = billing_months.map((_, i) => `$${i + 4}`).join(', ');
+
+  let joinClause = '';
+  if (fee_type === 'transport') {
+    joinClause = `
+      INNER JOIN transport_assignments ta
+        ON ta.student_id       = s.id
+       AND ta.school_id        = $1
+       AND ta.academic_year_id = $2
+       AND ta.status           = 'active'`;
+  } else if (fee_type === 'hostel') {
+    joinClause = `
+      INNER JOIN hostel_assignments ha
+        ON ha.student_id       = s.id
+       AND ha.school_id        = $1
+       AND ha.academic_year_id = $2
+       AND ha.status           = 'active'`;
+  }
+
+  const result = await pool.query(
+    `SELECT DISTINCT
+       s.id               AS student_id,
+       s.full_name,
+       s.admission_number,
+       cl.name            AS class_name,
+       sec.name           AS section_name
+     FROM students s
+     INNER JOIN student_enrollments se
+       ON se.student_id       = s.id
+      AND se.school_id        = $1
+      AND se.academic_year_id = $2
+      AND se.status           = 'active'
+     LEFT JOIN classes  cl  ON cl.id  = se.class_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
+     ${joinClause}
+     WHERE s.school_id = $1
+       AND s.status    = 'active'
+       -- exclude any student who has AT LEAST ONE bill in ANY of the months
+       AND NOT EXISTS (
+         SELECT 1 FROM fee_collections fc
+         WHERE fc.school_id        = $1
+           AND fc.academic_year_id = $2
+           AND fc.student_id       = s.id
+           AND COALESCE(fc.fee_type, 'academic') = $3
+           AND to_char(fc.due_date, 'YYYY-MM') IN (${monthParams})
+       )
+     ORDER BY s.full_name ASC`,
+    [school_id, academic_year_id, fee_type, ...billing_months]
+  );
+  return result.rows;
+};
+
 export const getMonthlyBillingStatus = async (
   school_id:        number,
   academic_year_id: number,

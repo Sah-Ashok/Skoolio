@@ -20,6 +20,7 @@ import {
   getMonthlyBillingStatusService,
   voidMonthBillingService,
   getStudentBillingTimelineService,
+  getUnbilledStudentsService,
 } from '../Service/fee.service';
 import { getFeeStructureById } from '../Repositories/fee.repository';
 
@@ -315,4 +316,20 @@ export const voidMonthBillingController = catchAsync(async (req: Request, res: R
     school_id, Number(academic_year_id), String(billing_month), String(fee_type)
   );
   sendResponse(res, 200, true, result.message, result);
+});
+
+// ── UNBILLED STUDENTS ──────────────────────────────────────────────────────
+// GET /fees/monthly/unbilled?academic_year_id=&billing_months=2083-01,2083-02&fee_type=academic
+export const getUnbilledStudentsController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_months, fee_type } = req.query;
+  if (!academic_year_id || !billing_months || !fee_type) {
+    return sendResponse(res, 400, false,
+      'academic_year_id, billing_months (comma-separated YYYY-MM), and fee_type are required', null);
+  }
+  const months = String(billing_months).split(',').map(s => s.trim()).filter(Boolean);
+  const result = await getUnbilledStudentsService(
+    school_id, Number(academic_year_id), months, String(fee_type)
+  );
+  sendResponse(res, 200, true, 'Unbilled students fetched', result);
 });

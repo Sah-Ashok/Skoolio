@@ -17,6 +17,7 @@ import {
   getMonthlyBillingStatusController,
   voidMonthBillingController,
   getStudentBillingTimelineController,
+  getUnbilledStudentsController,
 } from '../Controllers/fee.controller';
 import { generateReceipt, getReceiptStatus } from '../Controllers/receipt.controller';
 
@@ -31,6 +32,7 @@ router.get('/me/payments',    restrictTo('student'), getMyPayments);
 router.post  ('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
 router.get   ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
 router.get   ('/monthly/timeline',   restrictTo('admin', 'super_admin'), getStudentBillingTimelineController);
+router.get   ('/monthly/unbilled',   restrictTo('admin', 'super_admin'), getUnbilledStudentsController);
 router.delete('/monthly/void',       restrictTo('admin', 'super_admin'), voidMonthBillingController);
 router.post('/one-time/assign',    restrictTo('admin', 'super_admin'), assignOneTimeFeesController);
 router.post('/transport/generate', restrictTo('admin', 'super_admin'), generateTransportBills);

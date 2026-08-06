@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useApi } from "@/lib/useApi";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
@@ -53,11 +52,6 @@ function groupByStudent(bills: any[]): StudentSummary[] {
   }
   return Array.from(map.values()).sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
-
-type BillingPreview = {
-  student_id: number; full_name: string; admission_number: string;
-  amount: number; assignment: string; already_billed: boolean;
-};
 
 function useBsMonthOptions(isBS: boolean, activeYear: any) {
   return useMemo(() => {
@@ -170,9 +164,8 @@ export default function MonthlyBillingPage() {
   const [expandedStudent, setExpandedStudent] = useState<number | null>(null);
   const [page,            setPage]            = useState(1);
 
-  const [showModal,          setShowModal]          = useState(false);
-  const [modalFeeType,       setModalFeeType]       = useState<FeeTypeValue>("transport");
-  const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
+  // Multi-select fee types for generate (replaces modal approach)
+  const [selectedFeeTypes, setSelectedFeeTypes] = useState<Set<FeeTypeValue>>(new Set(["academic"]));
 
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidTargetMonth, setVoidTargetMonth] = useState<string>("");
@@ -190,7 +183,10 @@ export default function MonthlyBillingPage() {
     return months;
   }, [fromMonth, toMonth]);
 
-  // Bills state — fetched for the selected range
+  // ── VIEW MODE: "unbilled" (pre-generate) vs "billed" (post-generate) ──────
+  const [viewMode, setViewMode] = useState<"unbilled" | "billed">("unbilled");
+
+  // ── BILLED: existing bills fetched for the selected range ─────────────────
   const [allBills,      setAllBills]      = useState<any[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(false);
   const [isRefreshing,  setIsRefreshing]  = useState(false);
@@ -212,22 +208,48 @@ export default function MonthlyBillingPage() {
 
   useEffect(() => { refetchAll(true); setPage(1); }, [refetchAll]);
 
-  // Group allBills by student for the active fee type
+  // ── UNBILLED: students without any bill in the range for the active fee type
+  const [unbilledStudents,   setUnbilledStudents]   = useState<any[]>([]);
+  const [unbilledLoading,    setUnbilledLoading]    = useState(false);
+  const unbilledAbortRef = useRef<AbortController | null>(null);
+
+  const refetchUnbilled = useCallback(async () => {
+    if (!academicYearId || monthRange.length === 0) { setUnbilledStudents([]); return; }
+    // abort any in-flight request
+    unbilledAbortRef.current?.abort();
+    unbilledAbortRef.current = new AbortController();
+    setUnbilledLoading(true);
+    try {
+      const monthsParam = monthRange.join(",");
+      const res = await apiRequest<any>(
+        `/fees/monthly/unbilled?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthsParam)}&fee_type=${activeFeeType}`
+      );
+      setUnbilledStudents(Array.isArray(res) ? res : (res?.data ?? []));
+    } catch { setUnbilledStudents([]); }
+    finally { setUnbilledLoading(false); }
+  }, [academicYearId, monthRange.join(","), activeFeeType]);
+
+  useEffect(() => {
+    if (viewMode === "unbilled") { refetchUnbilled(); setPage(1); }
+  }, [refetchUnbilled, viewMode]);
+
+  // Group allBills by student for the active fee type (billed view)
   const billedSummaries = useMemo(() => {
     const typeBills = allBills.filter(b => (b.fee_type || "academic") === activeFeeType);
     return groupByStudent(typeBills);
   }, [allBills, activeFeeType]);
 
-  // Search filter
+  // Search filter — applied to whichever view is active
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return billedSummaries.filter(st =>
+    const source = viewMode === "unbilled" ? unbilledStudents : billedSummaries;
+    return source.filter((st: any) =>
       !q
       || (st.full_name        || "").toLowerCase().includes(q)
       || (st.admission_number || "").toLowerCase().includes(q)
       || (st.class_name       || "").toLowerCase().includes(q)
     );
-  }, [billedSummaries, search]);
+  }, [viewMode, unbilledStudents, billedSummaries, search]);
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -246,18 +268,10 @@ export default function MonthlyBillingPage() {
     monthRange.filter(bm => !allBills.some(b => b.due_date && String(b.due_date).slice(0, 7) === bm))
   , [monthRange, allBills]);
 
-  // Preview for transport/hostel modal
-  const previewUrl = showModal && academicYearId && fromMonth
-    ? `/fees/${modalFeeType}/preview?academic_year_id=${academicYearId}&billing_month=${fromMonth}` : "";
-  const { data: previewData, loading: previewLoading, error: previewError } = useApi<BillingPreview[]>(previewUrl, [previewUrl]);
-  const previewRows  = Array.isArray(previewData) ? previewData : [];
-  const billableRows = previewRows.filter(r => !r.already_billed);
-
   // Generate handler
-  const handleGenerate = async (feeType: FeeTypeValue, studentIds?: number[]) => {
+  const handleGenerate = async (feeType: FeeTypeValue) => {
     if (!academicYearId) return;
     setGenerating(true);
-    setShowModal(false);
     const ENDPOINTS: Record<FeeTypeValue, string> = {
       academic:  "/fees/monthly/generate",
       transport: "/fees/transport/generate",
@@ -274,7 +288,7 @@ export default function MonthlyBillingPage() {
     try {
       for (const bm of validMonths) {
         const body: Record<string, any> = { academic_year_id: academicYearId, billing_month: bm };
-        if (feeType !== "academic") { body.due_day = Math.min(Math.max(parseInt(dueDay || "10", 10), 1), 28); body.student_ids = studentIds ?? []; }
+        if (feeType !== "academic") { body.due_day = Math.min(Math.max(parseInt(dueDay || "10", 10), 1), 28); }
         const res = await apiRequest<{ data: any }>(ENDPOINTS[feeType], { method: "POST", body: JSON.stringify(body) });
         const { created = 0, skipped = 0 } = res.data ?? res;
         totalCreated += Number(created); totalSkipped += Number(skipped);
@@ -282,9 +296,18 @@ export default function MonthlyBillingPage() {
       dispatch(showToast({ type: "success", title: `${TYPE_META[feeType].label} Bills Generated`, message: `${totalCreated} new bill${totalCreated !== 1 ? "s" : ""} created, ${totalSkipped} already existed` }));
       setActiveFeeType(feeType); setSearch(""); setPage(1);
       refetchAll(false);
+      refetchUnbilled();
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Generation Failed", message: err.message || "Could not generate bills" }));
     } finally { setGenerating(false); }
+  };
+
+  // Fire generate for all selected fee types in sequence
+  const handleGenerateAll = async () => {
+    if (!academicYearId || selectedFeeTypes.size === 0) return;
+    for (const ft of (["academic", "transport", "hostel"] as FeeTypeValue[]).filter(f => selectedFeeTypes.has(f))) {
+      await handleGenerate(ft);
+    }
   };
 
   const handleVoid = async () => {
@@ -310,16 +333,9 @@ export default function MonthlyBillingPage() {
     } finally { setVoiding(false); setVoidTargetMonth(""); }
   };
 
-  const onClickGenerate = (feeType: FeeTypeValue) => {
-    if (!academicYearId) return;
-    if (feeType === "academic") { handleGenerate("academic"); }
-    else { setModalFeeType(feeType); setSelectedStudentIds([]); setShowModal(true); }
-  };
-
   const switchFeeType = (ft: FeeTypeValue) => { setActiveFeeType(ft); setPage(1); setSearch(""); };
 
   const activeMeta = TYPE_META[activeFeeType];
-  const modalMeta  = TYPE_META[modalFeeType];
   const rangeLabel = fromMonth === toMonth
     ? toShortLabel(fromMonth, isBS, bsOpts)
     : `${toShortLabel(fromMonth, isBS, bsOpts)} – ${toShortLabel(toMonth, isBS, bsOpts)}`;
@@ -477,33 +493,60 @@ export default function MonthlyBillingPage() {
             </div>
           </div>
 
-          {/* Generate action bar — 3 direct buttons */}
+          {/* Generate action bar — toggleable fee type selectors + single Generate button */}
           <div style={{ borderTop: "1px solid #e2e8f0", padding: "13px 22px", background: "#f8fafc", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, marginRight: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
               <i className="fa-solid fa-circle-info" style={{ color: "#94a3b8" }} />
-              Select fee type to generate bills for {monthRange.length} month{monthRange.length !== 1 ? "s" : ""}
+              Select fee type{selectedFeeTypes.size !== 1 ? "s" : ""} to generate:
             </span>
-            {FEE_TYPES.map(ft => (
-              <button key={ft.value}
-                onClick={() => { switchFeeType(ft.value); onClickGenerate(ft.value); }}
-                disabled={generating || voiding || !academicYearId}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 7,
-                  padding: "9px 20px", borderRadius: 9, fontFamily: "inherit",
-                  fontSize: 13, fontWeight: 800,
-                  cursor: generating || voiding || !academicYearId ? "not-allowed" : "pointer",
-                  border: `2px solid ${ft.color}`,
-                  background: ft.value === "academic" ? ft.color : "#fff",
-                  color:      ft.value === "academic" ? "#fff"    : ft.color,
-                  boxShadow:  ft.value === "academic" ? `0 3px 12px ${ft.color}44` : "none",
-                  opacity: !academicYearId ? 0.5 : 1, transition: "all 0.15s", whiteSpace: "nowrap",
-                }}
-              >
-                {generating && activeFeeType === ft.value
-                  ? <><Spinner size={13} color={ft.value === "academic" ? "#fff" : ft.color} /> Generating…</>
-                  : <><i className={`fa-solid ${ft.icon}`} /> {ft.label}</>}
-              </button>
-            ))}
+            {FEE_TYPES.map(ft => {
+              const active = selectedFeeTypes.has(ft.value);
+              return (
+                <button key={ft.value}
+                  onClick={() => {
+                    setSelectedFeeTypes(prev => {
+                      const next = new Set(prev);
+                      if (next.has(ft.value)) { if (next.size > 1) next.delete(ft.value); }
+                      else next.add(ft.value);
+                      return next;
+                    });
+                  }}
+                  disabled={generating || voiding || !academicYearId}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 7,
+                    padding: "8px 18px", borderRadius: 9, fontFamily: "inherit",
+                    fontSize: 13, fontWeight: 800, cursor: "pointer",
+                    border: `2px solid ${active ? ft.color : "#d1d9e0"}`,
+                    background: active ? ft.bg : "#fff",
+                    color: active ? ft.color : "#94a3b8",
+                    boxShadow: active ? `0 2px 8px ${ft.color}33` : "none",
+                    transition: "all 0.15s", whiteSpace: "nowrap",
+                    opacity: !academicYearId ? 0.5 : 1,
+                  }}
+                >
+                  <i className={`fa-solid ${ft.icon}`} style={{ fontSize: 12 }} />
+                  {ft.label}
+                  {active && <i className="fa-solid fa-check" style={{ fontSize: 10, marginLeft: 2 }} />}
+                </button>
+              );
+            })}
+            <button
+              onClick={handleGenerateAll}
+              disabled={generating || voiding || !academicYearId || selectedFeeTypes.size === 0}
+              style={{
+                marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "9px 22px", borderRadius: 9, fontFamily: "inherit",
+                fontSize: 13.5, fontWeight: 900, cursor: "pointer",
+                border: "2px solid #2563eb", background: "#2563eb", color: "#fff",
+                boxShadow: "0 3px 12px #2563eb44",
+                opacity: !academicYearId || selectedFeeTypes.size === 0 ? 0.5 : 1,
+                transition: "all 0.15s", whiteSpace: "nowrap",
+              }}
+            >
+              {generating
+                ? <><Spinner size={14} color="#fff" /> Generating…</>
+                : <><i className="fa-solid fa-bolt" /> Generate Bills</>}
+            </button>
           </div>
         </div>
 
@@ -512,26 +555,51 @@ export default function MonthlyBillingPage() {
         ════════════════════════════════════════════════════════════════ */}
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
 
-          {/* Toolbar: fee type tabs + search */}
+          {/* Toolbar */}
           <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "#fafbfc" }}>
-            {/* Fee type tabs — only here, not in generate card */}
+            {/* Unbilled / Billed mode toggle */}
+            <div style={{ display: "flex", gap: 3, background: "#f1f5f9", borderRadius: 9, padding: 3 }}>
+              {([
+                { key: "unbilled", label: "To Generate", icon: "fa-circle-exclamation", color: "#b45309", activeColor: "#fef9c3", activeBorder: "#fde68a" },
+                { key: "billed",   label: "Generated",   icon: "fa-circle-check",       color: "#15803d", activeColor: "#f0fdf4", activeBorder: "#bbf7d0" },
+              ] as const).map(m => {
+                const active = viewMode === m.key;
+                return (
+                  <button key={m.key} onClick={() => { setViewMode(m.key); setSearch(""); setPage(1); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "6px 14px", borderRadius: 7, fontFamily: "inherit",
+                      fontSize: 12.5, fontWeight: 800, cursor: "pointer",
+                      border: active ? `1.5px solid ${m.activeBorder}` : "1.5px solid transparent",
+                      background: active ? m.activeColor : "transparent",
+                      color: active ? m.color : "#64748b",
+                      boxShadow: active ? "0 1px 4px rgba(0,0,0,.08)" : "none",
+                      transition: "all 0.13s",
+                    }}
+                  >
+                    <i className={`fa-solid ${m.icon}`} style={{ fontSize: 11 }} />{m.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Fee type pills — view-only switcher */}
             <div style={{ display: "flex", gap: 3, background: "#f1f5f9", borderRadius: 9, padding: 3 }}>
               {FEE_TYPES.map(ft => {
                 const active = activeFeeType === ft.value;
                 return (
-                  <button key={ft.value} onClick={() => { switchFeeType(ft.value); }}
+                  <button key={ft.value} onClick={() => switchFeeType(ft.value)}
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
-                      padding: "7px 14px", borderRadius: 7, border: "none", cursor: "pointer",
-                      fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                      padding: "6px 13px", borderRadius: 7, border: "none", cursor: "pointer",
+                      fontFamily: "inherit", fontSize: 12, fontWeight: 700,
                       background: active ? "#fff" : "transparent",
-                      color:      active ? ft.color : "#64748b",
-                      boxShadow:  active ? "0 1px 4px rgba(0,0,0,.1)" : "none",
+                      color: active ? ft.color : "#64748b",
+                      boxShadow: active ? "0 1px 4px rgba(0,0,0,.1)" : "none",
                       transition: "all 0.13s",
                     }}
                   >
-                    <i className={`fa-solid ${ft.icon}`} style={{ fontSize: 11 }} />
-                    {ft.label}
+                    <i className={`fa-solid ${ft.icon}`} style={{ fontSize: 10 }} />{ft.label}
                   </button>
                 );
               })}
@@ -546,9 +614,9 @@ export default function MonthlyBillingPage() {
               />
             </label>
 
-            {isRefreshing && (
+            {(isRefreshing || unbilledLoading) && (
               <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-                <i className="fa-solid fa-arrows-rotate fa-spin" style={{ fontSize: 11 }} /> Refreshing…
+                <i className="fa-solid fa-arrows-rotate fa-spin" style={{ fontSize: 11 }} /> Loading…
               </span>
             )}
           </div>
@@ -561,12 +629,16 @@ export default function MonthlyBillingPage() {
                 {activeMeta.label} Fees — {rangeLabel}
               </strong>
               <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#64748b" }}>
-                {isInitialLoad ? "Loading…"
-                  : filtered.length > 0
-                    ? `${filtered.length} student${filtered.length !== 1 ? "s" : ""} with bills for this period`
-                    : allBills.length === 0
-                      ? `No bills generated yet — use Generate above`
-                      : `No ${activeMeta.label.toLowerCase()} bills found for this period`}
+                {(isInitialLoad || unbilledLoading) ? "Loading…"
+                  : viewMode === "unbilled"
+                    ? filtered.length > 0
+                        ? `${filtered.length} student${filtered.length !== 1 ? "s" : ""} without ${activeMeta.label.toLowerCase()} bills for this period`
+                        : `All students billed — nothing to generate`
+                    : filtered.length > 0
+                        ? `${filtered.length} student${filtered.length !== 1 ? "s" : ""} with bills for this period`
+                        : allBills.length === 0
+                            ? `No bills generated yet — click Generate Bills above`
+                            : `No ${activeMeta.label.toLowerCase()} bills found for this period`}
               </p>
             </div>
             {filtered.length > PAGE_SIZE && (
@@ -575,24 +647,80 @@ export default function MonthlyBillingPage() {
           </div>
 
           {/* Table body */}
-          {isInitialLoad ? (
+          {(isInitialLoad || unbilledLoading) ? (
             <div style={{ padding: 56, textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: "44px 24px", textAlign: "center", color: "#94a3b8" }}>
-              <i className="fa-solid fa-inbox" style={{ fontSize: 30, display: "block", marginBottom: 10, opacity: 0.2 }} />
-              <p style={{ fontWeight: 700, fontSize: 14, margin: 0 }}>
-                {allBills.length === 0 ? `No bills generated for ${rangeLabel} yet.` : `No ${activeMeta.label.toLowerCase()} bills in this period.`}
+              <i className={`fa-solid ${viewMode === "unbilled" ? "fa-circle-check" : "fa-inbox"}`} style={{ fontSize: 30, display: "block", marginBottom: 10, opacity: 0.25, color: viewMode === "unbilled" ? "#16a34a" : undefined }} />
+              <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: viewMode === "unbilled" ? "#15803d" : undefined }}>
+                {viewMode === "unbilled"
+                  ? `All students already have ${activeMeta.label.toLowerCase()} bills for ${rangeLabel}.`
+                  : allBills.length === 0
+                      ? `No bills generated for ${rangeLabel} yet.`
+                      : `No ${activeMeta.label.toLowerCase()} bills in this period.`}
               </p>
               <p style={{ fontSize: 12.5, marginTop: 5 }}>
-                {allBills.length === 0 ? "Click one of the Generate buttons above to create bills." : "Switch fee type or adjust the date range."}
+                {viewMode === "unbilled"
+                  ? "Nothing to generate — switch to Generated tab to review existing bills."
+                  : allBills.length === 0
+                      ? "Use Generate Bills above to create bills."
+                      : "Switch fee type or adjust the date range."}
               </p>
             </div>
+          ) : viewMode === "unbilled" ? (
+            /* ══════ UNBILLED VIEW — simple list, no expand ══════ */
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#fef9c3" }}>
+                    {["#", "Student", "Class / Section", "Fee History"].map(h => (
+                      <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: 11, fontWeight: 900, color: "#92400e", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1.5px solid #fde68a", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageSlice.map((st: any, idx: number) => (
+                    <tr key={st.student_id} className="mb-tr"
+                      style={{ borderBottom: "1px solid #f1f5f9", borderLeft: "3px solid #f59e0b", background: "#fff" }}
+                    >
+                      <td style={{ padding: "11px 16px", color: "#94a3b8", fontWeight: 700, width: 40 }}>
+                        {(currentPage - 1) * PAGE_SIZE + idx + 1}
+                      </td>
+                      <td style={{ padding: "11px 16px" }}>
+                        <strong style={{ display: "block", color: "#1e293b" }}>{st.full_name}</strong>
+                        <small style={{ color: "#94a3b8", fontWeight: 600 }}>{st.admission_number}</small>
+                      </td>
+                      <td style={{ padding: "11px 16px", color: "#475569" }}>
+                        {[st.class_name, st.section_name].filter(Boolean).join(" / ") || "—"}
+                      </td>
+                      <td style={{ padding: "11px 16px" }}>
+                        <Link href={`/fees/history?student_id=${st.student_id}`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#2563eb", fontWeight: 800, fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}>
+                          <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: 10 }} /> History
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: "#fffbeb", borderTop: "1.5px solid #fde68a" }}>
+                    <td colSpan={4} style={{ padding: "11px 16px" }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#b45309" }}>
+                        <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 6 }} />
+                        {filtered.length} student{filtered.length !== 1 ? "s" : ""} have no {activeMeta.label.toLowerCase()} bill for {rangeLabel}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           ) : (
+            /* ══════ BILLED VIEW — full expandable table ══════ */
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
-                    {[" ", "Student", "Class / Section", "Bills", "Total Billed", "Paid", "Pending", "Status"].map(h => (
+                    {[" ", "Student", "Class / Section", "Pending Months", "Total Billed", "Paid", "Pending", "Status", "Fee History"].map(h => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total Billed" || h === "Paid" || h === "Pending" ? "right" : "left", fontSize: 11, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1.5px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -603,7 +731,6 @@ export default function MonthlyBillingPage() {
                     const leftColor = st.overallStatus === "paid" ? "#22c55e" : st.overallStatus === "partial" ? "#f59e0b" : "#ef4444";
                     const rowBg     = st.overallStatus === "paid" ? "#f0fdf4" : st.overallStatus === "partial" ? "#fffbeb" : "#fff";
                     return [
-                      // ── Summary row
                       <tr key={`s-${st.student_id}`} className="mb-tr"
                         style={{ borderBottom: "1px solid #f1f5f9", borderLeft: `3px solid ${leftColor}`, background: rowBg, cursor: "pointer" }}
                         onClick={() => setExpandedStudent(expanded ? null : st.student_id)}
@@ -619,21 +746,39 @@ export default function MonthlyBillingPage() {
                           {[st.class_name, st.section_name].filter(Boolean).join(" / ") || "—"}
                         </td>
                         <td style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 9px" }}>
-                            {st.bills.length} fee{st.bills.length !== 1 ? "s" : ""}
-                          </span>
+                          {(() => {
+                            const unpaidMonths = monthRange.filter(bm => {
+                              const mb = st.bills.filter((b: any) => b.due_date && String(b.due_date).slice(0, 7) === bm);
+                              if (mb.length === 0) return true;
+                              return mb.some((b: any) => b.status !== "paid" && b.status !== "waived" && Number(b.remaining_amount || 0) > 0);
+                            });
+                            if (unpaidMonths.length === 0) {
+                              return <span style={{ fontSize: 11.5, fontWeight: 800, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "2px 9px" }}>All clear</span>;
+                            }
+                            const labels = unpaidMonths.map(bm => toShortLabel(bm, isBS, bsOpts));
+                            const rangeText = labels.length === 1 ? labels[0]
+                              : labels.length === monthRange.length ? `${labels[0]} – ${labels[labels.length - 1]}`
+                              : labels.join(", ");
+                            return (
+                              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#b45309", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "2px 9px", display: "inline-block", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={rangeText}>
+                                {rangeText}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td style={{ padding: "12px 16px", fontWeight: 700, color: "#1e293b", textAlign: "right" }}>{fmt(st.total_amount)}</td>
                         <td style={{ padding: "12px 16px", fontWeight: 700, color: "#15803d", textAlign: "right" }}>{fmt(st.paid_amount)}</td>
                         <td style={{ padding: "12px 16px", textAlign: "right" }}>
                           <strong style={{ color: st.remaining_amount > 0 ? "#b91c1c" : "#15803d" }}>{fmt(st.remaining_amount)}</strong>
                         </td>
+                        <td style={{ padding: "12px 16px" }}><StatusPill status={st.overallStatus} /></td>
                         <td style={{ padding: "12px 16px" }}>
-                          <StatusPill status={st.overallStatus} />
+                          <Link href={`/fees/history?student_id=${st.student_id}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#2563eb", fontWeight: 800, fontSize: 12, textDecoration: "none", whiteSpace: "nowrap" }}>
+                            <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: 10 }} /> History
+                          </Link>
                         </td>
                       </tr>,
-
-                      // ── Expanded bill rows
                       ...(expanded ? st.bills.map((bill: any, bi: number) => (
                         <tr key={`b-${bill.id ?? bi}`} className="mb-sub-tr"
                           style={{ background: "#f8fcff", borderLeft: "3px solid #FF9B51", borderBottom: "1px solid #f1f5f9" }}
@@ -658,38 +803,29 @@ export default function MonthlyBillingPage() {
                               {bill.status}
                             </span>
                           </td>
+                          <td />
                         </tr>
                       )) : []),
                     ];
                   })}
                 </tbody>
-
-                {/* ── Summary footer row ── */}
                 {filtered.length > 0 && (
                   <tfoot>
                     <tr style={{ background: "#f8fafc", borderTop: "2px solid #e2e8f0" }}>
                       <td />
                       <td colSpan={2} style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>
-                            <span style={{ fontWeight: 900, color: "#1e293b", fontSize: 13 }}>{filtered.length}</span> Students
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d" }}>
-                            <span style={{ fontWeight: 900, fontSize: 13 }}>{footerPaidCount}</span> Fully Paid
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>
-                            <span style={{ fontWeight: 900, fontSize: 13 }}>{footerPartialCount}</span> Partial
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
-                            <span style={{ fontWeight: 900, fontSize: 13 }}>{footerUnpaidCount}</span> Not Paid
-                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}><span style={{ fontWeight: 900, color: "#1e293b", fontSize: 13 }}>{filtered.length}</span> Students</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d" }}><span style={{ fontWeight: 900, fontSize: 13 }}>{footerPaidCount}</span> Fully Paid</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}><span style={{ fontWeight: 900, fontSize: 13 }}>{footerPartialCount}</span> Partial</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}><span style={{ fontWeight: 900, fontSize: 13 }}>{footerUnpaidCount}</span> Not Paid</span>
                         </div>
                       </td>
                       <td style={{ padding: "12px 16px" }} />
                       <td style={{ padding: "12px 16px", fontWeight: 900, color: "#1e293b", fontSize: 13, textAlign: "right", whiteSpace: "nowrap" }}>{fmt(footerTotalBilled)}</td>
                       <td style={{ padding: "12px 16px", fontWeight: 900, color: "#15803d", fontSize: 13, textAlign: "right", whiteSpace: "nowrap" }}>{fmt(footerTotalPaid)}</td>
                       <td style={{ padding: "12px 16px", fontWeight: 900, color: footerTotalPending > 0 ? "#b91c1c" : "#15803d", fontSize: 13, textAlign: "right", whiteSpace: "nowrap" }}>{fmt(footerTotalPending)}</td>
-                      <td />
+                      <td /><td />
                     </tr>
                   </tfoot>
                 )}
@@ -720,86 +856,40 @@ export default function MonthlyBillingPage() {
               </div>
             </div>
           )}
+
+          {/* ── Generate Bills button — pinned at bottom of table, only in unbilled mode ── */}
+          {viewMode === "unbilled" && (
+            <div style={{ borderTop: "1.5px solid #fde68a", padding: "14px 20px", background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "#92400e", fontWeight: 700 }}>
+                <i className="fa-solid fa-bolt" style={{ marginRight: 7, color: "#f59e0b" }} />
+                {filtered.length > 0
+                  ? `Ready to generate ${activeMeta.label.toLowerCase()} bills for ${filtered.length} student${filtered.length !== 1 ? "s" : ""}`
+                  : `All ${activeMeta.label.toLowerCase()} bills already generated for this period`}
+              </span>
+              <button
+                onClick={handleGenerateAll}
+                disabled={generating || voiding || !academicYearId || selectedFeeTypes.size === 0 || filtered.length === 0}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "10px 24px", borderRadius: 9, fontFamily: "inherit",
+                  fontSize: 13.5, fontWeight: 900, cursor: filtered.length === 0 ? "not-allowed" : "pointer",
+                  border: "2px solid #2563eb", background: "#2563eb", color: "#fff",
+                  boxShadow: filtered.length > 0 ? "0 3px 12px #2563eb44" : "none",
+                  opacity: !academicYearId || filtered.length === 0 ? 0.45 : 1,
+                  transition: "all 0.15s", whiteSpace: "nowrap",
+                }}
+              >
+                {generating
+                  ? <><Spinner size={14} color="#fff" /> Generating…</>
+                  : <><i className="fa-solid fa-bolt" /> Generate Bills</>}
+              </button>
+            </div>
+          )}
         </div>
 
       </main>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          TRANSPORT / HOSTEL STUDENT SELECT MODAL
-      ════════════════════════════════════════════════════════════════ */}
-      {showModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720, maxHeight: "calc(100vh - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, background: modalMeta.bg, color: modalMeta.color, display: "grid", placeItems: "center", fontSize: 17, border: `1px solid ${modalMeta.border}` }}>
-                <i className={`fa-solid ${modalMeta.icon}`} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <strong style={{ fontSize: 15, fontWeight: 900, color: "#1e293b" }}>Generate {modalMeta.label} Bills</strong>
-                <p style={{ margin: "3px 0 0", fontSize: 13, color: "#64748b" }}>{rangeLabel}{monthRange.length > 1 && ` (${monthRange.length} months)`} · Due day {dueDay}</p>
-              </div>
-              <button onClick={() => setShowModal(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 14, color: "#64748b", flexShrink: 0 }}>
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{selectedStudentIds.length} of {billableRows.length} students selected</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => setSelectedStudentIds(billableRows.map(r => r.student_id))} style={{ border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 7, padding: "5px 11px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Select all</button>
-                  <button onClick={() => setSelectedStudentIds([])} style={{ border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 7, padding: "5px 11px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Clear</button>
-                </div>
-              </div>
-              {previewLoading ? (
-                <div style={{ padding: 32, textAlign: "center" }}><Spinner size={28} color="#64748b" /></div>
-              ) : previewError ? (
-                <div style={{ padding: 12, borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13 }}>{String(previewError)}</div>
-              ) : previewRows.length === 0 ? (
-                <div style={{ padding: 24, borderRadius: 10, background: "#f8fafc", color: "#64748b", fontSize: 13, textAlign: "center" }}>No eligible active assignments found.</div>
-              ) : (
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 1fr auto", gap: 12, padding: "9px 14px", background: "#f8fafc", fontSize: 10.5, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                    <span /><span>Student</span><span>Assignment</span><span>Fee</span>
-                  </div>
-                  {previewRows.map(row => {
-                    const checked = selectedStudentIds.includes(row.student_id);
-                    return (
-                      <label key={row.student_id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 1fr auto", gap: 12, alignItems: "center", padding: "11px 14px", borderTop: "1px solid #f1f5f9", cursor: row.already_billed ? "default" : "pointer", background: row.already_billed ? "#f8fafc" : checked ? "#f0fdf4" : "#fff", opacity: row.already_billed ? 0.6 : 1, transition: "background 0.12s" }}>
-                        <input type="checkbox" checked={checked} disabled={row.already_billed}
-                          onChange={() => setSelectedStudentIds(ids => checked ? ids.filter(id => id !== row.student_id) : [...ids, row.student_id])}
-                          style={{ width: 15, height: 15, accentColor: modalMeta.color }}
-                        />
-                        <span>
-                          <strong style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.full_name}</strong>
-                          <small style={{ color: "#94a3b8" }}>{row.admission_number}</small>
-                        </span>
-                        <span style={{ fontSize: 12.5, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.assignment}</span>
-                        <strong style={{ fontSize: 13, whiteSpace: "nowrap", color: modalMeta.color }}>{fmt(row.amount)}</strong>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-              <div style={{ marginTop: 12, padding: "9px 14px", borderRadius: 8, background: "#fefce8", border: "1px solid #fde68a", fontSize: 12.5, color: "#92400e", fontWeight: 600, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <i className="fa-solid fa-shield-halved" style={{ flexShrink: 0, marginTop: 1 }} />
-                Already-billed students are locked. A receipt is only issued after payment collection.
-              </div>
-            </div>
-
-            <div style={{ padding: "14px 22px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button
-                onClick={() => handleGenerate(modalFeeType, selectedStudentIds)}
-                disabled={generating || previewLoading || !!previewError || selectedStudentIds.length === 0}
-                style={{ padding: "9px 20px", borderRadius: 9, border: `2px solid ${modalMeta.color}`, background: modalMeta.color, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: selectedStudentIds.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, opacity: selectedStudentIds.length === 0 ? 0.5 : 1, boxShadow: `0 3px 12px ${modalMeta.color}44` }}
-              >
-                {generating ? <><Spinner size={14} color="#fff" /> Generating…</> : <><i className={`fa-solid ${modalMeta.icon}`} /> Generate {selectedStudentIds.length} Bill{selectedStudentIds.length !== 1 ? "s" : ""}</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
