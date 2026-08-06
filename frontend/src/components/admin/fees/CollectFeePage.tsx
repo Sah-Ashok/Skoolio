@@ -205,19 +205,31 @@ export default function CollectFeePage() {
   // bill must be paid/waived before the next one is payable.
   // transport/hostel (no fee_structure_id) are exempt — pay any month in any order.
   const lockedIds = new Set<number>();
-  const lockedByStructure = new Map<number, string>(); // structure_id → oldest unpaid fee_name
-  const seenUnpaidStructure = new Map<number, string>(); // structure_id → oldest unpaid fee_name
+  const lockedByStructure = new Map<number, string>(); // bill_id → oldest unpaid fee_name
+  const seenUnpaidStructureMsg = new Map<number, string>(); // structure_id → oldest unpaid fee_name string
+  const seenUnpaidStructureGroup = new Map<number, string>(); // structure_id → group key of the oldest unpaid bill
+
+  const getGroupKey = (b: any) => {
+    const genDate = b.created_at ? String(b.created_at).slice(0, 10) : "";
+    return b.fee_structure_id ? `struct-${b.fee_structure_id}-${genDate}` : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
+  };
+
   for (const c of sortedAll) {
     if (!c.fee_structure_id) continue;
     if (c.status === "paid" || c.status === "waived") continue;
     const sid = Number(c.fee_structure_id);
-    if (!seenUnpaidStructure.has(sid)) {
+    const gKey = getGroupKey(c);
+
+    if (!seenUnpaidStructureGroup.has(sid)) {
+      seenUnpaidStructureGroup.set(sid, gKey);
       const cleanName = (c.fee_name || "earlier bill").replace(/\s*-\s*\d{4}-\d{2}$/, '');
       const label = getMonthLabel(c.due_date, isBS);
-      seenUnpaidStructure.set(sid, label ? `${cleanName} - ${label}` : cleanName);
+      seenUnpaidStructureMsg.set(sid, label ? `${cleanName} - ${label}` : cleanName);
     } else {
-      lockedIds.add(c.id);
-      lockedByStructure.set(c.id, seenUnpaidStructure.get(sid)!);
+      if (seenUnpaidStructureGroup.get(sid) !== gKey) {
+        lockedIds.add(c.id);
+        lockedByStructure.set(c.id, seenUnpaidStructureMsg.get(sid)!);
+      }
     }
   }
 
@@ -651,6 +663,7 @@ export default function CollectFeePage() {
                             />
                           </th>
                           <th>Fee Name</th>
+                          <th>Generated</th>
                           <th>Month(s)</th>
                           <th>Type</th>
                           <th>Total</th>
@@ -664,7 +677,7 @@ export default function CollectFeePage() {
                       <tbody>
                         {groupedPending.length === 0 && (
                           <tr>
-                            <td colSpan={10} className={s("cf-table-empty")}>
+                            <td colSpan={11} className={s("cf-table-empty")}>
                               <i className="fa-solid fa-circle-check" />
                               No pending fees{typeFilter !== "all" ? " in this category" : ""}
                             </td>
@@ -702,11 +715,6 @@ export default function CollectFeePage() {
                               <td>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                   <span className={s("cf-fee-name")}>{g.fee_name}</span>
-                                  {g.created_at && (
-                                    <span style={{ fontSize: 11, color: "#64748b" }}>
-                                      Generated: {formatDate(g.created_at.split("T")[0])}
-                                    </span>
-                                  )}
                                   {isOverdue && !anyLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
                                   {anyLocked && (
                                     <span style={{ fontSize: 10.5, color: "#b45309", fontWeight: 700 }}>
@@ -715,6 +723,10 @@ export default function CollectFeePage() {
                                     </span>
                                   )}
                                 </div>
+                              </td>
+                              {/* Generated Date */}
+                              <td className={s("cf-date")}>
+                                {g.created_at ? formatDate(g.created_at.split("T")[0]) : "-"}
                               </td>
                               {/* Month badges */}
                               <td>

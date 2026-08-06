@@ -628,8 +628,9 @@ export const generateTransportBillsService = async (
   created_by:       number,
   academic_year_id: number,
   billing_month:    string,
-  due_day:          number = 1,
+  due_day:          number = 10,
   student_ids:      number[] = [],
+  custom_due_date?: string
 ) => {
   await assertFeeManagementEnabled(school_id);
   await assertBillingMonthInAcademicYear(school_id, academic_year_id, billing_month);
@@ -639,7 +640,7 @@ export const generateTransportBillsService = async (
   const [ymYear, ymMonth] = billing_month.split('-').map(Number);
   const lastDayOfMonth = new Date(ymYear, ymMonth, 0).getDate();
   const clampedDay     = Math.min(Math.max(due_day, 1), lastDayOfMonth);
-  const due_date       = `${billing_month}-${String(clampedDay).padStart(2, '0')}`;
+  const due_date       = custom_due_date || `${billing_month}-${String(clampedDay).padStart(2, '0')}`;
   const routes         = await getRoutesBySchool(school_id, academic_year_id);
   if (!routes.length) return { created: 0, skipped: 0, errors: [] };
 
@@ -739,8 +740,9 @@ export const generateHostelBillsService = async (
   created_by:       number,
   academic_year_id: number,
   billing_month:    string,
-  due_day:          number = 1,
+  due_day:          number = 10,
   student_ids:      number[] = [],
+  custom_due_date?: string
 ) => {
   await assertFeeManagementEnabled(school_id);
   await assertBillingMonthInAcademicYear(school_id, academic_year_id, billing_month);
@@ -750,7 +752,7 @@ export const generateHostelBillsService = async (
   const [ymYear, ymMonth] = billing_month.split('-').map(Number);
   const lastDayOfMonth = new Date(ymYear, ymMonth, 0).getDate();
   const clampedDay     = Math.min(Math.max(due_day, 1), lastDayOfMonth);
-  const due_date       = `${billing_month}-${String(clampedDay).padStart(2, '0')}`;
+  const due_date       = custom_due_date || `${billing_month}-${String(clampedDay).padStart(2, '0')}`;
   const hostels        = await getHostelsBySchool(school_id);
   if (!hostels.length) return { created: 0, skipped: 0, errors: [] };
 

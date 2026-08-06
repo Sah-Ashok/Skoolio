@@ -10,6 +10,7 @@ import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
 import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
+import DateInput from "@/components/shared/DateInput";
 
 const PAGE_SIZE = 15;
 
@@ -155,7 +156,7 @@ export default function MonthlyBillingPage() {
 
   const [fromMonth,  setFromMonth]  = useState(nowAD);
   const [toMonth,    setToMonth]    = useState(nowAD);
-  const [dueDay,     setDueDay]     = useState("10");
+  const [dueDate,    setDueDate]    = useState("");
   const [generating, setGenerating] = useState(false);
 
   // activeFeeType drives BOTH the generate buttons AND the view table
@@ -288,7 +289,9 @@ export default function MonthlyBillingPage() {
     try {
       for (const bm of validMonths) {
         const body: Record<string, any> = { academic_year_id: academicYearId, billing_month: bm };
-        if (feeType !== "academic") { body.due_day = Math.min(Math.max(parseInt(dueDay || "10", 10), 1), 28); }
+        if (feeType !== "academic") {
+          if (dueDate) body.due_date = dueDate;
+        }
         const res = await apiRequest<{ data: any }>(ENDPOINTS[feeType], { method: "POST", body: JSON.stringify(body) });
         const { created = 0, skipped = 0 } = res.data ?? res;
         totalCreated += Number(created); totalSkipped += Number(skipped);
@@ -390,9 +393,17 @@ export default function MonthlyBillingPage() {
               <MonthSelect label="To Month" value={toMonth} onChange={v => setToMonth(v < fromMonth ? fromMonth : v)} isBS={isBS} bsOpts={bsOpts} />
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Due Day <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>(transport/hostel)</span>
+                  Due Date <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>(transport/hostel)</span>
                 </span>
-                <input type="number" min={1} max={28} value={dueDay} onChange={e => setDueDay(e.target.value)} style={{ ...INP, width: 72, textAlign: "center" }} />
+                <div style={{ width: 140 }}>
+                  <DateInput
+                    value={dueDate}
+                    onChange={(e: any) => setDueDate(e.target.value)}
+                    minDate={`${toMonth}-01`}
+                    placeholder="Optional"
+                    style={isBS ? { width: "100%" } : { ...INP, width: "100%" }}
+                  />
+                </div>
               </div>
               {/* Selected period card */}
               <div style={{ marginLeft: "auto", padding: "12px 20px", borderRadius: 12, background: "linear-gradient(135deg,#fff7ed,#ffedd5)", border: "1.5px solid #fed7aa", minWidth: 200 }}>
@@ -422,8 +433,6 @@ export default function MonthlyBillingPage() {
                 <tbody>
                   {monthRange.map((bm, idx) => {
                     const [by, bmon] = bm.split("-").map(Number);
-                    const lastDay    = new Date(by, bmon, 0).getDate();
-                    const clampedDue = Math.min(Math.max(parseInt(dueDay || "10", 10), 1), lastDay);
                     const monthBills     = allBills.filter(b => b.due_date && String(b.due_date).slice(0, 7) === bm);
                     const totalBillsM    = monthBills.length;
                     const pendingBillsM  = monthBills.filter(b => b.status !== "paid" && b.status !== "waived" && Number(b.remaining_amount || 0) > 0).length;
@@ -438,7 +447,7 @@ export default function MonthlyBillingPage() {
                           <i className="fa-regular fa-calendar" style={{ marginRight: 5, color: "#94a3b8" }} />{toShortLabel(bm, isBS, bsOpts)} 1
                         </td>
                         <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12.5 }}>
-                          <i className="fa-regular fa-calendar" style={{ marginRight: 5, color: "#94a3b8" }} />Due: {toShortLabel(bm, isBS, bsOpts)} {clampedDue}
+                          <i className="fa-regular fa-calendar" style={{ marginRight: 5, color: "#94a3b8" }} />Due: {typeof dueDate === 'string' && dueDate ? toShortLabel(dueDate.slice(0, 7), isBS, bsOpts) + " " + parseInt(dueDate.slice(8, 10)) : "Auto"}
                         </td>
                         <td style={{ padding: "12px 14px" }}>
                           <div style={{ display: "flex", gap: 5 }}>

@@ -212,13 +212,13 @@ export const getStudentBillingTimelineController = catchAsync(async (req: Reques
 
 export const generateTransportBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month, due_day, student_ids } = req.body;
+  const { academic_year_id, billing_month, due_day, due_date, student_ids } = req.body;
   if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
     return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
   }
   const result = await generateTransportBillsService(
     school_id, school_id, Number(academic_year_id), billing_month,
-    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1, student_ids.map(Number)
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 10, student_ids.map(Number), due_date
   );
   sendResponse(res, 201, true, `Transport bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
@@ -243,13 +243,13 @@ export const getTransportBillingPreview = catchAsync(async (req: Request, res: R
 
 export const generateHostelBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month, due_day, student_ids } = req.body;
+  const { academic_year_id, billing_month, due_day, due_date, student_ids } = req.body;
   if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
     return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
   }
   const result = await generateHostelBillsService(
     school_id, school_id, Number(academic_year_id), billing_month,
-    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 1, student_ids.map(Number)
+    due_day ? Math.min(Math.max(Number(due_day), 1), 28) : 10, student_ids.map(Number), due_date
   );
   sendResponse(res, 201, true, `Hostel bills: ${result.created} created, ${result.skipped} skipped`, result);
 });
