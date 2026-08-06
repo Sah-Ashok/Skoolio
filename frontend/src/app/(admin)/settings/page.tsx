@@ -42,8 +42,8 @@ function BankAccountCard({ account, region, onToggle, onDelete, onEdit }: {
 }) {
   return (
     <div style={{
-      border: `1px solid ${account.is_active ? 'rgba(191,201,209,0.78)' : '#e2e8f0'}`,
-      borderRadius: 11, background: account.is_active ? '#fff' : '#f8fafc',
+      border: `1.5px solid ${account.is_active ? '#fed7aa' : '#e2e8f0'}`,
+      borderRadius: 14, background: account.is_active ? '#fff' : '#f8fafc',
       padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10,
       opacity: account.is_active ? 1 : 0.7,
     }}>
@@ -61,10 +61,10 @@ function BankAccountCard({ account, region, onToggle, onDelete, onEdit }: {
           <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 10, fontWeight: 900, background: account.is_active ? '#e2f6ee' : '#f1f5f9', color: account.is_active ? '#12805c' : '#94a3b8' }}>
             {account.is_active ? 'ACTIVE' : 'INACTIVE'}
           </span>
-          <button onClick={() => onEdit(account)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(191,201,209,0.78)', background: '#fff', color: '#25343f', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
+          <button onClick={() => onEdit(account)} style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #fed7aa', background: '#fffcf8', color: '#ea580c', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
             <i className="fa-solid fa-pen" />
           </button>
-          <button onClick={() => onToggle(account.id, !account.is_active)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(191,201,209,0.78)', background: '#fff', color: '#25343f', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
+          <button onClick={() => onToggle(account.id, !account.is_active)} style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #fed7aa', background: '#fffcf8', color: '#ea580c', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
             {account.is_active ? 'Deactivate' : 'Activate'}
           </button>
           <button onClick={() => onDelete(account.id)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff5f5', color: '#b42318', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
@@ -80,7 +80,7 @@ function BankAccountCard({ account, region, onToggle, onDelete, onEdit }: {
           account.upi_id    && { label: region === 'NP' ? 'eSewa / Khalti' : 'UPI ID',val: account.upi_id    },
           account.notes     && { label: 'Notes',                                       val: account.notes     },
         ].filter(Boolean).map((item: any) => (
-          <div key={item.label} style={{ padding: '8px 10px', borderRadius: 8, background: '#f7fafb', border: '1px solid #edf2f4' }}>
+          <div key={item.label} style={{ padding: '10px 12px', borderRadius: 10, background: '#fff7ed', border: '1px solid #ffedd5' }}>
             <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.label}</div>
             <div style={{ fontSize: 12, fontWeight: 800, color: '#25343f', marginTop: 2, wordBreak: 'break-all' }}>{item.val}</div>
           </div>
@@ -347,7 +347,7 @@ export default function AdminSettingsPage() {
                 ['School Code',  school?.school_code],
                 ['2FA Status',   school?.two_fa_enabled ? 'Enabled by admin' : 'Disabled'],
               ].map(([label, val]) => (
-                <div key={label} style={{ padding: '12px 14px', border: '1px solid rgba(191,201,209,0.5)', borderRadius: 9, background: '#f8fbfb' }}>
+                <div key={label} style={{ padding: '14px 16px', border: '1.5px solid #fed7aa', borderRadius: 12, background: '#fffcf8' }}>
                   <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7b86', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
                   <div style={{ fontSize: 13, fontWeight: 800 }}>{val || '—'}</div>
                 </div>
@@ -541,7 +541,7 @@ export default function AdminSettingsPage() {
                   ['Joined',           school?.created_at ? new Date(school.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
                   ['Timezone',         school?.timezone],
                 ].map(([label, val]) => (
-                  <div key={label} style={{ padding: '12px 14px', border: '1px solid rgba(191,201,209,0.5)', borderRadius: 9, background: '#f8fbfb' }}>
+                  <div key={label} style={{ padding: '14px 16px', border: '1.5px solid #fed7aa', borderRadius: 12, background: '#fffcf8' }}>
                     <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7b86', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
                     <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'capitalize' }}>{val || '—'}</div>
                   </div>
