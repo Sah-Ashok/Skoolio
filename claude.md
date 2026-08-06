@@ -15,6 +15,36 @@
 - `StudentFeeHistoryPage` — scholarship strip, yearly fee banner, fee structure tag, month-by-month pending timeline, fee breakdown by category, payment sub-rows with receipt links
 - `AddFeeStructurePage` — scholarship policy selector (all / tuition_only / custom), billing start rule per fee head
 - `fee_billing_policy` table + API created (GET/PUT `/api/fee-billing-policy`)
+- `billing_start_rule: next_month` bug fixed — now ALWAYS respects admission day (>15 → skip month) regardless of `billing_start_from` policy
+- `getStudentBillingTimelineService` fixed to match the corrected billing start logic
+- `CollectFeePage` — sequential payment lock UI added: locked bills show 🔒 icon, cannot be selected, banner warns admin
+- `MonthlyBillingPage` — missing months now shown as compact range ("Baishakh – Jestha 2083") instead of individual tags; Fee History link added as last column
+- `assertSequentialPayment` enforced in `createFeePaymentService` — backend blocks paying newer bill if older same-structure bill is unpaid
+
+## ⚠️ IMMEDIATE ACTION REQUIRED (Ashok must do manually)
+
+### VOID BAISHAKH BILLS — run this in the DB or via the void endpoint
+The wrongly-generated Baishakh 2083 bills (for students who joined after the 15th of Baishakh) need to be voided.
+Use the Void endpoint from the Monthly Billing page (select Baishakh 2083 range, choose Academic, click void button if available) OR run:
+```sql
+-- Preview: see which Baishakh bills have no payments
+SELECT fc.id, fc.student_id, fc.fee_name, fc.due_date, fc.status
+FROM fee_collections fc
+WHERE fc.academic_year_id = <YOUR_AY_ID>
+  AND to_char(fc.due_date, 'YYYY-MM') = '2026-04'  -- Baishakh 2083 AD month
+  AND fc.fee_type = 'academic'
+  AND fc.status = 'unpaid'
+  AND NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.collection_id = fc.id);
+
+-- Delete only truly unpaid with no payments:
+DELETE FROM fee_collections
+WHERE academic_year_id = <YOUR_AY_ID>
+  AND to_char(due_date, 'YYYY-MM') = '2026-04'
+  AND fee_type = 'academic'
+  AND status = 'unpaid'
+  AND id NOT IN (SELECT DISTINCT collection_id FROM fee_payments);
+```
+Then re-generate bills starting from Jestha (correct first month for students who joined Baishakh after the 15th).
 
 ---
 

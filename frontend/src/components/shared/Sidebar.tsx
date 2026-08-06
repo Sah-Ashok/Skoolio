@@ -48,6 +48,7 @@ const adminNav: NavSection[] = [
       { href: '/exams',               icon: 'fa-file-alt',        label: 'Exams'   },
       { href: '/notices',             icon: 'fa-bullhorn',        label: 'Notices' },
       { href: '/calendar',            icon: 'fa-calendar-days',   label: 'Calendar'},
+      { href: '/academic-years',      icon: 'fa-layer-group',     label: 'Academic Years' },
     ],
   },
   {

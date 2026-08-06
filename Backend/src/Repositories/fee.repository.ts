@@ -202,9 +202,13 @@ export const getFeeCollectionsBySchool = async (
   school_id: number,
   academic_year_id: number,
   billing_month?: string,
+  pending_only?: boolean,
 ): Promise<IFeeCollection[]> => {
   const params: Array<number | string> = [school_id, academic_year_id];
-  const monthFilter = billing_month ? `AND to_char(fc.due_date, 'YYYY-MM') = $${params.push(billing_month)}` : '';
+  const monthFilter   = billing_month ? `AND to_char(fc.due_date, 'YYYY-MM') = $${params.push(billing_month)}` : '';
+  const pendingFilter = pending_only
+    ? `AND fc.status NOT IN ('paid', 'waived') AND COALESCE(fc.remaining_amount, fc.net_amount, fc.total_amount) > 0`
+    : '';
   const result = await pool.query(
     `SELECT fc.*, s.full_name, s.admission_number,
             cl.name AS class_name, sec.name AS section_name,
@@ -217,6 +221,7 @@ export const getFeeCollectionsBySchool = async (
      LEFT JOIN sections sec ON sec.id = se.section_id
      WHERE fc.school_id = $1 AND fc.academic_year_id = $2
      ${monthFilter}
+     ${pendingFilter}
      ORDER BY fc.due_date DESC`,
     params
   );
@@ -723,6 +728,45 @@ export const assignOneTimeFees = async (
 
 // ── MONTHLY BILLING STATUS REPORT ──────────────────────────────────────────
 // Returns per-student fee status for a given billing month.
+// ── VOID (UNDO) BILLING FOR A MONTH ────────────────────────────────────────
+// Deletes ONLY unpaid bills with zero payments for the given billing_month + fee_type.
+// Bills that are paid or partial (any payment received) are NEVER touched.
+export const voidMonthBilling = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_month:    string,
+  fee_type:         string
+): Promise<{ voided: number; protected_paid: number; protected_partial: number }> => {
+  const protectedRes = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'paid')    AS protected_paid,
+       COUNT(*) FILTER (WHERE status = 'partial') AS protected_partial
+     FROM fee_collections
+     WHERE school_id        = $1
+       AND academic_year_id = $2
+       AND to_char(due_date, 'YYYY-MM') = $3
+       AND COALESCE(fee_type, 'academic') = $4
+       AND status IN ('paid', 'partial')`,
+    [school_id, academic_year_id, billing_month, fee_type]
+  );
+  const protected_paid    = Number(protectedRes.rows[0]?.protected_paid    || 0);
+  const protected_partial = Number(protectedRes.rows[0]?.protected_partial || 0);
+
+  const deleteRes = await pool.query(
+    `DELETE FROM fee_collections
+     WHERE school_id        = $1
+       AND academic_year_id = $2
+       AND to_char(due_date, 'YYYY-MM') = $3
+       AND COALESCE(fee_type, 'academic') = $4
+       AND status = 'unpaid'
+       AND paid_amount = 0
+     RETURNING id`,
+    [school_id, academic_year_id, billing_month, fee_type]
+  );
+  const voided = deleteRes.rowCount ?? 0;
+  return { voided, protected_paid, protected_partial };
+};
+
 export const getMonthlyBillingStatus = async (
   school_id:        number,
   academic_year_id: number,

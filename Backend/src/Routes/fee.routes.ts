@@ -15,6 +15,8 @@ import {
   getPaymentReceipt,
   assignOneTimeFeesController,
   getMonthlyBillingStatusController,
+  voidMonthBillingController,
+  getStudentBillingTimelineController,
 } from '../Controllers/fee.controller';
 import { generateReceipt, getReceiptStatus } from '../Controllers/receipt.controller';
 
@@ -26,8 +28,10 @@ router.get('/me/collections', restrictTo('student'), getMyFeeCollections);
 router.get('/me/payments',    restrictTo('student'), getMyPayments);
 
 // ── BILLING ──
-router.post('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
-router.get ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
+router.post  ('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
+router.get   ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
+router.get   ('/monthly/timeline',   restrictTo('admin', 'super_admin'), getStudentBillingTimelineController);
+router.delete('/monthly/void',       restrictTo('admin', 'super_admin'), voidMonthBillingController);
 router.post('/one-time/assign',    restrictTo('admin', 'super_admin'), assignOneTimeFeesController);
 router.post('/transport/generate', restrictTo('admin', 'super_admin'), generateTransportBills);
 router.get ('/transport/preview',  restrictTo('admin', 'super_admin'), getTransportBillingPreview);
@@ -39,13 +43,11 @@ router.get ('/hostel/summary',     restrictTo('admin', 'super_admin'), getHostel
 // ── FEE STRUCTURES ──
 router.post  ('/structures',       restrictTo('admin', 'super_admin'), createFeeStructure);
 router.get   ('/structures',       restrictTo('admin', 'super_admin'), getFeeStructures);
-// GET single by ID — used by StudentFeeHistoryPage to show structure tag per bill
 router.get   ('/structures/:id',   restrictTo('admin', 'super_admin'), getFeeStructureByIdController);
 router.patch ('/structures/:id',   restrictTo('admin', 'super_admin'), updateFeeStructure);
 router.delete('/structures/:id',   restrictTo('admin', 'super_admin'), deleteFeeStructure);
 
 // ── FEE COLLECTIONS ──
-// /collections/misc must be BEFORE /collections to avoid route conflict
 router.post('/collections/misc',          restrictTo('admin', 'super_admin'), createMiscFeeCollection);
 router.post('/collections',               restrictTo('admin', 'super_admin'), createFeeCollection);
 router.get ('/collections',               restrictTo('admin', 'super_admin'), getFeeCollections);

@@ -391,6 +391,19 @@ export default function StudentFeeHistoryPage() {
     return a + Math.max(0, net - cashPaid);
   }, 0);
   const totalPending  = pendingCollections.reduce((a, c) => a + parseFloat(c.remaining_amount || 0), 0);
+
+  // ── Billing policy (needed for overdue_grace_days before overdueCt) ──
+  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
+  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
+
+  // An unpaid/partial bill is "overdue" only after due_date + grace period
+  const isOverdueFn = (dueDate: string, status: string): boolean => {
+    if (status === "paid" || status === "waived") return false;
+    const due = new Date(dueDate);
+    due.setDate(due.getDate() + graceDays);
+    return due < new Date();
+  };
+
   const overdueCt     = pendingCollections.filter(c => isOverdueFn(c.due_date, c.status)).length;
   // Progress: (cash paid + waived forgiven portion) / total billed
   const effectivePaidForProgress = totalPaid + totalWaived;
@@ -423,17 +436,6 @@ export default function StudentFeeHistoryPage() {
     byType[t].pending += parseFloat(c.remaining_amount || 0);
   });
 
-  // ── Fetch billing policy for overdue_grace_days ──
-  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
-  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
-
-  // An unpaid/partial bill is "overdue" only after due_date + grace period
-  const isOverdueFn = (dueDate: string, status: string): boolean => {
-    if (status === "paid" || status === "waived") return false;
-    const due = new Date(dueDate);
-    due.setDate(due.getDate() + graceDays);
-    return due < new Date();
-  };
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const toggleMonth = (key: string) => {
     setExpandedMonths(prev => {

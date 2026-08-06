@@ -36,10 +36,17 @@ interface Section {
   class_name?: string;
 }
 
-// formatDate now comes from useDateFormat hook (BS/AD aware)
-
 const isExpired = (expires_at: string | null) =>
   expires_at ? new Date(expires_at) < new Date() : false;
+
+type FilterStatus = "all" | "active" | "archived" | "pinned";
+
+const FILTERS: { value: FilterStatus; label: string; icon: string }[] = [
+  { value: "all",      label: "All",      icon: "fa-list"         },
+  { value: "active",   label: "Active",   icon: "fa-circle-check" },
+  { value: "pinned",   label: "Pinned",   icon: "fa-thumbtack"    },
+  { value: "archived", label: "Archived", icon: "fa-box-archive"  },
+];
 
 export default function NoticeBoardPage() {
   const dispatch = useAppDispatch();
@@ -54,7 +61,6 @@ export default function NoticeBoardPage() {
   // Flatten sections from classes response (backend returns classes with sections)
   const allSections = useMemo(() => {
     if (!sections) return [];
-    // If backend returns flat sections array
     if (Array.isArray(sections) && sections[0]?.name !== undefined) return sections as Section[];
     return [];
   }, [sections]);
@@ -65,7 +71,7 @@ export default function NoticeBoardPage() {
 
   const [selected, setSelected]   = useState<Notice | null>(null);
   const [search, setSearch]        = useState("");
-  const [filterStatus, setFilter]  = useState<"all" | "active" | "archived" | "pinned">("all");
+  const [filterStatus, setFilter]  = useState<FilterStatus>("all");
   const [showModal, setShowModal]  = useState(false);
   const [editNotice, setEditNotice] = useState<Notice | null>(null);
 
@@ -179,213 +185,319 @@ export default function NoticeBoardPage() {
       <Topbar title="Notice Board" subtitle="Post and manage school-wide announcements and notices" />
       <main className={s("content")}>
 
-        {/* Head */}
+        {/* ── Head ── */}
         <section className={s("head")}>
-          <div>
+          <div className={s("headLeft")}>
+            <div className={s("headBreadcrumb")}>
+              <i className="fa-solid fa-bullhorn" />
+              <span>Academics</span>
+              <i className="fa-solid fa-chevron-right" />
+              <span>Notice Board</span>
+            </div>
             <h1>Notice Board</h1>
             <p>Create, pin, and manage announcements for your school.</p>
           </div>
           <div className={s("actions")}>
-            <button className={cx(s("btn"), s("btnPrimary"))} onClick={openCreate}>
-              <i className="fa-solid fa-plus" /> New Notice
+            <button className={cx(s("btn"), s("btnPrimary"))} onClick={openCreate} id="new-notice-btn">
+              <i className="fa-solid fa-plus" />
+              New Notice
             </button>
           </div>
         </section>
 
-        {/* Stats */}
+        {/* ── Stats ── */}
         <section className={s("stats")}>
           <article className={cx(s("stat"), s("green"))}>
-            <div><i className="fa-solid fa-bullhorn" /></div>
-            <span>Active</span>
-            <strong>{totalActive}</strong>
-            <small>Published</small>
+            <div className={s("statIcon")}><i className="fa-solid fa-bullhorn" /></div>
+            <span className={s("statLabel")}>Active</span>
+            <strong className={s("statValue")}>{totalActive}</strong>
+            <small className={s("statSub")}>Published</small>
           </article>
+
           <article className={cx(s("stat"), s("orange"))}>
-            <div><i className="fa-solid fa-thumbtack" /></div>
-            <span>Pinned</span>
-            <strong>{totalPinned}</strong>
-            <small>Important</small>
+            <div className={s("statIcon")}><i className="fa-solid fa-thumbtack" /></div>
+            <span className={s("statLabel")}>Pinned</span>
+            <strong className={s("statValue")}>{totalPinned}</strong>
+            <small className={s("statSub")}>Important</small>
           </article>
+
           <article className={cx(s("stat"), s("blue"))}>
-            <div><i className="fa-solid fa-box-archive" /></div>
-            <span>Archived</span>
-            <strong>{totalArchived}</strong>
-            <small>Old notices</small>
+            <div className={s("statIcon")}><i className="fa-solid fa-box-archive" /></div>
+            <span className={s("statLabel")}>Archived</span>
+            <strong className={s("statValue")}>{totalArchived}</strong>
+            <small className={s("statSub")}>Old notices</small>
           </article>
+
           <article className={cx(s("stat"), s("purple"))}>
-            <div><i className="fa-solid fa-clock-rotate-left" /></div>
-            <span>Expired</span>
-            <strong>{totalExpired}</strong>
-            <small>Past date</small>
+            <div className={s("statIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
+            <span className={s("statLabel")}>Expired</span>
+            <strong className={s("statValue")}>{totalExpired}</strong>
+            <small className={s("statSub")}>Past date</small>
           </article>
         </section>
 
-        {/* Toolbar */}
+        {/* ── Toolbar ── */}
         <section className={s("toolbar")}>
           <label className={s("search")}>
             <i className="fa-solid fa-magnifying-glass" />
             <input
-              placeholder="Search notice..."
+              id="notice-search"
+              placeholder="Search notices by title..."
               value={search}
               onChange={e => setSearch(e.target.value)}
+              aria-label="Search notices"
             />
+            {search && (
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex" }}
+                onClick={() => setSearch("")}
+                title="Clear search"
+              >
+                <i className="fa-solid fa-xmark" style={{ fontSize: 12 }} />
+              </button>
+            )}
           </label>
-          <select value={filterStatus} onChange={e => setFilter(e.target.value as any)}>
-            <option value="all">All Notices</option>
-            <option value="active">Active</option>
-            <option value="pinned">Pinned</option>
-            <option value="archived">Archived</option>
-          </select>
+
+          <div className={s("filterGroup")} role="group" aria-label="Filter notices">
+            {FILTERS.map(f => (
+              <button
+                key={f.value}
+                className={cx(s("filterBtn"), filterStatus === f.value && s("filterBtnActive"))}
+                onClick={() => setFilter(f.value)}
+                aria-pressed={filterStatus === f.value}
+              >
+                <i className={`fa-solid ${f.icon}`} />
+                {f.label}
+              </button>
+            ))}
+          </div>
         </section>
 
-        {/* Main grid */}
+        {/* ── Main Grid ── */}
         <section className={s("grid")}>
 
-          {/* Notice list */}
+          {/* Notice List */}
           <article className={s("card")}>
             <div className={s("cardHead")}>
-              <div>
+              <div className={s("cardHeadLeft")}>
                 <h3><i className="fa-solid fa-list" />All Notices</h3>
-                <p>{filtered.length} notice{filtered.length !== 1 ? "s" : ""}</p>
+                <p>
+                  {loading ? "Loading..." : `${filtered.length} notice${filtered.length !== 1 ? "s" : ""} found`}
+                </p>
               </div>
             </div>
-            <div className={s("noticeList")}>
+
+            <div className={s("noticeList")} role="list" aria-label="Notice list">
+              {/* Loading state */}
               {loading && (
-                <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={28} /></div>
-              )}
-              {!loading && filtered.length === 0 && (
-                <div className={s("emptyState")}>
-                  <i className="fa-solid fa-bullhorn" />
-                  <p>No notices found. Click "New Notice" to post one.</p>
+                <div style={{ padding: "3rem", textAlign: "center" }}>
+                  <Spinner size={28} />
                 </div>
               )}
+
+              {/* Empty state */}
+              {!loading && filtered.length === 0 && (
+                <div className={s("emptyState")}>
+                  <div className={s("emptyStateIcon")}>
+                    <i className="fa-solid fa-bullhorn" />
+                  </div>
+                  <p>
+                    {search
+                      ? `No notices match "${search}"`
+                      : filterStatus !== "all"
+                        ? `No ${filterStatus} notices`
+                        : 'No notices yet. Click "New Notice" to post one.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Notice items */}
               {!loading && filtered.map((notice) => (
                 <div
                   key={notice.id}
                   className={cx(s("noticeItem"), selected?.id === notice.id && s("noticeItemActive"))}
                   onClick={() => setSelected(notice)}
+                  role="listitem"
+                  aria-selected={selected?.id === notice.id}
+                  style={{ animationDelay: `${filtered.indexOf(notice) * 40}ms` }}
                 >
                   <div className={s("noticeItemTop")}>
                     <span className={s("noticeItemTitle")}>
-                      {notice.is_pinned && <i className={cx("fa-solid fa-thumbtack", s("pinIcon"))} />}
+                      {notice.is_pinned && <i className={cx("fa-solid fa-thumbtack", s("pinIcon"))} aria-label="Pinned" />}
                       {notice.title}
                     </span>
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <div className={s("noticeActions")}>
                       <button
-                        className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
-                        title={notice.is_pinned ? "Unpin" : "Pin"}
+                        className={cx(s("btn"), s("btnSoft"), s("btnSm"), s("btnIcon"))}
+                        title={notice.is_pinned ? "Unpin" : "Pin notice"}
                         onClick={e => handleTogglePin(notice, e)}
-                        style={{ color: notice.is_pinned ? "#ff9b51" : "#6a7882" }}
+                        style={{ color: notice.is_pinned ? "#ea580c" : undefined }}
+                        aria-label={notice.is_pinned ? "Unpin" : "Pin"}
                       >
                         <i className="fa-solid fa-thumbtack" />
                       </button>
                       <button
-                        className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
-                        title="Edit"
+                        className={cx(s("btn"), s("btnSoft"), s("btnSm"), s("btnIcon"))}
+                        title="Edit notice"
                         onClick={e => openEdit(notice, e)}
+                        aria-label="Edit"
                       >
                         <i className="fa-solid fa-pen" />
                       </button>
                       <button
-                        className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
-                        title="Delete"
+                        className={cx(s("btn"), s("btnDanger"), s("btnSm"), s("btnIcon"))}
+                        title="Delete notice"
                         onClick={e => handleDelete(notice, e)}
+                        aria-label="Delete"
                       >
                         <i className="fa-solid fa-trash" />
                       </button>
                     </div>
                   </div>
+
                   <div className={s("noticeMeta")}>
                     <span className={cx(s("badge"), notice.status === "active" ? s("badgeGreen") : s("badgeGray"))}>
+                      <i className={`fa-solid fa-circle${notice.status === "active" ? "-check" : ""}`} style={{ fontSize: 8 }} />
                       {notice.status}
                     </span>
                     {notice.created_by_role === "faculty" && (
-                      <span className={cx(s("badge"), s("badgeBlue"))}>Teacher</span>
+                      <span className={cx(s("badge"), s("badgeBlue"))}>
+                        <i className="fa-solid fa-chalkboard-teacher" style={{ fontSize: 8 }} />
+                        Teacher
+                      </span>
                     )}
                     {notice.target_type === "section" && notice.section_name && (
                       <span className={cx(s("badge"), s("badgeOrange"))}>
+                        <i className="fa-solid fa-users" style={{ fontSize: 8 }} />
                         {notice.class_name} – {notice.section_name}
                       </span>
                     )}
                     {isExpired(notice.expires_at) && (
-                      <span className={cx(s("badge"), s("badgeRed"))}>Expired</span>
+                      <span className={cx(s("badge"), s("badgeRed"))}>
+                        <i className="fa-solid fa-hourglass-end" style={{ fontSize: 8 }} />
+                        Expired
+                      </span>
                     )}
-                    <span className={s("noticeDate")}>{formatDate(notice.created_at)}</span>
+                    <span className={s("noticeDate")}>
+                      <i className="fa-regular fa-clock" />
+                      {formatDate(notice.created_at)}
+                    </span>
                   </div>
+
                   <p className={s("noticePreview")}>{notice.content}</p>
                 </div>
               ))}
             </div>
           </article>
 
-          {/* Detail panel */}
+          {/* Detail Panel */}
           <article className={s("card")}>
             {!selected ? (
               <div className={s("noSelection")}>
-                <i className="fa-solid fa-newspaper" />
-                <p>Select a notice to view its full content.</p>
+                <div className={s("noSelectionIcon")}>
+                  <i className="fa-regular fa-newspaper" />
+                </div>
+                <p>Select a notice to view its full content</p>
+                <p className={s("noSelectionHint")}>
+                  Click any notice from the list on the left
+                </p>
               </div>
             ) : (
               <div className={s("detailPanel")}>
-                <div className={s("detailTitle")}>
-                  <h2>
-                    {selected.is_pinned && <i className={cx("fa-solid fa-thumbtack", s("pinIcon"))} />}
-                    {selected.title}
-                  </h2>
-                  <div className={s("detailActions")}>
-                    <button
-                      className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                      onClick={e => handleToggleArchive(selected, e)}
-                    >
-                      <i className={`fa-solid fa-${selected.status === "active" ? "box-archive" : "rotate-left"}`} />
-                      {selected.status === "active" ? "Archive" : "Restore"}
-                    </button>
-                    <button
-                      className={cx(s("btn"), s("btnPrimary"), s("btnSm"))}
-                      onClick={e => openEdit(selected, e)}
-                    >
-                      <i className="fa-solid fa-pen" /> Edit
-                    </button>
+                {/* Header */}
+                <div className={s("detailHeader")}>
+                  <div className={s("detailTitleRow")}>
+                    <h2 className={s("detailTitle")}>
+                      {selected.is_pinned && (
+                        <i className={cx("fa-solid fa-thumbtack", s("pinIcon"))} aria-label="Pinned" />
+                      )}
+                      {selected.title}
+                    </h2>
+                    <div className={s("detailActions")}>
+                      <button
+                        className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
+                        onClick={e => handleToggleArchive(selected, e)}
+                        aria-label={selected.status === "active" ? "Archive notice" : "Restore notice"}
+                      >
+                        <i className={`fa-solid fa-${selected.status === "active" ? "box-archive" : "rotate-left"}`} />
+                        {selected.status === "active" ? "Archive" : "Restore"}
+                      </button>
+                      <button
+                        className={cx(s("btn"), s("btnPrimary"), s("btnSm"))}
+                        onClick={e => openEdit(selected, e)}
+                        aria-label="Edit notice"
+                      >
+                        <i className="fa-solid fa-pen" />
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Meta row */}
+                  <div className={s("detailMeta")}>
+                    <span className={s("metaItem")}>
+                      <i className="fa-solid fa-user" />
+                      {selected.created_by_name}
+                      {selected.created_by_role === "faculty" && " (Teacher)"}
+                    </span>
+                    <span className={s("metaItem")}>
+                      <i className="fa-solid fa-calendar" />
+                      {formatDate(selected.created_at)}
+                    </span>
+                    {selected.expires_at && (
+                      <span className={s("metaItem")}>
+                        <i className="fa-solid fa-hourglass-end" />
+                        Expires: {formatDate(selected.expires_at)}
+                      </span>
+                    )}
+                    {selected.target_type === "section" && selected.section_name ? (
+                      <span className={s("metaItem")}>
+                        <i className="fa-solid fa-users" />
+                        {selected.class_name} – {selected.section_name}
+                      </span>
+                    ) : (
+                      <span className={s("metaItem")}>
+                        <i className="fa-solid fa-school" />
+                        School-wide
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Status badges */}
+                  <div className={s("detailBadges")}>
+                    <span className={cx(s("badge"), selected.status === "active" ? s("badgeGreen") : s("badgeGray"))}>
+                      <i className="fa-solid fa-circle-dot" style={{ fontSize: 8 }} />
+                      {selected.status}
+                    </span>
+                    {selected.is_pinned && (
+                      <span className={cx(s("badge"), s("badgeOrange"))}>
+                        <i className="fa-solid fa-thumbtack" style={{ fontSize: 8 }} />
+                        Pinned
+                      </span>
+                    )}
+                    {isExpired(selected.expires_at) && (
+                      <span className={cx(s("badge"), s("badgeRed"))}>
+                        <i className="fa-solid fa-hourglass-end" style={{ fontSize: 8 }} />
+                        Expired
+                      </span>
+                    )}
+                    {selected.created_by_role === "faculty" && (
+                      <span className={cx(s("badge"), s("badgeBlue"))}>
+                        <i className="fa-solid fa-chalkboard-teacher" style={{ fontSize: 8 }} />
+                        Teacher
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className={s("detailMeta")}>
-                  <span className={s("metaItem")}>
-                    <i className="fa-solid fa-user" />
-                    {selected.created_by_name}
-                    {selected.created_by_role === "faculty" && " (Teacher)"}
+                {/* Content */}
+                <div className={s("detailContentWrapper")}>
+                  <span className={s("detailContentLabel")}>
+                    <i className="fa-solid fa-align-left" />
+                    Notice Content
                   </span>
-                  <span className={s("metaItem")}>
-                    <i className="fa-solid fa-calendar" />
-                    {formatDate(selected.created_at)}
-                  </span>
-                  {selected.expires_at && (
-                    <span className={s("metaItem")}>
-                      <i className="fa-solid fa-hourglass-end" />
-                      Expires: {formatDate(selected.expires_at)}
-                    </span>
-                  )}
-                  {selected.target_type === "section" && selected.section_name && (
-                    <span className={s("metaItem")}>
-                      <i className="fa-solid fa-users" />
-                      {selected.class_name} – {selected.section_name}
-                    </span>
-                  )}
-                  {!selected.target_type && (
-                    <span className={s("metaItem")}>
-                      <i className="fa-solid fa-school" />
-                      School-wide
-                    </span>
-                  )}
-                  <span className={cx(s("badge"), selected.status === "active" ? s("badgeGreen") : s("badgeGray"))}>
-                    {selected.status}
-                  </span>
-                  {isExpired(selected.expires_at) && (
-                    <span className={cx(s("badge"), s("badgeRed"))}>Expired</span>
-                  )}
+                  <div className={s("detailContent")}>{selected.content}</div>
                 </div>
-
-                <div className={s("detailContent")}>{selected.content}</div>
               </div>
             )}
           </article>
@@ -394,60 +506,107 @@ export default function NoticeBoardPage() {
 
       {/* ── Create / Edit Modal ── */}
       {showModal && (
-        <div className={s("overlay")} onClick={() => setShowModal(false)}>
+        <div
+          className={s("overlay")}
+          onClick={() => setShowModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={editNotice ? "Edit Notice" : "New Notice"}
+        >
           <div className={s("modal")} onClick={e => e.stopPropagation()}>
+            {/* Modal Head */}
             <div className={s("modalHead")}>
-              <h3><i className="fa-solid fa-bullhorn" style={{ color: "#ff9b51", marginRight: 8 }} />
-                {editNotice ? "Edit Notice" : "New Notice"}
-              </h3>
-              <button className={s("closeBtn")} onClick={() => setShowModal(false)}>
+              <div className={s("modalHeadLeft")}>
+                <div className={s("modalHeadIcon")}>
+                  <i className="fa-solid fa-bullhorn" />
+                </div>
+                <div>
+                  <h3>{editNotice ? "Edit Notice" : "New Notice"}</h3>
+                  <p>{editNotice ? "Update the notice details below" : "Fill in the details to post a new notice"}</p>
+                </div>
+              </div>
+              <button
+                className={s("closeBtn")}
+                onClick={() => setShowModal(false)}
+                aria-label="Close modal"
+              >
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
+
+            {/* Modal Body */}
             <div className={s("modalBody")}>
               <div className={s("field")}>
-                <span>Title <b>*</b></span>
+                <span className={s("fieldLabel")}>
+                  <i className="fa-solid fa-heading" style={{ color: "#ff9b51" }} />
+                  Title <b>*</b>
+                </span>
                 <input
-                  placeholder="Notice title..."
+                  id="notice-title"
+                  placeholder="Enter a clear, concise title..."
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  autoFocus
                 />
               </div>
+
               <div className={s("field")}>
-                <span>Content <b>*</b></span>
+                <span className={s("fieldLabel")}>
+                  <i className="fa-solid fa-align-left" style={{ color: "#ff9b51" }} />
+                  Content <b>*</b>
+                </span>
                 <textarea
+                  id="notice-content"
                   placeholder="Write the full notice content here..."
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 />
               </div>
+
               <div className={s("field")}>
-                <span>Expiry Date <span style={{ color: "#6a7882", fontWeight: 700 }}>(optional — leave blank to never expire)</span></span>
+                <span className={s("fieldLabel")}>
+                  <i className="fa-solid fa-calendar-xmark" style={{ color: "#ff9b51" }} />
+                  Expiry Date
+                  <small>(optional — leave blank to never expire)</small>
+                </span>
                 <DateInput
                   value={form.expires_at}
                   onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
                 />
               </div>
+
               <label className={s("checkRow")}>
                 <input
                   type="checkbox"
+                  id="notice-pin"
                   checked={form.is_pinned}
                   onChange={e => setForm(f => ({ ...f, is_pinned: e.target.checked }))}
                 />
-                <i className="fa-solid fa-thumbtack" style={{ color: "#ff9b51" }} />
-                Pin this notice (show at top)
+                <i className="fa-solid fa-thumbtack" />
+                Pin this notice (show at top of list)
+                <span className={s("checkRowDesc")}>High visibility</span>
               </label>
             </div>
+
+            {/* Modal Footer */}
             <div className={s("modalFooter")}>
-              <button className={cx(s("btn"), s("btnOutline"))} onClick={() => setShowModal(false)}>
+              <button
+                className={cx(s("btn"), s("btnOutline"))}
+                onClick={() => setShowModal(false)}
+              >
                 Cancel
               </button>
               <button
                 className={cx(s("btn"), s("btnPrimary"))}
                 onClick={handleSubmit}
                 disabled={creating || updating}
+                id="notice-submit-btn"
               >
-                {creating || updating ? <Spinner size={16} /> : <i className="fa-solid fa-paper-plane" />}
+                {creating || updating ? (
+                  <Spinner size={16} />
+                ) : (
+                  <i className="fa-solid fa-paper-plane" />
+                )}
                 {editNotice ? "Save Changes" : "Post Notice"}
               </button>
             </div>

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
-import { useApi, useMutation } from "@/lib/useApi";
+import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -17,14 +17,12 @@ import { useDateFormat } from "@/lib/useDateFormat";
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 const fmt    = (n: number | string) => "Rs. " + Number(n || 0).toLocaleString("en-IN");
-const fmtNum = (n: number | string) => Number(n || 0).toLocaleString("en-IN");
 const getInitials = (name: string) =>
   (name || "?").split(" ").map((p: string) => p[0]).join("").substring(0, 2).toUpperCase();
 
 const TYPE_COLOR: Record<string, string> = { academic: "#3b5bdb", transport: "#c46a14", hostel: "#7c3aed" };
 const TYPE_BG:    Record<string, string> = { academic: "#e8edff", transport: "#fff1df", hostel: "#f3e8ff" };
 
-// ── Badge ──────────────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     paid: "badge-green", partial: "badge-yellow", unpaid: "badge-red", waived: "badge-blue",
@@ -49,14 +47,12 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-// ── Input style ────────────────────────────────────────────────────────────────
 const INP: React.CSSProperties = {
   minHeight: 42, padding: "0 12px", border: "1.5px solid #c6d0d7",
   borderRadius: 8, fontSize: 13, fontWeight: 700, outline: "none",
   width: "100%", background: "#fff", color: "#1a202c", boxSizing: "border-box",
 };
 
-// ── Collect Fee Page ───────────────────────────────────────────────────────────
 export default function CollectFeePage() {
   const dispatch       = useAppDispatch();
   const searchParams   = useSearchParams();
@@ -64,7 +60,6 @@ export default function CollectFeePage() {
   const { academicYearId } = useAcademicYear();
   const { formatDate } = useDateFormat();
 
-  // ── Student search ──────────────────────────────────────────────────────────
   const [query,           setQuery]           = useState("");
   const [searchResults,   setSearchResults]   = useState<any[]>([]);
   const [searching,       setSearching]       = useState(false);
@@ -110,7 +105,6 @@ export default function CollectFeePage() {
     return due < new Date();
   };
 
-  // ── Collections ─────────────────────────────────────────────────────────────
   const [typeFilter, setTypeFilter] = useState("all");
   const { data: rawCollections, refetch: refetchCollections } = useApi<any[]>(
     selectedStudent && academicYearId
@@ -119,7 +113,31 @@ export default function CollectFeePage() {
     [selectedStudent?.id, academicYearId]
   );
 
-  const allCollections  = rawCollections || [];
+  // ── Sort by due_date ASC → sequential payment order is always respected ──
+  const sortedAll = [...(rawCollections || [])].sort((a: any, b: any) =>
+    String(a.due_date || "").localeCompare(String(b.due_date || ""))
+  );
+
+  // ── Sequential payment lock ──────────────────────────────────────────────────
+  // For recurring monthly academic fees (same fee_structure_id), the OLDEST unpaid
+  // bill must be paid/waived before the next one is payable.
+  // transport/hostel (no fee_structure_id) are exempt — pay any month in any order.
+  const lockedIds = new Set<number>();
+  const lockedByStructure = new Map<number, string>(); // structure_id → oldest unpaid fee_name
+  const seenUnpaidStructure = new Map<number, string>(); // structure_id → oldest unpaid fee_name
+  for (const c of sortedAll) {
+    if (!c.fee_structure_id) continue;
+    if (c.status === "paid" || c.status === "waived") continue;
+    const sid = Number(c.fee_structure_id);
+    if (!seenUnpaidStructure.has(sid)) {
+      seenUnpaidStructure.set(sid, c.fee_name || "earlier bill"); // this is the oldest — NOT locked
+    } else {
+      lockedIds.add(c.id);
+      lockedByStructure.set(c.id, seenUnpaidStructure.get(sid)!);
+    }
+  }
+
+  const allCollections  = sortedAll;
   const pendingCollections = allCollections.filter((c: any) => {
     const isPending = c.status !== "paid" && c.status !== "waived";
     const matchType = typeFilter === "all" || (c.fee_type || "academic") === typeFilter;
@@ -132,11 +150,12 @@ export default function CollectFeePage() {
   const overdueCt = allCollections.filter((c: any) => isOverdueFn(c.due_date, c.status)).length;
   const paidPct = (totalDue + totalPaid) > 0 ? (totalPaid / (totalDue + totalPaid)) * 100 : 0;
 
-  // ── Bulk select ─────────────────────────────────────────────────────────────
+  // Locked bills cannot be selected
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkAmounts, setBulkAmounts] = useState<Record<number, string>>({});
 
   const toggleSelect = (id: number, remaining: string) => {
+    if (lockedIds.has(id)) return; // cannot select locked bill
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); }
@@ -145,10 +164,11 @@ export default function CollectFeePage() {
     });
   };
   const toggleAll = () => {
-    if (selectedIds.size === pendingCollections.length) { setSelectedIds(new Set()); }
+    const payable = pendingCollections.filter((c: any) => !lockedIds.has(c.id));
+    if (selectedIds.size === payable.length) { setSelectedIds(new Set()); }
     else {
       const next = new Set<number>(); const amounts: Record<number, string> = {};
-      pendingCollections.forEach((c: any) => { next.add(c.id); amounts[c.id] = String(parseFloat(c.remaining_amount || "0")); });
+      payable.forEach((c: any) => { next.add(c.id); amounts[c.id] = String(parseFloat(c.remaining_amount || "0")); });
       setSelectedIds(next); setBulkAmounts(amounts);
     }
   };
@@ -158,7 +178,6 @@ export default function CollectFeePage() {
     (a: number, c: any) => a + parseFloat(bulkAmounts[c.id] || c.remaining_amount || "0"), 0
   );
 
-  // ── Payment form ─────────────────────────────────────────────────────────────
   const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().split("T")[0]);
   const [paymentMode, setPaymentMode]   = useState("cash");
   const [referenceNo, setReferenceNo]   = useState("");
@@ -216,7 +235,6 @@ export default function CollectFeePage() {
     setIsPaying(false);
   };
 
-  // ── Misc fee ─────────────────────────────────────────────────────────────────
   const [showMisc,     setShowMisc]     = useState(false);
   const [miscFeeName,  setMiscFeeName]  = useState("");
   const [miscAmount,   setMiscAmount]   = useState("");
@@ -247,7 +265,6 @@ export default function CollectFeePage() {
     } finally { setAddingMisc(false); }
   };
 
-  // ── Waive modal ───────────────────────────────────────────────────────────────
   const [waiveTarget, setWaiveTarget]  = useState<any | null>(null);
   const [waiveReason, setWaiveReason]  = useState("");
   const [waiving,     setWaiving]      = useState(false);
@@ -268,7 +285,6 @@ export default function CollectFeePage() {
     } finally { setWaiving(false); }
   };
 
-  // ── Fine modal ────────────────────────────────────────────────────────────────
   const [fineTarget, setFineTarget] = useState<any | null>(null);
   const [fineAmount, setFineAmount] = useState("");
   const [fineReason, setFineReason] = useState("");
@@ -291,13 +307,11 @@ export default function CollectFeePage() {
     } finally { setAddingFine(false); }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className={s("fees-page")}>
       <Topbar title="Collect Fee" subtitle="Search a student, select pending fees, and record payment" />
       <main className={s("page-content")}>
 
-        {/* ── Page head ─────────────────────────────────────────────────── */}
         <section className={s("page-head")}>
           <div>
             <h1>Collect Fee</h1>
@@ -305,18 +319,12 @@ export default function CollectFeePage() {
           </div>
           <div className={s("head-actions")}>
             {selectedStudent && (
-              <Link
-                className={cx(s("btn"), s("btn-outline"))}
-                href={`/students/profile?id=${selectedStudent.id}`}
-              >
+              <Link className={cx(s("btn"), s("btn-outline"))} href={`/students/profile?id=${selectedStudent.id}`}>
                 <i className="fa-solid fa-user" /> Profile
               </Link>
             )}
             {selectedStudent && (
-              <Link
-                className={cx(s("btn"), s("btn-outline"))}
-                href={`/fees/history?student_id=${selectedStudent.id}`}
-              >
+              <Link className={cx(s("btn"), s("btn-outline"))} href={`/fees/history?student_id=${selectedStudent.id}`}>
                 <i className="fa-solid fa-clock-rotate-left" /> Fee History
               </Link>
             )}
@@ -329,7 +337,6 @@ export default function CollectFeePage() {
           </div>
         </section>
 
-        {/* ── Success banner ─────────────────────────────────────────────── */}
         {lastReceipts.length > 0 && (
           <div className={s("cf-success-banner")}>
             <div className={s("cf-success-left")}>
@@ -352,13 +359,27 @@ export default function CollectFeePage() {
           </div>
         )}
 
-        {/* ── Main layout: 3 columns ─────────────────────────────────────── */}
+        {/* Sequential payment info banner */}
+        {selectedStudent && lockedIds.size > 0 && (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 10,
+            padding: "10px 16px", borderRadius: 10, margin: "0 0 4px",
+            background: "#fefce8", border: "1px solid #fde68a",
+            fontSize: 13, color: "#92400e", fontWeight: 600,
+          }}>
+            <i className="fa-solid fa-lock" style={{ marginTop: 1, flexShrink: 0 }} />
+            <span>
+              <strong>Sequential payment required</strong> — {lockedIds.size} bill{lockedIds.size !== 1 ? "s are" : " is"} locked
+              because an earlier bill for the same fee is still unpaid.
+              Pay or waive the oldest due bill first to unlock the next one.
+            </span>
+          </div>
+        )}
+
         <div className={s("cf-layout")}>
 
-          {/* ════════════ COL 1 — Student panel ════════════ */}
+          {/* COL 1 — Student panel */}
           <aside className={s("cf-left")}>
-
-            {/* Search card */}
             <div className={s("cf-card")}>
               <div className={s("cf-card-head")}>
                 <div className={s("cf-card-icon")} style={{ background: "#e8edff", color: "#3b5bdb" }}>
@@ -387,7 +408,6 @@ export default function CollectFeePage() {
                   )}
                 </div>
 
-                {/* Dropdown results */}
                 {searchResults.length > 0 && (
                   <div className={s("cf-dropdown")}>
                     {searchResults.map((st: any) => (
@@ -406,7 +426,6 @@ export default function CollectFeePage() {
                 )}
               </div>
 
-              {/* Selected student */}
               {selectedStudent && (
                 <div className={s("cf-student-card")}>
                   <div className={s("cf-student-avatar")}>{getInitials(selectedStudent.full_name)}</div>
@@ -421,7 +440,6 @@ export default function CollectFeePage() {
                 </div>
               )}
 
-              {/* Scholarship strip */}
               {selectedStudent?.scholarship_percent && Number(selectedStudent.scholarship_percent) > 0 && (
                 <div className={s("cf-scholarship")}>
                   <i className="fa-solid fa-graduation-cap" />
@@ -430,7 +448,6 @@ export default function CollectFeePage() {
               )}
             </div>
 
-            {/* Fee totals */}
             {selectedStudent && allCollections.length > 0 && (
               <div className={s("cf-totals")}>
                 <div className={s("cf-total-item")} style={{ "--t-color": "#b42318", "--t-bg": "#fde7e7" } as any}>
@@ -445,7 +462,6 @@ export default function CollectFeePage() {
                   <span>Overdue</span>
                   <strong>{overdueCt} bill{overdueCt !== 1 ? "s" : ""}</strong>
                 </div>
-                {/* Progress bar */}
                 <div className={s("cf-progress-wrap")}>
                   <div className={s("cf-progress-track")}>
                     <div className={s("cf-progress-fill")} style={{ width: `${paidPct.toFixed(1)}%` }} />
@@ -455,7 +471,6 @@ export default function CollectFeePage() {
               </div>
             )}
 
-            {/* Add misc fee */}
             {selectedStudent && (
               <div className={s("cf-card")}>
                 <button className={s("cf-misc-toggle")} onClick={() => setShowMisc(v => !v)}>
@@ -496,7 +511,7 @@ export default function CollectFeePage() {
             )}
           </aside>
 
-          {/* ════════════ COL 2 — Fee table ════════════ */}
+          {/* COL 2 — Fee table */}
           <div className={s("cf-center")}>
 
             {!selectedStudent ? (
@@ -507,7 +522,6 @@ export default function CollectFeePage() {
               </div>
             ) : (
               <>
-                {/* Pending fees table */}
                 <div className={s("cf-card")}>
                   <div className={s("cf-card-head")}>
                     <div className={s("cf-card-icon")} style={{ background: "#fff1df", color: "#c46a14" }}>
@@ -515,7 +529,7 @@ export default function CollectFeePage() {
                     </div>
                     <div>
                       <strong>Pending Fees</strong>
-                      <span>Tick fees to pay — multiple at once is supported</span>
+                      <span>Bills are ordered oldest → newest. Pay in order.</span>
                     </div>
                     <select
                       className={s("cf-type-filter")}
@@ -535,7 +549,8 @@ export default function CollectFeePage() {
                         <tr>
                           <th style={{ width: 44, textAlign: "center" }}>
                             <input type="checkbox"
-                              checked={pendingCollections.length > 0 && selectedIds.size === pendingCollections.length}
+                              checked={pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length > 0
+                                && selectedIds.size === pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length}
                               onChange={toggleAll}
                               className={s("cf-checkbox")}
                             />
@@ -562,30 +577,52 @@ export default function CollectFeePage() {
                         {pendingCollections.map((c: any) => {
                           const isOverdue  = isOverdueFn(c.due_date, c.status);
                           const isSelected = selectedIds.has(c.id);
+                          const isLocked   = lockedIds.has(c.id);
+                          const lockedMsg  = isLocked ? lockedByStructure.get(c.id) : null;
                           return (
                             <tr key={c.id}
-                              className={cx(s("cf-tr"), isSelected && s("cf-tr-selected"), isOverdue && !isSelected && s("cf-tr-overdue"))}
-                              onClick={() => toggleSelect(c.id, c.remaining_amount)}
+                              className={cx(
+                                s("cf-tr"),
+                                isSelected && s("cf-tr-selected"),
+                                isOverdue && !isSelected && !isLocked && s("cf-tr-overdue"),
+                              )}
+                              onClick={() => !isLocked && toggleSelect(c.id, c.remaining_amount)}
+                              style={isLocked ? { opacity: 0.6, cursor: "not-allowed", background: "#f8fafc" } : {}}
+                              title={isLocked ? `Pay or waive "${lockedMsg}" before this bill.` : undefined}
                             >
                               <td style={{ textAlign: "center" }}>
-                                <input type="checkbox" checked={isSelected}
-                                  onChange={() => toggleSelect(c.id, c.remaining_amount)}
-                                  onClick={ev => ev.stopPropagation()} className={s("cf-checkbox")} />
+                                {isLocked ? (
+                                  <span style={{ color: "#94a3b8", fontSize: 13 }} title={`Pay "${lockedMsg}" first`}>
+                                    <i className="fa-solid fa-lock" />
+                                  </span>
+                                ) : (
+                                  <input type="checkbox" checked={isSelected}
+                                    onChange={() => toggleSelect(c.id, c.remaining_amount)}
+                                    onClick={ev => ev.stopPropagation()} className={s("cf-checkbox")} />
+                                )}
                               </td>
                               <td>
-                                <span className={s("cf-fee-name")}>{c.fee_name}</span>
-                                {isOverdue && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span className={s("cf-fee-name")}>{c.fee_name}</span>
+                                  {isOverdue && !isLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
+                                  {isLocked && (
+                                    <span style={{ fontSize: 10.5, color: "#b45309", fontWeight: 700 }}>
+                                      <i className="fa-solid fa-lock" style={{ marginRight: 3, fontSize: 9 }} />
+                                      Pay &quot;{lockedMsg}&quot; first
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td><TypeBadge type={c.fee_type} /></td>
                               <td className={s("cf-amt")}>{fmt(c.total_amount)}</td>
                               <td className={s("cf-amt-paid")}>{fmt(c.paid_amount || 0)}</td>
                               <td className={s("cf-amt-due")}>{fmt(c.remaining_amount || 0)}</td>
-                              <td className={cx(s("cf-date"), isOverdue && s("cf-date-overdue"))}>
+                              <td className={cx(s("cf-date"), isOverdue && !isLocked && s("cf-date-overdue"))}>
                                 {formatDate(c.due_date?.split("T")[0])}
                               </td>
                               <td><StatusBadge status={c.status} /></td>
                               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                {isOverdue && (
+                                {isOverdue && !isLocked && (
                                   <button
                                     className={s("cf-fine-btn")}
                                     onClick={ev => { ev.stopPropagation(); setFineTarget(c); setFineAmount(""); setFineReason(""); }}
@@ -597,7 +634,7 @@ export default function CollectFeePage() {
                                   className={s("cf-fine-btn")}
                                   style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }}
                                   onClick={ev => { ev.stopPropagation(); setWaiveTarget(c); setWaiveReason(""); }}
-                                  title="Waive this fee"
+                                  title={isLocked ? `Waive "${lockedMsg}" or this bill` : "Waive this fee"}
                                 >
                                   <i className="fa-solid fa-hand-holding-heart" /> Waive
                                 </button>
@@ -609,7 +646,6 @@ export default function CollectFeePage() {
                     </table>
                   </div>
 
-                  {/* Paid / waived collapsible */}
                   {paidCollections.length > 0 && (
                     <details className={s("cf-paid-details")}>
                       <summary className={s("cf-paid-summary")}>
@@ -645,8 +681,7 @@ export default function CollectFeePage() {
                   )}
                 </div>
 
-                {/* Hint when nothing selected */}
-                {selectedIds.size === 0 && pendingCollections.length > 0 && (
+                {selectedIds.size === 0 && pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length > 0 && (
                   <div className={s("cf-hint")}>
                     <i className="fa-solid fa-hand-pointer" />
                     Click rows or the header checkbox to select fees for payment.
@@ -656,11 +691,10 @@ export default function CollectFeePage() {
             )}
           </div>
 
-          {/* ════════════ COL 3 — Payment sidebar ════════════ */}
+          {/* COL 3 — Payment sidebar */}
           {selectedStudent && selectedIds.size > 0 && (
             <aside className={s("cf-right")}>
               <form onSubmit={handleBulkPayment} className={s("cf-pay-card")}>
-                {/* Header */}
                 <div className={s("cf-pay-head")}>
                   <div className={s("cf-card-icon")} style={{ background: "#3b5bdb", color: "#fff" }}>
                     <i className="fa-solid fa-credit-card" />
@@ -674,7 +708,6 @@ export default function CollectFeePage() {
                   </button>
                 </div>
 
-                {/* Per-fee amount rows */}
                 <div className={s("cf-pay-items")}>
                   {selectedCollections.map((c: any) => (
                     <div key={c.id} className={s("cf-pay-item")}>
@@ -693,7 +726,6 @@ export default function CollectFeePage() {
                   ))}
                 </div>
 
-                {/* Payment fields */}
                 <div className={s("cf-pay-fields")}>
                   <label className={s("cf-field")}>
                     <span>Payment Date <b style={{ color: "#b42318" }}>*</b></span>
@@ -720,7 +752,6 @@ export default function CollectFeePage() {
                   </label>
                 </div>
 
-                {/* Total bar + submit */}
                 <div className={s("cf-pay-footer")}>
                   <div>
                     <span>TOTAL PAYING</span>
@@ -739,7 +770,7 @@ export default function CollectFeePage() {
         </div>
       </main>
 
-      {/* ── Waive modal ───────────────────────────────────────────────────── */}
+      {/* Waive modal */}
       {waiveTarget && (
         <div className={s("cf-modal-overlay")} onClick={() => setWaiveTarget(null)}>
           <div className={s("cf-modal")} onClick={e => e.stopPropagation()}>
@@ -754,7 +785,7 @@ export default function CollectFeePage() {
             </div>
             <form onSubmit={handleWaive} className={s("cf-modal-body")}>
               <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 12px" }}>
-                Waiving sets the remaining balance to zero. This action cannot be undone.
+                Waiving sets the remaining balance to zero. This unlocks the next bill in the series.
               </p>
               <label className={s("cf-field")}>
                 <span>Reason (optional)</span>
@@ -773,7 +804,7 @@ export default function CollectFeePage() {
         </div>
       )}
 
-      {/* ── Fine modal ────────────────────────────────────────────────────── */}
+      {/* Fine modal */}
       {fineTarget && (
         <div className={s("cf-modal-overlay")} onClick={() => setFineTarget(null)}>
           <div className={s("cf-modal")} onClick={e => e.stopPropagation()}>

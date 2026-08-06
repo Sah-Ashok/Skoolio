@@ -13,6 +13,7 @@ import {
   getYearlyFeeForAcademicYear,
   assignOneTimeFees,
   getMonthlyBillingStatus,
+  voidMonthBilling,
 } from '../Repositories/fee.repository';
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
@@ -260,8 +261,8 @@ export const createMiscFeeCollectionService = async (
   );
 };
 
-export const getFeeCollectionsService = async (school_id: number, academic_year_id: number, billing_month?: string) => {
-  return await getFeeCollectionsBySchool(school_id, academic_year_id, billing_month);
+export const getFeeCollectionsService = async (school_id: number, academic_year_id: number, billing_month?: string, pending_only?: boolean) => {
+  return await getFeeCollectionsBySchool(school_id, academic_year_id, billing_month, pending_only);
 };
 
 export const getStudentFeeCollectionsService = async (
@@ -309,6 +310,48 @@ export const updateFeeCollectionService = async (id: number, school_id: number, 
 
 // ── FEE PAYMENT SERVICES ───────────────────────────────────────────────────
 
+// ── SEQUENTIAL PAYMENT ENFORCEMENT ────────────────────────────────────────────
+// For monthly recurring fees (same fee_structure_id), we enforce chronological
+// payment order: an older unpaid bill must be paid or waived before a newer one.
+// This prevents the scenario where Feb is paid but Jan is still unpaid.
+// Transport / hostel / one-time / yearly fees: NO sequential enforcement.
+const assertSequentialPayment = async (
+  school_id:    number,
+  collection:   any,  // the collection being paid
+): Promise<void> => {
+  // Only enforce for academic fees with a fee_structure_id (recurring monthly bills)
+  if (!collection.fee_structure_id) return;
+  if (collection.fee_type && collection.fee_type !== 'academic') return;
+
+  const due_date = String(collection.due_date).slice(0, 10); // YYYY-MM-DD
+  const billing_month = due_date.slice(0, 7);               // YYYY-MM
+
+  // Find any earlier unpaid bill for the SAME fee structure for this student
+  const result = await pool.query(
+    `SELECT id, due_date, fee_name
+     FROM fee_collections
+     WHERE school_id        = $1
+       AND student_id       = $2
+       AND fee_structure_id = $3
+       AND academic_year_id = $4
+       AND status NOT IN ('paid', 'waived')
+       AND to_char(due_date, 'YYYY-MM') < $5
+     ORDER BY due_date ASC
+     LIMIT 1`,
+    [school_id, collection.student_id, collection.fee_structure_id, collection.academic_year_id, billing_month]
+  );
+
+  if (result.rows.length > 0) {
+    const earliest = result.rows[0];
+    const earliestMonth = String(earliest.due_date).slice(0, 7);
+    throw new AppError(
+      `Cannot pay ${billing_month} before earlier dues are cleared. ` +
+      `Please pay or waive "${earliest.fee_name}" (${earliestMonth}) first.`,
+      400
+    );
+  }
+};
+
 export const createFeePaymentService = async (
   school_id: number, collected_by: number, data: ICreateFeePayment
 ) => {
@@ -331,6 +374,9 @@ export const createFeePaymentService = async (
       `Payment amount (${data.paid_amount}) cannot exceed remaining amount of ${collection.remaining_amount}.`, 400
     );
   }
+
+  // Enforce sequential payment: older unpaid bills must be cleared first
+  await assertSequentialPayment(school_id, collection);
 
   return await createFeePaymentAtomic(school_id, collected_by, data);
 };
@@ -465,25 +511,33 @@ export const generateMonthlyFeeBillsService = async (
           if (isYearlyOrOneTime) {
             isEligible = true; // idempotency check below prevents actual double billing
           } else {
-            // B3: billing_start_from policy overrides per-structure billing_start_rule
-            // when set to 'academic_year' — it always bills from AY start regardless of join date.
-            // When set to 'join_date' — per-structure billing_start_rule applies.
             const rule = (structure as any).billing_start_rule || 'next_month';
 
-            // Effective start: AY start (if policy=academic_year) or admission date (if policy=join_date)
-            const effStartY = policy.billing_start_from === 'academic_year' ? yearStart.getFullYear() : admYear;
-            const effStartM = policy.billing_start_from === 'academic_year' ? yearStart.getMonth()    : admMonth;
-            const monthsDiff = (mYear - effStartY) * 12 + (mMonth - effStartM);
-
             if (rule === 'academic_year') {
+              // Hardcoded: bill from AY start month regardless of admission date
               isEligible = true;
             } else if (rule === 'next_month') {
-              // Bill same month if joined by 15th, else next month
-              isEligible = monthsDiff > 0 || (monthsDiff === 0 && admDay <= 15);
+              // ALWAYS use actual admission date for the 15-day rule.
+              // billing_start_from='academic_year' means we don't restrict by admission
+              // month when computing monthsDiff — but we still respect the 15-day rule
+              // for the admission month itself to avoid billing a partial month.
+              // e.g. student joins Baishakh 20 → skip Baishakh, start Jestha (correct).
+              // e.g. student joins Baishakh 5 → bill Baishakh (joined by 15th, correct).
+              const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
+              isEligible = diffFromAdm > 0 || (diffFromAdm === 0 && admDay <= 15);
+
+              // If billing_start_from='academic_year', also ensure we don't bill before AY start
+              if (isEligible && policy.billing_start_from === 'academic_year') {
+                const diffFromAY = (mYear - yearStart.getFullYear()) * 12 + (mMonth - yearStart.getMonth());
+                isEligible = diffFromAY >= 0;
+              }
             } else if (rule === 'skip_two_months') {
-              isEligible = monthsDiff >= 2;
+              const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
+              isEligible = diffFromAdm >= 2;
             } else {
-              isEligible = monthsDiff >= 1;
+              // 'next_month' fallback
+              const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
+              isEligible = diffFromAdm >= 1;
             }
           }
 
@@ -766,7 +820,171 @@ export const assignOneTimeFeesService = async (
   );
 };
 
-// ── MONTHLY BILLING STATUS REPORT ────────────────────────────────────────────
+// ── VOID (UNDO) MONTHLY BILLING ───────────────────────────────────────────
+// Only deletes unpaid bills with zero payments. Paid/partial bills are NEVER touched.
+export const voidMonthBillingService = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_month:    string,
+  fee_type:         string
+) => {
+  await assertFeeManagementEnabled(school_id);
+
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(billing_month)) {
+    throw new AppError('billing_month must use YYYY-MM.', 400);
+  }
+  if (!['academic', 'transport', 'hostel'].includes(fee_type)) {
+    throw new AppError('fee_type must be academic, transport, or hostel.', 400);
+  }
+
+  const result = await voidMonthBilling(school_id, academic_year_id, billing_month, fee_type);
+  const protectedCount = result.protected_paid + result.protected_partial;
+
+  return {
+    ...result,
+    message: result.voided === 0
+      ? protectedCount > 0
+        ? `No bills removed. ${protectedCount} bill(s) have payments and are protected.`
+        : 'No unpaid bills found to remove for this month.'
+      : protectedCount > 0
+        ? `${result.voided} unpaid bill(s) removed. ${protectedCount} bill(s) with payments were kept (protected).`
+        : `${result.voided} unpaid bill(s) removed successfully.`,
+  };
+};
+
+// ── STUDENT BILLING TIMELINE — shows missing months per student ─────────────
+// Returns for each enrolled student: which months have been billed vs missing
+// between their effective billing start and today.
+export const getStudentBillingTimelineService = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_month:    string,  // YYYY-MM — the "up to" month to check
+) => {
+  await assertFeeManagementEnabled(school_id);
+
+  const [academicYear, policy] = await Promise.all([
+    getAcademicYearById(academic_year_id, school_id),
+    getFeeBillingPolicy(school_id),
+  ]);
+  if (!academicYear) throw new AppError('Academic year not found.', 404);
+
+  const yearStart   = new Date(`${String(academicYear.start_date).slice(0, 10)}T00:00:00`);
+  const yearEnd     = new Date(`${String(academicYear.end_date).slice(0, 10)}T23:59:59`);
+
+  const [targetYear, targetMonth] = billing_month.split('-').map(Number);
+  const targetDate = new Date(targetYear, targetMonth - 1, 1);
+
+  // Cap target at yearEnd
+  const capDate = targetDate < yearEnd ? targetDate : yearEnd;
+
+  const buildRange = (fromY: number, fromM: number): string[] => {
+    const months: string[] = [];
+    let y = fromY, m = fromM;
+    while (y < capDate.getFullYear() || (y === capDate.getFullYear() && m <= capDate.getMonth() + 1)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return months;
+  };
+
+  const enrollments = await getEnrollmentsBySchool(school_id, academic_year_id);
+  const results: any[] = [];
+
+  for (const en of enrollments) {
+    const structures = await getFeeStructuresByClass(en.class_id, school_id, academic_year_id);
+    const monthlyStructures = structures.filter(s => s.is_active && s.frequency === 'monthly');
+    if (!monthlyStructures.length) continue;
+
+    const admDate  = new Date(en.admission_date);
+    const admYear  = admDate.getFullYear();
+    const admMonth = admDate.getMonth() + 1; // 1-indexed
+    const admDay   = admDate.getDate();
+
+    // Determine effective billing start month (1-indexed)
+    let startYear  = yearStart.getFullYear();
+    let startMonth = yearStart.getMonth() + 1; // 1-indexed
+
+    if (policy.billing_start_from === 'join_date') {
+      startYear  = admYear;
+      startMonth = admMonth;
+    }
+
+    // Apply billing_start_rule from first structure
+    const rule = (monthlyStructures[0] as any).billing_start_rule || 'next_month';
+
+    if (rule === 'academic_year') {
+      // Bill from AY start — don't adjust by admission date
+      // startYear/startMonth already set to AY start above
+    } else if (rule === 'next_month') {
+      // ALWAYS use actual admission day for the 15-day rule:
+      // If joined after 15th, first bill is next month.
+      // If joined on or before 15th, first bill is the admission month itself.
+      // This applies regardless of billing_start_from policy.
+      if (admDay > 15) {
+        // First billable month = month AFTER admission
+        let sm = admMonth + 1, sy = admYear;
+        if (sm > 12) { sm = 1; sy++; }
+        // But never before AY start
+        if (sy < yearStart.getFullYear() || (sy === yearStart.getFullYear() && sm < yearStart.getMonth() + 1)) {
+          sy = yearStart.getFullYear(); sm = yearStart.getMonth() + 1;
+        }
+        startYear = sy; startMonth = sm;
+      } else {
+        // First billable month = admission month (but not before AY start)
+        let sm = admMonth, sy = admYear;
+        if (sy < yearStart.getFullYear() || (sy === yearStart.getFullYear() && sm < yearStart.getMonth() + 1)) {
+          sy = yearStart.getFullYear(); sm = yearStart.getMonth() + 1;
+        }
+        startYear = sy; startMonth = sm;
+      }
+    } else if (rule === 'skip_two_months') {
+      startMonth += 2;
+      while (startMonth > 12) { startMonth -= 12; startYear++; }
+    }
+
+    const expectedMonths = buildRange(startYear, startMonth);
+
+    // Get all academic bills for this student in this AY
+    const billedRes = await pool.query(
+      `SELECT to_char(due_date, 'YYYY-MM') AS billing_month, status, remaining_amount
+       FROM fee_collections
+       WHERE school_id        = $1
+         AND student_id       = $2
+         AND academic_year_id = $3
+         AND fee_type         = 'academic'
+         AND fee_structure_id IS NOT NULL
+       ORDER BY due_date ASC`,
+      [school_id, en.student_id, academic_year_id]
+    );
+
+    const billedSet = new Set(billedRes.rows.map((r: any) => r.billing_month));
+    const missingMonths = expectedMonths.filter(m => !billedSet.has(m));
+
+    if (missingMonths.length === 0) continue;
+
+    // Build a compact range label: e.g. "Baishakh – Bhadra 2083" or "Baishakh 2083, Ashadh 2083"
+    results.push({
+      student_id:       en.student_id,
+      full_name:        en.full_name,
+      admission_number: en.admission_number,
+      class_id:         en.class_id,
+      class_name:       en.class_name || '',
+      section_name:     en.section_name || '',
+      missing_months:   missingMonths,
+      missing_count:    missingMonths.length,
+      effective_start:  `${startYear}-${String(startMonth).padStart(2, '0')}`,
+    });
+  }
+
+  return {
+    students: results,
+    total_students_with_missing: results.length,
+    billing_up_to: billing_month,
+    policy: { billing_start_from: policy.billing_start_from, monthly_bill_window: policy.monthly_bill_window },
+  };
+};
+
+// ── MONTHLY BILLING STATUS (which students have bills for a given month) ──────
 export const getMonthlyBillingStatusService = async (
   school_id: number, academic_year_id: number, billing_month: string
 ) => {
