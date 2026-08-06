@@ -392,7 +392,7 @@ export const getStudentPaymentsService = async (student_id: number, school_id: n
   return await getPaymentsByStudent(student_id, school_id);
 };
 
-// ── GENERATE MONTHLY ACADEMIC BILLS (batch) — B3 fixed ────────────────────
+// ── GENERATE MONTHLY ACADEMIC BILLS — fully batched, O(classes) not O(students) ──
 export const generateMonthlyFeeBillsService = async (
   school_id:        number,
   created_by:       number,
@@ -405,7 +405,6 @@ export const generateMonthlyFeeBillsService = async (
     throw new AppError('billing_month must use YYYY-MM.', 400);
   }
 
-  // B3: read billing policy alongside academic year
   const [academicYear, policy] = await Promise.all([
     getAcademicYearById(academic_year_id, school_id),
     getFeeBillingPolicy(school_id),
@@ -454,40 +453,140 @@ export const generateMonthlyFeeBillsService = async (
   };
 
   const enrollments = await getEnrollmentsBySchool(school_id, academic_year_id);
-  if (!enrollments.length) return { created: 0, skipped: 0, errors: [], policy: { billing_start_from: policy.billing_start_from, monthly_bill_window: policy.monthly_bill_window } };
+  if (!enrollments.length) return {
+    created: 0, skipped: 0, errors: [],
+    policy: { billing_start_from: policy.billing_start_from, monthly_bill_window: policy.monthly_bill_window },
+  };
 
   let created = 0;
   let skipped = 0;
   const errors: string[] = [];
 
+  // ── BATCH OPTIMISATION ────────────────────────────────────────────────────
+  // 1. Group enrollments by class_id — fee structures are per-class, not per-student.
+  //    We fetch structures ONCE per class instead of once per student.
+  // 2. Batch idempotency check: one query per (structure, billing_month) for ALL students.
+  // 3. Batch advance-balance check: one query per (structure) for ALL students at once.
+  // 4. Bulk INSERT all rows in one statement per flush (max 500 rows).
+  // Result: ~O(classes × structures) queries instead of O(students × structures).
+
+  const byClass = new Map<number, typeof enrollments>();
   for (const en of enrollments) {
-    try {
-      const structures = await getFeeStructuresByClass(en.class_id, school_id, academic_year_id);
-      if (!structures.length) continue;
+    if (!byClass.has(en.class_id)) byClass.set(en.class_id, []);
+    byClass.get(en.class_id)!.push(en);
+  }
 
-      const admissionDate  = new Date(en.admission_date);
-      const admYear        = admissionDate.getFullYear();
-      const admMonth       = admissionDate.getMonth(); // 0-indexed
-      const admDay         = admissionDate.getDate();
+  // Rows to bulk-insert at end
+  type BillRow = {
+    student_id: number; enrollment_id: number; fee_structure_id: number;
+    academic_year_id: number; fee_name: string; due_date: string;
+    total_amount: number; discount_amount: number; discount_reason: string | null;
+    net_amount: number;
+  };
+  const toInsert: BillRow[] = [];
 
-      for (const structure of structures) {
-        if (!structure.is_active) continue;
+  for (const [class_id, classEnrollments] of byClass) {
+    const structures = await getFeeStructuresByClass(class_id, school_id, academic_year_id);
+    if (!structures.length) continue;
 
-        const isYearlyOrOneTime = structure.frequency === 'yearly' || structure.frequency === 'one_time';
+    const studentIds = classEnrollments.map(e => e.student_id);
 
-        // B3: Determine month window to process for this structure
-        // - yearly/one_time: always single month (idempotency handles re-runs)
-        // - bill_current: only the requested billing_month
-        // - bill_past_due: catch up from policy start month to billing_month
+    for (const structure of structures) {
+      if (!structure.is_active) continue;
+
+      const isYearlyOrOneTime = structure.frequency === 'yearly' || structure.frequency === 'one_time';
+      const scholarshipApplies =
+        structure.scholarship_applies !== false &&
+        (structure as any).scholarship_applies !== 'false';
+
+      // ── Determine months to process for this structure ──────────────────
+      // For bill_past_due + join_date, months differ per student so we compute per-student below.
+      // For all other cases (bill_current, or AY-start), months are the same for everyone.
+      const monthsArePerStudent =
+        !isYearlyOrOneTime &&
+        policy.monthly_bill_window === 'bill_past_due' &&
+        policy.billing_start_from === 'join_date';
+
+      const sharedMonths: string[] = (!monthsArePerStudent && !isYearlyOrOneTime)
+        ? (policy.monthly_bill_window === 'bill_current'
+            ? [billing_month]
+            : buildMonthList(yearStart.getFullYear(), yearStart.getMonth()))
+        : [];
+
+      // ── BATCH idempotency check for all students in this class ──────────
+      // Load ALL existing bills for this structure for this class's students
+      // in the relevant months — one query covers every student.
+      const monthsForIdempCheck: string[] = isYearlyOrOneTime
+        ? [] // yearly: use academic_year_id check
+        : sharedMonths.length > 0
+          ? sharedMonths
+          : buildMonthList(yearStart.getFullYear(), yearStart.getMonth()); // widest possible window
+
+      let alreadyBilledYearly = new Set<number>(); // student_ids already billed (yearly)
+      let alreadyBilledMonthly = new Set<string>();  // `${student_id}-${YYYY-MM}` already billed
+
+      if (isYearlyOrOneTime) {
+        const res = await pool.query(
+          `SELECT student_id FROM fee_collections
+           WHERE school_id        = $1
+             AND fee_structure_id = $2
+             AND academic_year_id = $3
+             AND student_id       = ANY($4)`,
+          [school_id, structure.id, academic_year_id, studentIds]
+        );
+        alreadyBilledYearly = new Set(res.rows.map((r: any) => Number(r.student_id)));
+      } else if (monthsForIdempCheck.length > 0) {
+        const res = await pool.query(
+          `SELECT student_id, to_char(due_date, 'YYYY-MM') AS billing_month
+           FROM fee_collections
+           WHERE school_id        = $1
+             AND fee_structure_id = $2
+             AND student_id       = ANY($3)
+             AND to_char(due_date, 'YYYY-MM') = ANY($4)`,
+          [school_id, structure.id, studentIds, monthsForIdempCheck]
+        );
+        for (const r of res.rows) {
+          alreadyBilledMonthly.add(`${r.student_id}-${r.billing_month}`);
+        }
+      }
+
+      // ── BATCH advance balance check ─────────────────────────────────────
+      // One query returns advance balance for ALL students for this structure
+      const advanceMap = new Map<number, number>(); // student_id → advance_balance
+      if (!isYearlyOrOneTime) {
+        const advRes = await pool.query(
+          `SELECT student_id,
+                  GREATEST(0, COALESCE(SUM(paid_amount) - SUM(net_amount), 0)) AS advance_balance
+           FROM fee_collections
+           WHERE school_id        = $1
+             AND fee_structure_id = $2
+             AND academic_year_id = $3
+             AND student_id       = ANY($4)
+             AND status IN ('paid', 'partial')
+             AND paid_amount > 0
+           GROUP BY student_id`,
+          [school_id, structure.id, academic_year_id, studentIds]
+        );
+        for (const r of advRes.rows) {
+          advanceMap.set(Number(r.student_id), Math.max(0, Number(r.advance_balance)));
+        }
+      }
+
+      // ── Per-student bill generation (no DB calls inside this loop) ──────
+      for (const en of classEnrollments) {
+        const admissionDate = new Date(en.admission_date);
+        const admYear  = admissionDate.getFullYear();
+        const admMonth = admissionDate.getMonth(); // 0-indexed
+        const admDay   = admissionDate.getDate();
+
+        // Months to process for THIS student
         let monthsToProcess: string[];
-
-        if (isYearlyOrOneTime || policy.monthly_bill_window === 'bill_current') {
+        if (isYearlyOrOneTime) {
           monthsToProcess = [billing_month];
+        } else if (monthsArePerStudent) {
+          monthsToProcess = buildMonthList(admYear, admMonth);
         } else {
-          // bill_past_due: start from whichever is later — AY start or student join
-          const windowFromY = policy.billing_start_from === 'join_date' ? admYear  : yearStart.getFullYear();
-          const windowFromM = policy.billing_start_from === 'join_date' ? admMonth : yearStart.getMonth();
-          monthsToProcess = buildMonthList(windowFromY, windowFromM);
+          monthsToProcess = sharedMonths;
         }
 
         for (const monthStr of monthsToProcess) {
@@ -495,39 +594,27 @@ export const generateMonthlyFeeBillsService = async (
           const mYear  = parseInt(mYStr, 10);
           const mMonth = parseInt(mMStr, 10) - 1; // 0-indexed
 
-          // Offset from AY start to determine quarterly/half-yearly cadence
+          // Frequency cadence check
           const offsetFromAY = (mYear - yearStart.getFullYear()) * 12 + (mMonth - yearStart.getMonth());
-          if (!isFrequencyDueAt(structure.frequency, offsetFromAY)) continue;
+          if (!isFrequencyDueAt(structure.frequency, offsetFromAY)) { skipped++; continue; }
 
-          // ── Due date for this billing month ──────────────────────────────
+          // Due date calculation (pure computation — no DB)
           const preferredDay = structure.due_date_type === 'admission_date'
-            ? admDay
-            : Number(structure.due_day || 1);
+            ? admDay : Number(structure.due_day || 1);
           const lastDayOfM = new Date(mYear, mMonth + 1, 0).getDate();
           const due_date   = `${monthStr}-${String(Math.min(Math.max(preferredDay, 1), lastDayOfM)).padStart(2, '0')}`;
 
-          // ── Eligibility check ────────────────────────────────────────────
+          // Eligibility (pure computation — no DB)
           let isEligible = false;
-
           if (isYearlyOrOneTime) {
-            isEligible = true; // idempotency check below prevents actual double billing
+            isEligible = true;
           } else {
             const rule = (structure as any).billing_start_rule || 'next_month';
-
             if (rule === 'academic_year') {
-              // Hardcoded: bill from AY start month regardless of admission date
               isEligible = true;
             } else if (rule === 'next_month') {
-              // ALWAYS use actual admission date for the 15-day rule.
-              // billing_start_from='academic_year' means we don't restrict by admission
-              // month when computing monthsDiff — but we still respect the 15-day rule
-              // for the admission month itself to avoid billing a partial month.
-              // e.g. student joins Baishakh 20 → skip Baishakh, start Jestha (correct).
-              // e.g. student joins Baishakh 5 → bill Baishakh (joined by 15th, correct).
               const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
               isEligible = diffFromAdm > 0 || (diffFromAdm === 0 && admDay <= 15);
-
-              // If billing_start_from='academic_year', also ensure we don't bill before AY start
               if (isEligible && policy.billing_start_from === 'academic_year') {
                 const diffFromAY = (mYear - yearStart.getFullYear()) * 12 + (mMonth - yearStart.getMonth());
                 isEligible = diffFromAY >= 0;
@@ -536,36 +623,23 @@ export const generateMonthlyFeeBillsService = async (
               const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
               isEligible = diffFromAdm >= 2;
             } else {
-              // 'next_month' fallback
               const diffFromAdm = (mYear - admYear) * 12 + (mMonth - admMonth);
               isEligible = diffFromAdm >= 1;
             }
           }
-
           if (!isEligible) { skipped++; continue; }
 
-          // ── Idempotency: never double-bill ───────────────────────────────
+          // Idempotency check — uses pre-fetched sets (no DB)
           if (isYearlyOrOneTime) {
-            const alreadyBilled = await getYearlyFeeForAcademicYear(
-              school_id, en.student_id, structure.id, academic_year_id
-            );
-            if (alreadyBilled) { skipped++; continue; }
+            if (alreadyBilledYearly.has(en.student_id)) { skipped++; continue; }
           } else {
-            const alreadyBilled = await getAcademicFeeForPeriod(
-              school_id, en.student_id, structure.id, due_date
-            );
-            if (alreadyBilled) { skipped++; continue; }
+            if (alreadyBilledMonthly.has(`${en.student_id}-${monthStr}`)) { skipped++; continue; }
           }
 
-          // ── Scholarship discount ─────────────────────────────────────────
-          const scholarshipApplies =
-            structure.scholarship_applies !== false &&
-            (structure as any).scholarship_applies !== 'false';
-
+          // Scholarship discount (pure computation — no DB)
           const amount = Number(structure.amount);
           let discount        = 0;
-          let discount_reason = '';
-
+          let discount_reason: string | null = null;
           if (scholarshipApplies && en.scholarship_percent && Number(en.scholarship_percent) > 0) {
             discount        = Math.round((amount * Number(en.scholarship_percent)) / 100 * 100) / 100;
             discount_reason = `${en.scholarship_type || 'Scholarship'}: ${en.scholarship_percent}% discount`;
@@ -573,46 +647,107 @@ export const generateMonthlyFeeBillsService = async (
 
           const net_amount = amount - discount;
 
+          // Advance balance check — uses pre-fetched map (no DB)
+          const advanceBalance = advanceMap.get(en.student_id) ?? 0;
+          if (advanceBalance >= net_amount) { skipped++; continue; }
+          const effectiveNetAmount = Math.max(0, net_amount - advanceBalance);
+
           const fee_name = structure.frequency === 'yearly'
             ? `${structure.fee_name} (${ayLabel})`
             : structure.frequency === 'one_time'
               ? structure.fee_name
               : `${structure.fee_name} - ${monthStr}`;
 
-          // ── Advance credit offset ────────────────────────────────────────
-          const advanceRes = await pool.query(
-            `SELECT COALESCE(SUM(paid_amount) - SUM(net_amount), 0) AS advance_balance
-             FROM fee_collections
-             WHERE school_id = $1 AND student_id = $2 AND academic_year_id = $3
-               AND fee_structure_id = $4 AND status IN ('paid', 'partial') AND paid_amount > 0`,
-            [school_id, en.student_id, academic_year_id, structure.id]
-          );
-          const advanceBalance     = Math.max(0, Number(advanceRes.rows[0]?.advance_balance || 0));
-          if (advanceBalance >= net_amount) { skipped++; continue; }
-          const effectiveNetAmount = Math.max(0, net_amount - advanceBalance);
+          toInsert.push({
+            student_id:       en.student_id,
+            enrollment_id:    en.id,
+            fee_structure_id: structure.id,
+            academic_year_id,
+            fee_name,
+            due_date,
+            total_amount:     amount,
+            discount_amount:  discount,
+            discount_reason,
+            net_amount:       effectiveNetAmount,
+          });
 
-          await createFeeCollection(
-            school_id, created_by,
-            {
-              student_id:       en.student_id,
-              enrollment_id:    en.id,
-              fee_structure_id: structure.id,
-              academic_year_id,
-              due_date,
-              total_amount:     amount,
-              discount_amount:  discount > 0 ? discount        : undefined,
-              discount_reason:  discount > 0 ? discount_reason : undefined,
-            },
-            fee_name, effectiveNetAmount, effectiveNetAmount, 'academic'
-          );
-          created++;
-        } // end monthsToProcess
-      } // end structures
-    } catch (err: any) {
-      if (err?.code === '23505') skipped++;
-      else errors.push(`Student ${en.student_id}: ${err.message}`);
+          // Mark as billed in memory so subsequent months in same run don't double-bill
+          if (isYearlyOrOneTime) alreadyBilledYearly.add(en.student_id);
+          else alreadyBilledMonthly.add(`${en.student_id}-${monthStr}`);
+        }
+      }
     }
   }
+
+  // ── BULK INSERT — one batched statement per 500 rows ─────────────────────
+  const CHUNK = 500;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK);
+    if (!chunk.length) continue;
+
+    // Simpler: just use a flat array with inline literals for the fixed columns.
+    const flatValues: any[] = [];
+    const flatPlaceholders = chunk.map((row) => {
+      const base = flatValues.length;
+      flatValues.push(
+        school_id,
+        row.student_id,
+        row.enrollment_id,
+        row.fee_structure_id,
+        row.academic_year_id,
+        row.fee_name,
+        row.due_date,
+        row.total_amount,
+        row.discount_amount,
+        row.discount_reason,
+        row.net_amount,
+        row.net_amount,
+        created_by
+      );
+      const p = (offset: number) => `$${base + offset + 1}`;
+      return `(${p(0)},${p(1)},${p(2)},${p(3)},${p(4)},${p(5)},'academic',${p(6)},${p(7)},${p(8)},${p(9)},0,NULL,${p(10)},0,${p(11)},'unpaid',${p(12)})`;
+    });
+
+    try {
+      await pool.query(
+        `INSERT INTO fee_collections
+          (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
+           fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason,
+           fine_amount, fine_reason, net_amount, paid_amount, remaining_amount,
+           status, created_by)
+         VALUES ${flatPlaceholders.join(',')}
+         ON CONFLICT DO NOTHING`,
+        flatValues
+      );
+      created += chunk.length;
+    } catch (err: any) {
+      // On bulk insert error fall back to per-row to isolate the bad row
+      for (const row of chunk) {
+        try {
+          await pool.query(
+            `INSERT INTO fee_collections
+              (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
+               fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason,
+               fine_amount, fine_reason, net_amount, paid_amount, remaining_amount,
+               status, created_by)
+             VALUES ($1,$2,$3,$4,$5,$6,'academic',$7,$8,$9,$10,0,NULL,$11,0,$12,'unpaid',$13)
+             ON CONFLICT DO NOTHING`,
+            [
+              school_id, row.student_id, row.enrollment_id, row.fee_structure_id,
+              row.academic_year_id, row.fee_name, row.due_date, row.total_amount,
+              row.discount_amount, row.discount_reason, row.net_amount, row.net_amount, created_by,
+            ]
+          );
+          created++;
+        } catch (rowErr: any) {
+          if (rowErr?.code === '23505') skipped++;
+          else errors.push(`Student ${row.student_id} / ${row.fee_name}: ${rowErr.message}`);
+        }
+      }
+    }
+  }
+
+  skipped += (enrollments.length > 0 ? 0 : 0); // base skipped already counted above
 
   return {
     created,

@@ -425,7 +425,7 @@ export default function MonthlyBillingPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
-                    {["Month", "Month Name", "From Date", "To Date", "Fee Types", "Status"].map(h => (
+                    {["Month", "Month Name", "From Date", "To Date", "Fee Types", "Status", "Undo"].map(h => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1.5px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -472,6 +472,25 @@ export default function MonthlyBillingPage() {
                                 : <span style={{ fontSize: 11, fontWeight: 800, color: "#15803d", padding: "3px 10px", borderRadius: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "inline-flex", alignItems: "center", gap: 5 }}>
                                     <i className="fa-solid fa-circle-check" style={{ fontSize: 10 }} />All Paid ({totalBillsM - pendingBillsM})
                                   </span>}
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {isGenerated && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setVoidTargetMonth(bm); setShowVoidConfirm(true); }}
+                              disabled={voiding || generating}
+                              title="Remove unpaid bills for this month (paid bills are never touched)"
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                padding: "4px 10px", borderRadius: 6, fontFamily: "inherit",
+                                fontSize: 11, fontWeight: 800, cursor: "pointer",
+                                border: "1.5px solid #fecdd3", background: "#fff5f5",
+                                color: "#be123c", opacity: voiding || generating ? 0.5 : 1,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <i className="fa-solid fa-rotate-left" style={{ fontSize: 10 }} /> Undo
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -872,6 +891,62 @@ export default function MonthlyBillingPage() {
 
       </main>
 
+      {/* ── Void (Undo) Confirmation Modal ── */}
+      {showVoidConfirm && voidTargetMonth && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(15,23,42,0.5)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+            {/* Modal header */}
+            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #fee2e2", background: "#fff5f5", display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, background: "#fee2e2", color: "#be123c", display: "grid", placeItems: "center", fontSize: 18 }}>
+                <i className="fa-solid fa-triangle-exclamation" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: 15, fontWeight: 900, color: "#1e293b", display: "block" }}>
+                  Undo Billing — {toShortLabel(voidTargetMonth, isBS, bsOpts)}
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#64748b" }}>
+                  {activeMeta.label} · {toShortLabel(voidTargetMonth, isBS, bsOpts)}
+                </p>
+              </div>
+              <button onClick={() => { setShowVoidConfirm(false); setVoidTargetMonth(""); }}
+                style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "grid", placeItems: "center", fontSize: 14, color: "#64748b", flexShrink: 0 }}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: "18px 22px" }}>
+              <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef9c3", border: "1px solid #fde68a", marginBottom: 14 }}>
+                <strong style={{ fontSize: 12.5, fontWeight: 900, color: "#92400e", display: "block", marginBottom: 4 }}>
+                  <i className="fa-solid fa-shield-halved" style={{ marginRight: 6 }} />What gets removed:
+                </strong>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#78350f", lineHeight: 1.8 }}>
+                  <li>Only <strong>unpaid</strong> {activeMeta.label.toLowerCase()} bills for {toShortLabel(voidTargetMonth, isBS, bsOpts)}</li>
+                  <li>Bills with any payment received are <strong>never touched</strong></li>
+                  <li>Partial and fully-paid bills stay intact</li>
+                </ul>
+              </div>
+              <p style={{ fontSize: 12.5, color: "#64748b", margin: 0, lineHeight: 1.6 }}>
+                This is useful when bills were generated by mistake. You can re-generate the correct bills after undoing.
+              </p>
+            </div>
+
+            {/* Modal actions */}
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setShowVoidConfirm(false); setVoidTargetMonth(""); }}
+                style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button onClick={handleVoid} disabled={voiding}
+                style={{ padding: "9px 20px", borderRadius: 9, border: "2px solid #be123c", background: "#be123c", color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: voiding ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, opacity: voiding ? 0.7 : 1 }}>
+                {voiding
+                  ? <><i className="fa-solid fa-spinner fa-spin" /> Removing…</>
+                  : <><i className="fa-solid fa-rotate-left" /> Yes, Undo Bills</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
