@@ -857,34 +857,8 @@ export default function MonthlyBillingPage() {
             </div>
           )}
 
-          {/* ── Generate Bills button — pinned at bottom of table, only in unbilled mode ── */}
-          {viewMode === "unbilled" && (
-            <div style={{ borderTop: "1.5px solid #fde68a", padding: "14px 20px", background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: "#92400e", fontWeight: 700 }}>
-                <i className="fa-solid fa-bolt" style={{ marginRight: 7, color: "#f59e0b" }} />
-                {filtered.length > 0
-                  ? `Ready to generate ${activeMeta.label.toLowerCase()} bills for ${filtered.length} student${filtered.length !== 1 ? "s" : ""}`
-                  : `All ${activeMeta.label.toLowerCase()} bills already generated for this period`}
-              </span>
-              <button
-                onClick={handleGenerateAll}
-                disabled={generating || voiding || !academicYearId || selectedFeeTypes.size === 0 || filtered.length === 0}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  padding: "10px 24px", borderRadius: 9, fontFamily: "inherit",
-                  fontSize: 13.5, fontWeight: 900, cursor: filtered.length === 0 ? "not-allowed" : "pointer",
-                  border: "2px solid #2563eb", background: "#2563eb", color: "#fff",
-                  boxShadow: filtered.length > 0 ? "0 3px 12px #2563eb44" : "none",
-                  opacity: !academicYearId || filtered.length === 0 ? 0.45 : 1,
-                  transition: "all 0.15s", whiteSpace: "nowrap",
-                }}
-              >
-                {generating
-                  ? <><Spinner size={14} color="#fff" /> Generating…</>
-                  : <><i className="fa-solid fa-bolt" /> Generate Bills</>}
-              </button>
-            </div>
-          )}
+
+
         </div>
 
       </main>

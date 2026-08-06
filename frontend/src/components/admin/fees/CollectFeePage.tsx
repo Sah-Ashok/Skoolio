@@ -13,6 +13,7 @@ import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
 import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -53,12 +54,93 @@ const INP: React.CSSProperties = {
   width: "100%", background: "#fff", color: "#1a202c", boxSizing: "border-box",
 };
 
+// Convert an ISO due_date string to a human-readable BS month label
+function getMonthLabel(dueDate: string | undefined, isBS: boolean): string {
+  if (!dueDate) return "";
+  try {
+    const d = new Date(String(dueDate).slice(0, 10) + "T00:00:00");
+    if (isBS) {
+      const bs = adToBS(d);
+      return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
+    }
+    return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+  } catch { return ""; }
+}
+
+// Group individual bills with the same fee_structure_id (or fee_name if no structure)
+// into combined rows so admin sees e.g. "Tuition – Feb→Mar  Rs 6,000" in one line.
+type GroupedBill = {
+  ids: number[];                 // all collection IDs in this group
+  fee_name: string;
+  fee_type: string;
+  fee_structure_id: number | null;
+  bills: any[];                  // original bills (for checkbox / payment)
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  months: string[];              // month labels e.g. ["Magh 2083", "Falgun 2083"]
+  earliest_due: string;          // for overdue check
+  latest_due: string;            // for display
+  status: string;                // combined: unpaid > partial > paid
+  created_at: string;
+  allLocked: boolean;
+  anyLocked: boolean;
+  lockedMsg: string | null;
+};
+
+function groupBills(bills: any[], lockedIds: Set<number>, lockedByStructure: Map<number, string>, isBS: boolean): GroupedBill[] {
+  // Key: fee_structure_id (for monthly academic fees) OR fee_name (misc / no structure)
+  const map = new Map<string, GroupedBill>();
+  for (const b of bills) {
+    const genDate = b.created_at ? String(b.created_at).slice(0, 10) : "";
+    const key = b.fee_structure_id ? `struct-${b.fee_structure_id}-${genDate}` : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
+    const label = getMonthLabel(b.due_date, isBS);
+    const cleanFeeName = (b.fee_name || "").replace(/\s*-\s*\d{4}-\d{2}$/, '');
+    if (!map.has(key)) {
+      map.set(key, {
+        ids: [b.id],
+        fee_name: cleanFeeName,
+        fee_type: b.fee_type || "academic",
+        fee_structure_id: b.fee_structure_id ?? null,
+        bills: [b],
+        total_amount: Number(b.total_amount || 0),
+        paid_amount: Number(b.paid_amount || 0),
+        remaining_amount: Number(b.remaining_amount || 0),
+        months: label ? [label] : [],
+        earliest_due: b.due_date || "",
+        latest_due: b.due_date || "",
+        status: b.status,
+        created_at: b.created_at || "",
+        allLocked: lockedIds.has(b.id),
+        anyLocked: lockedIds.has(b.id),
+        lockedMsg: lockedIds.has(b.id) ? (lockedByStructure.get(b.id) ?? null) : null,
+      });
+    } else {
+      const g = map.get(key)!;
+      g.ids.push(b.id);
+      g.bills.push(b);
+      g.total_amount     += Number(b.total_amount || 0);
+      g.paid_amount      += Number(b.paid_amount || 0);
+      g.remaining_amount += Number(b.remaining_amount || 0);
+      if (label && !g.months.includes(label)) g.months.push(label);
+      if (b.due_date && b.due_date < g.earliest_due) g.earliest_due = b.due_date;
+      if (b.due_date && b.due_date > g.latest_due)   g.latest_due   = b.due_date;
+      if (lockedIds.has(b.id)) { g.anyLocked = true; if (!g.lockedMsg) g.lockedMsg = lockedByStructure.get(b.id) ?? null; }
+      else g.allLocked = false;
+      // Combined status: unpaid > partial > paid
+      if (b.status === "unpaid" || g.status === "unpaid") g.status = "unpaid";
+      else if (b.status === "partial" || g.status === "partial") g.status = "partial";
+    }
+  }
+  return Array.from(map.values());
+}
+
 export default function CollectFeePage() {
   const dispatch       = useAppDispatch();
   const searchParams   = useSearchParams();
   const initialId      = searchParams.get("student_id");
   const { academicYearId } = useAcademicYear();
-  const { formatDate } = useDateFormat();
+  const { formatDate, isBS } = useDateFormat();
 
   const [query,           setQuery]           = useState("");
   const [searchResults,   setSearchResults]   = useState<any[]>([]);
@@ -130,7 +212,9 @@ export default function CollectFeePage() {
     if (c.status === "paid" || c.status === "waived") continue;
     const sid = Number(c.fee_structure_id);
     if (!seenUnpaidStructure.has(sid)) {
-      seenUnpaidStructure.set(sid, c.fee_name || "earlier bill"); // this is the oldest — NOT locked
+      const cleanName = (c.fee_name || "earlier bill").replace(/\s*-\s*\d{4}-\d{2}$/, '');
+      const label = getMonthLabel(c.due_date, isBS);
+      seenUnpaidStructure.set(sid, label ? `${cleanName} - ${label}` : cleanName);
     } else {
       lockedIds.add(c.id);
       lockedByStructure.set(c.id, seenUnpaidStructure.get(sid)!);
@@ -148,18 +232,29 @@ export default function CollectFeePage() {
   const totalDue  = allCollections.reduce((a: number, c: any) => a + parseFloat(c.remaining_amount || "0"), 0);
   const totalPaid = allCollections.reduce((a: number, c: any) => a + parseFloat(c.paid_amount      || "0"), 0);
   const overdueCt = allCollections.filter((c: any) => isOverdueFn(c.due_date, c.status)).length;
+
+  // Group pending bills by fee structure (same fee across months → one row)
+  const groupedPending = groupBills(pendingCollections, lockedIds, lockedByStructure, isBS);
   const paidPct = (totalDue + totalPaid) > 0 ? (totalPaid / (totalDue + totalPaid)) * 100 : 0;
 
   // Locked bills cannot be selected
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkAmounts, setBulkAmounts] = useState<Record<number, string>>({});
 
-  const toggleSelect = (id: number, remaining: string) => {
-    if (lockedIds.has(id)) return; // cannot select locked bill
+  const toggleSelect = (ids: number[], remainings: string[]) => {
+    // If any in group are locked, don't allow
+    if (ids.some(id => lockedIds.has(id))) return;
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); }
-      else { next.add(id); setBulkAmounts(a => ({ ...a, [id]: String(parseFloat(remaining || "0")) })); }
+      const allSelected = ids.every(id => next.has(id));
+      if (allSelected) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach((id, i) => {
+          next.add(id);
+          setBulkAmounts(a => ({ ...a, [id]: String(parseFloat(remainings[i] || "0")) }));
+        });
+      }
       return next;
     });
   };
@@ -546,7 +641,7 @@ export default function CollectFeePage() {
                   <div className={s("table-wrap")}>
                     <table className={s("cf-table")}>
                       <thead>
-                        <tr>
+                      <tr>
                           <th style={{ width: 44, textAlign: "center" }}>
                             <input type="checkbox"
                               checked={pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length > 0
@@ -556,6 +651,7 @@ export default function CollectFeePage() {
                             />
                           </th>
                           <th>Fee Name</th>
+                          <th>Month(s)</th>
                           <th>Type</th>
                           <th>Total</th>
                           <th>Paid</th>
@@ -566,66 +662,95 @@ export default function CollectFeePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {pendingCollections.length === 0 && (
+                        {groupedPending.length === 0 && (
                           <tr>
-                            <td colSpan={9} className={s("cf-table-empty")}>
+                            <td colSpan={10} className={s("cf-table-empty")}>
                               <i className="fa-solid fa-circle-check" />
                               No pending fees{typeFilter !== "all" ? " in this category" : ""}
                             </td>
                           </tr>
                         )}
-                        {pendingCollections.map((c: any) => {
-                          const isOverdue  = isOverdueFn(c.due_date, c.status);
-                          const isSelected = selectedIds.has(c.id);
-                          const isLocked   = lockedIds.has(c.id);
-                          const lockedMsg  = isLocked ? lockedByStructure.get(c.id) : null;
+                        {groupedPending.map((g: GroupedBill) => {
+                          const isOverdue  = isOverdueFn(g.earliest_due, g.status);
+                          const allSelected = g.ids.every(id => selectedIds.has(id));
+                          const someSelected = g.ids.some(id => selectedIds.has(id));
+                          const isLocked   = g.allLocked;
+                          const anyLocked  = g.anyLocked;
                           return (
-                            <tr key={c.id}
+                            <tr key={g.ids.join("-")}
                               className={cx(
                                 s("cf-tr"),
-                                isSelected && s("cf-tr-selected"),
-                                isOverdue && !isSelected && !isLocked && s("cf-tr-overdue"),
+                                allSelected && s("cf-tr-selected"),
+                                isOverdue && !allSelected && !isLocked && s("cf-tr-overdue"),
                               )}
-                              onClick={() => !isLocked && toggleSelect(c.id, c.remaining_amount)}
-                              style={isLocked ? { opacity: 0.6, cursor: "not-allowed", background: "#f8fafc" } : {}}
-                              title={isLocked ? `Pay or waive "${lockedMsg}" before this bill.` : undefined}
+                              onClick={() => !anyLocked && toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
+                              style={anyLocked ? { opacity: 0.6, cursor: "not-allowed", background: "#f8fafc" } : {}}
+                              title={anyLocked ? `Pay or waive "${g.lockedMsg}" before this bill.` : undefined}
                             >
                               <td style={{ textAlign: "center" }}>
-                                {isLocked ? (
-                                  <span style={{ color: "#94a3b8", fontSize: 13 }} title={`Pay "${lockedMsg}" first`}>
+                                {anyLocked ? (
+                                  <span style={{ color: "#94a3b8", fontSize: 13 }} title={`Pay "${g.lockedMsg}" first`}>
                                     <i className="fa-solid fa-lock" />
                                   </span>
                                 ) : (
-                                  <input type="checkbox" checked={isSelected}
-                                    onChange={() => toggleSelect(c.id, c.remaining_amount)}
+                                  <input type="checkbox" checked={allSelected}
+                                    ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                                    onChange={() => toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
                                     onClick={ev => ev.stopPropagation()} className={s("cf-checkbox")} />
                                 )}
                               </td>
                               <td>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span className={s("cf-fee-name")}>{c.fee_name}</span>
-                                  {isOverdue && !isLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
-                                  {isLocked && (
+                                  <span className={s("cf-fee-name")}>{g.fee_name}</span>
+                                  {g.created_at && (
+                                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                                      Generated: {formatDate(g.created_at.split("T")[0])}
+                                    </span>
+                                  )}
+                                  {isOverdue && !anyLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
+                                  {anyLocked && (
                                     <span style={{ fontSize: 10.5, color: "#b45309", fontWeight: 700 }}>
                                       <i className="fa-solid fa-lock" style={{ marginRight: 3, fontSize: 9 }} />
-                                      Pay &quot;{lockedMsg}&quot; first
+                                      Pay &quot;{g.lockedMsg}&quot; first
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              <td><TypeBadge type={c.fee_type} /></td>
-                              <td className={s("cf-amt")}>{fmt(c.total_amount)}</td>
-                              <td className={s("cf-amt-paid")}>{fmt(c.paid_amount || 0)}</td>
-                              <td className={s("cf-amt-due")}>{fmt(c.remaining_amount || 0)}</td>
-                              <td className={cx(s("cf-date"), isOverdue && !isLocked && s("cf-date-overdue"))}>
-                                {formatDate(c.due_date?.split("T")[0])}
+                              {/* Month badges */}
+                              <td>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                                  {g.months.length > 1 ? (
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
+                                      background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
+                                      whiteSpace: "nowrap",
+                                    }}>
+                                      {g.months[0].split(" ")[0]} – {g.months[g.months.length - 1]}
+                                    </span>
+                                  ) : g.months.length === 1 ? (
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
+                                      background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
+                                      whiteSpace: "nowrap",
+                                    }}>{g.months[0]}</span>
+                                  ) : null}
+                                </div>
                               </td>
-                              <td><StatusBadge status={c.status} /></td>
+                              <td><TypeBadge type={g.fee_type} /></td>
+                              <td className={s("cf-amt")}>{fmt(g.total_amount)}</td>
+                              <td className={s("cf-amt-paid")}>{fmt(g.paid_amount)}</td>
+                              <td className={s("cf-amt-due")}>{fmt(g.remaining_amount)}</td>
+                              <td className={cx(s("cf-date"), isOverdue && !anyLocked && s("cf-date-overdue"))}>
+                                {g.months.length > 1
+                                  ? <span style={{ fontSize: 11, color: "#64748b" }}>{g.months[0]} – {g.months[g.months.length - 1]}</span>
+                                  : formatDate(g.latest_due?.split("T")[0])}
+                              </td>
+                              <td><StatusBadge status={g.status} /></td>
                               <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                {isOverdue && !isLocked && (
+                                {isOverdue && !anyLocked && (
                                   <button
                                     className={s("cf-fine-btn")}
-                                    onClick={ev => { ev.stopPropagation(); setFineTarget(c); setFineAmount(""); setFineReason(""); }}
+                                    onClick={ev => { ev.stopPropagation(); setFineTarget(g.bills[0]); setFineAmount(""); setFineReason(""); }}
                                   >
                                     <i className="fa-solid fa-bolt" /> Fine
                                   </button>
@@ -633,8 +758,8 @@ export default function CollectFeePage() {
                                 <button
                                   className={s("cf-fine-btn")}
                                   style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }}
-                                  onClick={ev => { ev.stopPropagation(); setWaiveTarget(c); setWaiveReason(""); }}
-                                  title={isLocked ? `Waive "${lockedMsg}" or this bill` : "Waive this fee"}
+                                  onClick={ev => { ev.stopPropagation(); setWaiveTarget(g.bills[0]); setWaiveReason(""); }}
+                                  title={anyLocked ? `Waive "${g.lockedMsg}" or this bill` : "Waive this fee"}
                                 >
                                   <i className="fa-solid fa-hand-holding-heart" /> Waive
                                 </button>
