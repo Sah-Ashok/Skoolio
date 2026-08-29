@@ -116,7 +116,7 @@ export function useDateFormat() {
       if (!val) return '';
       if (!isBS) return val;
       const [y, m, d] = val.split('-').map(Number);
-      return bsToISO(y, m, d);
+      return bsToISO({ year: y, month: m, day: d });
     }
 
     /** Today as an AD ISO string */

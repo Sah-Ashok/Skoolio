@@ -1,169 +1,19 @@
-# =============================================================
-#  Skoolio – Docker Compose  (production)
-#
-#  Services:
-#    postgres  – PostgreSQL 16 (local, on dedicated SSD disk)
-#    redis     – Redis 7 (local)
-#    backend   – Express / Node API    (internal port 5001)
-#    frontend  – Next.js               (internal port 3000)
-#    nginx     – Reverse proxy         (public   port 80 / 443)
-#
-#  Usage:
-#    docker compose up -d --build
-# =============================================================
-
-services:
-
-  # -----------------------------------------------------------
-  # PostgreSQL – local container on dedicated Premium SSD v2
-  # Data stored on /mnt/pgdata (skoolio2 disk - 3000 IOPS)
-  # -----------------------------------------------------------
-  postgres:
-    image: postgres:16-alpine
-    container_name: skoolio_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB:       school_pos
-      POSTGRES_USER:     ashok
-      POSTGRES_PASSWORD: Abhisah@21
-      PGDATA:            /var/lib/postgresql/data/pgdata
-    volumes:
-      - /mnt/pgdata:/var/lib/postgresql/data
-    networks:
-      - skoolio_net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ashok -d school_pos"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  # -----------------------------------------------------------
-  # Redis – local container
-  # -----------------------------------------------------------
+﻿services:
   redis:
     image: redis:7-alpine
     container_name: skoolio_redis
     restart: unless-stopped
-    command: >
-      redis-server
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --appendonly no
-    networks:
-      - skoolio_net
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-
-  # -----------------------------------------------------------
-  # Backend – Express / Node
-  # -----------------------------------------------------------
-  backend:
-    build:
-      context: ./Backend
-      dockerfile: Dockerfile
-    container_name: skoolio_backend
-    restart: unless-stopped
-    env_file: ./Backend/.env
-    environment:
-      NODE_ENV:      production
-      PORT:          5001
-      CORS_ORIGIN:   http://nginx
-      # Local PostgreSQL container
-      DB_HOST:       postgres
-      DB_PORT:       5432
-      DB_USER:       ashok
-      DB_PASSWORD:   Abhisah@21
-      DB_NAME:       school_pos
-      # Local Redis container
-      REDIS_HOST:    redis
-      REDIS_PORT:    6379
-      REDIS_PASSWORD: ""
-      REDIS_DB:      0
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - skoolio_net
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5001/api/health || exit 1"]
-      interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
 
-  # -----------------------------------------------------------
-  # Frontend – Next.js
-  # -----------------------------------------------------------
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: /api
-    container_name: skoolio_frontend
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT:     3000
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - skoolio_net
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
-
-  # -----------------------------------------------------------
-  # Nginx – reverse proxy
-  # -----------------------------------------------------------
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: skoolio_nginx
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_healthy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # Uncomment when SSL certs are ready:
-      # - ./nginx/certs:/etc/nginx/certs:ro
-    networks:
-      - skoolio_net
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-
-# =============================================================
-# Networks
-# =============================================================
-networks:
-  skoolio_net:
-    driver: bridge
-
-# =============================================================
-# Volumes
-# =============================================================
 volumes:
   redis_data:
     driver: local

@@ -62,22 +62,28 @@ export interface IFeeCollection {
   paid_amount: number;
   remaining_amount: number;
   status: FeeCollectionStatus;
+  billing_from_month?: string | null;
+  billing_to_month?: string | null;
+  months_count?: number;
   created_by: number;
   created_at: Date;
   updated_at: Date;
 }
 
 export type ICreateFeeCollection = {
-  student_id:       number;
-  enrollment_id:    number | null;   // null for transport/hostel bills (no enrollment link needed)
-  fee_structure_id: number | null;   // null for transport/hostel bills (no fee_structure row)
-  academic_year_id: number;
-  due_date:         Date | string;
-  total_amount:     number;
-  discount_amount?: number;
-  discount_reason?: string;
-  fine_amount?:     number;
-  fine_reason?:     string;
+  student_id:         number;
+  enrollment_id:      number | null;   // null for transport/hostel bills (no enrollment link needed)
+  fee_structure_id:   number | null;   // null for transport/hostel bills (no fee_structure row)
+  academic_year_id:   number;
+  due_date:           Date | string;
+  total_amount:       number;
+  discount_amount?:   number;
+  discount_reason?:   string;
+  fine_amount?:       number;
+  fine_reason?:       string;
+  billing_from_month?: string | null;
+  billing_to_month?:   string | null;
+  months_count?:       number;
 };
 
 export type IUpdateFeeCollection = Partial<Pick<

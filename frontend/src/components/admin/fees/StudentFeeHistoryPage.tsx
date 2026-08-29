@@ -302,7 +302,8 @@ function YearlyFeesBanner({
 export default function StudentFeeHistoryPage() {
   const { fmt }                                    = useCurrency();
   const { formatDate, billingGroupKey }            = useDateFormat();
-  const { activeYear, academicYearId, allYears }   = useAcademicYear();
+  const { activeYear, academicYearId }             = useAcademicYear();
+  const { data: allYears }                         = useApi<any[]>("/academic-years");
   const searchParams                               = useSearchParams();
   const studentId                                  = searchParams.get("student_id");
 

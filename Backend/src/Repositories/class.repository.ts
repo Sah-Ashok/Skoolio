@@ -1,4 +1,5 @@
 import pool from '../config/db';
+import { getCache, setCache, deleteCachePattern } from '../utils/redisCache';
 import {
   IClass, ICreateClass, IUpdateClass,
   ISection, ICreateSection, IUpdateSection,
@@ -15,14 +16,22 @@ export const createClass = async (school_id: number, data: ICreateClass): Promis
     [school_id, data.academic_year_id, data.name, data.stream || null,
      data.status || 'active', data.description || null]
   );
+  await deleteCachePattern(`cache:classes:${school_id}:*`);
   return result.rows[0];
 };
 
 export const getClassesBySchool = async (school_id: number, academic_year_id: number): Promise<IClass[]> => {
+  const cacheKey = `cache:classes:${school_id}:${academic_year_id}`;
+  const cached = await getCache<IClass[]>(cacheKey);
+  if (cached) return cached;
+
   const result = await pool.query(
     `SELECT * FROM classes WHERE school_id = $1 AND academic_year_id = $2 ORDER BY name ASC`,
     [school_id, academic_year_id]
   );
+  if (result.rows) {
+    await setCache(cacheKey, result.rows, 3600);
+  }
   return result.rows;
 };
 
@@ -80,6 +89,7 @@ export const updateClass = async (id: number, school_id: number, data: IUpdateCl
      RETURNING *`,
     values
   );
+  await deleteCachePattern(`cache:classes:${school_id}:*`);
   return result.rows[0] || null;
 };
 
@@ -87,6 +97,7 @@ export const deleteClass = async (id: number, school_id: number): Promise<boolea
   const result = await pool.query(
     `DELETE FROM classes WHERE id = $1 AND school_id = $2`, [id, school_id]
   );
+  await deleteCachePattern(`cache:classes:${school_id}:*`);
   return (result.rowCount ?? 0) > 0;
 };
 

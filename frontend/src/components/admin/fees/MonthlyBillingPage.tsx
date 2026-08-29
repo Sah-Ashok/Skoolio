@@ -11,6 +11,7 @@ import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
 import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
 import DateInput from "@/components/shared/DateInput";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const PAGE_SIZE = 15;
 
@@ -165,6 +166,44 @@ export default function MonthlyBillingPage() {
   const [expandedStudent, setExpandedStudent] = useState<number | null>(null);
   const [page,            setPage]            = useState(1);
 
+  const [selectedClassId,   setSelectedClassId]   = useState<string>("");
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const [classesList,       setClassesList]       = useState<any[]>([]);
+  const [sectionsList,      setSectionsList]      = useState<any[]>([]);
+
+  // Queue Live Progress state
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [queueProgress,     setQueueProgress]     = useState(0);
+  const [queueStatus,       setQueueStatus]       = useState<string>("queued");
+  const [jobFeeType,        setJobFeeType]        = useState<FeeTypeValue>("academic");
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch classes for active academic year
+  useEffect(() => {
+    if (!academicYearId) return;
+    apiRequest<any>(`/classes?academic_year_id=${academicYearId}`)
+      .then(res => {
+        const cls = Array.isArray(res) ? res : (res?.data ?? []);
+        setClassesList(cls);
+      })
+      .catch(() => setClassesList([]));
+  }, [academicYearId]);
+
+  // Fetch sections when class changes
+  useEffect(() => {
+    if (!selectedClassId) {
+      setSectionsList([]);
+      setSelectedSectionId("");
+      return;
+    }
+    apiRequest<any>(`/classes/${selectedClassId}/sections`)
+      .then(res => {
+        const secs = Array.isArray(res) ? res : (res?.data ?? []);
+        setSectionsList(secs);
+      })
+      .catch(() => setSectionsList([]));
+  }, [selectedClassId]);
+
   // Multi-select fee types for generate (replaces modal approach)
   const [selectedFeeTypes, setSelectedFeeTypes] = useState<Set<FeeTypeValue>>(new Set(["academic"]));
 
@@ -240,17 +279,31 @@ export default function MonthlyBillingPage() {
     return groupByStudent(typeBills);
   }, [allBills, activeFeeType]);
 
-  // Search filter — applied to whichever view is active
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Search & Class/Section filter — applied to whichever view is active
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase().trim();
     const source = viewMode === "unbilled" ? unbilledStudents : billedSummaries;
-    return source.filter((st: any) =>
-      !q
-      || (st.full_name        || "").toLowerCase().includes(q)
-      || (st.admission_number || "").toLowerCase().includes(q)
-      || (st.class_name       || "").toLowerCase().includes(q)
-    );
-  }, [viewMode, unbilledStudents, billedSummaries, search]);
+    return source.filter((st: any) => {
+      const matchesSearch = !q
+        || (st.full_name        || "").toLowerCase().includes(q)
+        || (st.admission_number || "").toLowerCase().includes(q)
+        || (st.class_name       || "").toLowerCase().includes(q);
+
+      const selCls = classesList.find(c => String(c.id) === String(selectedClassId));
+      const matchesClass = !selectedClassId
+        || String(st.class_id) === String(selectedClassId)
+        || (selCls && (st.class_name || "").toLowerCase() === (selCls.name || "").toLowerCase());
+
+      const selSec = sectionsList.find(s => String(s.id) === String(selectedSectionId));
+      const matchesSection = !selectedSectionId
+        || String(st.section_id) === String(selectedSectionId)
+        || (selSec && (st.section_name || "").toLowerCase() === (selSec.name || "").toLowerCase());
+
+      return matchesSearch && matchesClass && matchesSection;
+    });
+  }, [viewMode, unbilledStudents, billedSummaries, debouncedSearch, selectedClassId, selectedSectionId, classesList, sectionsList]);
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -269,15 +322,61 @@ export default function MonthlyBillingPage() {
     monthRange.filter(bm => !allBills.some(b => b.due_date && String(b.due_date).slice(0, 7) === bm))
   , [monthRange, allBills]);
 
-  // Generate handler
+  // Queue Polling Worker
+  const startPollingJob = useCallback((jobId: string, feeType: FeeTypeValue) => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const res = await apiRequest<{ data: any }>(`/fees/monthly/queue-status/${jobId}`);
+        const jobData = res.data ?? res;
+        if (!jobData) return;
+
+        setQueueProgress(jobData.progress || 0);
+        setQueueStatus(jobData.state || "active");
+
+        if (jobData.state === "completed") {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          setGenerating(false);
+          setQueueProgress(100);
+          setTimeout(() => {
+            setShowProgressModal(false);
+          }, 1200);
+
+          const result = jobData.result || {};
+          dispatch(showToast({
+            type: "success",
+            title: `${TYPE_META[feeType].label} Bills Generated`,
+            message: `${result.created ?? 0} bills created, ${result.skipped ?? 0} already existed`
+          }));
+          refetchAll(false);
+          refetchUnbilled();
+        } else if (jobData.state === "failed") {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          setGenerating(false);
+          setShowProgressModal(false);
+          dispatch(showToast({
+            type: "error",
+            title: "Generation Failed",
+            message: jobData.failedReason || "Background generation failed"
+          }));
+        }
+      } catch {
+        // Network blip — keep polling
+      }
+    }, 800);
+  }, [dispatch, refetchAll, refetchUnbilled]);
+
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
+
+  // Generate handler via Redis Queue
   const handleGenerate = async (feeType: FeeTypeValue) => {
     if (!academicYearId) return;
     setGenerating(true);
-    const ENDPOINTS: Record<FeeTypeValue, string> = {
-      academic:  "/fees/monthly/generate",
-      transport: "/fees/transport/generate",
-      hostel:    "/fees/hostel/generate",
-    };
     const yearStart = activeYear?.start_date ? String(activeYear.start_date).slice(0, 7) : null;
     const yearEnd   = activeYear?.end_date   ? String(activeYear.end_date).slice(0, 7)   : null;
     const validMonths = monthRange.filter(bm => (!yearStart || bm >= yearStart) && (!yearEnd || bm <= yearEnd));
@@ -285,24 +384,39 @@ export default function MonthlyBillingPage() {
       dispatch(showToast({ type: "error", title: "Outside Academic Year", message: `Selected months are outside the active academic year.` }));
       setGenerating(false); return;
     }
-    let totalCreated = 0, totalSkipped = 0;
+
     try {
-      for (const bm of validMonths) {
-        const body: Record<string, any> = { academic_year_id: academicYearId, billing_month: bm };
-        if (feeType !== "academic") {
-          if (dueDate) body.due_date = dueDate;
-        }
-        const res = await apiRequest<{ data: any }>(ENDPOINTS[feeType], { method: "POST", body: JSON.stringify(body) });
-        const { created = 0, skipped = 0 } = res.data ?? res;
-        totalCreated += Number(created); totalSkipped += Number(skipped);
+      const body: Record<string, any> = {
+        academic_year_id: academicYearId,
+        from_month: validMonths[0],
+        to_month: validMonths[validMonths.length - 1],
+        billing_month: validMonths[validMonths.length - 1],
+        class_id: selectedClassId ? Number(selectedClassId) : null,
+        section_id: selectedSectionId ? Number(selectedSectionId) : null,
+        fee_type: feeType,
+      };
+      if (dueDate) {
+        body.due_date = dueDate;
+        body.custom_due_date = dueDate;
       }
-      dispatch(showToast({ type: "success", title: `${TYPE_META[feeType].label} Bills Generated`, message: `${totalCreated} new bill${totalCreated !== 1 ? "s" : ""} created, ${totalSkipped} already existed` }));
-      setActiveFeeType(feeType); setSearch(""); setPage(1);
-      refetchAll(false);
-      refetchUnbilled();
+
+      const res = await apiRequest<{ data: any }>("/fees/monthly/generate-queue", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+
+      const job = res.data ?? res;
+      if (job?.jobId) {
+        setJobFeeType(feeType);
+        setQueueProgress(5);
+        setQueueStatus("queued");
+        setShowProgressModal(true);
+        startPollingJob(job.jobId, feeType);
+      }
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Generation Failed", message: err.message || "Could not generate bills" }));
-    } finally { setGenerating(false); }
+      dispatch(showToast({ type: "error", title: "Generation Failed", message: err.message || "Could not start bill generation" }));
+      setGenerating(false);
+    }
   };
 
   // Fire generate for all selected fee types in sequence
@@ -391,9 +505,45 @@ export default function MonthlyBillingPage() {
               <MonthSelect label="From Month" value={fromMonth} onChange={v => { setFromMonth(v); if (v > toMonth) setToMonth(v); setPage(1); }} isBS={isBS} bsOpts={bsOpts} />
               <div style={{ paddingBottom: 6, color: "#94a3b8", fontSize: 20, fontWeight: 900 }}>→</div>
               <MonthSelect label="To Month" value={toMonth} onChange={v => setToMonth(v < fromMonth ? fromMonth : v)} isBS={isBS} bsOpts={bsOpts} />
+              
+              {/* Class Filter */}
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Due Date <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>(transport/hostel)</span>
+                  <i className="fa-solid fa-school" style={{ marginRight: 4, color: "#94a3b8" }} /> Class
+                </span>
+                <select
+                  value={selectedClassId}
+                  onChange={e => { setSelectedClassId(e.target.value); setSelectedSectionId(""); setPage(1); }}
+                  style={{ ...INP, minWidth: 160 }}
+                >
+                  <option value="">All Classes (Whole School)</option>
+                  {classesList.map(c => (
+                    <option key={c.id} value={c.id}>{c.name || `Class ${c.id}`}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section Filter */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  <i className="fa-solid fa-layer-group" style={{ marginRight: 4, color: "#94a3b8" }} /> Section
+                </span>
+                <select
+                  value={selectedSectionId}
+                  onChange={e => { setSelectedSectionId(e.target.value); setPage(1); }}
+                  disabled={!selectedClassId}
+                  style={{ ...INP, minWidth: 130, opacity: !selectedClassId ? 0.6 : 1 }}
+                >
+                  <option value="">All Sections</option>
+                  {sectionsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.name || `Section ${s.id}`}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Due Date <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>(optional)</span>
                 </span>
                 <div style={{ width: 140 }}>
                   <DateInput
@@ -405,6 +555,7 @@ export default function MonthlyBillingPage() {
                   />
                 </div>
               </div>
+
               {/* Selected period card */}
               <div style={{ marginLeft: "auto", padding: "12px 20px", borderRadius: 12, background: "linear-gradient(135deg,#fff7ed,#ffedd5)", border: "1.5px solid #fed7aa", minWidth: 200 }}>
                 <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 800, color: "#c2410c", textTransform: "uppercase", letterSpacing: 0.4 }}>
@@ -944,6 +1095,80 @@ export default function MonthlyBillingPage() {
                   : <><i className="fa-solid fa-rotate-left" /> Yes, Undo Bills</>}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LIVE BACKGROUND QUEUE PROGRESS MODAL ── */}
+      {showProgressModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1200,
+          background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)",
+          display: "grid", placeItems: "center", padding: 16,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 20, width: "100%", maxWidth: 460,
+            padding: "28px 24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+            display: "flex", flexDirection: "column", gap: 16, textAlign: "center",
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              background: queueProgress === 100 ? "#f0fdf4" : "#eff6ff",
+              color: queueProgress === 100 ? "#16a34a" : "#2563eb",
+              display: "grid", placeItems: "center", fontSize: 24, margin: "0 auto",
+            }}>
+              {queueProgress === 100
+                ? <i className="fa-solid fa-check" />
+                : <i className="fa-solid fa-bolt fa-bounce" />}
+            </div>
+
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#1e293b" }}>
+                {queueProgress === 100 ? "Bills Generated Successfully!" : `Generating ${TYPE_META[jobFeeType].label} Bills...`}
+              </h3>
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                {selectedClassId
+                  ? `Target: ${classesList.find(c => String(c.id) === String(selectedClassId))?.name || "Class"} ${selectedSectionId ? `· ${sectionsList.find(s => String(s.id) === String(selectedSectionId))?.name || "Section"}` : "(All Sections)"}`
+                  : "Target: All Classes (Whole School)"}
+                <br />
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>Period: {rangeLabel}</span>
+              </p>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ width: "100%", background: "#e2e8f0", borderRadius: 10, height: 12, overflow: "hidden", position: "relative" }}>
+              <div style={{
+                height: "100%",
+                width: `${queueProgress}%`,
+                background: queueProgress === 100 ? "#16a34a" : "linear-gradient(90deg, #2563eb, #3b82f6)",
+                borderRadius: 10,
+                transition: "width 0.4s ease",
+              }} />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, color: "#475569" }}>
+              <span>Status: <span style={{ color: "#2563eb", textTransform: "capitalize" }}>{queueStatus}</span></span>
+              <span>{queueProgress}%</span>
+            </div>
+
+            <div style={{
+              background: "#f8fafc", borderRadius: 10, padding: "10px 14px",
+              fontSize: 11.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 8, textAlign: "left"
+            }}>
+              <i className="fa-solid fa-shield-halved" style={{ color: "#10b981", fontSize: 14, flexShrink: 0 }} />
+              <span>Offline Safe: This job runs in the server's background. You can safely close this modal or navigate away.</span>
+            </div>
+
+            <button
+              onClick={() => setShowProgressModal(false)}
+              style={{
+                marginTop: 4, padding: "10px 18px", borderRadius: 10,
+                background: "#f1f5f9", border: "1px solid #cbd5e1",
+                color: "#334155", fontWeight: 800, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              {queueProgress === 100 ? "Done" : "Run in Background & Close"}
+            </button>
           </div>
         </div>
       )}

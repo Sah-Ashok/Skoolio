@@ -1,6 +1,7 @@
 import pool from '../config/db';
 import { PoolClient } from 'pg';
 import AppError from '../utils/AppError';
+import { getCache, setCache, deleteCachePattern } from '../utils/redisCache';
 import {
   IFeeStructure, ICreateFeeStructure, IUpdateFeeStructure,
   IFeeCollection, ICreateFeeCollection, IUpdateFeeCollection,
@@ -33,6 +34,7 @@ export const createFeeStructure = async (
         data.scholarship_applies !== false, // default true
       ]
     );
+    await deleteCachePattern(`cache:fee_structures:${school_id}:*`);
     return result.rows[0];
   } catch (err: any) {
     // Translate unique-constraint DB errors into a friendly AppError with 409 status
@@ -48,12 +50,19 @@ export const getFeeStructuresByClass = async (
   school_id: number,
   academic_year_id: number
 ): Promise<IFeeStructure[]> => {
+  const cacheKey = `cache:fee_structures:${school_id}:${academic_year_id}:${class_id}`;
+  const cached = await getCache<IFeeStructure[]>(cacheKey);
+  if (cached) return cached;
+
   const result = await pool.query(
     `SELECT * FROM fee_structures
      WHERE class_id = $1 AND school_id = $2 AND academic_year_id = $3
      ORDER BY fee_name ASC`,
     [class_id, school_id, academic_year_id]
   );
+  if (result.rows) {
+    await setCache(cacheKey, result.rows, 3600);
+  }
   return result.rows;
 };
 
@@ -99,6 +108,7 @@ export const updateFeeStructure = async (
       school_id,
     ]
   );
+  await deleteCachePattern(`cache:fee_structures:${school_id}:*`);
   return result.rows[0] || null;
 };
 
@@ -110,6 +120,7 @@ export const deleteFeeStructure = async (
     `DELETE FROM fee_structures WHERE id = $1 AND school_id = $2`,
     [id, school_id]
   );
+  await deleteCachePattern(`cache:fee_structures:${school_id}:*`);
   return (result.rowCount ?? 0) > 0;
 };
 
@@ -129,8 +140,8 @@ export const createFeeCollection = async (
       (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
        fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason,
        fine_amount, fine_reason, net_amount, paid_amount, remaining_amount,
-       status, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       status, created_by, billing_from_month, billing_to_month, months_count)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [
       school_id,
@@ -151,6 +162,9 @@ export const createFeeCollection = async (
       remaining_amount,
       'unpaid',
       created_by,
+      data.billing_from_month || null,
+      data.billing_to_month   || null,
+      data.months_count       || 1,
     ]
   );
   return result.rows[0];

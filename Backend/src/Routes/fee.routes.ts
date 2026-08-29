@@ -10,6 +10,8 @@ import {
   createFeePayment, getPaymentsByCollection, getStudentPayments,
   getMyFeeCollections, getMyPayments,
   generateMonthlyFeeBills,
+  generateMonthlyFeeBillsQueue,
+  getMonthlyFeeBillsQueueStatus,
   generateTransportBills, getTransportFeeSummary, getTransportBillingPreview,
   generateHostelBills, getHostelFeeSummary, getHostelBillingPreview,
   getPaymentReceipt,
@@ -29,8 +31,10 @@ router.get('/me/collections', restrictTo('student'), getMyFeeCollections);
 router.get('/me/payments',    restrictTo('student'), getMyPayments);
 
 // ── BILLING ──
-router.post  ('/monthly/generate',   restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
-router.get   ('/monthly/status',     restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
+router.post  ('/monthly/generate',       restrictTo('admin', 'super_admin'), generateMonthlyFeeBills);
+router.post  ('/monthly/generate-queue', restrictTo('admin', 'super_admin'), generateMonthlyFeeBillsQueue);
+router.get   ('/monthly/queue-status/:jobId', restrictTo('admin', 'super_admin'), getMonthlyFeeBillsQueueStatus);
+router.get   ('/monthly/status',         restrictTo('admin', 'super_admin'), getMonthlyBillingStatusController);
 router.get   ('/monthly/timeline',   restrictTo('admin', 'super_admin'), getStudentBillingTimelineController);
 router.get   ('/monthly/unbilled',   restrictTo('admin', 'super_admin'), getUnbilledStudentsController);
 router.delete('/monthly/void',       restrictTo('admin', 'super_admin'), voidMonthBillingController);

@@ -23,6 +23,7 @@ import {
   getUnbilledStudentsService,
 } from '../Service/fee.service';
 import { getFeeStructureById } from '../Repositories/fee.repository';
+import { addBillingJob, getBillingJobStatus } from '../queues/feeBilling.queue';
 
 const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
   'school_id' in user ? user.school_id : user.id;
@@ -172,12 +173,57 @@ export const getMyPayments = catchAsync(async (req: Request, res: Response, next
 
 export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id, billing_month } = req.body;
-  if (!academic_year_id || !billing_month) {
-    return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
+  const { academic_year_id, billing_month, custom_due_date, from_month, to_month, class_id, section_id } = req.body;
+  const targetMonth = to_month || billing_month || from_month;
+  if (!academic_year_id || !targetMonth) {
+    return sendResponse(res, 400, false, 'academic_year_id and billing_month (or from_month and to_month) are required', null);
   }
-  const result = await generateMonthlyFeeBillsService(school_id, school_id, Number(academic_year_id), billing_month);
+  const result = await generateMonthlyFeeBillsService(
+    school_id,
+    school_id,
+    Number(academic_year_id),
+    targetMonth,
+    custom_due_date,
+    from_month,
+    to_month,
+    class_id ? Number(class_id) : null,
+    section_id ? Number(section_id) : null
+  );
   sendResponse(res, 201, true, `Bills generated: ${result.created} created, ${result.skipped} skipped`, result);
+});
+
+export const generateMonthlyFeeBillsQueue = catchAsync(async (req: Request, res: Response) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { academic_year_id, billing_month, custom_due_date, from_month, to_month, class_id, section_id, fee_type } = req.body;
+  const targetMonth = to_month || billing_month || from_month;
+  if (!academic_year_id || !targetMonth) {
+    return sendResponse(res, 400, false, 'academic_year_id and billing_month (or from_month and to_month) are required', null);
+  }
+  const job = await addBillingJob({
+    school_id,
+    created_by: school_id,
+    academic_year_id: Number(academic_year_id),
+    billing_month: targetMonth,
+    from_month,
+    to_month,
+    custom_due_date,
+    class_id: class_id ? Number(class_id) : null,
+    section_id: section_id ? Number(section_id) : null,
+    fee_type: fee_type || 'academic',
+  });
+  sendResponse(res, 202, true, 'Bill generation started in background', job);
+});
+
+export const getMonthlyFeeBillsQueueStatus = catchAsync(async (req: Request, res: Response) => {
+  const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
+  if (!jobId) {
+    return sendResponse(res, 400, false, 'jobId is required', null);
+  }
+  const status = await getBillingJobStatus(jobId);
+  if (!status) {
+    return sendResponse(res, 404, false, 'Billing job not found', null);
+  }
+  sendResponse(res, 200, true, 'Job status retrieved', status);
 });
 
 // ── MONTHLY BILLING STATUS ─────────────────────────────────────────────────
