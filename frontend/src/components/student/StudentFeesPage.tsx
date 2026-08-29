@@ -5,6 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 // ── Receipt PDF button ───────────────────────────────────────────────────────
 type BtnState = "idle" | "generating" | "ready" | "error";
@@ -158,6 +159,7 @@ function DonutChart({ paid, due, total }: { paid: number; due: number; total: nu
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function StudentFeesPage() {
+  const { formatFeeName } = useDateFormat();
   // Read active academic year from Redux (populated by NoActiveYearGuard)
   const activeYear   = useAppSelector(s => s.academicYear?.activeYear);
   const academicYearId = activeYear?.id ?? null;
@@ -286,7 +288,7 @@ export default function StudentFeesPage() {
                         return (
                           <tr key={c.id} className={isOverdue ? "sfp-overdue" : ""}>
                             <td style={{ fontWeight: 800, color: "#1f2d36", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                              {c.fee_name}
+                              {formatFeeName(c.fee_name)}
                               {isOverdue && <span style={{ display: "block", fontSize: 10, color: "#b42318", fontWeight: 800 }}>OVERDUE</span>}
                             </td>
                             <td><TypeBadge type={c.fee_type} /></td>
@@ -341,7 +343,7 @@ export default function StudentFeesPage() {
                       {(payments ?? []).map((p: any) => (
                         <tr key={p.id}>
                           <td style={{ fontWeight: 900, color: "#1e3a5f" }}>{p.receipt_number}</td>
-                          <td style={{ fontWeight: 700, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{p.fee_name || "—"}</td>
+                          <td style={{ fontWeight: 700, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{formatFeeName(p.fee_name)}</td>
                           <td><TypeBadge type={p.fee_type} /></td>
                           <td style={{ color: "#6a7882", whiteSpace: "nowrap" as const }}>{fmtDate(p.payment_date)}</td>
                           <td style={{ fontWeight: 900, color: "#059669" }}>{fmt(p.paid_amount)}</td>

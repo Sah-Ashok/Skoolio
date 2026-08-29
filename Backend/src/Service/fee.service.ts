@@ -28,6 +28,7 @@ import { assertFeeManagementEnabled } from './subscription.service';
 import { getFeeBillingPolicy } from '../Repositories/fee_billing_policy.repository';
 import AppError from '../utils/AppError';
 import { getAcademicYearById } from '../Repositories/academic.repository';
+import { toBSMonthLabel } from '../utils/bs-ad';
 
 const validateFeeStructure = (data: ICreateFeeStructure | IUpdateFeeStructure) => {
   const validFrequencies = new Set(['monthly', 'quarterly', 'half_yearly', 'yearly', 'one_time']);
@@ -414,11 +415,13 @@ export const generateMonthlyFeeBillsService = async (
     throw new AppError('billing_month must use YYYY-MM.', 400);
   }
 
-  const [academicYear, policy] = await Promise.all([
+  const [academicYear, policy, schoolRes] = await Promise.all([
     getAcademicYearById(academic_year_id, school_id),
     getFeeBillingPolicy(school_id),
+    pool.query('SELECT calendar_system FROM schools WHERE id = $1', [school_id]),
   ]);
   if (!academicYear) throw new AppError('Academic year not found.', 404);
+  const isBS = (schoolRes.rows[0]?.calendar_system ?? 'AD') === 'BS';
 
   const [fromYStr, fromMStr] = startMonthStr.split('-');
   const fromYear  = parseInt(fromYStr,  10);
@@ -442,7 +445,9 @@ export const generateMonthlyFeeBillsService = async (
 
   const ayStart = yearStart.getFullYear();
   const ayEnd   = yearEnd.getFullYear();
-  const ayLabel = ayStart === ayEnd ? `AY ${ayStart}` : `AY ${ayStart}/${String(ayEnd).slice(-2)}`;
+  const ayLabel = academicYear.year_name
+    ? academicYear.year_name
+    : (ayStart === ayEnd ? `${ayStart}` : `${ayStart}/${String(ayEnd).slice(-2)}`);
 
   // Helper: build an inclusive list of YYYY-MM strings from (fromY, fromM 0-indexed) to (toY, toM 0-indexed)
   const buildMonthList = (fromY: number, fromM: number): string[] => {
@@ -493,7 +498,7 @@ export const generateMonthlyFeeBillsService = async (
   // Rows to bulk-insert at end
   type BillRow = {
     student_id: number; enrollment_id: number; fee_structure_id: number;
-    academic_year_id: number; fee_name: string; due_date: string;
+    academic_year_id: number; fee_name: string; due_date: string | null;
     total_amount: number; discount_amount: number; discount_reason: string | null;
     net_amount: number;
     billing_from_month: string | null;
@@ -664,20 +669,8 @@ export const generateMonthlyFeeBillsService = async (
         const fromMonth   = eligibleMonths[0];
         const toMonth     = eligibleMonths[monthsCount - 1];
 
-        // Due date calculation
-        let due_date: string;
-        if (custom_due_date && custom_due_date.slice(0, 7) === toMonth) {
-          due_date = custom_due_date;
-        } else {
-          const [tYStr, tMStr] = toMonth.split('-');
-          const tY = parseInt(tYStr, 10);
-          const tM = parseInt(tMStr, 10) - 1;
-          const lastDayInMonth = new Date(tY, tM + 1, 0).getDate();
-          const calcDay = structure.due_date_type === 'fixed_day' && structure.due_day
-            ? Math.min(structure.due_day, lastDayInMonth)
-            : (structure.due_date_type === 'admission_date' ? Math.min(admDay, lastDayInMonth) : 10);
-          due_date = `${toMonth}-${String(calcDay).padStart(2, '0')}`;
-        }
+        // Due date calculation: uses admin custom_due_date if provided, else null
+        const due_date: string | null = custom_due_date ? custom_due_date : null;
 
         // Scholarship discount (computed per month × monthsCount)
         const unitAmount = Number(structure.amount);
@@ -701,11 +694,14 @@ export const generateMonthlyFeeBillsService = async (
         // Human-readable period label
         let periodLabel = "";
         if (isYearlyOrOneTime) {
-          periodLabel = structure.frequency === 'yearly' ? ` (${ayLabel})` : "";
+          periodLabel = structure.frequency === 'yearly' ? ` (AY ${ayLabel})` : "";
         } else if (fromMonth === toMonth) {
-          periodLabel = ` (${fromMonth})`;
+          const monthDisplay = isBS ? toBSMonthLabel(fromMonth) : fromMonth;
+          periodLabel = ` (${monthDisplay})`;
         } else {
-          periodLabel = ` (${fromMonth} to ${toMonth} · ${monthsCount} Months)`;
+          const fromDisplay = isBS ? toBSMonthLabel(fromMonth) : fromMonth;
+          const toDisplay   = isBS ? toBSMonthLabel(toMonth)   : toMonth;
+          periodLabel = ` (${fromDisplay} to ${toDisplay} · ${monthsCount} Months)`;
         }
 
         const fee_name = `${structure.fee_name}${periodLabel}`;

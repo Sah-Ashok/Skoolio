@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./students.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
@@ -170,15 +169,16 @@ export default function StudentProfilePage() {
 
   return (
     <div className={s("students-page")}>
-      <Topbar title="Student Profile" subtitle="Student records and details" />
-
       <main className={s("page-content")}>
 
         {/* PAGE HEAD */}
         <section className={s("page-head")}>
           <div>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#ea580c", textTransform: "uppercase", letterSpacing: 0.8, display: "inline-block", marginBottom: 3 }}>
+              Student Management · {student.admission_number || "Profile"}
+            </span>
             <h1>Student Profile</h1>
-            <p>{student.admission_number}</p>
+            <p>View detailed records, academic enrollments, attendance, and fee history.</p>
           </div>
           <div className={s("head-actions")}>
             <Link className={cx(s("btn"), s("btn-outline"))} href="/students">
@@ -197,7 +197,7 @@ export default function StudentProfilePage() {
               <i className="fa-solid fa-money-bill-wave" /> Collect Fee
             </Link>
             <Link className={cx(s("btn"), s("btn-primary"))} href={`/students/${id}/edit`}>
-              <i className="fa-solid fa-pen-to-square" /> Edit
+              <i className="fa-solid fa-pen-to-square" /> Edit Profile
             </Link>
           </div>
         </section>
@@ -375,96 +375,6 @@ export default function StudentProfilePage() {
 
           {/* ── RIGHT SIDEBAR ── */}
           <aside className={s("sp-side")}>
-
-            {/* ─── BILLING ACCOUNT ─── */}
-            <section className={s("card")}>
-              <SecHead
-                title="Billing Account"
-                sub="Current-year invoice snapshot"
-                right={
-                  unpaidFees.length > 0
-                    ? <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 900, background: "#fee2e2", color: "#dc2626" }}>{unpaidFees.length} due</span>
-                    : <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 900, background: "#dcfce7", color: "#15803d" }}>All Clear</span>
-                }
-              />
-
-              {loadingFees ? (
-                <div style={{ padding: "1.5rem", textAlign: "center" }}><Spinner size={20} color="#ff9b51" /></div>
-              ) : unpaidFees.length === 0 ? (
-                <div style={{ padding: "1.5rem 18px" }}>
-                  <div style={{ padding: "14px 16px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", gap: 10 }}>
-                    <i className="fa-solid fa-circle-check" style={{ color: "#16a34a", fontSize: 18 }} />
-                    <div>
-                      <strong style={{ fontSize: 13, color: "#15803d", display: "block" }}>All fees paid</strong>
-                      <span style={{ fontSize: 11, color: "#6a7882" }}>No outstanding dues for this student.</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: "6px 0 14px" }}>
-                  {unpaidFees.map((fee: any) => {
-                    const total       = parseFloat(fee.total_amount || 0);
-                    const paid        = parseFloat(fee.paid_amount  || 0);
-                    const outstanding = total - paid;
-                    const pct         = total > 0 ? (paid / total) * 100 : 0;
-                    const isPartial   = paid > 0 && outstanding > 0;
-                    return (
-                      <div key={fee.id} style={{ margin: "0 14px 10px", padding: "14px", borderRadius: 10, border: "1.5px solid #fee2e2", background: "#fff" }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <strong style={{ fontSize: 13, fontWeight: 900, color: "#1e293b", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {fee.fee_name}
-                            </strong>
-                            <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>
-                              Due: {fee.due_date ? formatDate(fee.due_date.slice(0, 10)) : "—"}
-                            </span>
-                          </div>
-                          <span style={{
-                            flexShrink: 0, padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: 900,
-                            background: isPartial ? "#fef3c7" : "#fee2e2",
-                            color:      isPartial ? "#b45309"  : "#dc2626",
-                          }}>
-                            {isPartial ? "Partial" : "Unpaid"}
-                          </span>
-                        </div>
-
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>Total</span>
-                          <strong style={{ fontSize: 12, color: "#1e293b" }}>{fmt(total)}</strong>
-                        </div>
-                        {isPartial && (
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                            <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>Paid</span>
-                            <strong style={{ fontSize: 12, color: "#16a34a" }}>{fmt(paid)}</strong>
-                          </div>
-                        )}
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                          <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>Outstanding</span>
-                          <strong style={{ fontSize: 13, color: "#dc2626", fontWeight: 900 }}>{fmt(outstanding)}</strong>
-                        </div>
-
-                        {isPartial && (
-                          <div style={{ height: 5, borderRadius: 999, background: "#f1f5f9", overflow: "hidden", marginBottom: 10 }}>
-                            <div style={{ height: "100%", width: `${pct}%`, background: "#f59e0b", borderRadius: 999 }} />
-                          </div>
-                        )}
-
-                        <Link
-                          href={`/fees/collect?student_id=${id}`}
-                          style={{
-                            width: "100%", height: 38, border: "none", borderRadius: 8,
-                            background: "#ff9b51", color: "#fff", fontSize: 12, fontWeight: 900,
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none",
-                          }}
-                        >
-                          <i className="fa-solid fa-arrow-up-right-from-square" /> Open Billing · {fmt(outstanding)}
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
 
             {/* ─── FEE SUMMARY ─── */}
             <section className={s("card")}>

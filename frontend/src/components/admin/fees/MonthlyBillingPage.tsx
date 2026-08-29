@@ -319,7 +319,13 @@ export default function MonthlyBillingPage() {
 
   // Months without any bill yet (for breakdown table status)
   const notGeneratedMonths = useMemo(() =>
-    monthRange.filter(bm => !allBills.some(b => b.due_date && String(b.due_date).slice(0, 7) === bm))
+    monthRange.filter(bm => !allBills.some(b => {
+      if (b.billing_from_month && b.billing_to_month) {
+        return bm >= b.billing_from_month && bm <= b.billing_to_month;
+      }
+      if (b.due_date) return String(b.due_date).slice(0, 7) === bm;
+      return false;
+    }))
   , [monthRange, allBills]);
 
   // Queue Polling Worker
@@ -573,10 +579,10 @@ export default function MonthlyBillingPage() {
             </div>
 
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 500 }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
-                    {["Month", "Month Name", "From Date", "To Date", "Fee Types", "Status", "Undo"].map(h => (
+                    {["Month", "Month Name", "Fee Types", "Status", "Action"].map(h => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1.5px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -584,7 +590,13 @@ export default function MonthlyBillingPage() {
                 <tbody>
                   {monthRange.map((bm, idx) => {
                     const [by, bmon] = bm.split("-").map(Number);
-                    const monthBills     = allBills.filter(b => b.due_date && String(b.due_date).slice(0, 7) === bm);
+                    const monthBills = allBills.filter(b => {
+                      if (b.billing_from_month && b.billing_to_month) {
+                        return bm >= b.billing_from_month && bm <= b.billing_to_month;
+                      }
+                      if (b.due_date) return String(b.due_date).slice(0, 7) === bm;
+                      return false;
+                    });
                     const totalBillsM    = monthBills.length;
                     const pendingBillsM  = monthBills.filter(b => b.status !== "paid" && b.status !== "waived" && Number(b.remaining_amount || 0) > 0).length;
                     const isGenerated    = totalBillsM > 0;
@@ -594,12 +606,6 @@ export default function MonthlyBillingPage() {
                           <span style={{ width: 28, height: 28, borderRadius: 7, background: "#e0e7ff", color: "#3730a3", display: "inline-grid", placeItems: "center", fontWeight: 900, fontSize: 12 }}>{idx + 1}</span>
                         </td>
                         <td style={{ padding: "12px 14px", fontWeight: 800, color: "#1e293b" }}>{toShortLabel(bm, isBS, bsOpts)}</td>
-                        <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12.5 }}>
-                          <i className="fa-regular fa-calendar" style={{ marginRight: 5, color: "#94a3b8" }} />{toShortLabel(bm, isBS, bsOpts)} 1
-                        </td>
-                        <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12.5 }}>
-                          <i className="fa-regular fa-calendar" style={{ marginRight: 5, color: "#94a3b8" }} />Due: {typeof dueDate === 'string' && dueDate ? toShortLabel(dueDate.slice(0, 7), isBS, bsOpts) + " " + parseInt(dueDate.slice(8, 10)) : "Auto"}
-                        </td>
                         <td style={{ padding: "12px 14px" }}>
                           <div style={{ display: "flex", gap: 5 }}>
                             {FEE_TYPES.map(ft => (
@@ -651,7 +657,7 @@ export default function MonthlyBillingPage() {
                   <tfoot>
                     <tr style={{ background: "#f0f7ff", borderTop: "2px solid #bfdbfe" }}>
                       <td colSpan={2} style={{ padding: "11px 14px", fontWeight: 900, color: "#1d4ed8", fontSize: 13 }}>Total ({monthRange.length} Months)</td>
-                      <td colSpan={4} style={{ padding: "11px 14px", fontWeight: 700, color: "#1d4ed8", fontSize: 12.5 }}>{monthRange.length} billing cycles · skips already-billed students</td>
+                      <td colSpan={3} style={{ padding: "11px 14px", fontWeight: 700, color: "#1d4ed8", fontSize: 12.5 }}>{monthRange.length} billing cycles · skips already-billed students</td>
                     </tr>
                   </tfoot>
                 )}
@@ -899,7 +905,7 @@ export default function MonthlyBillingPage() {
               <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
-                    {[" ", "Student", "Class / Section", "Pending Months", "Total Billed", "Paid", "Pending", "Status", "Fee History"].map(h => (
+                    {[" ", "Student", "Class / Section", "Billed Months", "Total Billed", "Paid", "Pending", "Status", "Fee History"].map(h => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total Billed" || h === "Paid" || h === "Pending" ? "right" : "left", fontSize: 11, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1.5px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -926,21 +932,21 @@ export default function MonthlyBillingPage() {
                         </td>
                         <td style={{ padding: "12px 16px" }}>
                           {(() => {
-                            const unpaidMonths = monthRange.filter(bm => {
-                              const mb = st.bills.filter((b: any) => b.due_date && String(b.due_date).slice(0, 7) === bm);
-                              if (mb.length === 0) return true;
-                              return mb.some((b: any) => b.status !== "paid" && b.status !== "waived" && Number(b.remaining_amount || 0) > 0);
+                            const periodLabels = st.bills.map((b: any) => {
+                              if (b.billing_from_month && b.billing_to_month) {
+                                const from = toShortLabel(b.billing_from_month, isBS, bsOpts);
+                                const to   = toShortLabel(b.billing_to_month, isBS, bsOpts);
+                                return from === to ? from : `${from} – ${to}`;
+                              }
+                              if (b.due_date) return toShortLabel(String(b.due_date).slice(0, 7), isBS, bsOpts);
+                              return rangeLabel;
                             });
-                            if (unpaidMonths.length === 0) {
-                              return <span style={{ fontSize: 11.5, fontWeight: 800, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "2px 9px" }}>All clear</span>;
-                            }
-                            const labels = unpaidMonths.map(bm => toShortLabel(bm, isBS, bsOpts));
-                            const rangeText = labels.length === 1 ? labels[0]
-                              : labels.length === monthRange.length ? `${labels[0]} – ${labels[labels.length - 1]}`
-                              : labels.join(", ");
+                            const uniquePeriods = [...new Set(periodLabels)];
+                            const text = uniquePeriods.join(", ") || rangeLabel;
                             return (
-                              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#b45309", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 6, padding: "2px 9px", display: "inline-block", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={rangeText}>
-                                {rangeText}
+                              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#1e40af", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "3px 9px", display: "inline-flex", alignItems: "center", gap: 5, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={text}>
+                                <i className="fa-regular fa-calendar-check" style={{ color: "#3b82f6", fontSize: 10 }} />
+                                {text}
                               </span>
                             );
                           })()}
@@ -965,12 +971,18 @@ export default function MonthlyBillingPage() {
                           <td />
                           <td colSpan={2} style={{ padding: "9px 16px", fontSize: 12.5 }}>
                             <strong style={{ color: "#334155" }}>{bill.fee_name}</strong>
-                            <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 5, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
-                              {String(bill.due_date || "").slice(0, 7)}
-                            </span>
+                            {bill.billing_from_month && bill.billing_to_month ? (
+                              <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 5, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
+                                {toShortLabel(bill.billing_from_month, isBS, bsOpts)} – {toShortLabel(bill.billing_to_month, isBS, bsOpts)}
+                              </span>
+                            ) : bill.due_date ? (
+                              <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 5, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe" }}>
+                                {toShortLabel(String(bill.due_date).slice(0, 7), isBS, bsOpts)}
+                              </span>
+                            ) : null}
                           </td>
                           <td style={{ padding: "9px 16px", fontSize: 12, color: "#64748b" }}>
-                            Due: {formatDate(String(bill.due_date || "").slice(0, 10))}
+                            {bill.due_date ? `Due: ${formatDate(String(bill.due_date).slice(0, 10))}` : "No due date"}
                           </td>
                           <td style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, textAlign: "right" }}>{fmt(bill.net_amount || bill.total_amount || 0)}</td>
                           <td style={{ padding: "9px 16px", fontSize: 12, color: "#15803d", fontWeight: 700, textAlign: "right" }}>{fmt(bill.paid_amount || 0)}</td>

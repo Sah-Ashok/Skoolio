@@ -186,11 +186,53 @@ export function useDateFormat() {
       return { key, label: `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}` };
     }
 
+    /**
+     * Converts any raw AD date intervals or AY strings inside a fee name to BS labels
+     * when the school operates on the BS calendar system.
+     * E.g.
+     *   "computer fee (AY 2026/27)" -> "computer fee (AY 2082-2083)"
+     *   "Tuition Fee (2026-06 to 2026-09 · 4 Months)" -> "Tuition Fee (Ashadh 2083 to Ashwin 2083 · 4 Months)"
+     *   "Tuition Fee (2026-06)" -> "Tuition Fee (Ashadh 2083)"
+     */
+    function formatFeeName(rawFeeName: string | null | undefined): string {
+      if (!rawFeeName) return '—';
+      if (!isBS) return rawFeeName;
+
+      let name = rawFeeName;
+
+      // 1. Multi-month interval: (YYYY-MM to YYYY-MM · N Months) or (YYYY-MM to YYYY-MM)
+      name = name.replace(/\((\d{4}-\d{2})\s+to\s+(\d{4}-\d{2})(?:\s*·\s*(\d+)\s*Months?)?\)/gi, (match, fM, tM, count) => {
+        const bsFrom = isoToBS(`${fM}-18`);
+        const bsTo   = isoToBS(`${tM}-18`);
+        const fromName = `${BS_MONTH_NAMES[bsFrom.month - 1]} ${bsFrom.year}`;
+        const toName   = `${BS_MONTH_NAMES[bsTo.month - 1]} ${bsTo.year}`;
+        const countStr = count ? ` · ${count} Months` : '';
+        return `(${fromName} to ${toName}${countStr})`;
+      });
+
+      // 2. Single month interval: (YYYY-MM)
+      name = name.replace(/\((\d{4}-\d{2})\)/g, (match, ym) => {
+        const bs = isoToBS(`${ym}-18`);
+        return `(${BS_MONTH_NAMES[bs.month - 1]} ${bs.year})`;
+      });
+
+      // 3. AD academic year pattern: (AY 2026/27) or (AY 2026-2027) or (AY 2026)
+      name = name.replace(/\(AY\s+(\d{4})(?:[\/\-](\d{2,4}))?\)/gi, (match, y1, y2) => {
+        const adYear = parseInt(y1, 10);
+        const bs = adToBS(new Date(adYear, 6, 18));
+        const prevYear = bs.year - 1;
+        return `(AY ${prevYear}-${bs.year})`;
+      });
+
+      return name;
+    }
+
     return {
       isBS,
       formatDate,
       formatDateShort,
       formatMonth,
+      formatFeeName,
       bsMonthName,
       adMonthName,
       toInputValue,

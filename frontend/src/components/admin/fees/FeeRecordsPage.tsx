@@ -39,7 +39,7 @@ function PaymentsModal({
   collection: any;
   onClose: () => void;
 }) {
-  const { formatDate } = useDateFormat();
+  const { formatDate, formatFeeName } = useDateFormat();
   const { data: payments, loading } = useApi<any[]>(
     collection ? `/fees/payments/collection/${collection.id}` : ""
   );
@@ -67,7 +67,7 @@ function PaymentsModal({
               Payment History
             </h3>
             <p style={{ fontSize: 12, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>
-              {collection.fee_name} · {collection.full_name}
+              {formatFeeName(collection.fee_name)} · {collection.full_name}
             </p>
           </div>
           <button
@@ -139,7 +139,7 @@ function PaymentsModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FeeRecordsPage() {
   const dispatch = useAppDispatch();
-  const { formatDate } = useDateFormat();
+  const { formatDate, formatFeeName } = useDateFormat();
   const { academicYearId } = useAcademicYear();
   const { data: collections, loading, error, refetch } = useApi<any[]>(
     academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
@@ -305,7 +305,7 @@ export default function FeeRecordsPage() {
                       </td>
                     </tr>
                   ) : filtered.map(col => {
-                    const isOverdue  = col.status !== "paid" && new Date(col.due_date) < new Date();
+                    const isOverdue  = col.status !== "paid" && col.status !== "waived" && Boolean(col.due_date) && new Date(col.due_date) < new Date();
                     const typeMeta   = TYPE_BADGE[col.fee_type || "academic"] || TYPE_BADGE.academic;
                     const hasPaid    = col.status === "paid" || col.status === "partial";
                     return (
@@ -316,12 +316,12 @@ export default function FeeRecordsPage() {
                             <span>{col.admission_number || ""}</span>
                           </div>
                         </td>
-                        <td style={{ fontWeight: 700, fontSize: 13, maxWidth: 220 }}>{col.fee_name || "—"}</td>
+                        <td style={{ fontWeight: 700, fontSize: 13, maxWidth: 220 }}>{formatFeeName(col.fee_name)}</td>
                         <td>
                           <span className={cx(s("badge"), s(typeMeta.cls))}>{typeMeta.label}</span>
                         </td>
                         <td className={isOverdue ? s("danger-text") : ""} style={{ fontSize: 13 }}>
-                          {formatDate(col.due_date?.slice(0,10))}
+                          {col.due_date ? formatDate(col.due_date.slice(0, 10)) : <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>}
                           {isOverdue && <span style={{ display: "block", fontSize: 10, color: "#b42318", fontWeight: 800 }}>OVERDUE</span>}
                         </td>
                         <td><strong>{formatINR(col.total_amount)}</strong></td>
@@ -404,7 +404,7 @@ export default function FeeRecordsPage() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8eef0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 900, margin: 0, color: '#1f2d36' }}>Add Late Fine</h3>
-                <p style={{ fontSize: 12, color: '#6a7882', fontWeight: 700, marginTop: 2 }}>{fineTarget.fee_name} · {fineTarget.full_name}</p>
+                <p style={{ fontSize: 12, color: '#6a7882', fontWeight: 700, marginTop: 2 }}>{formatFeeName(fineTarget.fee_name)} · {fineTarget.full_name}</p>
               </div>
               <button onClick={() => setFineTarget(null)}
                 style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #d4dde2', background: '#fff', cursor: 'pointer', fontSize: 14, color: '#6a7882' }}>

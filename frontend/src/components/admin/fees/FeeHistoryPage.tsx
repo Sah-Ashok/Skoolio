@@ -96,8 +96,8 @@ function StatCard({ label, value, accent, icon }: { label: string; value: string
 
 export default function FeeHistoryPage() {
   const searchParams       = useSearchParams();
+  const { formatDate, formatFeeName } = useDateFormat();
   const studentId          = searchParams?.get("student_id");
-  const { formatDate }     = useDateFormat();
   const { fmt }            = useCurrency();
   const { activeYear }     = useAcademicYear();
 
@@ -316,7 +316,7 @@ export default function FeeHistoryPage() {
                         return (
                           <tr key={c.id} style={{ borderBottom: "1px solid #fef2f2", background: i % 2 ? "#fff5f5" : "#fff" }}>
                             <td style={{ padding: "10px 13px", fontWeight: 800, color: "#1f2d36" }}>
-                              {c.fee_name}
+                              {formatFeeName(c.fee_name)}
                               {isOverdue && (
                                 <span style={{ display: "block", fontSize: 9, fontWeight: 900, color: "#dc2626", letterSpacing: 0.5, marginTop: 2 }}>OVERDUE</span>
                               )}
@@ -484,7 +484,7 @@ export default function FeeHistoryPage() {
                                     }}
                                   >
                                     <td style={{ padding: "11px 14px", fontWeight: 800, color: "#1f2d36" }}>
-                                      {c.fee_name}
+                                      {formatFeeName(c.fee_name)}
                                       {isOverdue && (
                                         <span style={{ display: "block", fontSize: 9, fontWeight: 900, color: "#dc2626", letterSpacing: 0.5, marginTop: 2 }}>OVERDUE</span>
                                       )}

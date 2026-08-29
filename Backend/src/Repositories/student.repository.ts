@@ -67,14 +67,28 @@ export const searchStudentsBySchool = async (
 
 export const getStudentsBySchool = async (school_id: number): Promise<IStudent[]> => {
   const result = await pool.query(
-    `SELECT id, school_id, admission_number, full_name, email, phone, gender,
-       date_of_birth::text, blood_group, photo, nationality, religion, ethnicity,
-       city, state, country, previous_school, admission_date::text, disability,
-       disability_description, scholarship_type, scholarship_percent, scholarship_remarks,
-       guardian_name, guardian_phone, guardian_email,
-       guardian_relation, guardian_occupation, guardian_address, status,
-       created_at, updated_at
-     FROM students WHERE school_id = $1 ORDER BY full_name ASC`,
+    `SELECT s.id, s.school_id, s.admission_number, s.full_name, s.email, s.phone, s.gender,
+       s.date_of_birth::text, s.blood_group, s.photo, s.nationality, s.religion, s.ethnicity,
+       s.city, s.state, s.country, s.previous_school, s.admission_date::text, s.disability,
+       s.disability_description, s.scholarship_type, s.scholarship_percent, s.scholarship_remarks,
+       s.guardian_name, s.guardian_phone, s.guardian_email,
+       s.guardian_relation, s.guardian_occupation, s.guardian_address, s.status,
+       s.created_at, s.updated_at,
+       se.class_id, se.section_id, se.roll_number,
+       cl.name AS class_name,
+       sec.name AS section_name
+     FROM students s
+     LEFT JOIN LATERAL (
+       SELECT class_id, section_id, roll_number
+       FROM student_enrollments
+       WHERE student_id = s.id AND school_id = s.school_id
+       ORDER BY (status = 'active') DESC, created_at DESC
+       LIMIT 1
+     ) se ON true
+     LEFT JOIN classes cl ON cl.id = se.class_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
+     WHERE s.school_id = $1
+     ORDER BY s.full_name ASC`,
     [school_id]
   );
   return result.rows;

@@ -10,7 +10,7 @@ import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { Spinner } from "@/components/shared/Loader";
-import Topbar from "@/components/shared/Topbar";
+import { adToBS, bsToISO, isoToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -86,35 +86,72 @@ function PendingTimeline({
   admissionDate,
   collections,
   fmt,
+  isBS,
+  activeYear,
 }: {
   admissionDate: string;
   collections:   any[];
   fmt:           (n: number) => string;
+  isBS:          boolean;
+  activeYear:    any;
 }) {
-  const now       = new Date();
-  const todayYM   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const startDate = new Date(admissionDate);
-  const startYM   = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
+  const now = new Date();
+  
+  // Calculate start and end months based on isBS
+  const monthItems: Array<{ key: string; label: string; ymList: string[] }> = [];
 
-  const allMonths = buildMonthRange(startYM, todayYM);
+  if (isBS) {
+    const startAD = admissionDate ? new Date(admissionDate) : (activeYear?.start_date ? new Date(activeYear.start_date) : now);
+    const endAD   = activeYear?.end_date ? new Date(activeYear.end_date) : now;
+    const startBS = adToBS(startAD);
+    const endBS   = adToBS(endAD);
 
-  const billedMap: Record<string, { pending: number; paid: number; status: string }> = {};
-  collections.forEach((c: any) => {
-    const ym = c.due_date?.slice(0, 7);
-    if (!ym) return;
-    if (!billedMap[ym]) billedMap[ym] = { pending: 0, paid: 0, status: "paid" };
-    billedMap[ym].pending += parseFloat(c.remaining_amount || 0);
-    billedMap[ym].paid    += parseFloat(c.paid_amount || 0);
-    if (c.status === "partial") billedMap[ym].status = "partial";
-    else if (c.status === "unpaid" && billedMap[ym].status !== "partial") billedMap[ym].status = "unpaid";
-  });
+    let y = startBS.year, m = startBS.month;
+    while (y < endBS.year || (y === endBS.year && m <= endBS.month)) {
+      const midIso = bsToISO({ year: y, month: m, day: 15 });
+      const [adY, adM] = midIso.split("-").slice(0, 2);
+      const adYM = `${adY}-${adM}`;
+      const bsKey = `${y}-${String(m).padStart(2, "0")}`;
+      const label = `${BS_MONTH_NAMES[m - 1]} '${String(y).slice(-2)}`;
+      monthItems.push({ key: bsKey, label, ymList: [adYM, bsKey] });
 
-  const monthStatuses: Array<{ ym: string; status: MonthStatus; pending: number }> = allMonths.map(ym => {
-    const billed = billedMap[ym];
-    if (!billed) return { ym, status: "unbilled" as MonthStatus, pending: 0 };
-    if (billed.status === "paid")    return { ym, status: "paid"    as MonthStatus, pending: 0 };
-    if (billed.status === "partial") return { ym, status: "partial" as MonthStatus, pending: billed.pending };
-    return { ym, status: "pending" as MonthStatus, pending: billed.pending };
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+  } else {
+    const startDate = admissionDate ? new Date(admissionDate) : now;
+    const startYM   = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
+    const todayYM   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const allMonths = buildMonthRange(startYM, todayYM);
+    for (const ym of allMonths) {
+      const [y, m] = ym.split("-").map(Number);
+      const label = `${SHORT_MONTHS[m - 1]} '${String(y).slice(-2)}`;
+      monthItems.push({ key: ym, label, ymList: [ym] });
+    }
+  }
+
+  // Check matching collections for each month
+  const monthStatuses = monthItems.map(item => {
+    const matched = collections.filter((c: any) => {
+      const dueYM = c.due_date ? String(c.due_date).slice(0, 7) : null;
+      if (dueYM && item.ymList.includes(dueYM)) return true;
+      if (c.billing_from_month && c.billing_to_month) {
+        return item.ymList.some(ym => ym >= c.billing_from_month && ym <= c.billing_to_month);
+      }
+      return false;
+    });
+
+    if (!matched.length) {
+      return { key: item.key, label: item.label, status: "unbilled" as MonthStatus, pending: 0 };
+    }
+
+    const pending = matched.reduce((sum, c) => sum + parseFloat(c.remaining_amount || 0), 0);
+    const paid    = matched.reduce((sum, c) => sum + parseFloat(c.paid_amount || 0), 0);
+    const allPaid = matched.every(c => c.status === "paid" || c.status === "waived" || parseFloat(c.remaining_amount || 0) <= 0.01);
+    const hasPartial = matched.some(c => c.status === "partial") || (paid > 0 && pending > 0);
+
+    if (allPaid) return { key: item.key, label: item.label, status: "paid" as MonthStatus, pending: 0 };
+    if (hasPartial) return { key: item.key, label: item.label, status: "partial" as MonthStatus, pending };
+    return { key: item.key, label: item.label, status: "pending" as MonthStatus, pending };
   });
 
   const problemMonths = monthStatuses.filter(m => m.status === "pending" || m.status === "unbilled" || m.status === "partial");
@@ -137,7 +174,7 @@ function PendingTimeline({
             Month-by-Month Timeline
           </h3>
           <p style={{ margin: "3px 0 0", fontSize: 12, fontWeight: 600, color: "#6a7882" }}>
-            Since admission · {allMonths.length} month{allMonths.length !== 1 ? "s" : ""}
+            Academic year timeline · {monthItems.length} month{monthItems.length !== 1 ? "s" : ""}
             {problemMonths.length > 0
               ? ` · ${problemMonths.length} month${problemMonths.length !== 1 ? "s" : ""} need attention`
               : " · All months cleared"}
@@ -151,18 +188,16 @@ function PendingTimeline({
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-        {monthStatuses.map(({ ym, status, pending }) => {
-          const [y, m] = ym.split("-").map(Number);
-          const label  = `${SHORT_MONTHS[m - 1]} '${String(y).slice(-2)}`;
-          const clr    = statusColors[status];
+        {monthStatuses.map(({ key, label, status, pending }) => {
+          const clr = statusColors[status];
           return (
             <div
-              key={ym}
+              key={key}
               title={status === "pending" || status === "partial"
-                ? `${ym}: ${fmt(pending)} pending`
+                ? `${label}: ${fmt(pending)} pending`
                 : status === "unbilled"
-                ? `${ym}: Not billed yet`
-                : `${ym}: Paid`}
+                ? `${label}: Not billed yet`
+                : `${label}: Paid`}
               style={{
                 padding: "5px 11px", borderRadius: 8,
                 background: clr.bg, color: clr.text, border: `1.5px solid ${clr.border}`,
@@ -301,7 +336,7 @@ function YearlyFeesBanner({
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function StudentFeeHistoryPage() {
   const { fmt }                                    = useCurrency();
-  const { formatDate, billingGroupKey }            = useDateFormat();
+  const { isBS, formatDate, formatFeeName, billingGroupKey } = useDateFormat();
   const { activeYear, academicYearId }             = useAcademicYear();
   const { data: allYears }                         = useApi<any[]>("/academic-years");
   const searchParams                               = useSearchParams();
@@ -461,7 +496,6 @@ export default function StudentFeeHistoryPage() {
   if (!studentId) {
     return (
       <div className={s("fees-page")}>
-        <Topbar title="Fee History" subtitle="Student fee breakdown" />
         <main className={s("page-content")}>
           <div style={{ padding: "80px 24px", textAlign: "center", border: "2px dashed #d4dde2", borderRadius: 14, background: "#fff", marginTop: 24 }}>
             <i className="fa-solid fa-user-graduate" style={{ fontSize: 40, color: "#c8d6de", display: "block", marginBottom: 16 }} />
@@ -478,17 +512,16 @@ export default function StudentFeeHistoryPage() {
 
   return (
     <div className={s("fees-page")}>
-      <Topbar
-        title="Fee History"
-        subtitle={student ? `${student.full_name} · ${student.admission_number}` : "Student fee breakdown"}
-      />
       <main className={s("page-content")}>
 
         {/* Page header */}
         <section className={s("page-head")}>
           <div>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#ea580c", textTransform: "uppercase", letterSpacing: 0.8, display: "inline-block", marginBottom: 3 }}>
+              Student Billing · {student?.admission_number || "History"}
+            </span>
             <h1>Fee History</h1>
-            <p>Fee structure, scholarship, payments &amp; pending dues</p>
+            <p>Fee structures, scholarship discounts, payment records, and timeline</p>
           </div>
           <div className={s("head-actions")}>
             {/* B5: Academic Year Picker */}
@@ -647,6 +680,8 @@ export default function StudentFeeHistoryPage() {
                 admissionDate={String(student.admission_date).slice(0, 10)}
                 collections={collections}
                 fmt={fmt}
+                isBS={isBS}
+                activeYear={activeYear}
               />
             )}
 
@@ -791,7 +826,7 @@ export default function StudentFeeHistoryPage() {
                                     <tr style={{ borderBottom: cPays.length ? "none" : "1px solid #f8fafc", background: i % 2 === 0 ? "#fff" : "#fafcfd" }}>
                                       {/* Fee name + structure tag */}
                                       <td style={{ padding: "11px 13px", fontWeight: 800, color: "#1f2d36", minWidth: 180 }}>
-                                        <span style={{ display: "block" }}>{c.fee_name}</span>
+                                        <span style={{ display: "block" }}>{formatFeeName(c.fee_name)}</span>
                                         {isOverdue && (
                                           <span style={{ display: "inline-block", fontSize: 9, fontWeight: 900, color: "#be123c", letterSpacing: 0.5, marginTop: 2 }}>OVERDUE</span>
                                         )}

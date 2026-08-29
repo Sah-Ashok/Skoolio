@@ -140,7 +140,7 @@ export default function CollectFeePage() {
   const searchParams   = useSearchParams();
   const initialId      = searchParams.get("student_id");
   const { academicYearId } = useAcademicYear();
-  const { formatDate, isBS } = useDateFormat();
+  const { formatDate, formatFeeName, isBS } = useDateFormat();
 
   const [query,           setQuery]           = useState("");
   const [searchResults,   setSearchResults]   = useState<any[]>([]);
@@ -714,12 +714,12 @@ export default function CollectFeePage() {
                               </td>
                               <td>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span className={s("cf-fee-name")}>{g.fee_name}</span>
+                                  <span className={s("cf-fee-name")}>{formatFeeName(g.fee_name)}</span>
                                   {isOverdue && !anyLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
                                   {anyLocked && (
                                     <span style={{ fontSize: 10.5, color: "#b45309", fontWeight: 700 }}>
                                       <i className="fa-solid fa-lock" style={{ marginRight: 3, fontSize: 9 }} />
-                                      Pay &quot;{g.lockedMsg}&quot; first
+                                      Pay &quot;{formatFeeName(g.lockedMsg)}&quot; first
                                     </span>
                                   )}
                                 </div>
@@ -795,7 +795,7 @@ export default function CollectFeePage() {
                             {paidCollections.map((c: any) => (
                               <tr key={c.id} className={s("cf-tr-paid")}>
                                 <td style={{ width: 44 }}></td>
-                                <td><span className={s("cf-fee-name")}>{c.fee_name}</span></td>
+                                <td><span className={s("cf-fee-name")}>{formatFeeName(c.fee_name)}</span></td>
                                 <td><TypeBadge type={c.fee_type} /></td>
                                 <td className={s("cf-amt")}>{fmt(c.total_amount)}</td>
                                 <td className={s("cf-amt-paid")}>{fmt(c.paid_amount || 0)}</td>
@@ -849,7 +849,7 @@ export default function CollectFeePage() {
                   {selectedCollections.map((c: any) => (
                     <div key={c.id} className={s("cf-pay-item")}>
                       <TypeBadge type={c.fee_type} />
-                      <span className={s("cf-pay-item-name")}>{c.fee_name}</span>
+                      <span className={s("cf-pay-item-name")}>{formatFeeName(c.fee_name)}</span>
                       <small>max {fmt(c.remaining_amount)}</small>
                       <input
                         type="number"
