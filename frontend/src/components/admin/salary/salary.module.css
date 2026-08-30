@@ -67,14 +67,15 @@
 }
 
 .stat {
-  min-height: 116px;
-  padding: 16px;
+  min-height: 104px;
+  padding: 14px 16px;
   border: 1px solid #d4dde2;
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 2px 12px rgba(31,45,54,0.06);
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   position: relative;
   overflow: hidden;
 }
@@ -87,19 +88,47 @@
   background: var(--accent);
 }
 
-.stat div {
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
+.statHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.statHead span {
+  color: #6a7882;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.statHead div {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   background: var(--soft);
   color: var(--accent);
   display: grid;
   place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
 }
-
-.stat span   { color: #6a7882; font-size: 12px; font-weight: 800; }
-.stat strong { color: #1f2d36; font-size: 24px; font-weight: 900; }
-.stat small  { color: #7b8992; font-size: 11px; font-weight: 800; }
+.statBody {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+}
+.statBody strong {
+  color: #1f2d36;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+.statBody small {
+  color: #7b8992;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+}
 
 .green  { --accent: #12805c; --soft: #e2f6ee; }
 .orange { --accent: #c46a14; --soft: #fff1df; }

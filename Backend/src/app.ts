@@ -28,6 +28,7 @@ import feedbackRoutes from './Routes/feedback.routes';
 import contactRoutes from './Routes/contact.routes';
 import payrollPolicyRoutes    from './Routes/payroll_policy.routes';
 import feeBillingPolicyRoutes from './Routes/fee_billing_policy.routes';
+import timetableRoutes        from './Routes/timetable.routes';
 import { globalHistoryMiddleware } from './middlewares/history.middleware';
 
 
@@ -72,6 +73,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/payroll-policy',      payrollPolicyRoutes);
 app.use('/api/fee-billing-policy',  feeBillingPolicyRoutes);
+app.use('/api/timetable',           timetableRoutes);
 
 app.get('/', (req,res)=>{
     res.json({message: 'SchoolPOS backend server is running '})

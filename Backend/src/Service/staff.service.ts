@@ -1,3 +1,4 @@
+import pool from '../config/db';
 import AppError from '../utils/AppError';
 import {
   ICreateStaffRole, IUpdateStaffRole,
@@ -15,8 +16,10 @@ import {
   getSalaryPaymentById, updateSalaryPayment,
   createDeductions, getDeductionsByPayment, deleteDeductionsByPayment,
   markAttendance, getAttendanceByDate, getAttendanceByStaff, updateAttendance,
-  getMonthlyAbsentCount, getMonthlyAttendanceSummary,
+  getMonthlyAbsentCount, getMonthlyAttendanceSummary, getAttendanceSummaryByDateRange,
 } from '../Repositories/staff.repository';
+import { getPayrollPolicyService } from './payroll_policy.service';
+import { bsToISO, daysInBSMonth, isoToBS } from '../utils/bs-ad';
 
 // ── STAFF ROLES ───────────────────────────────────────────────────────────────
 
@@ -123,40 +126,64 @@ export const getAttendanceForSalaryService = async (
   school_id: number,
   month:     string   // "YYYY-MM"
 ) => {
-  const staff = await getStaffById(staff_id, school_id);
+  const [staff, salary, policy, schoolRes] = await Promise.all([
+    getStaffById(staff_id, school_id),
+    getLatestSalaryStructure(staff_id, school_id),
+    getPayrollPolicyService(school_id),
+    pool.query('SELECT calendar_system FROM schools WHERE id = $1', [school_id]),
+  ]);
   if (!staff) throw new AppError('Staff member not found.', 404);
-
-  const salary = await getLatestSalaryStructure(staff_id, school_id);
+  const isBS = (schoolRes.rows[0]?.calendar_system ?? 'AD') === 'BS';
 
   const [yearStr, monthStr] = month.split('-');
   const year  = parseInt(yearStr,  10);
   const mo    = parseInt(monthStr, 10);
 
-  const att = await getMonthlyAttendanceSummary(staff_id, school_id, year, mo);
+  let startDateStr = '';
+  let endDateStr   = '';
+  let standardMonthDays = 30;
+
+  if (isBS) {
+    const bsYear  = year > 2050 ? year : isoToBS(`${month}-15`).year;
+    const bsMonth = year > 2050 ? mo   : isoToBS(`${month}-15`).month;
+    standardMonthDays = daysInBSMonth(bsYear, bsMonth);
+    startDateStr = bsToISO({ year: bsYear, month: bsMonth, day: 1 });
+    endDateStr   = bsToISO({ year: bsYear, month: bsMonth, day: standardMonthDays });
+  } else {
+    standardMonthDays = new Date(year, mo, 0).getDate();
+    startDateStr = `${yearStr}-${String(mo).padStart(2, '0')}-01`;
+    endDateStr   = `${yearStr}-${String(mo).padStart(2, '0')}-${String(standardMonthDays).padStart(2, '0')}`;
+  }
+
+  const att = await getAttendanceSummaryByDateRange(staff_id, school_id, startDateStr, endDateStr);
 
   const basic_salary  = salary ? Number(salary.basic_salary) : 0;
-  // working_days = all days we have any attendance record for
-  const working_days  = att.total_marked;
+  const working_days  = att.total_marked > 0 ? att.total_marked : standardMonthDays;
   const per_day       = working_days > 0 ? basic_salary / working_days : 0;
 
-  // absent_days full deduction + half_days counted as 0.5
-  const absent_equiv  = att.absent_days + att.half_days * 0.5;
-  const deduction     = Math.round(per_day * absent_equiv * 100) / 100;
-  const net_salary    = Math.round((basic_salary - deduction) * 100) / 100;
+  // Policy-aware deduction calculation
+  const paidLeaveQuota = policy?.paid_leave_days_per_month ?? 0;
+  const halfPayPct     = (policy?.half_day_pay_percent ?? 50) / 100;
+  const unpaidLeave    = Math.max(0, att.leave_days - paidLeaveQuota);
+  const absentDeduct   = per_day * att.absent_days;
+  const halfDeduct     = per_day * (1 - halfPayPct) * att.half_days;
+  const leaveDeduct    = per_day * unpaidLeave;
+  const totalAttDeduct = Math.round((absentDeduct + halfDeduct + leaveDeduct) * 100) / 100;
+  const net_salary     = Math.round((basic_salary - totalAttDeduct) * 100) / 100;
 
   return {
     staff_id,
     month,
     basic_salary,
     // attendance
-    working_days,
+    working_days: att.total_marked,
     present_days: att.present_days,
     absent_days:  att.absent_days,
     half_days:    att.half_days,
     leave_days:   att.leave_days,
     // calculated
     per_day_salary: Math.round(per_day * 100) / 100,
-    absent_deduction: deduction,
+    absent_deduction: totalAttDeduct,
     gross_amount:   basic_salary,
     net_salary,
     // meta

@@ -56,36 +56,68 @@ export const deleteStaffRole = async (id: number, school_id: number): Promise<bo
 const STAFF_COLS = `
   s.id, s.school_id, s.staff_role_id, s.full_name, s.phone, s.address, s.gender,
   s.date_of_birth::text, s.joined_date::text, s.status, s.photo,
-  s.citizen_id, s.license_number, s.created_at, s.updated_at,
+  to_jsonb(s)->>'citizen_id' AS citizen_id,
+  to_jsonb(s)->>'license_number' AS license_number,
+  s.created_at, s.updated_at,
   sr.role_name
 `;
 
 export const createStaff = async (school_id: number, data: ICreateStaff): Promise<IStaff> => {
-  const result = await pool.query(
-    `INSERT INTO staff
-       (school_id, staff_role_id, full_name, phone, address, gender,
-        date_of_birth, joined_date, status, photo, citizen_id, license_number)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     RETURNING
-       id, school_id, staff_role_id, full_name, phone, address, gender,
-       date_of_birth::text, joined_date::text, status, photo,
-       citizen_id, license_number, created_at, updated_at`,
-    [
-      school_id,
-      data.staff_role_id,
-      data.full_name,
-      data.phone          || null,
-      data.address        || null,
-      data.gender         || null,
-      data.date_of_birth  || null,
-      data.joined_date,
-      data.status         || 'active',
-      data.photo          || null,
-      data.citizen_id     || null,
-      data.license_number || null,
-    ]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      `INSERT INTO staff
+         (school_id, staff_role_id, full_name, phone, address, gender,
+          date_of_birth, joined_date, status, photo, citizen_id, license_number)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING
+         id, school_id, staff_role_id, full_name, phone, address, gender,
+         date_of_birth::text, joined_date::text, status, photo,
+         to_jsonb(staff)->>'citizen_id' AS citizen_id,
+         to_jsonb(staff)->>'license_number' AS license_number,
+         created_at, updated_at`,
+      [
+        school_id,
+        data.staff_role_id,
+        data.full_name,
+        data.phone          || null,
+        data.address        || null,
+        data.gender         || null,
+        data.date_of_birth  || null,
+        data.joined_date,
+        data.status         || 'active',
+        data.photo          || null,
+        data.citizen_id     || null,
+        data.license_number || null,
+      ]
+    );
+    return result.rows[0];
+  } catch (err: any) {
+    if (err?.code === '42703') {
+      const result = await pool.query(
+        `INSERT INTO staff
+           (school_id, staff_role_id, full_name, phone, address, gender,
+            date_of_birth, joined_date, status, photo)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING
+           id, school_id, staff_role_id, full_name, phone, address, gender,
+           date_of_birth::text, joined_date::text, status, photo, created_at, updated_at`,
+        [
+          school_id,
+          data.staff_role_id,
+          data.full_name,
+          data.phone          || null,
+          data.address        || null,
+          data.gender         || null,
+          data.date_of_birth  || null,
+          data.joined_date,
+          data.status         || 'active',
+          data.photo          || null,
+        ]
+      );
+      return result.rows[0];
+    }
+    throw err;
+  }
 };
 
 export const getStaffBySchool = async (school_id: number): Promise<IStaff[]> => {
@@ -141,42 +173,81 @@ export const getStaffById = async (id: number, school_id: number): Promise<IStaf
 };
 
 export const updateStaff = async (id: number, school_id: number, data: IUpdateStaff): Promise<IStaff | null> => {
-  const result = await pool.query(
-    `UPDATE staff SET
-       staff_role_id   = COALESCE($1,  staff_role_id),
-       full_name       = COALESCE($2,  full_name),
-       phone           = COALESCE($3,  phone),
-       address         = COALESCE($4,  address),
-       gender          = COALESCE($5,  gender),
-       date_of_birth   = COALESCE($6,  date_of_birth),
-       joined_date     = COALESCE($7,  joined_date),
-       status          = COALESCE($8,  status),
-       photo           = COALESCE($9,  photo),
-       citizen_id      = COALESCE($10, citizen_id),
-       license_number  = COALESCE($11, license_number),
-       updated_at      = NOW()
-     WHERE id = $12 AND school_id = $13
-     RETURNING
-       id, school_id, staff_role_id, full_name, phone, address, gender,
-       date_of_birth::text, joined_date::text, status, photo,
-       citizen_id, license_number, created_at, updated_at`,
-    [
-      data.staff_role_id  || null,
-      data.full_name      || null,
-      data.phone          || null,
-      data.address        || null,
-      data.gender         || null,
-      data.date_of_birth  || null,
-      data.joined_date    || null,
-      data.status         || null,
-      data.photo          || null,
-      data.citizen_id     || null,
-      data.license_number || null,
-      id,
-      school_id,
-    ]
-  );
-  return result.rows[0] || null;
+  try {
+    const result = await pool.query(
+      `UPDATE staff SET
+         staff_role_id   = COALESCE($1,  staff_role_id),
+         full_name       = COALESCE($2,  full_name),
+         phone           = COALESCE($3,  phone),
+         address         = COALESCE($4,  address),
+         gender          = COALESCE($5,  gender),
+         date_of_birth   = COALESCE($6,  date_of_birth),
+         joined_date     = COALESCE($7,  joined_date),
+         status          = COALESCE($8,  status),
+         photo           = COALESCE($9,  photo),
+         citizen_id      = COALESCE($10, citizen_id),
+         license_number  = COALESCE($11, license_number),
+         updated_at      = NOW()
+       WHERE id = $12 AND school_id = $13
+       RETURNING
+         id, school_id, staff_role_id, full_name, phone, address, gender,
+         date_of_birth::text, joined_date::text, status, photo,
+         to_jsonb(staff)->>'citizen_id' AS citizen_id,
+         to_jsonb(staff)->>'license_number' AS license_number,
+         created_at, updated_at`,
+      [
+        data.staff_role_id  || null,
+        data.full_name      || null,
+        data.phone          || null,
+        data.address        || null,
+        data.gender         || null,
+        data.date_of_birth  || null,
+        data.joined_date    || null,
+        data.status         || null,
+        data.photo          || null,
+        data.citizen_id     || null,
+        data.license_number || null,
+        id,
+        school_id,
+      ]
+    );
+    return result.rows[0] || null;
+  } catch (err: any) {
+    if (err?.code === '42703') {
+      const result = await pool.query(
+        `UPDATE staff SET
+           staff_role_id   = COALESCE($1,  staff_role_id),
+           full_name       = COALESCE($2,  full_name),
+           phone           = COALESCE($3,  phone),
+           address         = COALESCE($4,  address),
+           gender          = COALESCE($5,  gender),
+           date_of_birth   = COALESCE($6,  date_of_birth),
+           joined_date     = COALESCE($7,  joined_date),
+           status          = COALESCE($8,  status),
+           photo           = COALESCE($9,  photo),
+           updated_at      = NOW()
+         WHERE id = $10 AND school_id = $11
+         RETURNING
+           id, school_id, staff_role_id, full_name, phone, address, gender,
+           date_of_birth::text, joined_date::text, status, photo, created_at, updated_at`,
+        [
+          data.staff_role_id  || null,
+          data.full_name      || null,
+          data.phone          || null,
+          data.address        || null,
+          data.gender         || null,
+          data.date_of_birth  || null,
+          data.joined_date    || null,
+          data.status         || null,
+          data.photo          || null,
+          id,
+          school_id,
+        ]
+      );
+      return result.rows[0] || null;
+    }
+    throw err;
+  }
 };
 
 export const deleteStaff = async (id: number, school_id: number): Promise<boolean> => {
@@ -451,6 +522,40 @@ export const getMonthlyAbsentCount = async (staff_id: number, school_id: number,
     [staff_id, school_id, year, month]
   );
   return parseInt(result.rows[0].count, 10);
+};
+
+export const getAttendanceSummaryByDateRange = async (
+  staff_id:   number,
+  school_id:  number,
+  start_date: string,
+  end_date:   string
+): Promise<{
+  present_days: number;
+  absent_days:  number;
+  half_days:    number;
+  leave_days:   number;
+  total_marked: number;
+}> => {
+  const result = await pool.query(
+    `SELECT
+       SUM(CASE WHEN status = 'present'  THEN 1 ELSE 0 END) AS present_days,
+       SUM(CASE WHEN status = 'absent'   THEN 1 ELSE 0 END) AS absent_days,
+       SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END) AS half_days,
+       SUM(CASE WHEN status = 'leave'    THEN 1 ELSE 0 END) AS leave_days,
+       COUNT(*)                                              AS total_marked
+     FROM staff_attendance
+     WHERE staff_id = $1 AND school_id = $2
+       AND date BETWEEN $3 AND $4`,
+    [staff_id, school_id, start_date, end_date]
+  );
+  const r = result.rows[0];
+  return {
+    present_days: parseInt(r.present_days ?? '0', 10),
+    absent_days:  parseInt(r.absent_days  ?? '0', 10),
+    half_days:    parseInt(r.half_days    ?? '0', 10),
+    leave_days:   parseInt(r.leave_days   ?? '0', 10),
+    total_marked: parseInt(r.total_marked ?? '0', 10),
+  };
 };
 
 /**

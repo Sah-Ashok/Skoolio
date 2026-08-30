@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
@@ -463,16 +462,21 @@ export function StaffPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Staff Management" subtitle="Non-teaching staff: cleaners, wardens, security, cooks & more" />
       <main className={s("content")}>
 
         {/* Head */}
         <section className={s("head")}>
           <div>
-            <h1>Staff Members</h1>
-            <p>Manage all non-teaching staff, their attendance and salary.</p>
+            <h1>Staff Management</h1>
+            <p>Manage all non-teaching staff, their attendance and salary records.</p>
           </div>
           <div className={s("actions")}>
+            <Link href="/teachers/attendance" className={cx(s("btn"), s("btnOutline"))}>
+              <i className="fa-solid fa-user-clock" /> Attendance
+            </Link>
+            <Link href="/staff/salary" className={cx(s("btn"), s("btnOutline"))}>
+              <i className="fa-solid fa-money-bill-wave" /> Staff Salary
+            </Link>
             <button className={cx(s("btn"), s("btnOutline"))} onClick={() => setModal({ type: "add_role" })}>
               <i className="fa-solid fa-tag" /> New Role
             </button>
@@ -491,10 +495,14 @@ export function StaffPage() {
             { label: "Staff Roles",   value: (roles ?? []).length,                                          sub: "Defined categories",  cls: "purple", icon: "fa-tag"           },
           ].map(({ label, value, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
-              <div><i className={`fa-solid ${icon}`} /></div>
-              <span>{label}</span>
-              <strong>{loadingStaff ? "—" : value}</strong>
-              <small>{sub}</small>
+              <div className={s("statHead")}>
+                <span>{label}</span>
+                <div><i className={`fa-solid ${icon}`} /></div>
+              </div>
+              <div className={s("statBody")}>
+                <strong>{loadingStaff ? "—" : value}</strong>
+                <small>{sub}</small>
+              </div>
             </article>
           ))}
         </section>
@@ -543,6 +551,7 @@ export function StaffPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 44, textAlign: "center" }}>#</th>
                     <th>Name</th>
                     <th>Role</th>
                     <th>Phone</th>
@@ -554,12 +563,15 @@ export function StaffPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(m => (
+                  {filtered.map((m, idx) => (
                     <tr
                       key={m.id}
                       style={{ cursor: "pointer" }}
                       onClick={() => setModal({ type: "view", staff: m })}
                     >
+                      <td style={{ textAlign: "center", color: "#6a7882", fontWeight: 800, fontSize: 12 }}>
+                        {idx + 1}
+                      </td>
                       <td>
                         <div className={s("staffCell")}>
                           <div className={s("avatar")}>{initials(m.full_name)}</div>

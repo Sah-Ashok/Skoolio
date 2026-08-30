@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./salary.module.css";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
@@ -66,13 +65,11 @@ export default function FacultySalaryPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Faculty Salary" subtitle="Manage monthly payroll and salary payment status" />
-
       <main className={s("content")}>
         <section className={s("head")}>
           <div>
-            <h1>Faculty Salary</h1>
-            <p>View payment status for all faculty members and process monthly payroll.</p>
+            <h1>Payroll &amp; Salary</h1>
+            <p>View payment status for teaching faculty and non-teaching staff, and process monthly payroll.</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <Link className={cx(s("btn"), s("btnOutline"))} href="/settings?tab=payroll">
@@ -83,6 +80,46 @@ export default function FacultySalaryPage() {
             </Link>
           </div>
         </section>
+
+        {/* ── Tabs (Teaching vs Non-Teaching) ── */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <Link
+            href="/salary"
+            style={{
+              padding: "9px 18px",
+              borderRadius: 8,
+              background: "#3b5bdb",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              boxShadow: "0 2px 6px rgba(59,91,219,0.25)",
+            }}
+          >
+            <i className="fa-solid fa-chalkboard-user" /> Teaching Faculty
+          </Link>
+          <Link
+            href="/staff/salary"
+            style={{
+              padding: "9px 18px",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#4a5a65",
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: "none",
+              border: "1px solid #c6d0d7",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
+            <i className="fa-solid fa-user-tie" /> Non-Teaching Staff
+          </Link>
+        </div>
 
         {/* ── Payroll policy info bar ─────────────────────────────────── */}
         {payrollPolicy && (
@@ -134,28 +171,44 @@ export default function FacultySalaryPage() {
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <section className={s("stats")}>
           <div className={cx(s("stat"), s("blue"))}>
-            <div><i className="fa-solid fa-users" /></div>
-            <span>Total Faculty</span>
-            <strong>{totalTeachers}</strong>
-            <small>Active teachers</small>
+            <div className={s("statHead")}>
+              <span>Total Faculty</span>
+              <div><i className="fa-solid fa-users" /></div>
+            </div>
+            <div className={s("statBody")}>
+              <strong>{totalTeachers}</strong>
+              <small>Active teachers</small>
+            </div>
           </div>
           <div className={cx(s("stat"), s("red"))}>
-            <div><i className="fa-solid fa-triangle-exclamation" /></div>
-            <span>Pending Payments</span>
-            <strong>{withPending}</strong>
-            <small>Teachers with dues</small>
+            <div className={s("statHead")}>
+              <span>Pending Payments</span>
+              <div><i className="fa-solid fa-triangle-exclamation" /></div>
+            </div>
+            <div className={s("statBody")}>
+              <strong>{withPending}</strong>
+              <small>Teachers with dues</small>
+            </div>
           </div>
           <div className={cx(s("stat"), s("orange"))}>
-            <div><i className="fa-solid fa-clock" /></div>
-            <span>Total Pending</span>
-            <strong style={{ fontSize: 18 }}>{formatCurrency(totalPending)}</strong>
-            <small>Outstanding salary</small>
+            <div className={s("statHead")}>
+              <span>Total Pending</span>
+              <div><i className="fa-solid fa-clock" /></div>
+            </div>
+            <div className={s("statBody")}>
+              <strong style={{ fontSize: 18 }}>{formatCurrency(totalPending)}</strong>
+              <small>Outstanding salary</small>
+            </div>
           </div>
           <div className={cx(s("stat"), s("green"))}>
-            <div><i className="fa-solid fa-circle-check" /></div>
-            <span>Total Paid</span>
-            <strong style={{ fontSize: 18 }}>{formatCurrency(totalPaidAll)}</strong>
-            <small>All time disbursed</small>
+            <div className={s("statHead")}>
+              <span>Total Paid</span>
+              <div><i className="fa-solid fa-circle-check" /></div>
+            </div>
+            <div className={s("statBody")}>
+              <strong style={{ fontSize: 18 }}>{formatCurrency(totalPaidAll)}</strong>
+              <small>All time disbursed</small>
+            </div>
           </div>
         </section>
 
@@ -182,7 +235,7 @@ export default function FacultySalaryPage() {
           </div>
         )}
 
-        {/* ── Filter toolbar ──────────────────────────────────────────── */}
+        {/* ── Filter toolbar ──────────────────────────────────── */}
         <section className={s("salaryToolbar")}>
           <label className={s("search")}>
             <i className="fa-solid fa-magnifying-glass" />
@@ -228,6 +281,7 @@ export default function FacultySalaryPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 44, textAlign: "center" }}>#</th>
                     <th>Faculty</th>
                     <th>Monthly Salary</th>
                     <th>Months Paid</th>
@@ -240,7 +294,7 @@ export default function FacultySalaryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((t) => {
+                  {list.map((t, idx) => {
                     const pending       = Number(t.total_pending ?? 0);
                     const lastPeriod    = t.last_paid_period;
                     const lastYear      = lastPeriod ? Math.floor(lastPeriod / 100) : null;
@@ -250,6 +304,9 @@ export default function FacultySalaryPage() {
 
                     return (
                       <tr key={t.teacher_id} className={pending > 0 ? s("rowPending") : ""}>
+                        <td style={{ textAlign: "center", color: "#6a7882", fontWeight: 800, fontSize: 12 }}>
+                          {idx + 1}
+                        </td>
                         <td>
                           <div className={s("facultyCell")}>
                             <span>

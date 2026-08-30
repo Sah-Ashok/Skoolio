@@ -43,6 +43,7 @@ const adminNav: NavSection[] = [
   {
     label: 'Academics',
     items: [
+      { href: '/timetable',           icon: 'fa-calendar-week',   label: 'Timetable' },
       { href: '/attendance',          icon: 'fa-clipboard-check', label: 'Student Attendance', exact: true },
       { href: '/teachers/attendance', icon: 'fa-user-clock',      label: 'Staff Attendance',   exact: true },
       { href: '/exams',               icon: 'fa-file-alt',        label: 'Exams'   },
@@ -81,6 +82,7 @@ const teacherNav: NavSection[] = [
     label: 'Main',
     items: [
       { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/teacher/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
       { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Mark Attendance', exact: true },
       { href: '/teacher/attendance', icon: 'fa-user-check', label: 'My Attendance', exact: true },
       { href: '/teacher/students', icon: 'fa-users', label: 'My Students' },
@@ -103,6 +105,7 @@ const studentNav: NavSection[] = [
     label: 'Main',
     items: [
       { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/student/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
       { href: '/student/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
       { href: '/student/results', icon: 'fa-file-circle-check', label: 'Results' },
       { href: '/student/fees', icon: 'fa-file-invoice-dollar', label: 'Fee Status' },

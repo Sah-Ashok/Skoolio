@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Topbar from "@/components/shared/Topbar";
 import { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { apiRequest } from "@/lib/api";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { BS_MONTH_NAMES, adToBS, isoToBS } from "@/lib/bs-ad";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -68,10 +69,19 @@ const DEDUCTION_TYPES = ["absent","advance","tax","provident_fund","other"];
 
 // ── Pay Salary Modal ──────────────────────────────────────────────────────────
 function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: () => void; onSaved: () => void }) {
+  const { isBS } = useDateFormat();
+  const monthNames = isBS ? BS_MONTH_NAMES : MONTHS;
   const now = new Date();
+  const nowBS = adToBS(now);
+  const defaultYear = isBS ? nowBS.year : now.getFullYear();
+  const defaultMonthIdx = isBS ? nowBS.month - 1 : now.getMonth();
+
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(defaultMonthIdx);
+
   const [form, setForm] = useState({
     staff_id:       "",
-    salary_month:   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+    salary_month:   `${defaultYear}-${String(defaultMonthIdx + 1).padStart(2, "0")}`,
     gross_amount:   "",
     payment_method: "cash",
     paid_on:        now.toISOString().split("T")[0],
@@ -86,6 +96,11 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
   const { data: payrollPolicy }        = useApi<any>("/payroll-policy");
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    const mStr = String(selectedMonthIdx + 1).padStart(2, "0");
+    set("salary_month", `${selectedYear}-${mStr}`);
+  }, [selectedYear, selectedMonthIdx]);
 
   // Auto-fetch attendance preview whenever staff or month changes
   useEffect(() => {
@@ -201,7 +216,26 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
 
           <div className={s("field")}>
             <label>Salary Month *</label>
-            <input type="month" value={form.salary_month} onChange={e => set("salary_month", e.target.value)} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                value={selectedMonthIdx}
+                onChange={e => setSelectedMonthIdx(Number(e.target.value))}
+                style={{ flex: 1 }}
+              >
+                {monthNames.map((m, idx) => (
+                  <option key={m} value={idx}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                style={{ width: 100 }}
+              >
+                {Array.from({ length: 5 }, (_, i) => defaultYear - 2 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Payroll policy banner */}
@@ -566,6 +600,7 @@ function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; 
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export function StaffSalaryPage() {
+  const { isBS } = useDateFormat();
   const { data: staff }    = useApi<Staff[]>("/staff");
   const { data: allPay, loading, refetch: refetchAll } = useApi<SalaryPayment[]>("/staff/salary/payments");
   const { data: pending, refetch: refetchPending }     = useApi<SalaryPayment[]>("/staff/salary/payments/pending");
@@ -594,13 +629,21 @@ export function StaffSalaryPage() {
 
   const monthLabel = (p: SalaryPayment) => {
     const raw = p.salary_month_str ?? p.salary_month?.slice(0, 7) ?? "";
-    const [y, m] = raw.split("-");
-    return `${MONTHS[Number(m) - 1] ?? ""} ${y ?? ""}`;
+    const [yStr, mStr] = raw.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    if (isBS) {
+      if (y > 2050) {
+        return `${BS_MONTH_NAMES[m - 1] ?? ""} ${y}`;
+      }
+      const bs = isoToBS(`${raw}-15`);
+      return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
+    }
+    return `${MONTHS[m - 1] ?? ""} ${y ?? ""}`;
   };
 
   return (
     <div className={s("page")}>
-      <Topbar title="Staff Salary" subtitle="Pay, track and review non-teaching staff salaries" />
       <main className={s("content")}>
 
         <section className={s("head")}>
@@ -623,10 +666,14 @@ export function StaffSalaryPage() {
             { label: "Payments Made",    value: (allPay ?? []).filter(p => p.status === "paid").length, sub: "Paid entries", cls: "blue", icon: "fa-receipt" },
           ].map(({ label, value, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
-              <div><i className={`fa-solid ${icon}`} /></div>
-              <span>{label}</span>
-              <strong>{loading ? "—" : value}</strong>
-              <small>{sub}</small>
+              <div className={s("statHead")}>
+                <span>{label}</span>
+                <div><i className={`fa-solid ${icon}`} /></div>
+              </div>
+              <div className={s("statBody")}>
+                <strong>{loading ? "—" : value}</strong>
+                <small>{sub}</small>
+              </div>
             </article>
           ))}
         </section>
@@ -660,6 +707,7 @@ export function StaffSalaryPage() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 44, textAlign: "center" }}>#</th>
                     <th>Staff Member</th>
                     <th>Month</th>
                     <th>Attendance</th>
@@ -672,8 +720,11 @@ export function StaffSalaryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(p => (
+                  {filtered.map((p, idx) => (
                     <tr key={p.id} onClick={() => setSelected(p)} style={{ cursor: "pointer" }}>
+                      <td style={{ textAlign: "center", color: "#6a7882", fontWeight: 800, fontSize: 12 }}>
+                        {idx + 1}
+                      </td>
                       <td>
                         <div className={s("staffCell")}>
                           <div className={s("avatar")}>{(p.full_name ?? "?").slice(0, 2).toUpperCase()}</div>

@@ -149,6 +149,40 @@ export function adToBS(ad: Date): BSDate {
   return { year, month, day };
 }
 
+export function daysInBSMonth(year: number, month: number): number {
+  const row = getBSRow(year);
+  if (!row) return 30;
+  return row[month]; // month is 1-based → row[1..12]
+}
+
+function bsDaysSinceEpoch(y: number, m: number, d: number): number {
+  let days = 0;
+  for (let yr = BS_EPOCH_YEAR; yr < y; yr++) {
+    const row = getBSRow(yr);
+    if (row) for (let mo = 1; mo <= 12; mo++) days += row[mo];
+  }
+  const row = getBSRow(y);
+  if (row) for (let mo = 1; mo < m; mo++) days += row[mo];
+  days += d - 1;
+  return days;
+}
+
+export function bsToAD(bs: BSDate): Date {
+  const utcDate = new Date(
+    BS_EPOCH_UTC_DAY +
+    (bsDaysSinceEpoch(bs.year, bs.month, bs.day) + LOOKUP_CALIBRATION_DAYS) * DAY_MS,
+  );
+  return new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate());
+}
+
+export function bsToISO(bs: BSDate): string {
+  const ad = bsToAD(bs);
+  const y  = ad.getFullYear();
+  const m  = String(ad.getMonth() + 1).padStart(2, '0');
+  const d  = String(ad.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function isoToBS(iso: string): BSDate {
   const [y, m, d] = iso.split('-').map(Number);
   return adToBS(new Date(y, m - 1, d || 15));

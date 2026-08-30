@@ -9,7 +9,6 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
-import Topbar from "@/components/shared/Topbar";
 
 const s  = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -69,56 +68,64 @@ export default function AddStaffPage() {
       return;
     }
 
-    // Step 1 — create the staff member
-    const staffPayload = {
-      full_name:      form.full_name.trim(),
-      staff_role_id:  Number(form.staff_role_id),
-      phone:          form.phone          || undefined,
-      gender:         form.gender         || undefined,
-      joined_date:    form.joined_date,
-      date_of_birth:  form.date_of_birth  || undefined,
-      status:         form.status,
-      citizen_id:     form.citizen_id     || undefined,
-      license_number: form.license_number || undefined,
-      address:        form.address        || undefined,
-    };
+    try {
+      // Step 1 — create the staff member
+      const staffPayload = {
+        full_name:      form.full_name.trim(),
+        staff_role_id:  Number(form.staff_role_id),
+        phone:          form.phone          || undefined,
+        gender:         form.gender         || undefined,
+        joined_date:    form.joined_date,
+        date_of_birth:  form.date_of_birth  || undefined,
+        status:         form.status,
+        citizen_id:     form.citizen_id     || undefined,
+        license_number: form.license_number || undefined,
+        address:        form.address        || undefined,
+      };
 
-    const created = await createStaff(staffPayload);
-    if (!created) {
-      dispatch(showToast({ type: "error", title: "Failed", message: "Could not create staff member. Please try again." }));
-      return;
-    }
+      const created: any = await createStaff(staffPayload);
+      if (!created || !created.id) {
+        dispatch(showToast({ type: "error", title: "Failed", message: "Could not create staff member. Please try again." }));
+        return;
+      }
 
-    // Step 2 — set salary structure (same as teacher monthly_salary flow)
-    const salaryPayload = {
-      staff_id:       created.id,
-      basic_salary:   Number(form.monthly_salary),
-      effective_from: form.effective_from || form.joined_date,
-    };
+      // Step 2 — set salary structure (same as teacher monthly_salary flow)
+      const salaryPayload = {
+        staff_id:       created.id,
+        basic_salary:   Number(form.monthly_salary),
+        effective_from: form.effective_from || form.joined_date,
+      };
 
-    const salarySet = await setSalary(salaryPayload);
-    if (!salarySet) {
-      // Staff was created but salary failed — still navigate and show warning
+      try {
+        await setSalary(salaryPayload);
+      } catch (salaryErr: any) {
+        console.warn("Salary setup notice:", salaryErr);
+        dispatch(showToast({
+          type: "warning",
+          title: "Staff Created",
+          message: `${form.full_name} was added. Please verify their salary in the staff list.`,
+        }));
+        router.push("/staff");
+        return;
+      }
+
       dispatch(showToast({
-        type: "error",
-        title: "Staff Created",
-        message: `${form.full_name} was added but salary could not be set. You can set it from the staff list.`,
+        type: "success",
+        title: "Staff Member Added",
+        message: `${form.full_name} has been registered successfully with a monthly salary of NPR ${Number(form.monthly_salary).toLocaleString("en-IN")}.`,
       }));
       router.push("/staff");
-      return;
+    } catch (err: any) {
+      dispatch(showToast({
+        type: "error",
+        title: "Failed to Add Staff",
+        message: err?.message || "Failed to create staff member. Please check details and try again.",
+      }));
     }
-
-    dispatch(showToast({
-      type: "success",
-      title: "Staff Member Added",
-      message: `${form.full_name} has been registered successfully with a monthly salary of NPR ${Number(form.monthly_salary).toLocaleString("en-IN")}.`,
-    }));
-    router.push("/staff");
   };
 
   return (
     <div className={s("faculty-page")}>
-      <Topbar title="Add Staff Member" subtitle="Register a new non-teaching staff member" />
       <div className={s("page-content")}>
 
         {/* ── Page head ── */}

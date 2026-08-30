@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./salary.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
@@ -251,8 +250,6 @@ export default function PaySalaryPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Pay Faculty Salary" subtitle="Calculate and process salary with attendance deductions" />
-
       <main className={s("content")}>
         <section className={s("head")}>
           <div>

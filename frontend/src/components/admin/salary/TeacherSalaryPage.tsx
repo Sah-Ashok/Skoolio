@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Topbar from "@/components/shared/Topbar";
 import styles from "@/components/admin/salary/salary.module.css";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
@@ -183,8 +182,6 @@ export default function TeacherSalaryPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="My Salary" subtitle="View your monthly salary, deductions and payment history" />
-
       <main className={s("content")}>
         {/* Header */}
         <section className={s("head")}>
@@ -197,16 +194,20 @@ export default function TeacherSalaryPage() {
         {/* Stats */}
         <section className={s("stats")}>
           {[
-            { label: "Total Received",    value: fmt(totalPaid),     sub: "All paid months",       cls: "green" },
-            { label: "Latest Net Salary", value: fmt(latestNet),     sub: sorted[0] ? `${MONTHS[sorted[0].month - 1]} ${sorted[0].year}` : "—", cls: "blue" },
-            { label: "Total Deductions",  value: fmt(totalDeducted), sub: "Across all records",    cls: "red" },
-            { label: "Pending Months",    value: pendingCount,       sub: "Payment not received yet", cls: "orange" },
-          ].map(({ label, value, sub, cls }) => (
+            { label: "Total Received",    value: fmt(totalPaid),     sub: "All paid months",       cls: "green",  icon: "fa-circle-check" },
+            { label: "Latest Net Salary", value: fmt(latestNet),     sub: sorted[0] ? `${MONTHS[sorted[0].month - 1]} ${sorted[0].year}` : "No payments", cls: "blue", icon: "fa-receipt" },
+            { label: "Total Deductions",  value: fmt(totalDeducted), sub: "Attendance & other",    cls: "red",    icon: "fa-minus-circle" },
+            { label: "Pending Months",    value: pendingCount,       sub: pendingCount > 0 ? "Awaiting disbursement" : "All cleared", cls: "orange", icon: "fa-clock" },
+          ].map(({ label, value, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
-              <div><i className="fa-solid fa-circle-dot" /></div>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>{sub}</small>
+              <div className={s("statHead")}>
+                <span>{label}</span>
+                <div><i className={`fa-solid ${icon}`} /></div>
+              </div>
+              <div className={s("statBody")}>
+                <strong>{loading ? "—" : value}</strong>
+                <small>{sub}</small>
+              </div>
             </article>
           ))}
         </section>

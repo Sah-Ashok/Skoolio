@@ -13,27 +13,42 @@ const pool = new Pool({
         rejectUnauthorized: false
     },
 
-    // ── Connection pool settings ───────────────────────────────────────────
-    max:                20,      // max connections in pool
-    idleTimeoutMillis:  10000,   // close idle connections after 10 s (under Azure's ~4 min NAT timeout)
-    connectionTimeoutMillis: 5000, // fail fast if no connection available in 5 s
+// ── Connection pool settings for Azure PostgreSQL ──────────────────────────
+    max:                     20,      // max connections in pool
+    idleTimeoutMillis:       30000,   // close idle connections after 30 s
+    connectionTimeoutMillis: 30000,   // allow up to 30 s for remote SSL handshake & cold starts
 
     // ── TCP keepalive — prevents Azure load balancer from silently dropping idle connections
-    keepAlive:         true,
-    keepAliveInitialDelayMillis: 10000, // start sending keepalive probes after 10 s of idle
+    keepAlive:                   true,
+    keepAliveInitialDelayMillis: 10000, // send keepalive probe after 10 s of idle
 })
 
-// Log and handle unexpected pool-level errors (e.g. backend crash, network drop)
-// Without this handler, unhandled 'error' events crash the Node process
-pool.on('error', (err, client) => {
-    console.error('[DB] Unexpected pool client error — client will be removed:', err.message)
+// Log and handle unexpected pool-level errors (e.g. network drops)
+pool.on('error', (err) => {
+    console.error('[DB Pool] Unexpected client error (connection dropped, will recover):', err.message)
 })
 
-pool.connect()
-    .then(client => {
-        console.log('Database connected successfully')
-        client.release()
-    })
-    .catch(err => console.error('Database connection error:', err))
+// Retry connection with exponential backoff on startup
+const testConnection = async (retries = 5, delay = 2000): Promise<void> => {
+    for (let i = 1; i <= retries; i++) {
+        try {
+            const client = await pool.connect();
+            console.log('✓ Database connected successfully to Azure PostgreSQL');
+            client.release();
+            return;
+        } catch (err: any) {
+            console.warn(`[DB] Connection attempt ${i}/${retries} failed: ${err.message}`);
+            if (i < retries) {
+                console.log(`[DB] Retrying connection in ${delay / 1000}s...`);
+                await new Promise((res) => setTimeout(res, delay));
+                delay = Math.min(delay * 1.5, 10000);
+            } else {
+                console.error('[DB] All connection attempts failed. Please verify Azure Firewall rules and network connectivity.');
+            }
+        }
+    }
+};
+
+testConnection();
 
 export default pool;
