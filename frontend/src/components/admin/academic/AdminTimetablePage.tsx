@@ -21,7 +21,7 @@ const DAYS = [
 
 // Distinct hues for subjects (index cycles)
 const PALETTE = [
-  { bg: "#EEF2FF", fg: "#3730A3", accent: "#6366F1" },
+  { bg: "#fff7ed", fg: "#9A3412", accent: "#FF9B51" },
   { bg: "#ECFDF5", fg: "#065F46", accent: "#10B981" },
   { bg: "#FFF7ED", fg: "#9A3412", accent: "#F97316" },
   { bg: "#FDF4FF", fg: "#6B21A8", accent: "#A855F7" },
@@ -354,14 +354,14 @@ export default function AdminTimetablePage() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Nunito', sans-serif" }}>
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 20px" }}>
 
         {/* ── Header ── */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#FF9B51", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <i className="fa-solid fa-calendar-days" style={{ color: "#fff", fontSize: 16 }} />
               </div>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px" }}>
@@ -377,7 +377,6 @@ export default function AdminTimetablePage() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Btn icon="fa-bolt" label="Quick Shift Setup" primary onClick={() => setShiftOpen(true)} />
               <Btn icon="fa-copy" label="Copy Day" onClick={() => setCopyOpen(true)} />
-              <Btn icon="fa-print" label="Print" onClick={() => window.print()} />
             </div>
           )}
         </div>
@@ -400,7 +399,7 @@ export default function AdminTimetablePage() {
 
             {currSection && (
               <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748B", fontWeight: 600, padding: "5px 10px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
-                <i className="fa-solid fa-users" style={{ color: "#6366F1", fontSize: 11 }} />
+                <i className="fa-solid fa-users" style={{ color: "#FF9B51", fontSize: 11 }} />
                 {currSection.capacity ? `Capacity: ${currSection.capacity}` : "Section"}
                 {currSection.room_no && ` · Room ${currSection.room_no}`}
               </span>
@@ -408,7 +407,7 @@ export default function AdminTimetablePage() {
           </div>
 
           <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#475569" }}>
-            <input type="checkbox" checked={withSat} onChange={e => setWithSat(e.target.checked)} style={{ accentColor: "#6366F1" }} />
+            <input type="checkbox" checked={withSat} onChange={e => setWithSat(e.target.checked)} style={{ accentColor: "#FF9B51" }} />
             Saturday
           </label>
         </div>
@@ -417,7 +416,7 @@ export default function AdminTimetablePage() {
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
           {ttLoading ? (
             <div style={{ padding: "5rem", textAlign: "center" }}>
-              <Spinner size={32} color="#6366F1" />
+              <Spinner size={32} color="#FF9B51" />
               <p style={{ marginTop: 12, color: "#94A3B8", fontSize: 13, fontWeight: 600 }}>Loading timetable…</p>
             </div>
           ) : !sectionId ? (
@@ -430,7 +429,7 @@ export default function AdminTimetablePage() {
             >
               <button
                 onClick={() => setShiftOpen(true)}
-                style={{ marginTop: 16, padding: "9px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                style={{ marginTop: 16, padding: "9px 20px", borderRadius: 8, border: "none", background: "#FF9B51", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
               >
                 <i className="fa-solid fa-bolt" style={{ marginRight: 6 }} /> Quick Shift Setup
               </button>
@@ -456,7 +455,7 @@ export default function AdminTimetablePage() {
                         const isBreakCol = t?.isBreak;
                         return (
                           <th key={p} style={{ padding: "10px 8px", textAlign: "center", background: "#FAFAFA", borderLeft: "1px solid #F1F5F9", minWidth: 110 }}>
-                            <div style={{ fontSize: 10, fontWeight: 800, color: isBreakCol ? "#F59E0B" : "#6366F1", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: isBreakCol ? "#F59E0B" : "#FF9B51", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               {isBreakCol ? (t?.title || "Break") : `P ${teachLabel[p]}`}
                             </div>
                             {t && (
@@ -508,7 +507,7 @@ export default function AdminTimetablePage() {
                           onClick={() => openAdd(day.key, maxPeriods + 1)}
                           title="Add extra period"
                           style={{ width: 28, height: 28, borderRadius: 6, border: "1.5px dashed #CBD5E1", background: "transparent", color: "#CBD5E1", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#6366F1"; e.currentTarget.style.color = "#6366F1"; }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#FF9B51"; e.currentTarget.style.color = "#FF9B51"; }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.color = "#CBD5E1"; }}
                         >
                           <i className="fa-solid fa-plus" />
@@ -532,7 +531,7 @@ export default function AdminTimetablePage() {
             {/* Header */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#FF9B51", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <i className="fa-solid fa-bolt" style={{ color: "#fff", fontSize: 15 }} />
                 </div>
                 <div>
@@ -559,11 +558,11 @@ export default function AdminTimetablePage() {
                     style={{
                       padding: "10px 8px", borderRadius: 9, textAlign: "center", cursor: "pointer",
                       border: shiftStart === p.start ? "2px solid #6366F1" : "1.5px solid #E2E8F0",
-                      background: shiftStart === p.start ? "#EEF2FF" : "#FAFAFA",
+                      background: shiftStart === p.start ? "#fff7ed" : "#FAFAFA",
                       transition: "all 0.15s",
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 800, color: shiftStart === p.start ? "#4338CA" : "#334155" }}>{p.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: shiftStart === p.start ? "#c2680a" : "#334155" }}>{p.label}</div>
                     <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{p.sub}</div>
                   </button>
                 ))}
@@ -588,7 +587,7 @@ export default function AdminTimetablePage() {
                   <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Breaks / Recesses
                   </p>
-                  <button type="button" onClick={addBreak} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "1.5px solid #E2E8F0", background: "#fff", fontSize: 12, fontWeight: 700, color: "#6366F1", cursor: "pointer" }}>
+                  <button type="button" onClick={addBreak} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "1.5px solid #E2E8F0", background: "#fff", fontSize: 12, fontWeight: 700, color: "#FF9B51", cursor: "pointer" }}>
                     <i className="fa-solid fa-plus" /> Add Break
                   </button>
                 </div>
@@ -648,13 +647,13 @@ export default function AdminTimetablePage() {
                     return (
                       <label key={d.key} style={{
                         display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: 8, cursor: "pointer",
-                        border: `1.5px solid ${on ? "#6366F1" : "#E2E8F0"}`,
-                        background: on ? "#EEF2FF" : "#FAFAFA",
+                        border: `1.5px solid ${on ? "#FF9B51" : "#E2E8F0"}`,
+                        background: on ? "#fff7ed" : "#FAFAFA",
                         fontSize: 12, fontWeight: 700,
-                        color: on ? "#4338CA" : "#64748B",
+                        color: on ? "#c2680a" : "#64748B",
                         transition: "all 0.15s",
                       }}>
-                        <input type="checkbox" checked={on} onChange={e => setShiftDays(prev => e.target.checked ? [...prev, d.key] : prev.filter(k => k !== d.key))} style={{ accentColor: "#6366F1" }} />
+                        <input type="checkbox" checked={on} onChange={e => setShiftDays(prev => e.target.checked ? [...prev, d.key] : prev.filter(k => k !== d.key))} style={{ accentColor: "#FF9B51" }} />
                         {d.abbr}
                       </label>
                     );
@@ -689,9 +688,9 @@ export default function AdminTimetablePage() {
                     })().map((item, i) => (
                       <span key={i} style={{
                         padding: "3px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 700,
-                        background: item.isBreak ? "#FFF7ED" : "#EEF2FF",
-                        color: item.isBreak ? "#9A3412" : "#4338CA",
-                        border: `1px solid ${item.isBreak ? "#FED7AA" : "#C7D2FE"}`,
+                        background: item.isBreak ? "#FFF7ED" : "#fff7ed",
+                        color: item.isBreak ? "#9A3412" : "#c2680a",
+                        border: `1px solid ${item.isBreak ? "#FED7AA" : "#fed7aa"}`,
                       }}>
                         {item.label} <span style={{ opacity: 0.7 }}>{item.time}</span>
                       </span>
@@ -823,11 +822,11 @@ export default function AdminTimetablePage() {
                   return (
                     <label key={d.key} style={{
                       display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
-                      border: `1.5px solid ${on ? "#6366F1" : "#E2E8F0"}`,
-                      background: on ? "#EEF2FF" : "#FAFAFA",
-                      fontSize: 12.5, fontWeight: 700, color: on ? "#4338CA" : "#64748B",
+                      border: `1.5px solid ${on ? "#FF9B51" : "#E2E8F0"}`,
+                      background: on ? "#fff7ed" : "#FAFAFA",
+                      fontSize: 12.5, fontWeight: 700, color: on ? "#c2680a" : "#64748B",
                     }}>
-                      <input type="checkbox" checked={on} onChange={e => setCopyDst(p => e.target.checked ? [...p, d.key] : p.filter(k => k !== d.key))} style={{ accentColor: "#6366F1" }} />
+                      <input type="checkbox" checked={on} onChange={e => setCopyDst(p => e.target.checked ? [...p, d.key] : p.filter(k => k !== d.key))} style={{ accentColor: "#FF9B51" }} />
                       {d.label}
                     </label>
                   );
@@ -883,7 +882,7 @@ function Btn({ icon, label, primary, onClick }: { icon: string; label: string; p
       display: "inline-flex", alignItems: "center", gap: 7,
       padding: "8px 14px", borderRadius: 9,
       border: primary ? "none" : "1.5px solid #E2E8F0",
-      background: primary ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#fff",
+      background: primary ? "#FF9B51" : "#fff",
       color: primary ? "#fff" : "#334155",
       fontWeight: 700, fontSize: 12.5, cursor: "pointer",
       boxShadow: primary ? "0 2px 8px rgba(99,102,241,0.3)" : "none",
@@ -902,7 +901,7 @@ function PrimaryBtn({ label, loading, onClick, type = "button", icon }: { label:
     <button type={type} onClick={onClick} disabled={loading} style={{
       display: "inline-flex", alignItems: "center", gap: 7,
       padding: "9px 18px", borderRadius: 9, border: "none",
-      background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+      background: "#FF9B51",
       color: "#fff", fontWeight: 700, fontSize: 13,
       cursor: loading ? "wait" : "pointer",
       boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
@@ -985,7 +984,7 @@ function AddCell({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       style={{ width: "100%", minHeight: 86, borderRadius: 8, border: "1.5px dashed #E2E8F0", background: "#FAFAFA", color: "#CBD5E1", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 11, fontWeight: 700, transition: "all 0.15s" }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "#6366F1"; e.currentTarget.style.color = "#6366F1"; e.currentTarget.style.background = "#EEF2FF"; }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#FF9B51"; e.currentTarget.style.color = "#FF9B51"; e.currentTarget.style.background = "#fff7ed"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#CBD5E1"; e.currentTarget.style.background = "#FAFAFA"; }}
     >
       <i className="fa-solid fa-plus" style={{ fontSize: 13 }} />

@@ -27,39 +27,41 @@ export default function SuperAdminSidebar() {
         .sa-sidebar {
           position: fixed; top: 0; left: 0;
           width: 260px; height: 100vh;
-          background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%);
-          color: #94a3b8;
+          background: #ffffff;
+          color: #475569;
           display: flex; flex-direction: column;
           z-index: 100; overflow: hidden;
-          box-shadow: 4px 0 24px rgba(0,0,0,0.35);
+          border-right: 1px solid #e2e8f0;
+          box-shadow: 2px 0 16px rgba(15, 23, 42, 0.04);
         }
         .sa-logo {
-          padding: 22px 20px 18px;
-          border-bottom: 1px solid rgba(148,163,184,0.12);
+          padding: 20px 20px 16px;
+          border-bottom: 1px solid #e2e8f0;
           display: flex; align-items: center; gap: 12px;
+          background: #ffffff;
         }
         .sa-logo-icon {
-          width: 42px; height: 42px; border-radius: 12px;
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          width: 38px; height: 38px; border-radius: 10px;
+          background: #FF9B51;
           display: flex; align-items: center; justify-content: center;
-          font-size: 18px; color: #fff;
-          box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+          font-size: 17px; color: #fff;
+          box-shadow: 0 2px 8px rgba(255,155,81,0.3);
         }
-        .sa-logo h1 { color: #f1f5f9; font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
-        .sa-logo h1 span { color: #818cf8; }
-        .sa-logo p { color: #64748b; font-size: 10.5px; margin-top: 2px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+        .sa-logo h1 { color: #0f172a; font-size: 17px; font-weight: 900; letter-spacing: -0.3px; }
+        .sa-logo h1 span { color: #FF9B51; }
+        .sa-logo p { color: #64748b; font-size: 10.5px; margin-top: 2px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
 
         .sa-role-badge {
-          margin: 12px 16px;
+          margin: 12px 14px 4px;
           padding: 7px 12px;
-          background: rgba(99,102,241,0.12);
-          border: 1px solid rgba(99,102,241,0.25);
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
           border-radius: 8px;
           display: flex; align-items: center; gap: 8px;
-          font-size: 11px; font-weight: 700; color: #818cf8;
+          font-size: 11px; font-weight: 800; color: #ea580c;
           letter-spacing: 0.5px; text-transform: uppercase;
         }
-        .sa-role-badge i { font-size: 12px; }
+        .sa-role-badge i { font-size: 12px; color: #ea580c; }
 
         .sa-nav {
           flex: 1; min-height: 0;
@@ -68,52 +70,57 @@ export default function SuperAdminSidebar() {
         }
         .sa-nav::-webkit-scrollbar { display: none; }
         .sa-nav-label {
-          color: #475569; font-size: 10px; font-weight: 800;
+          color: #94a3b8; font-size: 10.5px; font-weight: 800;
           letter-spacing: 1.2px; text-transform: uppercase;
-          padding: 16px 20px 5px;
+          padding: 16px 20px 6px;
         }
         .sa-nav-item {
           display: flex; align-items: center; gap: 11px;
-          padding: 10px 20px; color: #64748b;
-          text-decoration: none; font-size: 13.5px; font-weight: 600;
-          transition: all 0.18s; border-left: 3px solid transparent;
-          min-height: 42px;
+          padding: 9px 18px; color: #475569;
+          text-decoration: none; font-size: 13.5px; font-weight: 700;
+          transition: all 0.16s ease; border-left: 3px solid transparent;
+          min-height: 40px; margin: 2px 10px; border-radius: 8px;
         }
-        .sa-nav-item:hover { background: rgba(99,102,241,0.08); color: #c7d2fe; }
+        .sa-nav-item:hover { background: #f8fafc; color: #0f172a; }
         .sa-nav-item.active {
-          background: rgba(99,102,241,0.15);
-          color: #a5b4fc; border-left: 3px solid #6366f1;
+          background: #fff7ed;
+          color: #ea580c; border-left: 3px solid #FF9B51;
+          font-weight: 800;
         }
-        .sa-nav-item i { width: 17px; font-size: 14px; }
+        .sa-nav-item.active i { color: #ea580c; }
+        .sa-nav-item i { width: 17px; font-size: 14.5px; color: #64748b; }
+        .sa-nav-item:hover i { color: #0f172a; }
         .sa-nav-badge {
           margin-left: auto; border-radius: 999px;
-          background: rgba(99,102,241,0.25); color: #a5b4fc;
+          background: #FF9B51; color: #fff;
           font-size: 10px; font-weight: 800; padding: 2px 7px;
         }
         .sa-sidebar-footer {
-          padding: 12px;
-          border-top: 1px solid rgba(148,163,184,0.1);
+          padding: 10px 12px 14px;
+          border-top: 1px solid #e2e8f0;
+          background: #ffffff;
         }
         .sa-footer-inner {
-          padding: 12px 14px;
+          padding: 10px 12px;
           border-radius: 10px;
-          background: rgba(99,102,241,0.1);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           display: flex; align-items: center; gap: 10px;
         }
         .sa-avatar {
-          width: 36px; height: 36px; border-radius: 10px;
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          width: 34px; height: 34px; border-radius: 9px;
+          background: #FF9B51;
           display: flex; align-items: center; justify-content: center;
-          color: #fff; font-size: 13px; font-weight: 800; flex-shrink: 0;
+          color: #fff; font-size: 12.5px; font-weight: 800; flex-shrink: 0;
         }
-        .sa-footer-info p { color: #e2e8f0; font-size: 12.5px; font-weight: 700; }
-        .sa-footer-info span { color: #64748b; font-size: 11px; }
+        .sa-footer-info p { color: #0f172a; font-size: 12.5px; font-weight: 800; }
+        .sa-footer-info span { color: #64748b; font-size: 11px; font-weight: 600; }
         .sa-logout {
           margin-left: auto; background: none; border: none;
-          cursor: pointer; color: #64748b; padding: 6px;
-          border-radius: 6px; transition: color 0.2s;
+          cursor: pointer; color: #94a3b8; padding: 6px;
+          border-radius: 6px; transition: color 0.16s; font-size: 14px;
         }
-        .sa-logout:hover { color: #f87171; }
+        .sa-logout:hover { color: #ef4444; }
       `}</style>
 
       <aside className="sa-sidebar">
