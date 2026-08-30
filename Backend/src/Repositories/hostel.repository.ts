@@ -171,11 +171,20 @@ export const getAssignmentsByHostel = async (hostel_id: number, school_id: numbe
     : '';
   const result = await pool.query(
     `SELECT ha.*,
+            ha.joining_date::text AS joining_date,
             s.full_name, s.admission_number, s.photo, s.gender,
+            cl.name AS class_name, sec.name AS section_name,
             r.room_number, r.floor, r.room_type, r.monthly_fee
      FROM hostel_assignments ha
      INNER JOIN students     s ON s.id = ha.student_id
      INNER JOIN hostel_rooms r ON r.id = ha.room_id
+     LEFT JOIN student_enrollments se
+       ON se.student_id       = ha.student_id
+      AND se.school_id        = ha.school_id
+      AND se.academic_year_id = ha.academic_year_id
+      AND se.status           = 'active'
+     LEFT JOIN classes  cl  ON cl.id  = se.class_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
      WHERE ha.hostel_id = $1 AND ha.school_id = $2 AND ha.status = 'active'
      ${yearFilter}
      ORDER BY r.floor ASC, r.room_number ASC, s.full_name ASC`,

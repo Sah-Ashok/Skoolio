@@ -324,8 +324,8 @@ export const getHolidayDates = async (
      WHERE school_id = $1
        AND academic_year_id = $2
        AND affects_attendance = true
-       AND event_date >= $3
-       AND COALESCE(end_date, event_date) <= $4`,
+       AND event_date <= $4
+       AND COALESCE(end_date, event_date) >= $3`,
     [school_id, academic_year_id, start_date, end_date]
   );
   return result.rows.map(r => r.holiday_date);

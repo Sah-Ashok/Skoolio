@@ -273,8 +273,15 @@ function ClassAttendanceRegisterContent() {
           const events: any[] = evRes?.data ?? [];
           const hMap = new Map<string, string>();
           for (const ev of events) {
-            if (ev.affects_attendance) {
-              hMap.set(ev.event_date.slice(0, 10), ev.title);
+            if (ev.affects_attendance || ev.event_type === "holiday") {
+              const startStr = String(ev.event_date).slice(0, 10);
+              const endStr   = ev.end_date ? String(ev.end_date).slice(0, 10) : startStr;
+              const sObj = localDate(startStr);
+              const eObj = localDate(endStr);
+              for (let cur = new Date(sObj); cur <= eObj; cur.setDate(cur.getDate() + 1)) {
+                const curISO = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`;
+                hMap.set(curISO, ev.title);
+              }
             }
           }
           setHolidayMap(hMap);
@@ -338,12 +345,12 @@ function ClassAttendanceRegisterContent() {
 
     const csvRows = students.map(st => {
       const dayValues = dayCols.map(col => {
-        if (col.kind === "weekend") return `"OFF"`;
-        if (col.kind === "holiday") return `"HOL"`;
         const s = st.byDate[col.iso];
         if (s === "present") return `"P"`;
         if (s === "absent")  return `"A"`;
         if (s === "leave")   return `"Lv"`;
+        if (col.kind === "holiday") return `"HOL"`;
+        if (col.kind === "weekend") return `"OFF"`;
         return `"-"`;
       });
       const pct = totalWorkingDays > 0 ? Math.round((st.month_present / totalWorkingDays) * 100) : 0;
@@ -637,16 +644,44 @@ function ClassAttendanceRegisterContent() {
                           {st.full_name}
                         </td>
                         {dayCols.map(col => {
-                          if (col.kind === "weekend") {
-                            return <td key={col.iso} className="off-col" style={{ fontSize: 10 }}>-</td>;
+                          const s = st.byDate[col.iso];
+                          if (s) {
+                            const isOnHoliday = col.kind === "holiday";
+                            const isOnWeekend = col.kind === "weekend";
+                            return (
+                              <td
+                                key={col.iso}
+                                style={{
+                                  padding: "4px 2px",
+                                  background: isOnHoliday ? "#fff7ed" : isOnWeekend ? "#f8fafc" : undefined,
+                                }}
+                                title={isOnHoliday ? `${col.label} (Attended: ${s})` : isOnWeekend ? `Weekend (Attended: ${s})` : s}
+                              >
+                                <AttendanceBadge status={s} />
+                              </td>
+                            );
                           }
+
                           if (col.kind === "holiday") {
-                            return <td key={col.iso} className="hol-col" style={{ fontSize: 10 }} title={col.label}>H</td>;
+                            return (
+                              <td key={col.iso} className="hol-col" style={{ padding: "4px 2px" }} title={col.label}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  width: 24, height: 24, borderRadius: 5, fontSize: 10, fontWeight: 900,
+                                  background: "#fff4e6", color: "#ea580c", border: "1px solid #fdd5b0",
+                                }}>
+                                  H
+                                </span>
+                              </td>
+                            );
                           }
-                          const s = st.byDate[col.iso] || "remain";
+                          if (col.kind === "weekend") {
+                            return <td key={col.iso} className="off-col" style={{ fontSize: 10 }} title="Weekly Off">-</td>;
+                          }
+
                           return (
                             <td key={col.iso} style={{ padding: "4px 2px" }}>
-                              <AttendanceBadge status={s} />
+                              <AttendanceBadge status="remain" />
                             </td>
                           );
                         })}

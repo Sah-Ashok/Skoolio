@@ -17,7 +17,6 @@ import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
-const fmt    = (n: number | string) => "Rs. " + Number(n || 0).toLocaleString("en-IN");
 const getInitials = (name: string) =>
   (name || "?").split(" ").map((p: string) => p[0]).join("").substring(0, 2).toUpperCase();
 
@@ -141,6 +140,8 @@ export default function CollectFeePage() {
   const initialId      = searchParams.get("student_id");
   const { academicYearId } = useAcademicYear();
   const { formatDate, formatFeeName, isBS } = useDateFormat();
+  const currencySymbol = isBS ? "रू" : "₹";
+  const fmt = (n: number | string) => `${currencySymbol} ${Number(n || 0).toLocaleString()}`;
 
   const [query,           setQuery]           = useState("");
   const [searchResults,   setSearchResults]   = useState<any[]>([]);
@@ -418,13 +419,28 @@ export default function CollectFeePage() {
     <div className={s("fees-page")}>
       <Topbar title="Collect Fee" subtitle="Search a student, select pending fees, and record payment" />
       <main className={s("page-content")}>
-
-        <section className={s("page-head")}>
-          <div>
-            <h1>Collect Fee</h1>
-            <p>Find a student → tick pending fees → process payment.</p>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 16, flexWrap: "wrap", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 16, marginBottom: 18,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10, background: "#ff9b51",
+              color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900,
+            }}>
+              <i className="fa-solid fa-hand-holding-dollar" />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0f172a", margin: 0 }}>
+                Collect Fee
+              </h1>
+              <p style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, margin: "2px 0 0" }}>
+                Find a student, select pending fee bills, and record payment
+              </p>
+            </div>
           </div>
-          <div className={s("head-actions")}>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {selectedStudent && (
               <Link className={cx(s("btn"), s("btn-outline"))} href={`/students/profile?id=${selectedStudent.id}`}>
                 <i className="fa-solid fa-user" /> Profile
@@ -442,7 +458,7 @@ export default function CollectFeePage() {
               <i className="fa-solid fa-chart-pie" /> Overview
             </Link>
           </div>
-        </section>
+        </div>
 
         {lastReceipts.length > 0 && (
           <div className={s("cf-success-banner")}>
@@ -557,17 +573,17 @@ export default function CollectFeePage() {
 
             {selectedStudent && allCollections.length > 0 && (
               <div className={s("cf-totals")}>
-                <div className={s("cf-total-item")} style={{ "--t-color": "#b42318", "--t-bg": "#fde7e7" } as any}>
-                  <span>Due</span>
-                  <strong>{fmt(totalDue)}</strong>
+                <div className={s("cf-total-item")} style={{ background: "#fef2f2" }}>
+                  <span style={{ color: "#dc2626" }}>Total Due</span>
+                  <strong style={{ color: "#dc2626" }}>{fmt(totalDue)}</strong>
                 </div>
-                <div className={s("cf-total-item")} style={{ "--t-color": "#12805c", "--t-bg": "#e2f6ee" } as any}>
-                  <span>Paid</span>
-                  <strong>{fmt(totalPaid)}</strong>
+                <div className={s("cf-total-item")} style={{ background: "#f0fdf4" }}>
+                  <span style={{ color: "#16a34a" }}>Total Paid</span>
+                  <strong style={{ color: "#16a34a" }}>{fmt(totalPaid)}</strong>
                 </div>
-                <div className={s("cf-total-item")} style={{ "--t-color": "#c46a14", "--t-bg": "#fff1df" } as any}>
-                  <span>Overdue</span>
-                  <strong>{overdueCt} bill{overdueCt !== 1 ? "s" : ""}</strong>
+                <div className={s("cf-total-item")} style={{ background: "#fff7ed" }}>
+                  <span style={{ color: "#ea580c" }}>Overdue</span>
+                  <strong style={{ color: "#ea580c" }}>{overdueCt} bill{overdueCt !== 1 ? "s" : ""}</strong>
                 </div>
                 <div className={s("cf-progress-wrap")}>
                   <div className={s("cf-progress-track")}>

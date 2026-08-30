@@ -195,8 +195,15 @@ export function StaffAttendanceRegisterPage() {
           const events: any[] = evRes?.data ?? [];
           const hMap = new Map<string, string>();
           for (const ev of events) {
-            if (ev.affects_attendance) {
-              hMap.set(ev.event_date.slice(0, 10), ev.title);
+            if (ev.affects_attendance || ev.event_type === "holiday") {
+              const startStr = String(ev.event_date).slice(0, 10);
+              const endStr   = ev.end_date ? String(ev.end_date).slice(0, 10) : startStr;
+              const sObj = localDate(startStr);
+              const eObj = localDate(endStr);
+              for (let cur = new Date(sObj); cur <= eObj; cur.setDate(cur.getDate() + 1)) {
+                const curISO = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`;
+                hMap.set(curISO, ev.title);
+              }
             }
           }
           setHolidayMap(hMap);
@@ -329,13 +336,13 @@ export function StaffAttendanceRegisterPage() {
 
     const csvRows = displayedPeople.map(p => {
       const dayValues = dayCols.map(col => {
-        if (col.kind === "weekend") return `"OFF"`;
-        if (col.kind === "holiday") return `"HOL"`;
         const s = p.byDate[col.iso];
         if (s === "present")  return `"P"`;
         if (s === "absent")   return `"A"`;
         if (s === "leave")    return `"Lv"`;
         if (s === "half_day") return `"½"`;
+        if (col.kind === "holiday") return `"HOL"`;
+        if (col.kind === "weekend") return `"OFF"`;
         return `"—"`;
       });
       const pct = workingDaysCount > 0 ? Math.round(((p.month_present + (p.month_half_day * 0.5)) / workingDaysCount) * 100) : 0;
@@ -589,25 +596,62 @@ export function StaffAttendanceRegisterPage() {
                           {p.role_name}
                         </td>
                         {dayCols.map(col => {
-                          if (col.kind === "weekend") {
-                            return <td key={col.iso} className="off-col" style={{ fontSize: 10 }}>·</td>;
-                          }
-                          if (col.kind === "holiday") {
-                            return <td key={col.iso} className="hol-col" style={{ fontSize: 10 }} title={col.label}>H</td>;
-                          }
                           const s = p.byDate[col.iso];
-                          if (!s) return <td key={col.iso} style={{ color: "#cbd5e1", fontSize: 11 }}>—</td>;
+                          if (s) {
+                            const cfg = STATUS_CONFIG[s];
+                            const isOnHoliday = col.kind === "holiday";
+                            const isOnWeekend = col.kind === "weekend";
+                            return (
+                              <td
+                                key={col.iso}
+                                style={{
+                                  padding: "4px 2px",
+                                  background: isOnHoliday ? "#fff7ed" : isOnWeekend ? "#f8fafc" : undefined,
+                                }}
+                                title={isOnHoliday ? `${col.label} (Duty/Attendance: ${cfg.label})` : isOnWeekend ? `Weekend (Attendance: ${cfg.label})` : cfg.label}
+                              >
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  width: 22, height: 22, borderRadius: 4, fontSize: 10, fontWeight: 900,
+                                  background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+                                  position: "relative",
+                                }}>
+                                  {cfg.short}
+                                  {(isOnHoliday || isOnWeekend) && (
+                                    <span style={{
+                                      position: "absolute", top: -2, right: -2, width: 5, height: 5,
+                                      borderRadius: "50%", background: isOnHoliday ? "#ea580c" : "#64748b",
+                                    }} />
+                                  )}
+                                </span>
+                              </td>
+                            );
+                          }
 
-                          const cfg = STATUS_CONFIG[s];
+                          if (col.kind === "holiday") {
+                            return (
+                              <td key={col.iso} className="hol-col" style={{ padding: "4px 2px" }} title={col.label}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  width: 22, height: 22, borderRadius: 4, fontSize: 9, fontWeight: 900,
+                                  background: "#fff4e6", color: "#ea580c", border: "1px solid #fdd5b0",
+                                }}>
+                                  H
+                                </span>
+                              </td>
+                            );
+                          }
+                          if (col.kind === "weekend") {
+                            return (
+                              <td key={col.iso} className="off-col" style={{ padding: "4px 2px" }} title="Weekly Off">
+                                <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>·</span>
+                              </td>
+                            );
+                          }
+
                           return (
-                            <td key={col.iso} style={{ padding: "4px 2px" }}>
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                width: 22, height: 22, borderRadius: 4, fontSize: 10, fontWeight: 900,
-                                background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-                              }}>
-                                {cfg.short}
-                              </span>
+                            <td key={col.iso} style={{ color: "#cbd5e1", fontSize: 11 }}>
+                              —
                             </td>
                           );
                         })}
