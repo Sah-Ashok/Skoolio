@@ -121,6 +121,31 @@ const studentNav: NavSection[] = [
   },
 ];
 
+const mobileNavMap: Record<SidebarRole, NavItem[]> = {
+  admin: [
+    { href: '/dashboard', icon: 'fa-gauge-high',    label: 'Dashboard' },
+    { href: '/students',  icon: 'fa-user-graduate', label: 'Students'  },
+    { href: '/classes',   icon: 'fa-school',        label: 'Classes'   },
+    { href: '/staff',     icon: 'fa-user-tie',      label: 'Staff'     },
+    { href: '/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
+    { href: '/fees',      icon: 'fa-file-invoice-dollar', label: 'Fees' },
+  ],
+  teacher: [
+    { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+    { href: '/teacher/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
+    { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Attendance' },
+    { href: '/teacher/students', icon: 'fa-users', label: 'Students' },
+    { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Results' },
+  ],
+  student: [
+    { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+    { href: '/student/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
+    { href: '/student/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
+    { href: '/student/results', icon: 'fa-file-circle-check', label: 'Results' },
+    { href: '/student/fees', icon: 'fa-file-invoice-dollar', label: 'Fees' },
+  ],
+};
+
 const navMap: Record<SidebarRole, NavSection[]> = {
   admin: adminNav,
   teacher: teacherNav,
@@ -164,7 +189,7 @@ export default function Sidebar({ role }: SidebarProps) {
     .join('')
     .toUpperCase();
 
-  const allMobileItems = navSections.flatMap(s => s.items).slice(0, 6);
+  const allMobileItems = mobileNavMap[activeRole] || navSections.flatMap(s => s.items).slice(0, 6);
 
   return (
     <>
