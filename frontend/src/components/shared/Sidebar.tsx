@@ -44,7 +44,7 @@ const adminNav: NavSection[] = [
     label: 'Academics',
     items: [
       { href: '/timetable',           icon: 'fa-calendar-week',   label: 'Timetable' },
-      { href: '/attendance',          icon: 'fa-clipboard-check', label: 'Student Attendance', exact: true },
+      { href: '/attendance',          icon: 'fa-clipboard-check', label: 'Class Attendance', exact: true },
       { href: '/teachers/attendance', icon: 'fa-user-clock',      label: 'Staff Attendance',   exact: true },
       { href: '/exams',               icon: 'fa-file-alt',        label: 'Exams'   },
       { href: '/notices',             icon: 'fa-bullhorn',        label: 'Notices' },

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./notices.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
@@ -29,13 +28,6 @@ interface Notice {
   created_at: string;
 }
 
-interface Section {
-  id: number;
-  name: string;
-  class_id: number;
-  class_name?: string;
-}
-
 const isExpired = (expires_at: string | null) =>
   expires_at ? new Date(expires_at) < new Date() : false;
 
@@ -53,17 +45,6 @@ export default function NoticeBoardPage() {
   const { formatDate } = useDateFormat();
 
   const { data: notices, loading, refetch } = useApi<Notice[]>("/notices/admin");
-  const { data: activeYear } = useApi<any>("/academic-years/active");
-  const { data: sections }   = useApi<Section[]>(
-    activeYear ? `/classes?academic_year_id=${activeYear.id}&include_sections=true` : ""
-  );
-
-  // Flatten sections from classes response (backend returns classes with sections)
-  const allSections = useMemo(() => {
-    if (!sections) return [];
-    if (Array.isArray(sections) && sections[0]?.name !== undefined) return sections as Section[];
-    return [];
-  }, [sections]);
 
   const { execute: createNotice, loading: creating } = useMutation("/notices/admin", "POST");
   const { execute: updateNotice, loading: updating } = useMutation("/notices", "PATCH");
@@ -182,20 +163,18 @@ export default function NoticeBoardPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Notice Board" subtitle="Post and manage school-wide announcements and notices" />
       <main className={s("content")}>
 
         {/* ── Head ── */}
         <section className={s("head")}>
           <div className={s("headLeft")}>
-            <div className={s("headBreadcrumb")}>
+            <div className={s("headIcon")}>
               <i className="fa-solid fa-bullhorn" />
-              <span>Academics</span>
-              <i className="fa-solid fa-chevron-right" />
-              <span>Notice Board</span>
             </div>
-            <h1>Notice Board</h1>
-            <p>Create, pin, and manage announcements for your school.</p>
+            <div>
+              <h1>Notice Board</h1>
+              <p>Create, pin, and manage announcements for students, teachers, and faculty.</p>
+            </div>
           </div>
           <div className={s("actions")}>
             <button className={cx(s("btn"), s("btnPrimary"))} onClick={openCreate} id="new-notice-btn">
@@ -205,40 +184,48 @@ export default function NoticeBoardPage() {
           </div>
         </section>
 
-        {/* ── Stats ── */}
+        {/* ── Compact Horizontal Stats (~75px) ── */}
         <section className={s("stats")}>
           <article className={cx(s("stat"), s("green"))}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Active</span>
+              <strong className={s("statValue")}>{totalActive}</strong>
+              <span className={s("statSub")}>Published</span>
+            </div>
             <div className={s("statIcon")}><i className="fa-solid fa-bullhorn" /></div>
-            <span className={s("statLabel")}>Active</span>
-            <strong className={s("statValue")}>{totalActive}</strong>
-            <small className={s("statSub")}>Published</small>
           </article>
 
           <article className={cx(s("stat"), s("orange"))}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Pinned</span>
+              <strong className={s("statValue")}>{totalPinned}</strong>
+              <span className={s("statSub")}>Important</span>
+            </div>
             <div className={s("statIcon")}><i className="fa-solid fa-thumbtack" /></div>
-            <span className={s("statLabel")}>Pinned</span>
-            <strong className={s("statValue")}>{totalPinned}</strong>
-            <small className={s("statSub")}>Important</small>
           </article>
 
           <article className={cx(s("stat"), s("blue"))}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Archived</span>
+              <strong className={s("statValue")}>{totalArchived}</strong>
+              <span className={s("statSub")}>Old notices</span>
+            </div>
             <div className={s("statIcon")}><i className="fa-solid fa-box-archive" /></div>
-            <span className={s("statLabel")}>Archived</span>
-            <strong className={s("statValue")}>{totalArchived}</strong>
-            <small className={s("statSub")}>Old notices</small>
           </article>
 
           <article className={cx(s("stat"), s("purple"))}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Expired</span>
+              <strong className={s("statValue")}>{totalExpired}</strong>
+              <span className={s("statSub")}>Past date</span>
+            </div>
             <div className={s("statIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
-            <span className={s("statLabel")}>Expired</span>
-            <strong className={s("statValue")}>{totalExpired}</strong>
-            <small className={s("statSub")}>Past date</small>
           </article>
         </section>
 
         {/* ── Toolbar ── */}
         <section className={s("toolbar")}>
-          <label className={s("search")}>
+          <div className={s("search")}>
             <i className="fa-solid fa-magnifying-glass" />
             <input
               id="notice-search"
@@ -256,7 +243,7 @@ export default function NoticeBoardPage() {
                 <i className="fa-solid fa-xmark" style={{ fontSize: 12 }} />
               </button>
             )}
-          </label>
+          </div>
 
           <div className={s("filterGroup")} role="group" aria-label="Filter notices">
             {FILTERS.map(f => (
@@ -291,7 +278,8 @@ export default function NoticeBoardPage() {
               {/* Loading state */}
               {loading && (
                 <div style={{ padding: "3rem", textAlign: "center" }}>
-                  <Spinner size={28} />
+                  <Spinner size={28} color="#FF9B51" />
+                  <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading notices…</p>
                 </div>
               )}
 
@@ -319,7 +307,6 @@ export default function NoticeBoardPage() {
                   onClick={() => setSelected(notice)}
                   role="listitem"
                   aria-selected={selected?.id === notice.id}
-                  style={{ animationDelay: `${filtered.indexOf(notice) * 40}ms` }}
                 >
                   <div className={s("noticeItemTop")}>
                     <span className={s("noticeItemTitle")}>
@@ -522,7 +509,7 @@ export default function NoticeBoardPage() {
                 </div>
                 <div>
                   <h3>{editNotice ? "Edit Notice" : "New Notice"}</h3>
-                  <p>{editNotice ? "Update the notice details below" : "Fill in the details to post a new notice"}</p>
+                  <p>{editNotice ? "Update the notice details below" : "Fill in the details to post a new announcement"}</p>
                 </div>
               </div>
               <button
@@ -538,12 +525,11 @@ export default function NoticeBoardPage() {
             <div className={s("modalBody")}>
               <div className={s("field")}>
                 <span className={s("fieldLabel")}>
-                  <i className="fa-solid fa-heading" style={{ color: "#ff9b51" }} />
                   Title <b>*</b>
                 </span>
                 <input
                   id="notice-title"
-                  placeholder="Enter a clear, concise title..."
+                  placeholder="Enter notice title (e.g. Annual Sports Day / Examination Routine)"
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   autoFocus
@@ -552,12 +538,11 @@ export default function NoticeBoardPage() {
 
               <div className={s("field")}>
                 <span className={s("fieldLabel")}>
-                  <i className="fa-solid fa-align-left" style={{ color: "#ff9b51" }} />
                   Content <b>*</b>
                 </span>
                 <textarea
                   id="notice-content"
-                  placeholder="Write the full notice content here..."
+                  placeholder="Write the full notice announcement details here..."
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 />
@@ -565,9 +550,8 @@ export default function NoticeBoardPage() {
 
               <div className={s("field")}>
                 <span className={s("fieldLabel")}>
-                  <i className="fa-solid fa-calendar-xmark" style={{ color: "#ff9b51" }} />
                   Expiry Date
-                  <small>(optional — leave blank to never expire)</small>
+                  <small>(optional — leave blank to keep indefinitely)</small>
                 </span>
                 <DateInput
                   value={form.expires_at}
@@ -583,8 +567,8 @@ export default function NoticeBoardPage() {
                   onChange={e => setForm(f => ({ ...f, is_pinned: e.target.checked }))}
                 />
                 <i className="fa-solid fa-thumbtack" />
-                Pin this notice (show at top of list)
-                <span className={s("checkRowDesc")}>High visibility</span>
+                Pin this notice to top of notice board
+                <span className={s("checkRowDesc")}>Important</span>
               </label>
             </div>
 
@@ -603,11 +587,10 @@ export default function NoticeBoardPage() {
                 id="notice-submit-btn"
               >
                 {creating || updating ? (
-                  <Spinner size={16} />
+                  <Spinner size={16} color="#fff" />
                 ) : (
-                  <i className="fa-solid fa-paper-plane" />
+                  <><i className="fa-solid fa-paper-plane" /> {editNotice ? "Save Changes" : "Post Notice"}</>
                 )}
-                {editNotice ? "Save Changes" : "Post Notice"}
               </button>
             </div>
           </div>

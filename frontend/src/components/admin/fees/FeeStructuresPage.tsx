@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
@@ -12,11 +11,10 @@ import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
+import { useCurrency } from "@/lib/useCurrency";
+
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
-
-const formatINR = (amount: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount));
 
 // ── Types ──
 type EditState = {
@@ -40,6 +38,7 @@ type FeeStructureRow = {
 export default function FeeStructuresPage() {
   const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
+  const { fmt: formatCurrency } = useCurrency();
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: classes } = useApi<any[]>(academicYearId ? `/classes?academic_year_id=${academicYearId}` : '', [academicYearId]);
   const { execute: deleteStructure } = useMutation('/fees/structures', 'DELETE');
@@ -91,7 +90,7 @@ export default function FeeStructuresPage() {
       acc[className] = {
         title: className,
         badge: className.replace('Class ', '').substring(0, 2),
-        badgeTone: "class-tone-blue",
+        classId: curr.class_id,
         rows: []
       };
     }
@@ -168,83 +167,110 @@ export default function FeeStructuresPage() {
   };
 
   const summaryCards = [
-    ["fa-list-check",  "Total Structures", structures.length || 0,                                          "blue"  ],
-    ["fa-calendar-days","Monthly Plans",   structures.filter(st => st.frequency === 'monthly').length || 0, "orange"],
-    ["fa-calendar-check","Yearly Plans",   structures.filter(st => st.frequency === 'yearly').length || 0,  "green" ],
-    ["fa-circle-dot",  "One-Time Plans",   structures.filter(st => st.frequency === 'one_time').length || 0,"rose"  ],
+    ["fa-list-check",   "Total Structures", structures.length || 0,                                          "blue",   "Active plans"   ],
+    ["fa-calendar-days", "Monthly Plans",   structures.filter(st => st.frequency === 'monthly').length || 0, "orange", "Billed monthly" ],
+    ["fa-calendar-check","Yearly Plans",   structures.filter(st => st.frequency === 'yearly').length || 0,  "green",  "Billed annually"],
+    ["fa-circle-dot",   "One-Time Plans",   structures.filter(st => st.frequency === 'one_time').length || 0,"purple", "Single payment" ],
   ];
 
   return (
-    <div className={s("fees-page")}>
-      <Topbar title="Fee Structures" subtitle="Manage fee templates assigned to each class" />
-      <main className={s("page-content")}>
-        <section className={s("page-head")}>
-          <div>
-            <h1>Fee Structures</h1>
-            <p>All fee templates by class</p>
+    <div className={s("feesPage")}>
+      <main className={s("pageContent")}>
+
+        {/* ── Page Head ── */}
+        <section className={s("pageHead")}>
+          <div className={s("headLeft")}>
+            <div className={s("headIcon")}>
+              <i className="fa-solid fa-layer-group" />
+            </div>
+            <div>
+              <h1>Fee Structures</h1>
+              <p>Manage standard fee templates and recurring billing rules assigned to each class.</p>
+            </div>
           </div>
-          <div className={s("head-actions")}>
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/fees">
-              <i className="fa-solid fa-arrow-left" /> Overview
+          <div className={s("headActions")}>
+            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees">
+              <i className="fa-solid fa-arrow-left" /> Fee Overview
             </Link>
-            <Link className={cx(s("btn"), s("btn-primary"))} href="/fees/structures/add">
-              <i className="fa-solid fa-plus" /> Add Structure
+            <Link className={cx(s("btn"), s("btnPrimary"))} href="/fees/structures/add">
+              <i className="fa-solid fa-plus" /> Add Fee Structure
             </Link>
           </div>
         </section>
 
-        <section className={s("summary-cards")}>
-          {summaryCards.map(([icon, label, value, tone]) => (
-            <article className={s("structure-stat-card")} key={label as string}>
-              <div className={cx(s("structure-stat-icon"), s(tone as string))}>
-                <i className={`fa-solid ${icon as string}`} />
+        {/* ── 4 Compact Stat Cards (~75px) ── */}
+        <section className={s("heroCards")}>
+          {summaryCards.map(([icon, label, value, tone, sub]) => (
+            <article className={cx(s("heroCard"), s(tone as string))} key={label as string}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>{label}</span>
+                <strong className={s("hcValue")}>{value}</strong>
+                <span className={s("hcSub")}>{sub}</span>
               </div>
-              <div>
-                <p>{label}</p>
-                <strong>{value}</strong>
+              <div className={s("hcIcon")}>
+                <i className={`fa-solid ${icon as string}`} />
               </div>
             </article>
           ))}
         </section>
 
-        <section className={cx(s("card"), s("structure-toolbar"))}>
-          <label className={s("search-field")}>
+        {/* ── Search Toolbar ── */}
+        <section className={s("structureToolbar")}>
+          <div className={s("searchField")}>
             <i className="fa-solid fa-magnifying-glass" />
             <input
               type="search"
-              placeholder="Search fee name..."
+              placeholder="Search fee structures by title..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-          </label>
+          </div>
         </section>
 
-        {loading && <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>}
-
-        {!loading && classGroups.length === 0 && (
-          <div style={{ textAlign: "center", padding: "3rem", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-            No fee structures found.
+        {loading && (
+          <div style={{ padding: "4rem", textAlign: "center" }}>
+            <Spinner size={32} color="#FF9B51" />
+            <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading fee structures…</p>
           </div>
         )}
 
-        {classGroups.map((group: any) => (
-          <section className={s("class-group")} key={group.title}>
-            <div className={s("class-group-header")}>
+        {!loading && classGroups.length === 0 && (
+          <div className={s("card")} style={{ padding: "4rem 2rem", textAlign: "center" }}>
+            <div className={s("emptyIcon")}>
+              <i className="fa-solid fa-layer-group" />
+            </div>
+            <h3 style={{ margin: "8px 0 4px", fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+              No Fee Structures Found
+            </h3>
+            <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+              {searchTerm ? `No plans match "${searchTerm}"` : "Get started by adding fee structures for your classes."}
+            </p>
+            <div style={{ marginTop: 16 }}>
+              <Link className={cx(s("btn"), s("btnPrimary"))} href="/fees/structures/add">
+                <i className="fa-solid fa-plus" /> Create First Fee Structure
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!loading && classGroups.map((group: any) => (
+          <section className={s("classGroup")} key={group.title}>
+            <div className={s("classGroupHeader")}>
               <h3>
-                <span className={cx(s("class-badge"), s(group.badgeTone))}>{group.badge}</span>
+                <span className={s("classBadge")}>{group.badge}</span>
                 {group.title}
               </h3>
-              <div className={s("class-group-actions")}>
-                <span className={s("total-chip")}>{group.rows.length} structures</span>
-                <Link className={cx(s("btn"), s("btn-soft"), s("btn-sm"))} href="/fees/structures/add">
-                  <i className="fa-solid fa-plus" /> Add
+              <div className={s("classGroupActions")}>
+                <span className={s("totalChip")}>{group.rows.length} structures</span>
+                <Link className={cx(s("btn"), s("btnSoft"), s("btnSm"))} href={`/fees/structures/add?class_id=${group.classId || ''}`}>
+                  <i className="fa-solid fa-plus" /> Add Fee for {group.title}
                 </Link>
               </div>
             </div>
 
             <div className={s("card")}>
-              <div className={s("table-wrap")}>
-                <table className={s("structure-table")}>
+              <div className={s("tableWrap")}>
+                <table className={s("table")}>
                   <thead>
                     <tr>
                       <th>Fee Name</th>
@@ -253,40 +279,48 @@ export default function FeeStructuresPage() {
                       <th>Annual Total</th>
                       <th>Scholarship</th>
                       <th>Academic Year</th>
-                      <th>Actions</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {group.rows.map((row: any) => (
                       <tr key={row.id}>
-                        <td><strong>{row.feeName}</strong></td>
+                        <td>
+                          <span className={s("feeTitle")}>{row.feeName}</span>
+                        </td>
                         <td>
                           <span className={cx(s("freq-badge"), s(frequencyClass(row.frequency)))} style={{ textTransform: 'capitalize' }}>
                             {row.frequency.replace('_', ' ')}
                           </span>
                         </td>
-                        <td className={s("amount-cell")}>{formatINR(row.amount)}</td>
-                        <td>{formatINR(row.annualTotal)}</td>
                         <td>
-                          <span className={cx(s("badge"), row.scholarship_applies ? s("badge-green") : s("badge-gray"))} style={{ fontSize: 11 }}>
+                          <span className={s("amountCell")}>{formatCurrency(row.amount)}</span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{formatCurrency(row.annualTotal)}</span>
+                        </td>
+                        <td>
+                          <span className={cx(s("badge"), row.scholarship_applies ? s("badgeGreen") : s("badgeGray"))}>
                             {row.scholarship_applies ? "Applies" : "Excluded"}
                           </span>
                         </td>
-                        <td>{row.year}</td>
                         <td>
-                          <div className={s("actions")}>
+                          <span className={s("dateCell")}>{row.year}</span>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div className={s("actions")} style={{ justifyContent: "flex-end" }}>
                             <button
-                              className={cx(s("btn"), s("btn-soft"), s("btn-sm"))}
+                              className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
                               type="button"
-                              title="Edit"
+                              title="Edit Structure"
                               onClick={() => handleEditOpen(row)}
                             >
                               <i className="fa-solid fa-pen" /> Edit
                             </button>
                             <button
-                              className={cx(s("btn"), s("btn-danger"), s("btn-sm"))}
+                              className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
                               type="button"
-                              title="Delete"
+                              title="Delete Structure"
                               onClick={() => handleDelete(row.id)}
                             >
                               <i className="fa-solid fa-trash" />
@@ -307,45 +341,47 @@ export default function FeeStructuresPage() {
       {editState && (
         <div
           style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+            position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(4px)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 1000, padding: 20,
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setEditState(null); }}
         >
           <div style={{
-            background: "#fff", borderRadius: "16px", padding: "2rem",
-            width: "100%", maxWidth: "480px", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            background: "#fff", borderRadius: "16px", padding: "24px",
+            width: "100%", maxWidth: "480px", boxShadow: "0 16px 40px rgba(15, 23, 42, 0.16)",
+            border: "1px solid #e2e8f0",
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-              <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
-                <i className="fa-solid fa-pen" style={{ marginRight: 8, color: "#FF9B51" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-pen" style={{ color: "#FF9B51" }} />
                 Edit Fee Structure
               </h2>
               <button
                 onClick={() => setEditState(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", color: "#64748b" }}
+                style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, width: 32, height: 32, cursor: "pointer", color: "#64748b" }}
               >
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
-                Fee Name
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
+                Fee Name *
                 <input
                   value={editState.fee_name}
                   onChange={(e) => setEditState({ ...editState, fee_name: e.target.value })}
-                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                  style={{ height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13.5, fontWeight: 600 }}
                 />
               </label>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
-                Frequency
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
+                Frequency *
                 <select
                   value={editState.frequency}
                   onChange={(e) => setEditState({ ...editState, frequency: e.target.value })}
-                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                  style={{ height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13.5, fontWeight: 600, background: "#fff" }}
                 >
                   <option value="monthly">Monthly</option>
                   <option value="quarterly">Quarterly</option>
@@ -356,12 +392,12 @@ export default function FeeStructuresPage() {
               </label>
 
               {(editState.frequency === "monthly" || editState.frequency === "quarterly" || editState.frequency === "half_yearly") && (
-                <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
                   Billing Start Rule
                   <select
                     value={editState.billing_start_rule}
                     onChange={(e) => setEditState({ ...editState, billing_start_rule: e.target.value })}
-                    style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                    style={{ height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13.5, fontWeight: 600, background: "#fff" }}
                   >
                     <option value="next_month">Next Cycle (Default)</option>
                     <option value="skip_two_months">Skip 2 Months</option>
@@ -370,14 +406,14 @@ export default function FeeStructuresPage() {
                 </label>
               )}
 
-              <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.875rem", fontWeight: 600 }}>
-                Amount (₹)
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
+                Amount (₹) *
                 <input
                   type="number"
                   min={1}
                   value={editState.amount}
                   onChange={(e) => setEditState({ ...editState, amount: e.target.value })}
-                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.95rem" }}
+                  style={{ height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13.5, fontWeight: 600 }}
                 />
               </label>
 
@@ -399,41 +435,33 @@ export default function FeeStructuresPage() {
                   onClick={(e) => e.stopPropagation()}
                 />
                 <div>
-                  <p style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#1e293b" }}>
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>
                     Apply scholarship discount to this fee
                   </p>
-                  <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
+                  <p style={{ margin: 0, fontSize: "11.5px", color: "#64748b", marginTop: 2 }}>
                     {editState.scholarship_applies
-                      ? "Scholarship % will be deducted from this fee when generating bills"
-                      : "This fee will be charged in full regardless of any scholarship"}
+                      ? "Scholarship % will be deducted when generating bills"
+                      : "Charged in full regardless of any scholarship"}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.75rem" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
               <button
-                onClick={handleEditSave}
-                disabled={saving}
-                style={{
-                  flex: 1, padding: "0.7rem", borderRadius: "8px",
-                  background: "#FF9B51", color: "#fff", border: "none",
-                  fontWeight: 700, fontSize: "0.95rem", cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.7 : 1,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                }}
-              >
-                {saving ? <Spinner size={16} /> : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}
-              </button>
-              <button
+                className={cx(s("btn"), s("btnOutline"))}
                 onClick={() => setEditState(null)}
-                style={{
-                  padding: "0.7rem 1.2rem", borderRadius: "8px",
-                  background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0",
-                  fontWeight: 600, fontSize: "0.95rem", cursor: "pointer",
-                }}
+                style={{ flex: 1 }}
               >
                 Cancel
+              </button>
+              <button
+                className={cx(s("btn"), s("btnPrimary"))}
+                onClick={handleEditSave}
+                disabled={saving}
+                style={{ flex: 1 }}
+              >
+                {saving ? <Spinner size={16} color="#fff" /> : <><i className="fa-solid fa-check" /> Save Changes</>}
               </button>
             </div>
           </div>

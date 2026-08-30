@@ -2,7 +2,7 @@ import { Router } from 'express';
 import protect     from '../middlewares/auth.middleware';
 import restrictTo  from '../middlewares/role.middleware';
 import {
-  getSettings, updateSettings, changePassword, toggleTwoFA,
+  getSettings, updateSettings, changePassword, toggleTwoFA, toggleMyTwoFA,
 } from '../Controllers/school.controller';
 import {
   blockSchool, unblockSchool, verifySchoolById,
@@ -11,9 +11,11 @@ import {
 const router = Router();
 
 // School admin — own school settings
-router.get ('/settings',         protect, restrictTo('admin'),             getSettings);
-router.patch('/settings',        protect, restrictTo('admin'),             updateSettings);
-router.patch('/change-password', protect, restrictTo('admin'),             changePassword);
+router.get   ('/settings',         protect, restrictTo('admin'), getSettings);
+router.put   ('/settings',         protect, restrictTo('admin'), updateSettings);
+router.patch ('/settings',         protect, restrictTo('admin'), updateSettings);
+router.patch ('/change-password',   protect, restrictTo('admin'), changePassword);
+router.patch ('/toggle-2fa',        protect, restrictTo('admin'), toggleMyTwoFA);
 
 // Super admin — manage any school
 router.patch('/:schoolId/verify',    protect, restrictTo('super_admin'), verifySchoolById);

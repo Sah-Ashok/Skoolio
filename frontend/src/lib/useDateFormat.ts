@@ -204,10 +204,13 @@ export function useDateFormat() {
       name = name.replace(/\((\d{4}-\d{2})\s+to\s+(\d{4}-\d{2})(?:\s*·\s*(\d+)\s*Months?)?\)/gi, (match, fM, tM, count) => {
         const bsFrom = isoToBS(`${fM}-18`);
         const bsTo   = isoToBS(`${tM}-18`);
-        const fromName = `${BS_MONTH_NAMES[bsFrom.month - 1]} ${bsFrom.year}`;
-        const toName   = `${BS_MONTH_NAMES[bsTo.month - 1]} ${bsTo.year}`;
+        const fromName = BS_MONTH_NAMES[bsFrom.month - 1];
+        const toName   = BS_MONTH_NAMES[bsTo.month - 1];
+        const periodStr = bsFrom.year === bsTo.year
+          ? `${fromName} – ${toName} ${bsFrom.year}`
+          : `${fromName} ${bsFrom.year} – ${toName} ${bsTo.year}`;
         const countStr = count ? ` · ${count} Months` : '';
-        return `(${fromName} to ${toName}${countStr})`;
+        return `(${periodStr}${countStr})`;
       });
 
       // 2. Single month interval: (YYYY-MM)

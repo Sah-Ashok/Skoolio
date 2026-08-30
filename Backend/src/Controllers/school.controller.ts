@@ -38,7 +38,24 @@ export const changePassword = catchAsync(async (req: Request, res: Response) => 
   sendResponse(res, 200, true, 'Password changed successfully', null);
 });
 
-// ── TOGGLE 2FA (super admin) ──────────────────────────────────────────────────
+// ── TOGGLE 2FA (school admin for own school) ──────────────────────────────────
+
+export const toggleMyTwoFA = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.user as IJwtAdminPayload;
+  const { enabled } = req.body;
+
+  if (typeof enabled !== 'boolean')
+    throw { message: '`enabled` (boolean) is required.', statusCode: 400 };
+
+  await toggleTwoFAService(id, enabled);
+  sendResponse(
+    res, 200, true,
+    `Two-factor authentication ${enabled ? 'enabled' : 'disabled'} successfully`,
+    { schoolId: id, two_fa_enabled: enabled }
+  );
+});
+
+// ── TOGGLE 2FA (super admin for any school) ───────────────────────────────────
 
 export const toggleTwoFA = catchAsync(async (req: Request, res: Response) => {
   const schoolId = Number(req.params.schoolId);

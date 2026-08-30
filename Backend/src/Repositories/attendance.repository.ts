@@ -592,23 +592,45 @@ export const getAdminSectionSummary = async (
         FROM attendance a
         WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.status = 'submitted'
         GROUP BY a.section_id
+      ),
+      students_count AS (
+        SELECT se.section_id, COUNT(DISTINCT se.student_id) AS total_students
+        FROM student_enrollments se
+        JOIN students st ON st.id = se.student_id
+        WHERE se.school_id = $1 AND se.academic_year_id = $2 AND st.status = 'active'
+        GROUP BY se.section_id
+      ),
+      today_attendance AS (
+        SELECT a.section_id, a.status, a.created_at, a.total_present, a.total_absent, t.full_name AS marked_by_name
+        FROM attendance a
+        LEFT JOIN teachers t ON t.id = a.marked_by
+        WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.date = CURRENT_DATE
       )
     SELECT
       sec.id AS section_id, sec.name AS section_name,
       c.id AS class_id, c.name AS class_name,
       COALESCE(t.full_name, 'Unassigned') AS coordinator_name,
+      t.phone AS coordinator_phone,
       sec.coordinator_id,
-      COALESCE(cp.total_present, 0) AS current_month_present,
-      (SELECT days FROM cur_working) AS current_working_days,
-      COALESCE(pp.total_present, 0) AS prev_month_present,
-      (SELECT days FROM prev_working) AS prev_working_days,
-      COALESCE(ap.total_present, 0) AS total_present_all_time
+      COALESCE(sc.total_students, 0)::int AS total_students,
+      COALESCE(cp.total_present, 0)::int AS current_month_present,
+      (SELECT days FROM cur_working)::int AS current_working_days,
+      COALESCE(pp.total_present, 0)::int AS prev_month_present,
+      (SELECT days FROM prev_working)::int AS prev_working_days,
+      COALESCE(ap.total_present, 0)::int AS total_present_all_time,
+      CASE WHEN ta.section_id IS NOT NULL THEN true ELSE false END AS marked_today,
+      ta.status AS today_status,
+      COALESCE(ta.total_present, 0)::int AS today_present,
+      COALESCE(ta.total_absent, 0)::int AS today_absent,
+      ta.marked_by_name AS today_marked_by
     FROM sections sec
     INNER JOIN classes c ON c.id = sec.class_id
     LEFT JOIN teachers t ON t.id = sec.coordinator_id
     LEFT JOIN cur_present  cp ON cp.section_id = sec.id
     LEFT JOIN prev_present pp ON pp.section_id = sec.id
     LEFT JOIN all_present  ap ON ap.section_id = sec.id
+    LEFT JOIN students_count sc ON sc.section_id = sec.id
+    LEFT JOIN today_attendance ta ON ta.section_id = sec.id
     WHERE sec.school_id = $1 AND c.academic_year_id = $2
     ORDER BY c.name ASC, sec.name ASC`,
     [school_id, academic_year_id, current_start, current_end, prev_start, prev_end]

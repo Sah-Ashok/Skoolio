@@ -225,6 +225,7 @@ export const getFeeCollectionsBySchool = async (
     : '';
   const result = await pool.query(
     `SELECT fc.*, s.full_name, s.admission_number,
+            cl.id AS class_id, sec.id AS section_id,
             cl.name AS class_name, sec.name AS section_name,
             COALESCE(fc.fee_type, 'academic') AS fee_type
      FROM fee_collections fc

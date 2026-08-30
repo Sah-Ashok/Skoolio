@@ -1,5 +1,5 @@
-import MarkClassAttendancePage from "@/components/admin/attendance/MarkClassAttendancePage";
+import ClassAttendanceRegisterPage from "@/components/admin/attendance/ClassAttendanceRegisterPage";
 
 export default function AdminAttendanceClassRoutePage() {
-  return <MarkClassAttendancePage />;
+  return <ClassAttendanceRegisterPage />;
 }
