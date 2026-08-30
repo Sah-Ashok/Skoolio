@@ -11,6 +11,7 @@ import {
   markAttendanceService, bulkMarkAttendanceService,
   getAttendanceByDateService, getStaffAttendanceService, updateAttendanceService,
   getMonthlyAbsentCountService, getAttendanceForSalaryService,
+  getStaffAndTeacherRegisterService,
 } from '../Service/staff.service';
 
 const getSchoolId = (req: Request): number => {
@@ -188,3 +189,14 @@ export const getMonthlyAbsents = catchAsync(async (req: Request, res: Response, 
   const count = await getMonthlyAbsentCountService(Number(req.params.id), school_id, Number(year), Number(month));
   sendResponse(res, 200, true, 'Monthly absent count fetched', { absent_days: count });
 });
+
+export const getStaffRegister = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = getSchoolId(req);
+  const { start_date, end_date } = req.query as { start_date: string; end_date: string };
+  if (!start_date || !end_date) {
+    return sendResponse(res, 400, false, 'start_date and end_date (YYYY-MM-DD) are required', null);
+  }
+  const rows = await getStaffAndTeacherRegisterService(school_id, start_date, end_date);
+  sendResponse(res, 200, true, 'Staff attendance register fetched successfully', rows);
+});
+

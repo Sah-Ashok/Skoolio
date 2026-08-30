@@ -17,6 +17,7 @@ import {
   createDeductions, getDeductionsByPayment, deleteDeductionsByPayment,
   markAttendance, getAttendanceByDate, getAttendanceByStaff, updateAttendance,
   getMonthlyAbsentCount, getMonthlyAttendanceSummary, getAttendanceSummaryByDateRange,
+  getStaffAndTeacherRegister,
 } from '../Repositories/staff.repository';
 import { getPayrollPolicyService } from './payroll_policy.service';
 import { bsToISO, daysInBSMonth, isoToBS } from '../utils/bs-ad';
@@ -341,3 +342,12 @@ export const getMonthlyAbsentCountService = async (
 ) => {
   return getMonthlyAbsentCount(staff_id, school_id, year, month);
 };
+
+export const getStaffAndTeacherRegisterService = async (
+  school_id: number,
+  start_date: string,
+  end_date: string
+) => {
+  return getStaffAndTeacherRegister(school_id, start_date, end_date);
+};
+

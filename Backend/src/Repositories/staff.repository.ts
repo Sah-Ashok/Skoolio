@@ -610,3 +610,53 @@ export const updateAttendance = async (id: number, school_id: number, data: IUpd
   );
   return result.rows[0] || null;
 };
+
+export const getStaffAndTeacherRegister = async (
+  school_id: number,
+  start_date: string,
+  end_date: string
+): Promise<any[]> => {
+  const result = await pool.query(
+    `SELECT
+       'teacher' AS person_type,
+       t.id AS person_id,
+       t.full_name,
+       t.phone,
+       t.email,
+       'Teacher' AS role_name,
+       ta.date::text,
+       ta.status,
+       ta.note
+     FROM teachers t
+     LEFT JOIN teacher_attendance ta
+       ON ta.teacher_id = t.id
+      AND ta.school_id  = t.school_id
+      AND ta.date BETWEEN $2 AND $3
+     WHERE t.school_id = $1 AND t.status != 'inactive'
+
+     UNION ALL
+
+     SELECT
+       'staff' AS person_type,
+       s.id AS person_id,
+       s.full_name,
+       s.phone,
+       NULL::text AS email,
+       COALESCE(sr.role_name, 'Staff') AS role_name,
+       sa.date::text,
+       sa.status,
+       sa.note
+     FROM staff s
+     LEFT JOIN staff_roles sr ON sr.id = s.staff_role_id
+     LEFT JOIN staff_attendance sa
+       ON sa.staff_id = s.id
+      AND sa.school_id = s.school_id
+      AND sa.date BETWEEN $2 AND $3
+     WHERE s.school_id = $1 AND s.status != 'terminated'
+
+     ORDER BY role_name ASC, full_name ASC`,
+    [school_id, start_date, end_date]
+  );
+  return result.rows;
+};
+

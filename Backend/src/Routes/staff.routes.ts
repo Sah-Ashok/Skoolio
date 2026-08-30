@@ -10,6 +10,7 @@ import {
   getAttendanceForSalary,
   markAttendance, bulkMarkAttendance, getAttendanceByDate,
   getStaffAttendance, updateAttendance, getMonthlyAbsents,
+  getStaffRegister,
 } from '../Controllers/staff.controller';
 
 const router = Router();
@@ -36,10 +37,11 @@ router.get  ('/salary/payments/:id',       getSalaryPaymentDetail);
 router.patch('/salary/payments/:id',       updateSalaryPayment);
 
 // ── Attendance ────────────────────────────────────────────────────────────────
-router.post ('/attendance/bulk',  bulkMarkAttendance);
-router.post ('/attendance',       markAttendance);
-router.get  ('/attendance',       getAttendanceByDate);   // ?date=YYYY-MM-DD
-router.patch('/attendance/:id',   updateAttendance);
+router.get  ('/attendance/register', getStaffRegister);      // ?start_date=&end_date=
+router.post ('/attendance/bulk',     bulkMarkAttendance);
+router.post ('/attendance',          markAttendance);
+router.get  ('/attendance',          getAttendanceByDate);   // ?date=YYYY-MM-DD
+router.patch('/attendance/:id',      updateAttendance);
 
 // ── Staff Members (dynamic /:id last — avoids swallowing static paths) ────────
 router.post  ('/',      createStaff);
