@@ -10,6 +10,7 @@ import {
   IWorkingDaysResult, ICreateWeeklyOff, WeekPattern,
 } from '../types/calendar.types';
 import AppError from '../utils/AppError';
+import { adToBS } from '../utils/bs-ad';
 
 // ── CALENDAR SERVICES ──
 
@@ -171,21 +172,22 @@ export const setWeeklyOffsService = async (
 
 // ── SHARED HELPERS ──
 
-const nthWeekdayOfMonth = (date: Date): WeekPattern => {
+const nthWeekdayOfMonth = (dayOfMonth: number): WeekPattern => {
   const ordinals: WeekPattern[] = ['1st', '2nd', '3rd', '4th', '5th'];
-  const n = Math.ceil(date.getDate() / 7);
+  const n = Math.ceil(dayOfMonth / 7);
   return ordinals[n - 1] ?? '5th';
 };
 
 const isWeekendDay = (
   date: Date,
+  dayOfMonth: number,
   weeklyOffs: { day_of_week: number; week_pattern: WeekPattern }[],
   weekendType: string
 ): boolean => {
   const day = date.getDay();
 
   if (weeklyOffs.length > 0) {
-    const nth = nthWeekdayOfMonth(date);
+    const nth = nthWeekdayOfMonth(dayOfMonth);
     return weeklyOffs.some(
       (w) => w.day_of_week === day && (w.week_pattern === 'all' || w.week_pattern === nth)
     );
@@ -211,8 +213,10 @@ export const isWorkingDayService = async (
   // Parse as LOCAL date to avoid UTC timezone shift (e.g. Nepal UTC+5:45)
   const [y, m, d] = date.split('-').map(Number);
   const dateObj = new Date(y, m - 1, d);
+  const bsDate = adToBS(dateObj);
+  const dayOfMonth = bsDate?.day || d;
 
-  if (isWeekendDay(dateObj, weeklyOffs, calendar.weekend_type)) {
+  if (isWeekendDay(dateObj, dayOfMonth, weeklyOffs, calendar.weekend_type)) {
     return { isWorking: false, reason: 'weekly_off' };
   }
 
@@ -269,7 +273,9 @@ export const calculateWorkingDays = async (
     total_days++;
     const dateStr = toLocalDateStr(current); // stays in local time — no UTC shift
 
-    const isWeekend = isWeekendDay(current, weeklyOffs, calendar.weekend_type);
+    const bsDate = adToBS(current);
+    const dayOfMonth = bsDate?.day || current.getDate();
+    const isWeekend = isWeekendDay(current, dayOfMonth, weeklyOffs, calendar.weekend_type);
     const isHoliday = !isWeekend && holidayDates.includes(dateStr);
 
     if (isWeekend) {

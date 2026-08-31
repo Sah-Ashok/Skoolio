@@ -49,12 +49,12 @@ const weekendFallbackLabel: Record<WeekendType, string> = {
 };
 
 const ordinals = ["1st","2nd","3rd","4th","5th"];
-const nthWeekdayOfMonth = (date: Date) => ordinals[Math.ceil(date.getDate() / 7) - 1] ?? "5th";
+const nthWeekdayOfMonth = (dayOfMonth: number) => ordinals[Math.ceil(dayOfMonth / 7) - 1] ?? "5th";
 
-const isWeeklyOffDay = (date: Date, weeklyOffs: WeeklyOffRow[], fallbackType: WeekendType): boolean => {
+const isWeeklyOffDay = (date: Date, dayOfMonth: number, weeklyOffs: WeeklyOffRow[], fallbackType: WeekendType): boolean => {
   if (weeklyOffs.length > 0) {
     const day = date.getDay();
-    const nth = nthWeekdayOfMonth(date);
+    const nth = nthWeekdayOfMonth(dayOfMonth);
     return weeklyOffs.some(w => w.day_of_week === day && (w.week_pattern === "all" || w.week_pattern === nth));
   }
   return weekendDayNums[fallbackType].includes(date.getDay());
@@ -137,13 +137,19 @@ function WeekendSettingsCard({ calendarId, rows, fallbackType, onSaved }: {
 
   const handleSave = async () => {
     const offRows = draftToRows(draft);
-    if (offRows.length === 0) { dispatch(showToast({ type: "error", title: "Error", message: "Select at least one weekly off day." })); return; }
-    const result = await saveWeeklyOffs({ offs: offRows }, `/calendar/${calendarId}/weekly-offs`);
-    if (result) {
-      dispatch(showToast({ type: "success", title: "Weekly Off Updated", message: "Your weekly off schedule has been saved." }));
-      onSaved(); setEditing(false);
-    } else {
-      dispatch(showToast({ type: "error", title: "Error", message: "Failed to update weekly off days." }));
+    if (offRows.length === 0) {
+      dispatch(showToast({ type: "error", title: "Error", message: "Select at least one weekly off day." }));
+      return;
+    }
+    try {
+      const result = await saveWeeklyOffs({ offs: offRows }, `/calendar/${calendarId}/weekly-offs`);
+      if (result) {
+        dispatch(showToast({ type: "success", title: "Weekly Off Updated", message: "Your weekly off schedule has been saved." }));
+        onSaved();
+        setEditing(false);
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Error", message: err?.message || "Failed to update weekly off days." }));
     }
   };
 
@@ -319,7 +325,7 @@ export default function CalendarPage() {
       for (let d = 1; d <= daysInMonth; d++) {
         const date  = new Date(adYear, adMonth0, d);
         const entry = fixedEntries[fmt(date)];
-        const isOff = isWeeklyOffDay(date, weeklyOffsData ?? [], weekendType);
+        const isOff = isWeeklyOffDay(date, d, weeklyOffsData ?? [], weekendType);
         days.push({ date, day: d, type: entry?.type ?? (isOff ? "off" : undefined), label: entry?.label ?? (isOff ? "Weekly Off" : undefined), eventId: entry?.eventId });
       }
       const trail = days.length % 7 === 0 ? 0 : 7 - (days.length % 7);
@@ -337,16 +343,26 @@ export default function CalendarPage() {
     let leading = firstAD.getDay() - 1;
     if (leading === -1) leading = 6;
 
-    for (let i = leading; i > 0; i--) { const date = new Date(firstAD); date.setDate(date.getDate() - i); days.push({ date, day: date.getDate(), muted: true }); }
+    for (let i = leading; i > 0; i--) {
+      const date = new Date(firstAD);
+      date.setDate(date.getDate() - i);
+      const prevBS = adToBS(date);
+      days.push({ date, day: prevBS.day, muted: true });
+    }
     for (let bsDay = 1; bsDay <= totalDays; bsDay++) {
       const date  = new Date(bsToISO({ year: bsYear, month: bsMonth, day: bsDay }) + "T00:00:00");
       const entry = fixedEntries[fmt(date)];
-      const isOff = isWeeklyOffDay(date, weeklyOffsData ?? [], weekendType);
+      const isOff = isWeeklyOffDay(date, bsDay, weeklyOffsData ?? [], weekendType);
       days.push({ date, day: bsDay, type: entry?.type ?? (isOff ? "off" : undefined), label: entry?.label ?? (isOff ? "Weekly Off" : undefined), eventId: entry?.eventId });
     }
     const trail  = days.length % 7 === 0 ? 0 : 7 - (days.length % 7);
     const lastAD = new Date(bsToISO({ year: bsYear, month: bsMonth, day: totalDays }) + "T00:00:00");
-    for (let d = 1; d <= trail; d++) { const date = new Date(lastAD); date.setDate(date.getDate() + d); days.push({ date, day: d, muted: true }); }
+    for (let d = 1; d <= trail; d++) {
+      const date = new Date(lastAD);
+      date.setDate(date.getDate() + d);
+      const nextBS = adToBS(date);
+      days.push({ date, day: nextBS.day, muted: true });
+    }
     return days;
   };
 
@@ -367,7 +383,6 @@ export default function CalendarPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Academic Calendar" subtitle="Manage working days, holidays, events, and exam dates" />
       <main className={s("content")}>
         <section className={s("head")}>
           <div><h1>Academic Calendar</h1><p>{monthLabel} — working-day setup for attendance calculation.</p></div>
@@ -377,9 +392,30 @@ export default function CalendarPage() {
         </section>
 
         <section className={s("stats")}>
-          <article className={s("green")}><i className="fa-solid fa-calendar-check" /><span>Working Days</span><strong>{workingDays}</strong><small>{monthLabel}</small></article>
-          <article className={s("red")}><i className="fa-solid fa-umbrella-beach" /><span>Holidays / Off</span><strong>{offCount + holidayCount}</strong><small>Weekly off + declared</small></article>
-          <article className={s("blue")}><i className="fa-solid fa-bullhorn" /><span>Events</span><strong>{eventCount}</strong><small>School activities</small></article>
+          <article className={s("green")}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span>Working Days</span>
+              <strong>{workingDays}</strong>
+              <small>{monthLabel}</small>
+            </div>
+            <i className="fa-solid fa-calendar-check" />
+          </article>
+          <article className={s("red")}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span>Holidays / Off</span>
+              <strong>{offCount + holidayCount}</strong>
+              <small>Weekly off + declared</small>
+            </div>
+            <i className="fa-solid fa-umbrella-beach" />
+          </article>
+          <article className={s("blue")}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span>Events</span>
+              <strong>{eventCount}</strong>
+              <small>School activities</small>
+            </div>
+            <i className="fa-solid fa-bullhorn" />
+          </article>
         </section>
 
         <section className={s("layout")}>

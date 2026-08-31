@@ -66,12 +66,12 @@ const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
 const ordinals = ["1st","2nd","3rd","4th","5th"];
-const nthWeekday = (d: Date) => ordinals[Math.ceil(d.getDate() / 7) - 1] ?? "5th";
+const nthWeekday = (dayOfMonth: number) => ordinals[Math.ceil(dayOfMonth / 7) - 1] ?? "5th";
 
-const isWeeklyOff = (date: Date, offs: WeeklyOffRow[], fallback: WeekendType): boolean => {
+const isWeeklyOff = (date: Date, dayOfMonth: number, offs: WeeklyOffRow[], fallback: WeekendType): boolean => {
   if (offs.length > 0) {
     const day = date.getDay();
-    const nth = nthWeekday(date);
+    const nth = nthWeekday(dayOfMonth);
     return offs.some((w) => w.day_of_week === day && (w.week_pattern === "all" || w.week_pattern === nth));
   }
   return WEEKEND_DAYS[fallback].includes(date.getDay());
@@ -205,7 +205,7 @@ export default function SharedCalendarView({ role }: Props) {
       for (let d = 1; d <= daysInMonth; d++) {
         const date  = new Date(gridAdYear, gridAdMonth, d);
         const entry = eventMap[fmt(date)];
-        const off   = isWeeklyOff(date, weeklyOffs ?? [], fallback);
+        const off   = isWeeklyOff(date, d, weeklyOffs ?? [], fallback);
         days.push({ date, day: d, type: entry?.type ?? (off ? "off" : undefined), label: entry?.label ?? (off ? "Weekly Off" : undefined) });
       }
       const trail = days.length % 7 === 0 ? 0 : 7 - (days.length % 7);
@@ -231,14 +231,15 @@ export default function SharedCalendarView({ role }: Props) {
     for (let i = lead; i > 0; i--) {
       const d = new Date(firstAD);
       d.setDate(d.getDate() - i);
-      days.push({ date: d, day: d.getDate(), muted: true });
+      const prevBS = adToBS(d);
+      days.push({ date: d, day: prevBS.day, muted: true });
     }
 
     // BS month days — show BS day number
     for (let bsDay = 1; bsDay <= totalDays; bsDay++) {
       const date  = new Date(bsToISO({ year: bsYear, month: bsMonth, day: bsDay }) + "T00:00:00");
       const entry = eventMap[fmt(date)];
-      const off   = isWeeklyOff(date, weeklyOffs ?? [], fallback);
+      const off   = isWeeklyOff(date, bsDay, weeklyOffs ?? [], fallback);
       days.push({ date, day: bsDay, type: entry?.type ?? (off ? "off" : undefined), label: entry?.label ?? (off ? "Weekly Off" : undefined) });
     }
 
@@ -248,7 +249,8 @@ export default function SharedCalendarView({ role }: Props) {
     for (let d = 1; d <= trail; d++) {
       const date = new Date(lastAD);
       date.setDate(date.getDate() + d);
-      days.push({ date, day: d, muted: true });
+      const nextBS = adToBS(date);
+      days.push({ date, day: nextBS.day, muted: true });
     }
 
     return days;
