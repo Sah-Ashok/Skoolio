@@ -209,13 +209,16 @@ export function formatPeriodLabel(fromMonthStr: string, toMonthStr: string, mont
     const fromName = BS_MONTH_NAMES[fromBS.month - 1];
     const toName   = BS_MONTH_NAMES[toBS.month - 1];
 
-    if (monthsCount === 1 || fromMonthStr === toMonthStr) {
+    const bsMonthDiff = (toBS.year - fromBS.year) * 12 + (toBS.month - fromBS.month) + 1;
+    const finalCount = bsMonthDiff > 0 ? bsMonthDiff : monthsCount;
+
+    if (finalCount === 1 || (fromBS.year === toBS.year && fromBS.month === toBS.month)) {
       return `${fromName} ${fromBS.year}`;
     }
     if (fromBS.year === toBS.year) {
-      return `${fromName} to ${toName} ${fromBS.year} · ${monthsCount} Months`;
+      return `${fromName} to ${toName} ${fromBS.year} · ${finalCount} Months`;
     }
-    return `${fromName} ${fromBS.year} to ${toName} ${toBS.year} · ${monthsCount} Months`;
+    return `${fromName} ${fromBS.year} to ${toName} ${toBS.year} · ${finalCount} Months`;
   } else {
     const [fYStr, fMStr] = fromMonthStr.split('-');
     const [tYStr, tMStr] = toMonthStr.split('-');
@@ -228,13 +231,16 @@ export function formatPeriodLabel(fromMonthStr: string, toMonthStr: string, mont
     const fName = d1.toLocaleString('en-US', { month: 'short' });
     const tName = d2.toLocaleString('en-US', { month: 'short' });
 
-    if (monthsCount === 1 || fromMonthStr === toMonthStr) {
+    const adMonthDiff = (tY - fY) * 12 + (tM - fM) + 1;
+    const finalCount = adMonthDiff > 0 ? adMonthDiff : monthsCount;
+
+    if (finalCount === 1 || fromMonthStr === toMonthStr) {
       return `${fName} ${fY}`;
     }
     if (fY === tY) {
-      return `${fName} to ${tName} ${fY} · ${monthsCount} Months`;
+      return `${fName} to ${tName} ${fY} · ${finalCount} Months`;
     }
-    return `${fName} ${fY} to ${tName} ${tY} · ${monthsCount} Months`;
+    return `${fName} ${fY} to ${tName} ${tY} · ${finalCount} Months`;
   }
 }
 

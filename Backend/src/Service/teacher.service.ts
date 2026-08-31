@@ -6,9 +6,10 @@ import {
   createSalary, getSalariesByTeacher, getSalaryById, updateSalary,
   getSalarySummaryBySchool,
   getTeacherAttendanceSummaryByMonth, getTeacherAttendanceByMonth,
-  getSectionsByCoordinator,
   markTeacherPersonalAttendance, getTeacherPersonalAttendanceByDate,
+  getAllTeacherAssignedSubjects,
 } from '../Repositories/teacher.repository';
+import { getSectionsByCoordinator, getTeacherSubjectClasses } from '../Repositories/class.repository';
 import { ICreateTeacher, IUpdateTeacher, ICreateSalary, IUpdateSalary } from '../types/teacher.types';
 import AppError from '../utils/AppError';
 import { assertCanAddTeacher } from './subscription.service';
@@ -32,7 +33,28 @@ export const getTeachersService = async (school_id: number) => {
 export const getTeacherByIdService = async (id: number, school_id: number) => {
   const teacher = await getTeacherById(id, school_id);
   if (!teacher) throw new AppError('Teacher not found.', 404);
-  const subjects = await getSubjectsByTeacher(id, school_id);
+  const allAssigned = await getAllTeacherAssignedSubjects(id, school_id);
+
+  const subjectMap = new Map<number, any>();
+  for (const item of allAssigned) {
+    if (subjectMap.has(item.id)) {
+      const existing = subjectMap.get(item.id);
+      if (item.class_name && (!existing.classes || !existing.classes.includes(item.class_name))) {
+        existing.classes = existing.classes ? `${existing.classes}, ${item.class_name}` : item.class_name;
+      }
+    } else {
+      subjectMap.set(item.id, {
+        id: item.id,
+        name: item.name,
+        code: item.code,
+        subject_name: item.subject_name || item.name,
+        subject_code: item.subject_code || item.code,
+        classes: item.class_name || null,
+      });
+    }
+  }
+
+  const subjects = Array.from(subjectMap.values());
   const sections = await getSectionsByCoordinator(id, school_id);
   return { ...teacher, subjects, sections };
 };

@@ -27,14 +27,23 @@ export default function FeesPage() {
 
   const totalCollected = useMemo(() => {
     return collections
-      ?.filter(c => c.status === "paid" || c.status === "partial")
-      .reduce((sum, c) => sum + parseFloat(c.paid_amount || "0"), 0) || 0;
+      ?.reduce((sum, c) => sum + parseFloat(c.paid_amount || "0"), 0) || 0;
   }, [collections]);
 
   const totalPending = useMemo(() => {
     return collections
       ?.filter(c => c.status !== "paid" && c.status !== "waived")
       .reduce((sum, c) => sum + parseFloat(c.remaining_amount || "0"), 0) || 0;
+  }, [collections]);
+
+  const totalWaived = useMemo(() => {
+    return collections
+      ?.reduce((sum, c) => {
+        const disc = parseFloat(c.discount_amount || "0");
+        const isWaivedStatus = c.status === "waived";
+        const waivedRem = isWaivedStatus ? Math.max(0, parseFloat(c.net_amount || c.total_amount || "0") - parseFloat(c.paid_amount || "0")) : 0;
+        return sum + disc + waivedRem;
+      }, 0) || 0;
   }, [collections]);
 
   const pendingStudentsCount = useMemo(() => {
@@ -48,18 +57,16 @@ export default function FeesPage() {
   const thisMonthCollected = useMemo(() => {
     return collections
       ?.filter(c => {
-        if (!c.paid_at && !c.updated_at) return false;
-        const d = new Date(c.paid_at || c.updated_at);
+        const dStr = c.paid_at || c.updated_at || c.created_at;
+        if (!dStr) return false;
+        const d = new Date(dStr);
         return d.getMonth() === currentMonthIdx;
       })
       .reduce((sum, c) => sum + parseFloat(c.paid_amount || "0"), 0) || 0;
   }, [collections, currentMonthIdx]);
 
-  const totalAssigned = useMemo(() => {
-    return collections?.reduce((sum, c) => sum + parseFloat(c.total_amount || "0"), 0) || 1;
-  }, [collections]);
-
-  const collectionRate = Math.round((totalCollected / totalAssigned) * 100);
+  const totalNetPayable = Math.max(1, totalCollected + totalPending);
+  const collectionRate = Math.min(100, Math.round((totalCollected / totalNetPayable) * 100));
 
   // Monthly 6-month data mapping
   const monthlyData = useMemo(() => {
@@ -68,7 +75,7 @@ export default function FeesPage() {
       const month = new Date(c.due_date).getMonth();
       if (!monthlyMap[month]) monthlyMap[month] = { collected: 0, pending: 0 };
       monthlyMap[month].collected += parseFloat(c.paid_amount || "0");
-      if (c.status !== "paid") monthlyMap[month].pending += parseFloat(c.remaining_amount || "0");
+      if (c.status !== "paid" && c.status !== "waived") monthlyMap[month].pending += parseFloat(c.remaining_amount || "0");
     });
 
     return Object.entries(monthlyMap)
@@ -87,14 +94,19 @@ export default function FeesPage() {
   }, [collections]);
 
   const pendingList = useMemo(() => {
-    return collections?.filter(c => c.status !== "paid").slice(0, 5) || [];
+    return collections?.filter(c => c.status !== "paid" && c.status !== "waived").slice(0, 5) || [];
   }, [collections]);
 
   const feeStatusData = useMemo(() => {
+    const paidCount = collections?.filter(c => c.status === "paid").length || 0;
+    const partialCount = collections?.filter(c => c.status === "partial").length || 0;
+    const unpaidCount = collections?.filter(c => c.status === "unpaid").length || 0;
+    const waivedCount = collections?.filter(c => c.status === "waived").length || 0;
     return [
-      { name: "Paid",    value: collections?.filter(c => c.status === "paid").length    || 0, color: "#10B981" },
-      { name: "Partial", value: collections?.filter(c => c.status === "partial").length || 0, color: "#F59E0B" },
-      { name: "Unpaid",  value: collections?.filter(c => c.status === "unpaid").length  || 0, color: "#EF4444" },
+      { name: "Paid",    value: paidCount,    color: "#10B981" },
+      { name: "Partial", value: partialCount, color: "#F59E0B" },
+      { name: "Unpaid",  value: unpaidCount,  color: "#EF4444" },
+      { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
     ];
   }, [collections]);
 
@@ -285,7 +297,33 @@ export default function FeesPage() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0];
+                          return (
+                            <div style={{
+                              background: "#0f172a",
+                              color: "#fff",
+                              padding: "5px 10px",
+                              borderRadius: 8,
+                              fontSize: 11.5,
+                              fontWeight: 800,
+                              boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              pointerEvents: "none",
+                              zIndex: 100,
+                            }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: data.payload.color }} />
+                              <span>{data.name}: <strong>{data.value}</strong></span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className={s("donutCenter")}>

@@ -540,14 +540,18 @@ export const getPaymentWithDetails = async (
        fc.id              AS collection_id,
        fc.fee_name,
        fc.fee_type,
+       fc.status          AS collection_status,
        fc.total_amount,
        fc.discount_amount,
        fc.discount_reason,
        fc.fine_amount,
        fc.fine_reason,
        fc.net_amount,
+       fc.remaining_amount,
        fc.due_date::text,
        fc.academic_year_id,
+       fs.amount          AS structure_amount,
+       fs.frequency       AS structure_frequency,
 
        s.id               AS student_id,
        s.full_name        AS student_name,
@@ -568,6 +572,7 @@ export const getPaymentWithDetails = async (
      INNER JOIN fee_collections fc   ON fc.id  = fp.collection_id
      INNER JOIN students s           ON s.id   = fp.student_id
      INNER JOIN schools sc           ON sc.id  = fp.school_id
+     LEFT  JOIN fee_structures fs    ON fs.id  = fc.fee_structure_id
      LEFT  JOIN academic_years ay    ON ay.id  = fc.academic_year_id
      LEFT  JOIN student_enrollments se
        ON se.student_id      = fp.student_id

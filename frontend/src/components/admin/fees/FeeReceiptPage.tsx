@@ -4,6 +4,8 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { amountToWords } from "@/lib/amountToWords";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
 
 // ── Azure PDF download button ───────────────────────────────────────────────
 type AzureBtnState = 'idle' | 'generating' | 'ready' | 'error';
@@ -103,29 +105,23 @@ function AzureReceiptButton({ paymentId }: { paymentId: string | number }) {
 
 interface Props { paymentId: string | number; }
 
-const fmt = (n: number | string) =>
-  Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const fmtDate = (d?: string) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
-
 const NOTES = [
-  "Fees paid through cheque/demand draft are subject to clearing.",
-  "If the cheque/draft is dishonoured by the bank due to any reason, a penalty will be charged as per school fee policy along with late fee payment and bank charges as applicable.",
-  "The fee paid is NON-TRANSFERABLE / NON-REFUNDABLE. (Subject to management decision)",
-  "This is a system generated receipt and does not require a signature.",
-  "On confirmation of admission, this will be considered as a part of Tuition fees.",
+  "Fees paid through cheque/online transfer are subject to clearing and bank verification.",
+  "Fee payments are non-transferable and non-refundable unless approved by management policy.",
+  "This is an official system-generated electronic fee receipt.",
 ];
 
 export default function FeeReceiptPage({ paymentId }: Props) {
   const { data: receipt, loading, error } = useApi<any>(`/fees/payments/${paymentId}`);
+  const { formatDate, formatFeeName, isBS } = useDateFormat();
+  const { fmt: formatCurrency, symbol: currSymbol } = useCurrency();
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => window.print();
 
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-      <Spinner size={36} color="#cc0000" />
+      <Spinner size={36} color="#ea580c" />
     </div>
   );
 
@@ -136,321 +132,390 @@ export default function FeeReceiptPage({ paymentId }: Props) {
     </div>
   );
 
-  const hasDiscount = Number(receipt.discount_amount) > 0;
-  const hasFine     = Number(receipt.fine_amount) > 0;
-  const netAmount   = Number(receipt.paid_amount);
+  const totalGross = parseFloat(receipt.total_amount || 0);
+  const discountAmt = parseFloat(receipt.discount_amount || 0);
+  const fineAmt = parseFloat(receipt.fine_amount || 0);
+  const netBillAmt = parseFloat(receipt.net_amount || (totalGross - discountAmt + fineAmt));
+  const paidNow = parseFloat(receipt.paid_amount || 0);
+  const totalPaidToDate = parseFloat(receipt.total_paid_to_date || paidNow);
+  const remainingDue = parseFloat(receipt.remaining_amount || 0);
+  const isWaived = receipt.collection_status === "waived" || (remainingDue === 0 && totalPaidToDate < netBillAmt);
+  const waivedAmt = isWaived ? Math.max(0, netBillAmt - totalPaidToDate) : 0;
+  const balanceDue = !isWaived && totalPaidToDate < netBillAmt ? Math.max(0, netBillAmt - totalPaidToDate) : 0;
 
-  // Gender prefix
-  const genderPrefix = receipt.gender === "female" ? "MS." : "MR.";
+  // Parse Fee Details (Head, From Month, To Month, Months count, Rate per month)
+  const formattedFee = formatFeeName(receipt.fee_name || "Fee");
+  let cleanHead = formattedFee.replace(/\s*\([^)]*\)/g, "").trim() || receipt.fee_name || "Fee";
+  cleanHead = cleanHead.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
-  // Class + Section label (e.g. "Class 1 - A")
-  const classSection = [receipt.class_name, receipt.section_name]
-    .filter(Boolean)
-    .join(" - ") || "—";
+  let fromMonth = "—";
+  let toMonth = "—";
+  let duration = "—";
+  let monthsCount = 1;
+  let feePeriod = "—";
 
-  // School address composed
-  const schoolAddress = [receipt.school_city].filter(Boolean).join(", ") || "";
+  const parenMatch = formattedFee.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const inside = parenMatch[1].trim();
+    const countMatch = inside.match(/·\s*(\d+)\s*Months?/i);
+    if (countMatch) {
+      monthsCount = parseInt(countMatch[1], 10);
+      duration = `${monthsCount} Month${monthsCount > 1 ? "s" : ""}`;
+    }
 
-  // Receipt number: use stored one or generate from payment_id
+    const rangeMatch = inside.match(/([A-Za-z]+(?:\s+\d{4})?)\s+(?:to|–|-)\s+([A-Za-z]+(?:\s+\d{4})?)/i);
+    if (rangeMatch) {
+      fromMonth = rangeMatch[1].trim();
+      toMonth = rangeMatch[2].trim();
+      duration = countMatch ? `${monthsCount} Month${monthsCount > 1 ? "s" : ""}` : `${fromMonth} – ${toMonth}`;
+      feePeriod = `${fromMonth} – ${toMonth}`;
+    } else if (/^(?:AY\s*)?(\d{4}(?:[\/\-]\d{2,4})?)$/i.test(inside) || /annual|session/i.test(inside)) {
+      feePeriod = receipt.year_name || inside;
+      duration = "Annual";
+    } else {
+      feePeriod = inside;
+      duration = "1 Month";
+    }
+  } else if (receipt.year_name) {
+    feePeriod = receipt.year_name;
+    duration = "Annual";
+  } else {
+    feePeriod = receipt.fee_type ? `${receipt.fee_type.charAt(0).toUpperCase()}${receipt.fee_type.slice(1)} Fee` : "General";
+  }
+
+  const ratePerMonth = receipt.structure_amount
+    ? Number(receipt.structure_amount)
+    : (monthsCount > 1 ? totalGross / monthsCount : totalGross);
+
   const receiptNo = receipt.receipt_number || `REC-${String(paymentId).padStart(6, "0")}`;
-
-  // Split receipt_number for display (e.g. "RCP-000023" → just show as is)
-  const yearCode = receipt.year_name || new Date().getFullYear() + "-" + (new Date().getFullYear() + 1);
+  const classSection = [receipt.class_name, receipt.section_name].filter(Boolean).join(" - ") || "—";
+  const schoolAddress = [receipt.school_city].filter(Boolean).join(", ") || "";
 
   return (
     <>
-      {/* ── Print button (hidden on print) ── */}
-      <div className="receipt-no-print" style={{ padding: "16px 32px", display: "flex", gap: 12, alignItems: "center", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
-        {/* Azure cloud PDF — generate via backend */}
+      <div
+        className="receipt-no-print"
+        style={{
+          padding: "12px 28px",
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          background: "#fff",
+          borderBottom: "1px solid #ddd",
+          flexWrap: "wrap",
+        }}
+      >
         <AzureReceiptButton paymentId={paymentId} />
-
-        {/* Browser print / save as PDF */}
         <button
           onClick={handlePrint}
-          style={{ padding: "9px 22px", background: "#cc0000", color: "#fff", border: "none", borderRadius: 8, fontWeight: 900, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit" }}
+          style={{
+            padding: "8px 18px",
+            background: "#111",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            fontWeight: 700,
+            fontSize: 12.5,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontFamily: "inherit",
+          }}
         >
-          <i className="fa-solid fa-print" /> Print / Save as PDF
+          <i className="fa-solid fa-print" /> Print Receipt
         </button>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7b86" }}>
-          "Download PDF" generates a cloud receipt &nbsp;·&nbsp; "Print" uses browser print dialog
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#888", marginLeft: "auto" }}>
+          {isBS ? "Bikram Sambat (BS)" : "AD Calendar"}
         </span>
       </div>
 
-      {/* ── Receipt wrapper ── */}
       <div ref={printRef} className="receipt-wrap">
         <style>{`
           @media print {
             .receipt-no-print { display: none !important; }
-            body { margin: 0; padding: 0; }
-            .receipt-wrap { box-shadow: none !important; margin: 0 !important; border: none !important; }
+            body { margin: 0; padding: 0; background: #fff !important; }
+            .receipt-wrap {
+              box-shadow: none !important;
+              margin: 0 !important;
+              max-width: 100% !important;
+              border: none !important;
+              padding: 0 !important;
+            }
           }
 
           .receipt-wrap {
-            max-width: 820px;
-            margin: 28px auto;
+            max-width: 800px;
+            margin: 28px auto 56px;
             background: #fff;
-            box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-            font-family: Arial, "Helvetica Neue", sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
             font-size: 13px;
             color: #000;
           }
 
-          .receipt-inner {
-            padding: 36px 48px 40px;
+          .r-inner { padding: 40px 48px 44px; }
+
+          /* Header */
+          .r-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 32px;
+          }
+          .r-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-right: 20px;
+          }
+          .r-header-text {
+            flex: 1;
+            text-align: center;
+            padding-right: 100px; /* offset logo width to truly center */
+          }
+          .r-school-name {
+            font-size: 22px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 6px;
+          }
+          .r-school-addr {
+            font-size: 11px;
+            font-weight: bold;
           }
 
-          /* ── Header ── */
-          .rh { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
-          .rh-left { display: flex; align-items: flex-start; gap: 14px; }
-          .rh-logo { width: 70px; height: 70px; border-radius: 12px; overflow: hidden; flex-shrink: 0; }
-          .rh-logo img { width: 100%; height: 100%; object-fit: cover; }
-          .rh-logo-initials {
-            width: 100%; height: 100%;
-            background: linear-gradient(135deg, #cc0000, #ff6600);
-            display: flex; flex-direction: column; align-items: center;
-            justify-content: center; color: #fff; font-weight: 900; border-radius: 12px;
+          /* Info Rows */
+          .r-info-row {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 16px;
+            font-size: 12.5px;
+            font-weight: bold;
           }
-          .rh-logo-initials span { font-size: 22px; line-height: 1.1; }
-          .rh-logo-initials small { font-size: 9px; letter-spacing: 0.5px; opacity: 0.85; font-weight: 700; }
-          .rh-school-left { display: flex; flex-direction: column; justify-content: center; }
-          .rh-school-left .name-line { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.5; }
-          .rh-right { text-align: center; }
-          .rh-right .school-title { font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-          .rh-right .school-addr { font-size: 11.5px; color: #333; }
+          .r-lbl { white-space: nowrap; }
+          .r-val {
+            border-bottom: 1.5px solid #000;
+            padding: 0 10px;
+            text-align: center;
+            white-space: nowrap;
+          }
 
-          /* ── Divider ── */
-          .rdiv { border: 0; border-top: 1.5px solid #000; margin: 6px 0; }
-          .rdiv-thin { border: 0; border-top: 0.5px solid #666; margin: 5px 0; }
+          /* Table */
+          .r-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-spacing: 0;
+            margin-top: 14px;
+            margin-bottom: 20px;
+            border: 1.5px solid #000;
+            empty-cells: show;
+          }
+          .r-table th, .r-table td {
+            border: 1px solid #000;
+            padding: 6px 10px;
+            font-size: 12px;
+            text-align: center;
+            vertical-align: middle;
+          }
+          .r-table th {
+            font-weight: bold;
+            padding: 7px 10px;
+            background: #fff;
+          }
+          .r-table td {
+            font-weight: bold;
+          }
+          .r-table tbody tr:last-child td {
+            border-bottom: 1.5px solid #000;
+          }
 
-          /* ── Row fields ── */
-          .rrow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 7px 0; }
-          .rfield { display: flex; align-items: baseline; gap: 0; }
-          .rfield-lbl { font-weight: 700; white-space: nowrap; }
-          .rfield-sep { margin: 0 4px; font-weight: 700; }
-          .rfield-val { border-bottom: 1px solid #000; min-width: 120px; padding: 0 4px; font-weight: 400; }
-          .rfield-spacer { flex: 1; }
-          .rname-row { display: flex; align-items: baseline; gap: 0; margin: 7px 0; }
-          .rname-lbl { font-weight: 700; white-space: nowrap; }
-          .rname-val { border-bottom: 1px solid #000; flex: 1; padding: 0 6px; font-weight: 700; letter-spacing: 0.3px; }
-          .rdept-row { display: flex; align-items: baseline; margin: 7px 0; gap: 0; }
-          .rdept-lbl { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-          .rdept-val { border-bottom: 1px solid #000; flex: 1; padding: 0 6px; }
-          .rsem-lbl  { font-weight: 700; white-space: nowrap; margin-left: 32px; flex-shrink: 0; }
-          .rsem-val  { border-bottom: 1px solid #000; min-width: 100px; padding: 0 6px; }
+          /* Footer Info */
+          .r-footer-row {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: bold;
+          }
+          .r-footer-val {
+            border-bottom: 1.5px solid #000;
+            padding: 0 8px;
+            flex: 1;
+            margin-left: 8px;
+            font-weight: normal;
+            white-space: nowrap;
+          }
 
-          /* ── Table ── */
-          .rtable { width: 100%; border-collapse: collapse; margin: 14px 0 10px; }
-          .rtable th { border: 1px solid #000; padding: 7px 10px; font-weight: 700; text-align: center; background: #fff; font-size: 13px; }
-          .rtable td { border: 1px solid #000; padding: 6px 10px; }
-          .rtable .td-sr { text-align: center; width: 64px; }
-          .rtable .td-amt { text-align: right; width: 130px; }
-          .rtable .td-total { border-top: 1.5px solid #000; font-weight: 900; text-align: right; }
-          .rtable .no-border-left  { border-left: 0; }
-          .rtable .no-border-right { border-right: 0; }
-
-          /* ── Footer rows ── */
-          .rfrow { display: flex; align-items: baseline; margin: 8px 0; gap: 0; }
-          .rfrow-lbl { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-          .rfrow-sep { margin: 0 4px; font-weight: 700; }
-          .rfrow-val { border-bottom: 1px solid #000; flex: 1; padding: 0 6px; max-width: 400px; }
-          .rfrow-date-lbl { font-weight: 700; margin-left: 24px; white-space: nowrap; }
-          .rfrow-date-val { border-bottom: 1px solid #000; min-width: 100px; padding: 0 6px; }
-
-          /* ── Notes ── */
-          .rnotes { margin-top: 18px; }
-          .rnotes-title { font-weight: 700; text-decoration: underline; margin-bottom: 6px; }
-          .rnotes ol { margin: 0; padding-left: 18px; }
-          .rnotes li { margin-bottom: 4px; font-size: 12px; line-height: 1.5; }
-
-          /* ── Footer ── */
-          .rfooter { text-align: center; font-size: 11.5px; font-style: italic; margin-top: 22px; color: #444; border-top: 0.5px solid #999; padding-top: 10px; }
+          /* Notes */
+          .r-notes {
+            margin-top: 28px;
+            font-size: 10.5px;
+            line-height: 1.5;
+          }
+          .r-notes strong {
+            text-decoration: underline;
+            font-size: 11.5px;
+            display: inline-block;
+            margin-bottom: 6px;
+          }
+          .r-disclaimer {
+            text-align: center;
+            font-size: 9px;
+            margin-top: 24px;
+            font-style: italic;
+          }
         `}</style>
 
-        <div className="receipt-inner">
-          {/* ═══ HEADER ═══ */}
-          <div className="rh">
-            {/* Left — logo + school name stacked */}
-            <div className="rh-left">
-              <div className="rh-logo">
-                {receipt.school_logo ? (
-                  <img src={receipt.school_logo} alt={receipt.school_name} />
-                ) : (
-                  <div className="rh-logo-initials">
-                    {(receipt.school_name || "SC").split(" ").map((w: string) => w[0]).join("").slice(0, 3).split("").map((ch: string, i: number) => (
-                      <span key={i}>{ch}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="rh-school-left">
-                {(receipt.school_name || "School Name")
-                  .split(" ")
-                  .reduce((acc: string[][], word: string, i: number) => {
-                    const chunk = Math.floor(i / 2);
-                    if (!acc[chunk]) acc[chunk] = [];
-                    acc[chunk].push(word);
-                    return acc;
-                  }, [] as string[][])
-                  .map((words: string[], i: number) => (
-                    <div key={i} className="name-line">{words.join(" ")}</div>
-                  ))}
+        <div className="r-inner">
+          {/* Header */}
+          <div className="r-header">
+            {receipt.school_logo && <img src={receipt.school_logo} alt="Logo" className="r-logo" />}
+            <div className="r-header-text" style={{ paddingRight: receipt.school_logo ? '100px' : '0' }}>
+              <div className="r-school-name">{receipt.school_name || "SCHOOL NAME"}</div>
+              <div className="r-school-addr">
+                {[receipt.school_city, receipt.school_phone, receipt.school_email].filter(Boolean).join(", ")}
               </div>
             </div>
+          </div>
 
-            {/* Right — bold school name + address */}
-            <div className="rh-right">
-              <div className="school-title">{receipt.school_name || "School Name"}</div>
-              {schoolAddress && <div className="school-addr">{schoolAddress}</div>}
-              {receipt.school_phone && <div className="school-addr">Ph: {receipt.school_phone}</div>}
-              {receipt.school_email && <div className="school-addr">{receipt.school_email}</div>}
+          {/* Info Line 1 */}
+          <div className="r-info-row" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flex: 1.5 }}>
+              <span className="r-lbl">Receipt No &nbsp;:</span>
+              <span className="r-val" style={{ flex: 1, marginLeft: 4 }}>{receiptNo}</span>
+            </div>
+            <div style={{ display: 'flex', flex: 1.5, marginLeft: 16 }}>
+              <span className="r-lbl">UID:</span>
+              <span className="r-val" style={{ flex: 1, marginLeft: 4 }}>{receipt.admission_number || ""}</span>
+            </div>
+            <div style={{ display: 'flex', flex: 1.5, marginLeft: 16 }}>
+              <span className="r-lbl">Date:</span>
+              <span className="r-val" style={{ flex: 1, marginLeft: 4 }}>{receipt.payment_date ? formatDate(receipt.payment_date.slice(0, 10)) : ""}</span>
+            </div>
+            <div style={{ display: 'flex', flex: 1, marginLeft: 16 }}>
+              <span className="r-lbl">A. Year</span>
+              <span className="r-val" style={{ flex: 1, marginLeft: 4 }}>{receipt.year_name || ""}</span>
             </div>
           </div>
 
-          <hr className="rdiv" />
-
-          {/* ═══ RECEIPT INFO LINE ═══ */}
-          <div className="rrow">
-            <div className="rfield">
-              <span className="rfield-lbl">Receipt No</span>
-              <span className="rfield-sep">:</span>
-              <span className="rfield-val">{receiptNo}</span>
-            </div>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <div className="rfield">
-              <span className="rfield-lbl">UID</span>
-              <span className="rfield-sep">:</span>
-              <span className="rfield-val" style={{ minWidth: 140 }}>{receipt.admission_number || "—"}</span>
-            </div>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <div className="rfield">
-              <span className="rfield-lbl">Date</span>
-              <span className="rfield-sep">:</span>
-              <span className="rfield-val">{fmtDate(receipt.payment_date)}</span>
-            </div>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <div className="rfield">
-              <span className="rfield-lbl">A. Year</span>
-              <span className="rfield-sep">:</span>
-              <span className="rfield-val">{receipt.year_name || yearCode}</span>
-            </div>
+          {/* Info Line 2 */}
+          <div className="r-info-row">
+            <span className="r-lbl">MR. / MS. &nbsp; &nbsp; &nbsp;:</span>
+            <span className="r-val" style={{ flex: 1, marginLeft: 4, textAlign: 'left', paddingLeft: 16 }}>
+              {receipt.student_name || ""}
+            </span>
           </div>
 
-          {/* ═══ STUDENT NAME ═══ */}
-          <div className="rname-row">
-            <span className="rname-lbl">MR. / MS.</span>
-            <span className="rfield-sep">:</span>
-            <span className="rname-val">{receipt.student_name?.toUpperCase() || "—"}</span>
+          {/* Info Line 3 */}
+          <div className="r-info-row">
+            <span className="r-lbl">Class &amp; Section :</span>
+            <span className="r-val" style={{ flex: 2, marginLeft: 4, textAlign: 'left', paddingLeft: 16 }}>
+              {classSection}
+            </span>
+            <span className="r-lbl" style={{ marginLeft: 16 }}>Fee Period &nbsp;:</span>
+            <span className="r-val" style={{ flex: 1.2, marginLeft: 4 }}>
+              {feePeriod}
+            </span>
           </div>
 
-          {/* ═══ CLASS + SECTION / STREAM ═══ */}
-          <div className="rdept-row">
-            <span className="rdept-lbl">Class</span>
-            <span className="rfield-sep">:</span>
-            <span className="rdept-val">{classSection}</span>
-            <span className="rsem-lbl">Fee Type</span>
-            <span className="rfield-sep">:</span>
-            <span className="rsem-val" style={{ textTransform: "capitalize" }}>{receipt.fee_type || "Academic"}</span>
-          </div>
+          <hr style={{ border: 'none', borderTop: '3px double #000', margin: '14px 0 16px 0' }} />
 
-          <hr className="rdiv" />
-
-          {/* ═══ FEE TABLE ═══ */}
-          <table className="rtable">
+          {/* Table */}
+          <table className="r-table">
             <thead>
               <tr>
-                <th className="td-sr">Sr. No.</th>
-                <th>Particulars</th>
-                <th className="td-amt">Amount</th>
+                <th style={{ width: '80px' }}>Sr. No.</th>
+                <th style={{ textAlign: 'left', paddingLeft: '12px' }}>Particulars</th>
+                <th style={{ width: '140px' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
-              {/* Main fee row */}
+              {/* Primary Fee Row */}
               <tr>
-                <td className="td-sr">1</td>
-                <td>{receipt.fee_name || "Fee"}</td>
-                <td className="td-amt">{fmt(receipt.total_amount)}</td>
+                <td style={{ padding: '6px 8px' }}>1</td>
+                <td style={{ textAlign: 'left', padding: '6px 12px' }}>
+                  {cleanHead.toUpperCase()}
+                  {discountAmt > 0 && ` (LESS DISCOUNT: ${formatCurrency(discountAmt)})`}
+                  {fineAmt > 0 && ` (ADD FINE: ${formatCurrency(fineAmt)})`}
+                </td>
+                <td style={{ padding: '6px 8px' }}>{formatCurrency(netBillAmt)}</td>
               </tr>
 
-              {/* Discount row — only if discount exists */}
-              {hasDiscount && (
+              {/* Less: Waived Amount (if any portion was waived) */}
+              {waivedAmt > 0 && (
                 <tr>
-                  <td className="td-sr">2</td>
-                  <td>
-                    {receipt.discount_reason || "Scholarship / Discount"}
-                    <span style={{ color: "#666", fontSize: 11, marginLeft: 6 }}>
-                      (−{fmt(receipt.discount_amount)})
-                    </span>
+                  <td style={{ padding: '6px 8px' }}>&nbsp;</td>
+                  <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#333' }}>
+                    Less: Waived by Management {receipt.fine_reason ? `(${receipt.fine_reason})` : ''}
                   </td>
-                  <td className="td-amt" style={{ color: "#15803d" }}>−{fmt(receipt.discount_amount)}</td>
+                  <td style={{ padding: '6px 8px' }}>− {formatCurrency(waivedAmt)}</td>
                 </tr>
               )}
 
-              {/* Fine row — only if fine exists */}
-              {hasFine && (
+              {/* Less: Balance Due (if partial payment, not waived) */}
+              {balanceDue > 0 && (
                 <tr>
-                  <td className="td-sr">{hasDiscount ? "3" : "2"}</td>
-                  <td>{receipt.fine_reason || "Late Fee / Fine"}</td>
-                  <td className="td-amt" style={{ color: "#b42318" }}>+{fmt(receipt.fine_amount)}</td>
+                  <td style={{ padding: '6px 8px' }}>&nbsp;</td>
+                  <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#333' }}>
+                    Less: Balance Due / Pending
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>− {formatCurrency(balanceDue)}</td>
                 </tr>
               )}
 
-              {/* Total row */}
+              {/* Total Paid Row */}
               <tr>
-                <td style={{ border: "1px solid #000" }} />
-                <td style={{ border: "1px solid #000" }} />
-                <td className="td-amt td-total">{fmt(netAmount)}</td>
+                <td style={{ padding: '6px 8px' }}>&nbsp;</td>
+                <td style={{ textAlign: 'right', padding: '6px 12px', fontWeight: 'bold' }}>
+                  TOTAL RECEIVED
+                </td>
+                <td style={{ padding: '6px 8px', fontWeight: 'bold' }}>{formatCurrency(paidNow)}</td>
               </tr>
             </tbody>
           </table>
 
-          {/* ═══ IN WORDS ═══ */}
-          <div className="rfrow">
-            <span className="rfrow-lbl">(In Words)</span>
-            <span className="rfrow-sep">:</span>
-            <span style={{ fontWeight: 700, marginLeft: 4 }}>{amountToWords(netAmount)}</span>
-          </div>
-
-          {/* ═══ PAYMENT METHOD ═══ */}
-          <div className="rfrow">
-            <span className="rfrow-lbl">By Cash / Cheque / D.D. No</span>
-            <span className="rfrow-sep">:</span>
-            <span className="rfrow-val">
-              {receipt.transaction_id
-                ? `${receipt.transaction_id} — ${(receipt.payment_method || "cash").toUpperCase()}`
-                : (receipt.payment_method || "Cash").toUpperCase()}
+          {/* Footer Info Lines */}
+          <div className="r-footer-row">
+            <span className="r-lbl">(In Words) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;:</span>
+            <span className="r-footer-val" style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>
+              {amountToWords(paidNow)}
             </span>
-            <span className="rfrow-date-lbl">Date</span>
-            <span className="rfrow-sep">:</span>
-            <span className="rfrow-date-val">{fmtDate(receipt.payment_date)}</span>
           </div>
-
-          {/* ═══ BANK NAME ═══ */}
-          <div className="rfrow">
-            <span className="rfrow-lbl">Bank Name</span>
-            <span className="rfrow-sep">:</span>
-            <span className="rfrow-val">
-              {["bank_transfer", "cheque", "online"].includes(receipt.payment_method)
-                ? (receipt.payment_remarks || "—")
-                : "—"}
+          <div className="r-footer-row">
+            <span className="r-lbl">By Cash / Cheque / D.D. No :</span>
+            <span className="r-footer-val" style={{ flex: 1.5 }}>
+              {(receipt.payment_method || "CASH").toUpperCase()}
+            </span>
+            <span className="r-lbl" style={{ marginLeft: 16 }}>Date &nbsp; &nbsp;:</span>
+            <span className="r-footer-val" style={{ flex: 1 }}>
+              {receipt.payment_date ? formatDate(receipt.payment_date.slice(0, 10)) : ""}
+            </span>
+          </div>
+          <div className="r-footer-row">
+            <span className="r-lbl">Bank Name &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;:</span>
+            <span className="r-footer-val">
+              {receipt.transaction_id || "-"}
             </span>
           </div>
 
-          {/* ═══ NOTES ═══ */}
-          <div className="rnotes">
-            <div className="rnotes-title">Please Note:</div>
-            <ol>
-              {NOTES.map((note, i) => (
-                <li key={i}>{note}</li>
-              ))}
+          {/* Notes */}
+          <div className="r-notes">
+            <strong>Please Note:</strong>
+            <ol style={{ margin: "4px 0 0", paddingLeft: 18, listStyleType: "decimal" }}>
+              <li>Fees paid through cheque/demand draft are subject to clearing.</li>
+              <li>If the cheque/draft is dishonored by the bank due to any reason, a penalty will be charged as per school fee policy along with late fee payment and bank charges as applicable.</li>
+              <li>The fee paid is NON-TRANSFERABLE / NON-REFUNDABLE. (Subject to management decision)</li>
+              <li>This is a system generated receipt and does not require a signature.</li>
+              <li>On confirmation of admission, this will be considered as a part of Tuition fees.</li>
             </ol>
+            <div className="r-disclaimer">
+              This is an electronically generated report, hence does not require a signature
+            </div>
           </div>
 
-          {/* ═══ FOOTER ═══ */}
-          <div className="rfooter">
-            This is an electronically generated report, hence does not require a signature
-          </div>
         </div>
       </div>
     </>
   );
 }
+

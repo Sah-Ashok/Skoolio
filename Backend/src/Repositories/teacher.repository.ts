@@ -140,6 +140,28 @@ export const getSubjectsByTeacher = async (teacher_id: number, school_id: number
   return result.rows;
 };
 
+export const getAllTeacherAssignedSubjects = async (teacher_id: number, school_id: number): Promise<any[]> => {
+  const result = await pool.query(
+    `SELECT DISTINCT
+       s.id,
+       s.name,
+       s.code,
+       s.name AS subject_name,
+       s.code AS subject_code,
+       c.name AS class_name
+     FROM subjects s
+     LEFT JOIN class_subject_teachers cst ON cst.subject_id = s.id AND cst.teacher_id = $1 AND cst.school_id = $2
+     LEFT JOIN section_timetables st ON st.subject_id = s.id AND st.teacher_id = $1 AND st.school_id = $2
+     LEFT JOIN teacher_subjects ts ON ts.subject_id = s.id AND ts.teacher_id = $1 AND ts.school_id = $2
+     LEFT JOIN classes c ON (c.id = cst.class_id OR c.id = st.class_id)
+     WHERE s.school_id = $2
+       AND (cst.teacher_id = $1 OR st.teacher_id = $1 OR ts.teacher_id = $1)
+     ORDER BY s.name ASC`,
+    [teacher_id, school_id]
+  );
+  return result.rows;
+};
+
 export const removeSubjectFromTeacher = async (teacher_id: number, subject_id: number, school_id: number): Promise<boolean> => {
   const result = await pool.query(
     `DELETE FROM teacher_subjects WHERE teacher_id = $1 AND subject_id = $2 AND school_id = $3`,

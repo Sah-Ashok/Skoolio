@@ -297,7 +297,10 @@ export default function FeeRecordsPage() {
   const totalPaid    = (collections || []).reduce((s, c) => s + parseFloat(c.paid_amount || "0"), 0);
   const totalPending = (collections || []).filter(c => c.status !== "paid" && c.status !== "waived")
     .reduce((s, c) => s + parseFloat(c.remaining_amount || "0"), 0);
-  const transportBills = (collections || []).filter(c => (c.fee_type || "academic") === "transport").length;
+  const transportBills = (collections || []).filter(c => {
+    const t = (c.fee_type || "academic").toLowerCase();
+    return t === "transport" || t === "hostel" || t === "facility" || t.includes("hostel") || t.includes("transport");
+  }).length;
 
   return (
     <div className={s("feesPage")}>
@@ -500,8 +503,11 @@ export default function FeeRecordsPage() {
                 </thead>
                 <tbody>
                   {paginatedRecords.map(col => {
+                    const totalAmt = parseFloat(col.total_amount || 0);
+                    const remAmt   = parseFloat(col.remaining_amount || col.total_amount || 0);
+                    const paidAmt  = parseFloat(col.paid_amount || 0);
                     const isOverdue = col.status !== "paid" && col.status !== "waived" && Boolean(col.due_date) && new Date(col.due_date) < new Date();
-                    const hasPaid   = col.status === "paid" || col.status === "partial";
+                    const hasPaid   = col.status === "paid" || col.status === "partial" || paidAmt > 0;
                     const isFullyPaid = col.status === "paid";
                     const isWaived    = col.status === "waived";
 
@@ -531,10 +537,6 @@ export default function FeeRecordsPage() {
                         feePeriod = inner;
                       }
                     }
-
-                    const totalAmt = parseFloat(col.total_amount || 0);
-                    const remAmt   = parseFloat(col.remaining_amount || col.total_amount || 0);
-                    const paidAmt  = parseFloat(col.paid_amount || 0);
 
                     return (
                       <tr key={col.id} style={isOverdue ? { background: "#fffaf5" } : undefined}>
@@ -627,7 +629,10 @@ export default function FeeRecordsPage() {
                               </>
                             ) : isWaived ? (
                               <>
-                                <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#64748b" }}>{currSymbol}0</strong>
+                                <strong style={{ fontSize: 13.5, fontWeight: 900, color: paidAmt > 0 ? "#059669" : "#64748b" }}>
+                                  {paidAmt > 0 ? formatCurrency(paidAmt) : formatCurrency(totalAmt)}
+                                </strong>
+                                {paidAmt > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>/ {formatCurrency(totalAmt)}</span>}
                                 <span style={{ fontSize: 11, fontWeight: 700, color: "#3b82f6" }}>· Waived</span>
                               </>
                             ) : paidAmt > 0 ? (

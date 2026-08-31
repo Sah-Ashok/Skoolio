@@ -463,13 +463,18 @@ export default function StudentFeeHistoryPage() {
   });
 
   // ── Fee type summary ──
-  const byType: Record<string, { billed: number; paid: number; pending: number }> = {};
+  const byType: Record<string, { billed: number; paid: number; waived: number; pending: number }> = {};
   collections.forEach((c: any) => {
     const t = c.fee_type || "academic";
-    if (!byType[t]) byType[t] = { billed: 0, paid: 0, pending: 0 };
-    byType[t].billed  += parseFloat(c.net_amount || c.total_amount || 0);
-    byType[t].paid    += effectivePaid(c);
-    byType[t].pending += parseFloat(c.remaining_amount || 0);
+    if (!byType[t]) byType[t] = { billed: 0, paid: 0, waived: 0, pending: 0 };
+    const net = parseFloat(c.net_amount || c.total_amount || 0);
+    const paid = effectivePaid(c);
+    byType[t].billed  += net;
+    byType[t].paid    += paid;
+    if (c.status === "waived") {
+      byType[t].waived += Math.max(0, net - paid);
+    }
+    byType[t].pending += (c.status === "paid" || c.status === "waived") ? 0 : parseFloat(c.remaining_amount || 0);
   });
 
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -691,10 +696,12 @@ export default function StudentFeeHistoryPage() {
                 <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>Fee Breakdown by Category</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {Object.entries(byType).map(([type, data]) => {
-                    const typePct  = data.billed > 0 ? (data.paid / data.billed) * 100 : 0;
-                    const tColor   = TYPE_COLOR[type] || "#475569";
-                    const tBorder  = TYPE_BORDER[type] || "#e2e8f0";
-                    const tBg      = TYPE_BG[type] || "#f8fafc";
+                    const settled = data.paid + (data.waived || 0);
+                    const typePct = data.billed > 0 ? (settled / data.billed) * 100 : 0;
+                    const isFullySettled = data.pending === 0;
+                    const tColor   = isFullySettled ? "#059669" : (TYPE_COLOR[type] || "#475569");
+                    const tBorder  = isFullySettled ? "#bbf7d0" : (TYPE_BORDER[type] || "#e2e8f0");
+                    const tBg      = isFullySettled ? "#f0fdf4" : (TYPE_BG[type] || "#f8fafc");
                     return (
                       <div key={type} style={{ padding: "12px 16px", borderRadius: 10, border: `1.5px solid ${tBorder}`, background: tBg }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 12, flexWrap: "wrap" }}>
@@ -708,6 +715,7 @@ export default function StudentFeeHistoryPage() {
                             {([
                               { label: "Billed",  val: data.billed,  color: "#1f2d36" },
                               { label: "Paid",    val: data.paid,    color: "#059669" },
+                              ...(data.waived > 0 ? [{ label: "Waived", val: data.waived, color: "#3b82f6" }] : []),
                               { label: "Pending", val: data.pending, color: data.pending > 0 ? "#be123c" : "#059669" },
                             ]).map(({ label, val, color }) => (
                               <div key={label} style={{ textAlign: "right" }}>
@@ -721,7 +729,10 @@ export default function StudentFeeHistoryPage() {
                           <div style={{ height: "100%", width: `${Math.min(100, typePct).toFixed(1)}%`, background: tColor, borderRadius: "inherit", transition: "width .5s ease" }} />
                         </div>
                         <div style={{ marginTop: 4, textAlign: "right" }}>
-                          <small style={{ fontSize: 10, fontWeight: 700, color: tColor }}>{typePct.toFixed(0)}% paid</small>
+                          <small style={{ fontSize: 10, fontWeight: 700, color: tColor }}>
+                            {isFullySettled ? "100% cleared" : `${typePct.toFixed(0)}% paid`}
+                            {data.waived > 0 && isFullySettled ? ` (incl. ${fmt(data.waived)} waived)` : ""}
+                          </small>
                         </div>
                       </div>
                     );
