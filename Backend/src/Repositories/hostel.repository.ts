@@ -167,7 +167,7 @@ export const createAssignment = async (school_id: number, data: ICreateAssignmen
 export const getAssignmentsByHostel = async (hostel_id: number, school_id: number, academic_year_id?: number): Promise<any[]> => {
   const params: any[] = [hostel_id, school_id];
   const yearFilter = academic_year_id
-    ? `AND ha.academic_year_id = $${params.push(academic_year_id)}`
+    ? `AND (ha.academic_year_id = $${params.push(academic_year_id)} OR ha.academic_year_id IS NULL)`
     : '';
   const result = await pool.query(
     `SELECT ha.*,
@@ -181,7 +181,6 @@ export const getAssignmentsByHostel = async (hostel_id: number, school_id: numbe
      LEFT JOIN student_enrollments se
        ON se.student_id       = ha.student_id
       AND se.school_id        = ha.school_id
-      AND se.academic_year_id = ha.academic_year_id
       AND se.status           = 'active'
      LEFT JOIN classes  cl  ON cl.id  = se.class_id
      LEFT JOIN sections sec ON sec.id = se.section_id

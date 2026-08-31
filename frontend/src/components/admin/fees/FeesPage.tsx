@@ -16,7 +16,7 @@ const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boo
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function FeesPage() {
-  const { formatDate } = useDateFormat();
+  const { formatDate, formatFeeName } = useDateFormat();
   const { fmt: formatCurrency } = useCurrency();
   const { academicYearId } = useAcademicYear();
   const { data: collections, loading } = useApi<any[]>(
@@ -342,7 +342,8 @@ export default function FeesPage() {
                 </thead>
                 <tbody>
                   {pendingList.map((item) => {
-                    const initials = (item.student_name || "S")
+                    const studentName = item.full_name || item.student_name || "Student";
+                    const initials = studentName
                       .split(" ")
                       .map((w: string) => w[0])
                       .slice(0, 2)
@@ -355,13 +356,15 @@ export default function FeesPage() {
                           <div className={s("studentCell")}>
                             <div className={s("studentAvatar")}>{initials}</div>
                             <div>
-                              <span className={s("studentName")}>{item.student_name || "Student"}</span>
-                              <span className={s("studentCode")}>{item.student_roll || item.student_code || "—"}</span>
+                              <span className={s("studentName")}>{studentName}</span>
+                              <span className={s("studentCode")}>
+                                {item.admission_number ? `Adm: ${item.admission_number}` : item.class_name ? `Class ${item.class_name}` : "—"}
+                              </span>
                             </div>
                           </div>
                         </td>
                         <td>
-                          <span className={s("feeTitle")}>{item.fee_structure_name || item.title || "Tuition Fee"}</span>
+                          <span className={s("feeTitle")}>{formatFeeName(item.fee_name || item.fee_structure_name || "Fee")}</span>
                         </td>
                         <td>
                           <span className={s("categoryTag")}>
@@ -386,7 +389,7 @@ export default function FeesPage() {
                         <td style={{ textAlign: "right" }}>
                           <Link 
                             className={cx(s("btn"), s("btnSoft"), s("btnSm"))} 
-                            href={`/fees/collect?student_id=${item.student_id}`}
+                            href={`/fees/collect?student_id=${item.student_id}&collection_id=${item.id}`}
                           >
                             <i className="fa-solid fa-hand-holding-dollar" /> Collect
                           </Link>

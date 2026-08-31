@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import Topbar from "@/components/shared/Topbar";
-import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
@@ -13,310 +11,412 @@ import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
 import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
-const s  = (c: string) => styles[c] || c;
-const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
-const getInitials = (name: string) =>
-  (name || "?").split(" ").map((p: string) => p[0]).join("").substring(0, 2).toUpperCase();
-
-const TYPE_COLOR: Record<string, string> = { academic: "#3b5bdb", transport: "#c46a14", hostel: "#7c3aed" };
-const TYPE_BG:    Record<string, string> = { academic: "#e8edff", transport: "#fff1df", hostel: "#f3e8ff" };
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    paid: "badge-green", partial: "badge-yellow", unpaid: "badge-red", waived: "badge-blue",
-  };
-  return (
-    <span className={cx(s("badge"), s(map[status] ?? "badge-red"))} style={{ textTransform: "capitalize" }}>
-      {status}
-    </span>
-  );
-}
-
-function TypeBadge({ type }: { type: string }) {
-  const t = type || "academic";
-  return (
-    <span style={{
-      fontSize: 10, fontWeight: 900, padding: "2px 8px", borderRadius: 999,
-      background: TYPE_BG[t] || TYPE_BG.academic, color: TYPE_COLOR[t] || TYPE_COLOR.academic,
-      textTransform: "uppercase", letterSpacing: 0.3,
-    }}>
-      {t}
-    </span>
-  );
-}
-
-const INP: React.CSSProperties = {
-  minHeight: 42, padding: "0 12px", border: "1.5px solid #c6d0d7",
-  borderRadius: 8, fontSize: 13, fontWeight: 700, outline: "none",
-  width: "100%", background: "#fff", color: "#1a202c", boxSizing: "border-box",
+// ── Color & Style Tokens ────────────────────────────────────────────────────────
+const col = {
+  navy:       "#0f172a",
+  slate:      "#334155",
+  muted:      "#64748b",
+  lightMuted: "#94a3b8",
+  bg:         "#f8fafc",
+  card:       "#ffffff",
+  border:     "#e2e8f0",
+  borderDark: "#cbd5e1",
+  
+  // Brand Orange Accent
+  orange:     "#ea580c",
+  orangeBg:   "#fff7ed",
+  orangeBrd:  "#fed7aa",
+  
+  // Clean Functional Accents
+  green:      "#16a34a",
+  greenBg:    "#f0fdf4",
+  greenBrd:   "#bbf7d0",
+  
+  blue:       "#2563eb",
+  blueBg:     "#eff6ff",
+  blueBrd:    "#bfdbfe",
+  
+  purple:     "#7c3aed",
+  purpleBg:   "#f5f3ff",
+  purpleBrd:  "#ddd6fe",
+  
+  amber:      "#d97706",
+  amberBg:    "#fffbeb",
+  amberBrd:   "#fde68a",
+  
+  red:        "#dc2626",
+  redBg:      "#fef2f2",
+  redBrd:     "#fecaca",
 };
 
-// Convert an ISO due_date string to a human-readable BS month label
-function getMonthLabel(dueDate: string | undefined, isBS: boolean): string {
-  if (!dueDate) return "";
-  try {
-    const d = new Date(String(dueDate).slice(0, 10) + "T00:00:00");
-    if (isBS) {
-      const bs = adToBS(d);
-      return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
-    }
-    return d.toLocaleString("en-US", { month: "short", year: "numeric" });
-  } catch { return ""; }
+// ── Category Meta ─────────────────────────────────────────────────────────────
+const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
+  academic:  { label: "Academic",  icon: "fa-graduation-cap", color: col.blue,   bg: col.blueBg,   border: col.blueBrd },
+  transport: { label: "Transport", icon: "fa-bus-simple",     color: col.amber,  bg: col.amberBg,  border: col.amberBrd },
+  hostel:    { label: "Hostel",    icon: "fa-building",       color: col.purple, bg: col.purpleBg, border: col.purpleBrd },
+  misc:      { label: "One-Time",  icon: "fa-receipt",        color: col.slate,  bg: "#f1f5f9",    border: col.border },
+};
+
+function TypeBadge({ type }: { type: string }) {
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.academic;
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
+      background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+      display: "inline-flex", alignItems: "center", gap: 4, textTransform: "capitalize",
+    }}>
+      <i className={`fa-solid ${cfg.icon}`} style={{ fontSize: 9.5 }} />
+      {cfg.label}
+    </span>
+  );
 }
 
-// Group individual bills with the same fee_structure_id (or fee_name if no structure)
-// into combined rows so admin sees e.g. "Tuition – Feb→Mar  Rs 6,000" in one line.
+function getInitials(name: string) {
+  return (name || "?")
+    .trim()
+    .split(/\s+/)
+    .map(p => p[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
+}
+
 type GroupedBill = {
-  ids: number[];                 // all collection IDs in this group
+  ids: number[];
   fee_name: string;
   fee_type: string;
   fee_structure_id: number | null;
-  bills: any[];                  // original bills (for checkbox / payment)
+  bills: any[];
   total_amount: number;
   paid_amount: number;
   remaining_amount: number;
-  months: string[];              // month labels e.g. ["Magh 2083", "Falgun 2083"]
-  earliest_due: string;          // for overdue check
-  latest_due: string;            // for display
-  status: string;                // combined: unpaid > partial > paid
+  earliest_due: string;
+  latest_due: string;
+  status: string;
   created_at: string;
   allLocked: boolean;
   anyLocked: boolean;
   lockedMsg: string | null;
 };
 
-function groupBills(bills: any[], lockedIds: Set<number>, lockedByStructure: Map<number, string>, isBS: boolean): GroupedBill[] {
-  // Key: fee_structure_id (for monthly academic fees) OR fee_name (misc / no structure)
+function groupBills(bills: any[], lockedIds: Set<number>, lockedByStructure: Map<number, string>): GroupedBill[] {
   const map = new Map<string, GroupedBill>();
   for (const b of bills) {
     const genDate = b.created_at ? String(b.created_at).slice(0, 10) : "";
-    const key = b.fee_structure_id ? `struct-${b.fee_structure_id}-${genDate}` : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
-    const label = getMonthLabel(b.due_date, isBS);
-    const cleanFeeName = (b.fee_name || "").replace(/\s*-\s*\d{4}-\d{2}$/, '');
+    const key = b.fee_structure_id
+      ? `struct-${b.fee_structure_id}-${genDate}`
+      : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
+    const cleanFeeName = (b.fee_name || "").replace(/\s*-\s*\d{4}-\d{2}$/, "");
     if (!map.has(key)) {
       map.set(key, {
-        ids: [b.id],
+        ids: [],
         fee_name: cleanFeeName,
         fee_type: b.fee_type || "academic",
-        fee_structure_id: b.fee_structure_id ?? null,
-        bills: [b],
-        total_amount: Number(b.total_amount || 0),
-        paid_amount: Number(b.paid_amount || 0),
-        remaining_amount: Number(b.remaining_amount || 0),
-        months: label ? [label] : [],
-        earliest_due: b.due_date || "",
-        latest_due: b.due_date || "",
+        fee_structure_id: b.fee_structure_id || null,
+        bills: [],
+        total_amount: 0,
+        paid_amount: 0,
+        remaining_amount: 0,
+        earliest_due: b.due_date,
+        latest_due: b.due_date,
         status: b.status,
-        created_at: b.created_at || "",
-        allLocked: lockedIds.has(b.id),
-        anyLocked: lockedIds.has(b.id),
-        lockedMsg: lockedIds.has(b.id) ? (lockedByStructure.get(b.id) ?? null) : null,
+        created_at: b.created_at,
+        allLocked: true,
+        anyLocked: false,
+        lockedMsg: null,
       });
-    } else {
-      const g = map.get(key)!;
-      g.ids.push(b.id);
-      g.bills.push(b);
-      g.total_amount     += Number(b.total_amount || 0);
-      g.paid_amount      += Number(b.paid_amount || 0);
-      g.remaining_amount += Number(b.remaining_amount || 0);
-      if (label && !g.months.includes(label)) g.months.push(label);
-      if (b.due_date && b.due_date < g.earliest_due) g.earliest_due = b.due_date;
-      if (b.due_date && b.due_date > g.latest_due)   g.latest_due   = b.due_date;
-      if (lockedIds.has(b.id)) { g.anyLocked = true; if (!g.lockedMsg) g.lockedMsg = lockedByStructure.get(b.id) ?? null; }
-      else g.allLocked = false;
-      // Combined status: unpaid > partial > paid
-      if (b.status === "unpaid" || g.status === "unpaid") g.status = "unpaid";
-      else if (b.status === "partial" || g.status === "partial") g.status = "partial";
     }
+    const g = map.get(key)!;
+    g.ids.push(b.id);
+    g.bills.push(b);
+    g.total_amount     += Number(b.net_amount || b.total_amount || 0);
+    g.paid_amount      += Number(b.paid_amount || 0);
+    g.remaining_amount += Number(b.remaining_amount || 0);
+    if (b.due_date && b.due_date < g.earliest_due) g.earliest_due = b.due_date;
+    if (b.due_date && b.due_date > g.latest_due)   g.latest_due   = b.due_date;
+
+    const isLocked = lockedIds.has(b.id);
+    if (!isLocked) g.allLocked = false;
+    if (isLocked) {
+      g.anyLocked = true;
+      if (!g.lockedMsg && b.fee_structure_id) {
+        g.lockedMsg = lockedByStructure.get(b.fee_structure_id) || "an earlier bill";
+      }
+    }
+
+    if (b.status === "unpaid" || g.status === "unpaid") g.status = "unpaid";
+    else if (b.status === "partial" || g.status === "partial") g.status = "partial";
   }
   return Array.from(map.values());
 }
 
+const INPUT_STYLE: React.CSSProperties = {
+  width: "100%", height: 38, padding: "0 12px",
+  border: `1px solid ${col.border}`, borderRadius: 8,
+  fontSize: 13, fontWeight: 600, outline: "none",
+  background: "#fff", color: col.navy, boxSizing: "border-box",
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════════════════════════ */
 export default function CollectFeePage() {
-  const dispatch       = useAppDispatch();
-  const searchParams   = useSearchParams();
-  const initialId      = searchParams.get("student_id");
+  const dispatch = useAppDispatch();
+  const searchParams = useSearchParams();
+  const initialId = searchParams.get("student_id") || searchParams.get("studentId");
+  const initialCollectionId = searchParams.get("collection_id") || searchParams.get("collectionId");
   const { academicYearId } = useAcademicYear();
   const { formatDate, formatFeeName, isBS } = useDateFormat();
-  const currencySymbol = isBS ? "रू" : "₹";
-  const fmt = (n: number | string) => `${currencySymbol} ${Number(n || 0).toLocaleString()}`;
 
-  const [query,           setQuery]           = useState("");
-  const [searchResults,   setSearchResults]   = useState<any[]>([]);
-  const [searching,       setSearching]       = useState(false);
+  const currencySymbol = isBS ? "रू" : "₹";
+  const fmt = useCallback((n: number | string) => `${currencySymbol} ${Number(n || 0).toLocaleString()}`, [currencySymbol]);
+
+  // Search state
+  const [query, setSearchQuery]               = useState("");
+  const [searchResults, setSearchResults]     = useState<any[]>([]);
+  const [searching, setSearching]             = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: preloaded } = useApi<any>(initialId ? `/students/${initialId}` : "");
+  // Preload from URL param
   useEffect(() => {
-    if (preloaded && !selectedStudent) {
-      setSelectedStudent(preloaded);
-      setQuery(preloaded.full_name || "");
-    }
-  }, [preloaded]);
+    if (!initialId) return;
+    let cancelled = false;
+    apiRequest<any>(`/students/${initialId}`)
+      .then(res => {
+        if (cancelled) return;
+        const st = res?.data || res;
+        if (st && st.id) {
+          const activeEnrollment = st.enrollments?.find((e: any) => e.status === "active") || st.enrollments?.[0];
+          setSelectedStudent({
+            ...st,
+            class_name: st.class_name || activeEnrollment?.class_name || "",
+            section_name: st.section_name || activeEnrollment?.section_name || "",
+            enrollment_id: st.enrollment_id || activeEnrollment?.id || null,
+          });
+          setSearchQuery(st.full_name || "");
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [initialId]);
 
+  // Autocomplete search
   useEffect(() => {
     if (selectedStudent) return;
-    if (query.length < 2) { setSearchResults([]); return; }
+    if (query.trim().length < 2) { setSearchResults([]); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res: any = await apiRequest(`/students/search?q=${encodeURIComponent(query)}`);
-        setSearchResults(res?.data ?? res ?? []);
-      } catch { setSearchResults([]); }
-      finally   { setSearching(false); }
-    }, 280);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+        const res = await apiRequest<{ data: any[] }>(`/students/search?q=${encodeURIComponent(query.trim())}`);
+        setSearchResults(res.data || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
   }, [query, selectedStudent]);
 
   const selectStudent = (st: any) => {
-    setSelectedStudent(st); setQuery(st.full_name); setSearchResults([]); resetPayment();
+    setSelectedStudent(st);
+    setSearchQuery(st.full_name || "");
+    setSearchResults([]);
+    setSelectedIds(new Set());
+    setBulkAmounts({});
+    setLastReceipts([]);
   };
+
   const clearStudent = () => {
-    setSelectedStudent(null); setQuery(""); setSearchResults([]); resetPayment();
+    setSelectedStudent(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSelectedIds(new Set());
+    setBulkAmounts({});
+    setLastReceipts([]);
   };
 
-  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
-  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
-  const isOverdueFn = (dueDate: string, status: string): boolean => {
-    if (status === "paid" || status === "waived") return false;
-    const due = new Date(dueDate);
-    due.setDate(due.getDate() + graceDays);
-    return due < new Date();
-  };
+  // Student Facilities (Hostel & Transport)
+  const [hostelInfo, setHostelInfo]       = useState<any | null>(null);
+  const [transportInfo, setTransportInfo] = useState<any | null>(null);
 
-  const [typeFilter, setTypeFilter] = useState("all");
-  const { data: rawCollections, refetch: refetchCollections } = useApi<any[]>(
-    selectedStudent && academicYearId
-      ? `/fees/collections/student/${selectedStudent.id}?academic_year_id=${academicYearId}`
-      : "",
-    [selectedStudent?.id, academicYearId]
+  useEffect(() => {
+    if (!selectedStudent?.id) {
+      setHostelInfo(null);
+      setTransportInfo(null);
+      return;
+    }
+    apiRequest<{ data: any }>(`/hostel/students/${selectedStudent.id}`)
+      .then(res => setHostelInfo(res.data || null))
+      .catch(() => setHostelInfo(null));
+
+    apiRequest<{ data: any }>(`/transport/students/${selectedStudent.id}`)
+      .then(res => setTransportInfo(res.data || null))
+      .catch(() => setTransportInfo(null));
+  }, [selectedStudent]);
+
+  // Fee Collections for Student
+  const { data: rawCollections, refetch: refetchCollections, loading: loadingFees } = useApi<any[]>(
+    selectedStudent?.id ? `/fees/collections/student/${selectedStudent.id}` : ""
   );
+  const allCollections = useMemo(() => rawCollections || [], [rawCollections]);
 
-  // ── Sort by due_date ASC → sequential payment order is always respected ──
-  const sortedAll = [...(rawCollections || [])].sort((a: any, b: any) =>
-    String(a.due_date || "").localeCompare(String(b.due_date || ""))
-  );
+  // Sequential Locking Logic
+  const { lockedIds, lockedByStructure } = useMemo(() => {
+    const locked = new Set<number>();
+    const byStruct = new Map<number, string>();
+    const recurring = allCollections.filter(
+      (c: any) => c.fee_structure_id && c.status !== "paid" && c.status !== "waived"
+    );
 
-  // ── Sequential payment lock ──────────────────────────────────────────────────
-  // For recurring monthly academic fees (same fee_structure_id), the OLDEST unpaid
-  // bill must be paid/waived before the next one is payable.
-  // transport/hostel (no fee_structure_id) are exempt — pay any month in any order.
-  const lockedIds = new Set<number>();
-  const lockedByStructure = new Map<number, string>(); // bill_id → oldest unpaid fee_name
-  const seenUnpaidStructureMsg = new Map<number, string>(); // structure_id → oldest unpaid fee_name string
-  const seenUnpaidStructureGroup = new Map<number, string>(); // structure_id → group key of the oldest unpaid bill
+    const groups = new Map<number, any[]>();
+    for (const c of recurring) {
+      if (!groups.has(c.fee_structure_id)) groups.set(c.fee_structure_id, []);
+      groups.get(c.fee_structure_id)!.push(c);
+    }
 
-  const getGroupKey = (b: any) => {
-    const genDate = b.created_at ? String(b.created_at).slice(0, 10) : "";
-    return b.fee_structure_id ? `struct-${b.fee_structure_id}-${genDate}` : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
-  };
-
-  for (const c of sortedAll) {
-    if (!c.fee_structure_id) continue;
-    if (c.status === "paid" || c.status === "waived") continue;
-    const sid = Number(c.fee_structure_id);
-    const gKey = getGroupKey(c);
-
-    if (!seenUnpaidStructureGroup.has(sid)) {
-      seenUnpaidStructureGroup.set(sid, gKey);
-      const cleanName = (c.fee_name || "earlier bill").replace(/\s*-\s*\d{4}-\d{2}$/, '');
-      const label = getMonthLabel(c.due_date, isBS);
-      seenUnpaidStructureMsg.set(sid, label ? `${cleanName} - ${label}` : cleanName);
-    } else {
-      if (seenUnpaidStructureGroup.get(sid) !== gKey) {
-        lockedIds.add(c.id);
-        lockedByStructure.set(c.id, seenUnpaidStructureMsg.get(sid)!);
+    for (const [structId, list] of groups) {
+      list.sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+      const oldestUnpaid = list[0];
+      for (let i = 1; i < list.length; i++) {
+        locked.add(list[i].id);
+        byStruct.set(structId, oldestUnpaid.fee_name || "Fee");
       }
     }
-  }
+    return { lockedIds: locked, lockedByStructure: byStruct };
+  }, [allCollections]);
 
-  const allCollections  = sortedAll;
-  const pendingCollections = allCollections.filter((c: any) => {
-    const isPending = c.status !== "paid" && c.status !== "waived";
-    const matchType = typeFilter === "all" || (c.fee_type || "academic") === typeFilter;
-    return isPending && matchType;
-  });
-  const paidCollections = allCollections.filter((c: any) => c.status === "paid" || c.status === "waived");
+  // Filter and Category state
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const totalDue  = allCollections.reduce((a: number, c: any) => a + parseFloat(c.remaining_amount || "0"), 0);
-  const totalPaid = allCollections.reduce((a: number, c: any) => a + parseFloat(c.paid_amount      || "0"), 0);
-  const overdueCt = allCollections.filter((c: any) => isOverdueFn(c.due_date, c.status)).length;
+  const pendingCollections = useMemo(
+    () => allCollections.filter((c: any) => c.status !== "paid" && c.status !== "waived"),
+    [allCollections]
+  );
+  const paidCollections = useMemo(
+    () => allCollections.filter((c: any) => c.status === "paid" || c.status === "waived"),
+    [allCollections]
+  );
 
-  // Group pending bills by fee structure (same fee across months → one row)
-  const groupedPending = groupBills(pendingCollections, lockedIds, lockedByStructure, isBS);
-  const paidPct = (totalDue + totalPaid) > 0 ? (totalPaid / (totalDue + totalPaid)) * 100 : 0;
+  const filteredPending = useMemo(() => {
+    if (typeFilter === "all") return pendingCollections;
+    return pendingCollections.filter((c: any) => (c.fee_type || "academic") === typeFilter);
+  }, [pendingCollections, typeFilter]);
 
-  // Locked bills cannot be selected
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkAmounts, setBulkAmounts] = useState<Record<number, string>>({});
+  const groupedPending = useMemo(
+    () => groupBills(filteredPending, lockedIds, lockedByStructure),
+    [filteredPending, lockedIds, lockedByStructure]
+  );
 
-  const toggleSelect = (ids: number[], remainings: string[]) => {
-    // If any in group are locked, don't allow
-    if (ids.some(id => lockedIds.has(id))) return;
+  // Financial Stats
+  const totalDue = useMemo(
+    () => pendingCollections.reduce((s: number, c: any) => s + Number(c.remaining_amount || 0), 0),
+    [pendingCollections]
+  );
+  const totalPaid = useMemo(
+    () => allCollections.reduce((s: number, c: any) => s + Number(c.paid_amount || 0), 0),
+    [allCollections]
+  );
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isOverdueFn = (dueDate: string, status: string) =>
+    dueDate && dueDate < todayStr && status !== "paid" && status !== "waived";
+
+  // Selection & Bulk Payment State
+  const [selectedIds, setSelectedIds]   = useState<Set<number>>(new Set());
+  const [bulkAmounts, setBulkAmounts]   = useState<Record<number, string>>({});
+  const [paymentMode, setPaymentMode]   = useState("cash");
+  const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [referenceNo, setReferenceNo]   = useState("");
+  const [remarks, setRemarks]           = useState("");
+  const [isPaying, setIsPaying]         = useState(false);
+  const [lastReceipts, setLastReceipts] = useState<Array<{ payment_id: number; receipt_number: string }>>([]);
+  const needsRef = paymentMode !== "cash";
+
+  // Auto-select specific bill when collection_id is provided in URL
+  useEffect(() => {
+    if (!initialCollectionId || pendingCollections.length === 0) return;
+    const targetId = Number(initialCollectionId);
+    const target = pendingCollections.find((c: any) => c.id === targetId);
+    if (target && !lockedIds.has(target.id)) {
+      setSelectedIds(new Set([target.id]));
+      setBulkAmounts({ [target.id]: String(target.remaining_amount || "0") });
+    }
+  }, [initialCollectionId, pendingCollections, lockedIds]);
+
+  const selectedCollections = useMemo(
+    () => pendingCollections.filter((c: any) => selectedIds.has(c.id)),
+    [pendingCollections, selectedIds]
+  );
+
+  const bulkTotal = useMemo(() => {
+    return selectedCollections.reduce((s: number, c: any) => {
+      const v = parseFloat(bulkAmounts[c.id] ?? c.remaining_amount ?? "0");
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+  }, [selectedCollections, bulkAmounts]);
+
+  const toggleSelect = (ids: number[], remainingAmounts: any[]) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      const allSelected = ids.every(id => next.has(id));
-      if (allSelected) {
-        ids.forEach(id => next.delete(id));
-      } else {
-        ids.forEach((id, i) => {
+      const allIn = ids.every(id => next.has(id));
+      ids.forEach((id, idx) => {
+        if (allIn) {
+          next.delete(id);
+          setBulkAmounts(a => { const copy = { ...a }; delete copy[id]; return copy; });
+        } else {
           next.add(id);
-          setBulkAmounts(a => ({ ...a, [id]: String(parseFloat(remainings[i] || "0")) }));
-        });
-      }
+          setBulkAmounts(a => ({ ...a, [id]: String(remainingAmounts[idx] || "0") }));
+        }
+      });
       return next;
     });
   };
+
   const toggleAll = () => {
-    const payable = pendingCollections.filter((c: any) => !lockedIds.has(c.id));
-    if (selectedIds.size === payable.length) { setSelectedIds(new Set()); }
-    else {
-      const next = new Set<number>(); const amounts: Record<number, string> = {};
-      payable.forEach((c: any) => { next.add(c.id); amounts[c.id] = String(parseFloat(c.remaining_amount || "0")); });
-      setSelectedIds(next); setBulkAmounts(amounts);
+    const selectable = filteredPending.filter((c: any) => !lockedIds.has(c.id));
+    if (selectedIds.size >= selectable.length && selectable.length > 0) {
+      setSelectedIds(new Set());
+      setBulkAmounts({});
+    } else {
+      const next = new Set<number>();
+      const nextAmts: Record<number, string> = {};
+      selectable.forEach((c: any) => {
+        next.add(c.id);
+        nextAmts[c.id] = String(c.remaining_amount || "0");
+      });
+      setSelectedIds(next);
+      setBulkAmounts(nextAmts);
     }
   };
 
-  const selectedCollections = pendingCollections.filter((c: any) => selectedIds.has(c.id));
-  const bulkTotal = selectedCollections.reduce(
-    (a: number, c: any) => a + parseFloat(bulkAmounts[c.id] || c.remaining_amount || "0"), 0
-  );
-
-  const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().split("T")[0]);
-  const [paymentMode, setPaymentMode]   = useState("cash");
-  const [referenceNo, setReferenceNo]   = useState("");
-  const [remarks,     setRemarks]       = useState("");
-  const [lastReceipts, setLastReceipts] = useState<Array<{ payment_id: number; receipt_number: string }>>([]);
-  const [isPaying,    setIsPaying]      = useState(false);
-  const needsRef = ["online", "bank_transfer", "cheque"].includes(paymentMode);
-
-  const resetPayment = () => {
-    setSelectedIds(new Set()); setBulkAmounts({});
-    setReferenceNo(""); setRemarks(""); setLastReceipts([]);
-  };
-
+  // Submit Payment
   const handleBulkPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) return;
-    if (selectedIds.size === 0) return dispatch(showToast({ type: "error", title: "Nothing selected", message: "Select at least one fee." }));
-    if (needsRef && !referenceNo.trim()) return dispatch(showToast({ type: "error", title: "Reference required", message: "Enter transaction/cheque number." }));
+    if (selectedIds.size === 0) {
+      dispatch(showToast({ type: "error", title: "Nothing Selected", message: "Select at least one fee bill to collect." }));
+      return;
+    }
+    if (needsRef && !referenceNo.trim()) {
+      dispatch(showToast({ type: "error", title: "Reference Required", message: "Enter transaction ID or cheque reference." }));
+      return;
+    }
 
     setIsPaying(true);
     const receipts: Array<{ payment_id: number; receipt_number: string }> = [];
-    let ok = 0, fail = 0;
+    let ok = 0;
 
-    for (const col of selectedCollections) {
-      const amount = parseFloat(bulkAmounts[col.id] || col.remaining_amount || "0");
-      if (amount <= 0) { fail++; continue; }
+    for (const colItem of selectedCollections) {
+      const amount = parseFloat(bulkAmounts[colItem.id] || colItem.remaining_amount || "0");
+      if (amount <= 0) continue;
       try {
         const res: any = await apiRequest("/fees/payments", {
           method: "POST",
           body: JSON.stringify({
-            collection_id:  col.id,
+            collection_id:  colItem.id,
             student_id:     selectedStudent.id,
             paid_amount:    amount,
             payment_date:   paymentDate,
@@ -329,53 +429,103 @@ export default function CollectFeePage() {
         else if (res?.id)    receipts.push({ payment_id: res.id, receipt_number: res.receipt_number });
         ok++;
       } catch (err: any) {
-        fail++;
-        dispatch(showToast({ type: "error", title: `Failed: ${col.fee_name}`, message: err.message || "Payment error" }));
+        dispatch(showToast({ type: "error", title: `Failed: ${colItem.fee_name}`, message: err.message || "Payment error" }));
       }
     }
 
     if (ok > 0) {
       setLastReceipts(receipts);
-      dispatch(showToast({ type: "success", title: `${ok} payment${ok > 1 ? "s" : ""} recorded`, message: fail > 0 ? `${fail} failed.` : "All processed." }));
-      refetchCollections(); setSelectedIds(new Set()); setBulkAmounts({});
-      setReferenceNo(""); setRemarks("");
+      dispatch(showToast({ type: "success", title: `${ok} Payment${ok > 1 ? "s" : ""} Recorded`, message: "Fees cleared successfully." }));
+      refetchCollections();
+      setSelectedIds(new Set());
+      setBulkAmounts({});
+      setReferenceNo("");
+      setRemarks("");
     }
     setIsPaying(false);
   };
 
+  // Instant Add Misc / One-time Fee
   const [showMisc,     setShowMisc]     = useState(false);
   const [miscFeeName,  setMiscFeeName]  = useState("");
   const [miscAmount,   setMiscAmount]   = useState("");
   const [miscDueDate,  setMiscDueDate]  = useState(new Date().toISOString().split("T")[0]);
-  const [miscDiscount, setMiscDiscount] = useState("");
+  const [miscType,     setMiscType]     = useState("academic");
   const [addingMisc,   setAddingMisc]   = useState(false);
 
   const handleAddMiscFee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent || !academicYearId) return;
-    if (!miscFeeName.trim()) return dispatch(showToast({ type: "error", title: "Error", message: "Fee name required" }));
-    if (!miscAmount || Number(miscAmount) <= 0) return dispatch(showToast({ type: "error", title: "Error", message: "Valid amount required" }));
+    if (!miscFeeName.trim()) {
+      dispatch(showToast({ type: "error", title: "Error", message: "Fee name required" }));
+      return;
+    }
+    if (!miscAmount || Number(miscAmount) <= 0) {
+      dispatch(showToast({ type: "error", title: "Error", message: "Valid amount required" }));
+      return;
+    }
     setAddingMisc(true);
     try {
       await apiRequest("/fees/collections/misc", {
         method: "POST",
         body: JSON.stringify({
-          student_id: selectedStudent.id, academic_year_id: academicYearId,
-          fee_name: miscFeeName.trim(), due_date: miscDueDate,
+          student_id: selectedStudent.id,
+          academic_year_id: academicYearId,
+          fee_name: miscFeeName.trim(),
+          fee_type: miscType,
+          due_date: miscDueDate,
           total_amount: Number(miscAmount),
-          discount_amount: miscDiscount ? Number(miscDiscount) : undefined,
         }),
       });
-      dispatch(showToast({ type: "success", title: "Fee Added", message: `"${miscFeeName}" added.` }));
-      refetchCollections(); setMiscFeeName(""); setMiscAmount(""); setMiscDiscount(""); setShowMisc(false);
+      dispatch(showToast({ type: "success", title: "Fee Added", message: `"${miscFeeName}" added to student ledger.` }));
+      refetchCollections();
+      setMiscFeeName("");
+      setMiscAmount("");
+      setShowMisc(false);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not add fee." }));
-    } finally { setAddingMisc(false); }
+    } finally {
+      setAddingMisc(false);
+    }
   };
 
-  const [waiveTarget, setWaiveTarget]  = useState<any | null>(null);
-  const [waiveReason, setWaiveReason]  = useState("");
-  const [waiving,     setWaiving]      = useState(false);
+  // Quick Instant Bill Hostel / Transport
+  const handleQuickBill = async (type: "hostel" | "transport") => {
+    if (!selectedStudent || !academicYearId) return;
+    const isHostel = type === "hostel";
+    const title = isHostel
+      ? `Hostel Fee (${hostelInfo?.room_number ? `Room ${hostelInfo.room_number}` : "Room"})`
+      : `Transport Fee (${transportInfo?.route_name || "Bus"})`;
+    const amt = isHostel ? Number(hostelInfo?.monthly_fee || 0) : Number(transportInfo?.monthly_fare || 0);
+
+    if (amt <= 0) {
+      dispatch(showToast({ type: "error", title: "Rate Missing", message: "No monthly rate set for this facility." }));
+      return;
+    }
+
+    try {
+      await apiRequest("/fees/collections/misc", {
+        method: "POST",
+        body: JSON.stringify({
+          student_id: selectedStudent.id,
+          academic_year_id: academicYearId,
+          fee_name: title,
+          fee_type: type,
+          due_date: new Date().toISOString().slice(0, 10),
+          total_amount: amt,
+        }),
+      });
+      dispatch(showToast({ type: "success", title: "Bill Added", message: `${title} (${fmt(amt)}) added to pending dues.` }));
+      refetchCollections();
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message }));
+    }
+  };
+
+  // Waive & Fine Modals
+  const [waiveTarget, setWaiveTarget] = useState<any | null>(null);
+  const [waiveReason, setWaiveReason] = useState("");
+  const [waiving,     setWaiving]     = useState(false);
 
   const handleWaive = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,10 +537,14 @@ export default function CollectFeePage() {
         body: JSON.stringify({ reason: waiveReason || "Waived by admin" }),
       });
       dispatch(showToast({ type: "success", title: "Fee Waived", message: `"${waiveTarget.fee_name}" has been waived.` }));
-      refetchCollections(); setWaiveTarget(null); setWaiveReason("");
+      refetchCollections();
+      setWaiveTarget(null);
+      setWaiveReason("");
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not waive fee." }));
-    } finally { setWaiving(false); }
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message }));
+    } finally {
+      setWaiving(false);
+    }
   };
 
   const [fineTarget, setFineTarget] = useState<any | null>(null);
@@ -401,555 +555,909 @@ export default function CollectFeePage() {
   const handleAddFine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fineTarget) return;
-    if (!fineAmount || Number(fineAmount) <= 0) return dispatch(showToast({ type: "error", title: "Error", message: "Valid fine amount required." }));
+    if (!fineAmount || Number(fineAmount) <= 0) {
+      dispatch(showToast({ type: "error", title: "Error", message: "Valid fine amount required." }));
+      return;
+    }
     setAddingFine(true);
     try {
       await apiRequest(`/fees/collections/${fineTarget.id}`, {
         method: "PATCH",
         body: JSON.stringify({ fine_amount: Number(fineAmount), fine_reason: fineReason || "Late payment fine" }),
       });
-      dispatch(showToast({ type: "success", title: "Fine Applied", message: `Rs. ${fineAmount} added to ${fineTarget.fee_name}.` }));
-      refetchCollections(); setFineTarget(null); setFineAmount(""); setFineReason("");
+      dispatch(showToast({ type: "success", title: "Fine Applied", message: `${fmt(fineAmount)} added to ${fineTarget.fee_name}.` }));
+      refetchCollections();
+      setFineTarget(null);
+      setFineAmount("");
+      setFineReason("");
     } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Could not apply fine." }));
-    } finally { setAddingFine(false); }
+      dispatch(showToast({ type: "error", title: "Failed", message: err.message }));
+    } finally {
+      setAddingFine(false);
+    }
   };
 
   return (
-    <div className={s("fees-page")}>
-      <Topbar title="Collect Fee" subtitle="Search a student, select pending fees, and record payment" />
-      <main className={s("page-content")}>
+    <div style={{ minHeight: "100vh", background: col.bg, display: "flex", flexDirection: "column" }}>
+      <main style={{ padding: "20px 24px 48px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+
+        {/* ── Top Header Toolbar ── */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 16, flexWrap: "wrap", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 16, marginBottom: 18,
+          gap: 16, flexWrap: "wrap", borderBottom: `1px solid ${col.border}`, paddingBottom: 14,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
-              width: 40, height: 40, borderRadius: 10, background: "#ff9b51",
-              color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900,
+              width: 38, height: 38, borderRadius: 10, background: col.orangeBg,
+              border: `1px solid ${col.orangeBrd}`, color: col.orange,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
             }}>
-              <i className="fa-solid fa-hand-holding-dollar" />
+              <i className="fa-solid fa-cash-register" />
             </div>
             <div>
-              <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0f172a", margin: 0 }}>
-                Collect Fee
+              <h1 style={{ fontSize: 19, fontWeight: 800, color: col.navy, margin: 0, letterSpacing: "-0.01em" }}>
+                Fee Collection Counter
               </h1>
-              <p style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, margin: "2px 0 0" }}>
-                Find a student, select pending fee bills, and record payment
+              <p style={{ fontSize: 12, color: col.muted, fontWeight: 500, margin: "2px 0 0" }}>
+                POS Cashier Desk • Search student, select active dues, and generate receipts
               </p>
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {selectedStudent && (
-              <Link className={cx(s("btn"), s("btn-outline"))} href={`/students/profile?id=${selectedStudent.id}`}>
-                <i className="fa-solid fa-user" /> Profile
+              <Link
+                href={`/fees/history?student_id=${selectedStudent.id}`}
+                style={{
+                  height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${col.border}`,
+                  background: "#fff", color: col.navy, fontWeight: 600, fontSize: 12,
+                  display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+                }}
+              >
+                <i className="fa-solid fa-clock-rotate-left" style={{ color: col.blue, fontSize: 11 }} /> Payment History
               </Link>
             )}
-            {selectedStudent && (
-              <Link className={cx(s("btn"), s("btn-outline"))} href={`/fees/history?student_id=${selectedStudent.id}`}>
-                <i className="fa-solid fa-clock-rotate-left" /> Fee History
-              </Link>
-            )}
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/fees/records">
-              <i className="fa-solid fa-table-list" /> All Records
+            <Link
+              href="/fees/monthly-billing"
+              style={{
+                height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${col.border}`,
+                background: "#fff", color: col.navy, fontWeight: 600, fontSize: 12,
+                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+              }}
+            >
+              <i className="fa-solid fa-file-invoice-dollar" style={{ color: col.purple, fontSize: 11 }} /> Monthly Billing
             </Link>
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/fees">
-              <i className="fa-solid fa-chart-pie" /> Overview
+            <Link
+              href="/fees/records"
+              style={{
+                height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${col.border}`,
+                background: "#fff", color: col.navy, fontWeight: 600, fontSize: 12,
+                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+              }}
+            >
+              <i className="fa-solid fa-table-list" style={{ color: col.slate, fontSize: 11 }} /> All Records
             </Link>
           </div>
         </div>
 
+        {/* ── Payment Success & Print Banner ── */}
         {lastReceipts.length > 0 && (
-          <div className={s("cf-success-banner")}>
-            <div className={s("cf-success-left")}>
-              <i className="fa-solid fa-circle-check" />
+          <div style={{
+            background: col.greenBg, border: `1px solid ${col.greenBrd}`, borderRadius: 10,
+            padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, flexWrap: "wrap",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: col.green }}>
+              <i className="fa-solid fa-circle-check" style={{ fontSize: 20 }} />
               <div>
-                <strong>{lastReceipts.length} payment{lastReceipts.length > 1 ? "s" : ""} recorded</strong>
-                <span>Receipts: {lastReceipts.map(r => r.receipt_number).filter(Boolean).join(", ")}</span>
+                <strong style={{ fontSize: 13.5, color: "#166534", display: "block" }}>
+                  {lastReceipts.length} Payment{lastReceipts.length > 1 ? "s" : ""} Recorded Successfully
+                </strong>
+                <span style={{ fontSize: 12, color: "#15803d" }}>
+                  Receipts generated: {lastReceipts.map(r => r.receipt_number).filter(Boolean).join(", ")}
+                </span>
               </div>
             </div>
-            <div className={s("cf-success-right")}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {lastReceipts.slice(0, 3).map(r => (
-                <a key={r.payment_id} href={`/fees/receipt/${r.payment_id}`} target="_blank" rel="noreferrer" className={s("cf-receipt-link")}>
-                  <i className="fa-solid fa-print" /> {r.receipt_number || "Print"}
+                <a
+                  key={r.payment_id}
+                  href={`/fees/receipt/${r.payment_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    padding: "6px 12px", borderRadius: 6, background: col.green, color: "#fff",
+                    fontSize: 12, fontWeight: 700, textDecoration: "none", display: "inline-flex",
+                    alignItems: "center", gap: 6,
+                  }}
+                >
+                  <i className="fa-solid fa-print" style={{ fontSize: 11 }} /> Print Receipt
                 </a>
               ))}
-              <button className={s("cf-dismiss")} onClick={() => setLastReceipts([])}>
-                <i className="fa-solid fa-xmark" />
+              <button
+                onClick={() => setLastReceipts([])}
+                style={{ border: "none", background: "none", color: col.muted, cursor: "pointer", fontSize: 14, padding: 4 }}
+              >
+                ✕
               </button>
             </div>
           </div>
         )}
 
-        {/* Sequential payment info banner */}
-        {selectedStudent && lockedIds.size > 0 && (
-          <div style={{
-            display: "flex", alignItems: "flex-start", gap: 10,
-            padding: "10px 16px", borderRadius: 10, margin: "0 0 4px",
-            background: "#fefce8", border: "1px solid #fde68a",
-            fontSize: 13, color: "#92400e", fontWeight: 600,
-          }}>
-            <i className="fa-solid fa-lock" style={{ marginTop: 1, flexShrink: 0 }} />
-            <span>
-              <strong>Sequential payment required</strong> — {lockedIds.size} bill{lockedIds.size !== 1 ? "s are" : " is"} locked
-              because an earlier bill for the same fee is still unpaid.
-              Pay or waive the oldest due bill first to unlock the next one.
-            </span>
-          </div>
-        )}
-
-        <div className={s("cf-layout")}>
-
-          {/* COL 1 — Student panel */}
-          <aside className={s("cf-left")}>
-            <div className={s("cf-card")}>
-              <div className={s("cf-card-head")}>
-                <div className={s("cf-card-icon")} style={{ background: "#e8edff", color: "#3b5bdb" }}>
-                  <i className="fa-solid fa-user-graduate" />
-                </div>
-                <div>
-                  <strong>Find Student</strong>
-                  <span>Search by name or admission no.</span>
-                </div>
+        {/* ── ZONE 1: STUDENT SEARCH & 360° PROFILE BAR ── */}
+        <div style={{
+          background: "#fff", border: `1px solid ${col.border}`, borderRadius: 12,
+          padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12,
+          boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+        }}>
+          {/* Search Row */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: 1, minWidth: 280 }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, border: `1px solid ${col.border}`,
+                borderRadius: 8, padding: "0 12px", background: "#f8fafc", height: 40,
+              }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ color: col.lightMuted, fontSize: 13 }} />
+                <input
+                  type="search"
+                  placeholder="Search student by name, admission no, or roll number…"
+                  value={query}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    if (selectedStudent) setSelectedStudent(null);
+                  }}
+                  style={{ border: "none", background: "transparent", width: "100%", fontSize: 13, outline: "none", color: col.navy, fontWeight: 600 }}
+                />
+                {searching && <Spinner size={14} color={col.orange} />}
+                {(query || selectedStudent) && (
+                  <button
+                    onClick={clearStudent}
+                    style={{ border: "none", background: "none", color: col.lightMuted, cursor: "pointer", padding: 4, fontSize: 12 }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
-              <div className={s("cf-search-wrap")}>
-                <div className={s("cf-search-box")}>
-                  <i className="fa-solid fa-magnifying-glass" />
-                  <input
-                    type="search"
-                    placeholder="Name or admission number…"
-                    value={query}
-                    onChange={e => { setQuery(e.target.value); if (selectedStudent) clearStudent(); }}
-                  />
-                  {searching && <Spinner size={14} />}
-                  {(query || selectedStudent) && (
-                    <button onClick={clearStudent} className={s("cf-clear-btn")} title="Clear">
-                      <i className="fa-solid fa-xmark" />
+              {/* Autocomplete Dropdown */}
+              {searchResults.length > 0 && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                  background: "#fff", border: `1px solid ${col.border}`, borderRadius: 8,
+                  boxShadow: "0 8px 24px rgba(15,23,42,0.12)", maxHeight: 260, overflowY: "auto", zIndex: 50,
+                }}>
+                  {searchResults.map((st: any) => (
+                    <button
+                      key={st.id}
+                      onClick={() => selectStudent(st)}
+                      style={{
+                        width: "100%", padding: "10px 14px", display: "flex", alignItems: "center",
+                        gap: 12, border: "none", borderBottom: `1px solid #f1f5f9`, background: "#fff",
+                        cursor: "pointer", textAlign: "left", transition: "background 0.12s",
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+                    >
+                      <span style={{
+                        width: 32, height: 32, borderRadius: 6, background: col.blueBg, color: col.blue,
+                        border: `1px solid ${col.blueBrd}`, fontSize: 11, fontWeight: 800,
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                      }}>
+                        {getInitials(st.full_name)}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ fontSize: 13, color: col.navy, display: "block" }}>{st.full_name}</strong>
+                        <span style={{ fontSize: 11.5, color: col.muted, fontWeight: 500 }}>
+                          Adm: {st.admission_number || "—"} {st.class_name ? `• Class ${st.class_name} ${st.section_name || ""}` : ""}
+                        </span>
+                      </div>
                     </button>
-                  )}
-                </div>
-
-                {searchResults.length > 0 && (
-                  <div className={s("cf-dropdown")}>
-                    {searchResults.map((st: any) => (
-                      <button key={st.id} className={s("cf-dropdown-item")} onClick={() => selectStudent(st)}>
-                        <span className={s("cf-mini-avatar")}>{getInitials(st.full_name)}</span>
-                        <div>
-                          <strong>{st.full_name}</strong>
-                          <small>{st.admission_number}</small>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {query.length >= 2 && !searching && !searchResults.length && !selectedStudent && (
-                  <p className={s("cf-no-results")}>No students found.</p>
-                )}
-              </div>
-
-              {selectedStudent && (
-                <div className={s("cf-student-card")}>
-                  <div className={s("cf-student-avatar")}>{getInitials(selectedStudent.full_name)}</div>
-                  <div className={s("cf-student-info")}>
-                    <strong>{selectedStudent.full_name}</strong>
-                    <span>{selectedStudent.admission_number}</span>
-                    {selectedStudent.class_name && (
-                      <small>Class {selectedStudent.class_name}{selectedStudent.section_name ? ` · Sec ${selectedStudent.section_name}` : ""}</small>
-                    )}
-                  </div>
-                  <button className={s("cf-change-btn")} onClick={clearStudent}>Change</button>
-                </div>
-              )}
-
-              {selectedStudent?.scholarship_percent && Number(selectedStudent.scholarship_percent) > 0 && (
-                <div className={s("cf-scholarship")}>
-                  <i className="fa-solid fa-graduation-cap" />
-                  <span>{selectedStudent.scholarship_type?.replace(/_/g, " ") || "Scholarship"} — {selectedStudent.scholarship_percent}% discount</span>
+                  ))}
                 </div>
               )}
             </div>
 
-            {selectedStudent && allCollections.length > 0 && (
-              <div className={s("cf-totals")}>
-                <div className={s("cf-total-item")} style={{ background: "#fef2f2" }}>
-                  <span style={{ color: "#dc2626" }}>Total Due</span>
-                  <strong style={{ color: "#dc2626" }}>{fmt(totalDue)}</strong>
+            {selectedStudent && (
+              <button
+                onClick={clearStudent}
+                style={{
+                  height: 40, padding: "0 14px", borderRadius: 8, border: `1px solid ${col.border}`,
+                  background: "#fff", color: col.slate, fontWeight: 700, fontSize: 12, cursor: "pointer",
+                }}
+              >
+                Change Student
+              </button>
+            )}
+          </div>
+
+          {/* 360° Selected Student Profile Banner */}
+          {selectedStudent && (
+            <div style={{
+              background: "#f8fafc", border: `1px solid ${col.border}`, borderRadius: 10,
+              padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 14, flexWrap: "wrap",
+            }}>
+              {/* Left Details */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10, background: col.navy,
+                  color: "#fff", fontSize: 15, fontWeight: 800, display: "flex", alignItems: "center",
+                  justifyContent: "center", flexShrink: 0,
+                }}>
+                  {getInitials(selectedStudent.full_name)}
                 </div>
-                <div className={s("cf-total-item")} style={{ background: "#f0fdf4" }}>
-                  <span style={{ color: "#16a34a" }}>Total Paid</span>
-                  <strong style={{ color: "#16a34a" }}>{fmt(totalPaid)}</strong>
-                </div>
-                <div className={s("cf-total-item")} style={{ background: "#fff7ed" }}>
-                  <span style={{ color: "#ea580c" }}>Overdue</span>
-                  <strong style={{ color: "#ea580c" }}>{overdueCt} bill{overdueCt !== 1 ? "s" : ""}</strong>
-                </div>
-                <div className={s("cf-progress-wrap")}>
-                  <div className={s("cf-progress-track")}>
-                    <div className={s("cf-progress-fill")} style={{ width: `${paidPct.toFixed(1)}%` }} />
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 15, fontWeight: 800, color: col.navy }}>
+                      {selectedStudent.full_name}
+                    </strong>
+                    {selectedStudent.class_name && (
+                      <span style={{
+                        padding: "2px 7px", borderRadius: 5, background: col.blueBg,
+                        color: col.blue, border: `1px solid ${col.blueBrd}`, fontSize: 11, fontWeight: 700,
+                      }}>
+                        Class {selectedStudent.class_name} {selectedStudent.section_name ? `- ${selectedStudent.section_name}` : ""}
+                      </span>
+                    )}
+                    {selectedStudent.admission_number && (
+                      <span style={{ fontSize: 11.5, color: col.muted, fontWeight: 600 }}>
+                        Adm No: <strong>{selectedStudent.admission_number}</strong>
+                      </span>
+                    )}
                   </div>
-                  <span>{paidPct.toFixed(0)}% paid</span>
+
+                  {/* Badges strip: Scholarship, Hostel, Transport */}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+                    {selectedStudent.scholarship_percent && Number(selectedStudent.scholarship_percent) > 0 && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 7px",
+                        borderRadius: 5, background: col.purpleBg, color: col.purple, border: `1px solid ${col.purpleBrd}`,
+                        fontSize: 11, fontWeight: 700,
+                      }}>
+                        <i className="fa-solid fa-graduation-cap" style={{ fontSize: 10 }} />
+                        {selectedStudent.scholarship_percent}% {selectedStudent.scholarship_type?.replace(/_/g, " ") || "Scholarship"}
+                      </span>
+                    )}
+
+                    {hostelInfo ? (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 7px",
+                        borderRadius: 5, background: col.purpleBg, color: col.purple, border: `1px solid ${col.purpleBrd}`,
+                        fontSize: 11, fontWeight: 700,
+                      }}>
+                        <i className="fa-solid fa-building" style={{ fontSize: 10 }} />
+                        Hostel: {hostelInfo.hostel_name || "Boarding"} • Room {hostelInfo.room_number} ({fmt(hostelInfo.monthly_fee)}/mo)
+                      </span>
+                    ) : null}
+
+                    {transportInfo ? (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 7px",
+                        borderRadius: 5, background: col.amberBg, color: col.amber, border: `1px solid ${col.amberBrd}`,
+                        fontSize: 11, fontWeight: 700,
+                      }}>
+                        <i className="fa-solid fa-bus-simple" style={{ fontSize: 10 }} />
+                        Bus: {transportInfo.route_name || "Route"} • {transportInfo.stop_name} ({fmt(transportInfo.monthly_fare)}/mo)
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            )}
 
-            {selectedStudent && (
-              <div className={s("cf-card")}>
-                <button className={s("cf-misc-toggle")} onClick={() => setShowMisc(v => !v)}>
-                  <span className={s("cf-misc-icon")}><i className={`fa-solid fa-${showMisc ? "minus" : "plus"}`} /></span>
-                  <div>
-                    <strong>Add One-Time / Misc Fee</strong>
-                    <small>Dress, Books, Exam fee…</small>
+              {/* Quick Facility Add Buttons */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {hostelInfo && (
+                  <button
+                    onClick={() => handleQuickBill("hostel")}
+                    style={{
+                      height: 30, padding: "0 10px", borderRadius: 6, border: `1px solid ${col.purpleBrd}`,
+                      background: col.purpleBg, color: col.purple, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                    }}
+                  >
+                    <i className="fa-solid fa-plus" style={{ fontSize: 10 }} /> Add Hostel Fee ({fmt(hostelInfo.monthly_fee)})
+                  </button>
+                )}
+
+                {transportInfo && (
+                  <button
+                    onClick={() => handleQuickBill("transport")}
+                    style={{
+                      height: 30, padding: "0 10px", borderRadius: 6, border: `1px solid ${col.amberBrd}`,
+                      background: col.amberBg, color: col.amber, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                    }}
+                  >
+                    <i className="fa-solid fa-plus" style={{ fontSize: 10 }} /> Add Bus Fee ({fmt(transportInfo.monthly_fare)})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── ZONE 2: 2-COLUMN POS CASHIER GRID (60% Left Fee Bills | 40% Right Cashier Box) ── */}
+        {!selectedStudent ? (
+          <div style={{
+            background: "#fff", border: `1px solid ${col.border}`, borderRadius: 12,
+            padding: "4rem 2rem", textAlign: "center", color: col.muted,
+          }}>
+            <div style={{
+              width: 54, height: 54, borderRadius: 12, background: "#f1f5f9",
+              color: col.lightMuted, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22, margin: "0 auto 12px",
+            }}>
+              <i className="fa-solid fa-user-magnifying-glass" />
+            </div>
+            <strong style={{ fontSize: 16, color: col.navy, display: "block" }}>No Student Selected</strong>
+            <p style={{ fontSize: 13, marginTop: 4, color: col.muted }}>
+              Search for a student using name, admission number, or roll number above to collect fees.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(360px, 1fr)", gap: 16, alignItems: "start" }}>
+
+            {/* ── LEFT COLUMN: FEE BILLS BREAKDOWN ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* Sequential Lock Warning Banner */}
+              {lockedIds.size > 0 && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                  borderRadius: 8, background: col.amberBg, border: `1px solid ${col.amberBrd}`,
+                  fontSize: 12, color: "#92400e", fontWeight: 600,
+                }}>
+                  <i className="fa-solid fa-lock" style={{ fontSize: 11 }} />
+                  <span>
+                    <strong>Sequential payment active:</strong> Earlier unpaid bills must be settled or waived before newer bills.
+                  </span>
+                </div>
+              )}
+
+              {/* Pending Bills Card */}
+              <div style={{
+                background: "#fff", border: `1px solid ${col.border}`, borderRadius: 12,
+                overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+              }}>
+                {/* Filter Toolbar */}
+                <div style={{
+                  padding: "10px 14px", borderBottom: `1px solid ${col.border}`,
+                  display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
+                }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                    {[
+                      { id: "all",       label: "All Fees",   count: pendingCollections.length },
+                      { id: "academic",  label: "Academic",   count: pendingCollections.filter(c => (c.fee_type || "academic") === "academic").length },
+                      { id: "hostel",    label: "Hostel",     count: pendingCollections.filter(c => c.fee_type === "hostel").length },
+                      { id: "transport", label: "Transport",  count: pendingCollections.filter(c => c.fee_type === "transport").length },
+                    ].map(f => {
+                      const active = typeFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => { setTypeFilter(f.id); setSelectedIds(new Set()); setBulkAmounts({}); }}
+                          style={{
+                            padding: "4px 10px", borderRadius: 6, border: `1px solid ${active ? col.navy : "transparent"}`,
+                            cursor: "pointer", fontSize: 11.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5,
+                            background: active ? col.navy : "#f1f5f9",
+                            color: active ? "#fff" : col.slate,
+                            transition: "all 0.12s",
+                          }}
+                        >
+                          {f.label}
+                          <span style={{
+                            background: active ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                            color: active ? "#fff" : col.slate,
+                            fontSize: 10, fontWeight: 800, padding: "1px 5px", borderRadius: 99,
+                          }}>
+                            {f.count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <i className={`fa-solid fa-chevron-${showMisc ? "up" : "down"}`} style={{ marginLeft: "auto", color: "#94a3b8", fontSize: 11 }} />
+
+                  <button
+                    onClick={toggleAll}
+                    style={{
+                      padding: "4px 10px", borderRadius: 6, border: `1px solid ${col.border}`,
+                      background: "#fff", color: col.slate, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    Select All
+                  </button>
+                </div>
+
+                {/* Bills Table */}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc" }}>
+                        <th style={{ width: 38, textAlign: "center", padding: "8px 6px", borderBottom: `1px solid ${col.border}` }}>
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredPending.filter((c: any) => !lockedIds.has(c.id)).length > 0 &&
+                              selectedIds.size === filteredPending.filter((c: any) => !lockedIds.has(c.id)).length
+                            }
+                            onChange={toggleAll}
+                            style={{ cursor: "pointer", accentColor: col.orange }}
+                          />
+                        </th>
+                        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Fee Bill</th>
+                        <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Type</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Net Fee</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Paid</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Due Amount</th>
+                        <th style={{ width: 85, textAlign: "right", padding: "8px 12px", borderBottom: `1px solid ${col.border}`, fontWeight: 700, fontSize: 11, color: col.muted, textTransform: "uppercase" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingFees ? (
+                        <tr><td colSpan={7} style={{ textAlign: "center", padding: "2.5rem" }}><Spinner size={24} color={col.orange} /></td></tr>
+                      ) : groupedPending.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", padding: "2.5rem", color: col.green, fontWeight: 700 }}>
+                            <i className="fa-solid fa-circle-check" style={{ marginRight: 6 }} />
+                            All dues cleared in this category!
+                          </td>
+                        </tr>
+                      ) : (
+                        groupedPending.map((g: GroupedBill) => {
+                          const isOverdue   = isOverdueFn(g.earliest_due, g.status);
+                          const allSelected = g.ids.every(id => selectedIds.has(id));
+                          const anyLocked   = g.anyLocked;
+
+                          return (
+                            <tr
+                              key={g.ids.join("-")}
+                              onClick={() => !anyLocked && toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
+                              style={{
+                                borderBottom: `1px solid #f1f5f9`,
+                                background: allSelected ? "#eff6ff" : isOverdue ? "#fffdfa" : "#fff",
+                                cursor: anyLocked ? "not-allowed" : "pointer",
+                                opacity: anyLocked ? 0.6 : 1,
+                                transition: "background 0.1s",
+                              }}
+                              onMouseEnter={e => { if (!anyLocked && !allSelected) e.currentTarget.style.background = "#f8fafc"; }}
+                              onMouseLeave={e => { if (!anyLocked && !allSelected) e.currentTarget.style.background = isOverdue ? "#fffdfa" : "#fff"; }}
+                            >
+                              <td style={{ textAlign: "center", padding: "8px 6px" }}>
+                                {anyLocked ? (
+                                  <span style={{ color: col.lightMuted, fontSize: 11 }} title={`Pay "${g.lockedMsg}" first`}>
+                                    <i className="fa-solid fa-lock" />
+                                  </span>
+                                ) : (
+                                  <input
+                                    type="checkbox"
+                                    checked={allSelected}
+                                    onChange={() => toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ cursor: "pointer", accentColor: col.orange }}
+                                  />
+                                )}
+                              </td>
+
+                              <td style={{ padding: "8px 10px" }}>
+                                <div>
+                                  <strong style={{ fontSize: 13, color: col.navy, display: "block" }}>
+                                    {formatFeeName(g.fee_name)}
+                                  </strong>
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, flexWrap: "wrap" }}>
+                                    {isOverdue && !anyLocked && (
+                                      <span style={{ fontSize: 9.5, color: col.red, fontWeight: 800, background: col.redBg, padding: "1px 5px", borderRadius: 4, border: `1px solid ${col.redBrd}` }}>
+                                        OVERDUE
+                                      </span>
+                                    )}
+                                    {anyLocked && (
+                                      <span style={{ fontSize: 10, color: "#b45309", fontWeight: 600 }}>
+                                        <i className="fa-solid fa-lock" style={{ marginRight: 3, fontSize: 8 }} />
+                                        Pay &quot;{formatFeeName(g.lockedMsg)}&quot; first
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td style={{ padding: "8px 10px" }}>
+                                <TypeBadge type={g.fee_type} />
+                              </td>
+
+                              <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 700, color: col.slate }}>
+                                {fmt(g.total_amount)}
+                              </td>
+
+                              <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 700, color: col.green }}>
+                                {fmt(g.paid_amount)}
+                              </td>
+
+                              <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 800, color: col.red, fontSize: 13.5 }}>
+                                {fmt(g.remaining_amount)}
+                              </td>
+
+                              <td style={{ textAlign: "right", padding: "8px 12px" }}>
+                                <div style={{ display: "inline-flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                  {isOverdue && !anyLocked && (
+                                    <button
+                                      onClick={() => { setFineTarget(g.bills[0]); setFineAmount(""); setFineReason(""); }}
+                                      style={{
+                                        padding: "2px 6px", borderRadius: 4, border: `1px solid ${col.orangeBrd}`,
+                                        background: col.orangeBg, color: col.orange, fontSize: 10.5, fontWeight: 700, cursor: "pointer",
+                                      }}
+                                    >
+                                      Fine
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => { setWaiveTarget(g.bills[0]); setWaiveReason(""); }}
+                                    style={{
+                                      padding: "2px 6px", borderRadius: 4, border: `1px solid ${col.blueBrd}`,
+                                      background: col.blueBg, color: col.blue, fontSize: 10.5, fontWeight: 700, cursor: "pointer",
+                                    }}
+                                  >
+                                    Waive
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Add One-Time / Misc Fee Accordion */}
+              <div style={{
+                background: "#fff", border: `1px solid ${col.border}`, borderRadius: 10,
+                padding: "10px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.01)",
+              }}>
+                <button
+                  onClick={() => setShowMisc(v => !v)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 8,
+                    border: "none", background: "none", cursor: "pointer", textAlign: "left", padding: 0,
+                  }}
+                >
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 6, background: col.orangeBg, color: col.orange,
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11,
+                  }}>
+                    <i className={`fa-solid fa-${showMisc ? "minus" : "plus"}`} />
+                  </span>
+                  <div>
+                    <strong style={{ fontSize: 12.5, color: col.navy, display: "block" }}>Add One-Time / Custom Fee</strong>
+                    <span style={{ fontSize: 11, color: col.muted }}>Dress, Books, Uniform, ID Card, Fine…</span>
+                  </div>
+                  <i className={`fa-solid fa-chevron-${showMisc ? "up" : "down"}`} style={{ marginLeft: "auto", color: col.lightMuted, fontSize: 10 }} />
                 </button>
 
                 {showMisc && (
-                  <form onSubmit={handleAddMiscFee} className={s("cf-misc-form")}>
-                    <div className={s("cf-misc-grid")}>
-                      <label className={s("cf-field")}>
-                        <span>Fee Name <b style={{ color: "#b42318" }}>*</b></span>
-                        <input value={miscFeeName} onChange={e => setMiscFeeName(e.target.value)} placeholder="e.g. School Dress" required style={INP} />
-                      </label>
-                      <label className={s("cf-field")}>
-                        <span>Amount <b style={{ color: "#b42318" }}>*</b></span>
-                        <input value={miscAmount} onChange={e => setMiscAmount(e.target.value)} type="number" min="1" required placeholder="0" style={INP} />
-                      </label>
-                      <label className={s("cf-field")}>
-                        <span>Due Date</span>
-                        <DateInput value={miscDueDate} onChange={e => setMiscDueDate(e.target.value)} style={{ width: "100%" }} />
-                      </label>
-                      <label className={s("cf-field")}>
-                        <span>Discount (optional)</span>
-                        <input value={miscDiscount} onChange={e => setMiscDiscount(e.target.value)} type="number" min="0" placeholder="0" style={INP} />
-                      </label>
+                  <form onSubmit={handleAddMiscFee} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid #f1f5f9` }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Fee Name *</label>
+                        <input value={miscFeeName} onChange={e => setMiscFeeName(e.target.value)} placeholder="e.g. Exam Fee" required style={INPUT_STYLE} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Category</label>
+                        <select value={miscType} onChange={e => setMiscType(e.target.value)} style={INPUT_STYLE}>
+                          <option value="academic">Academic</option>
+                          <option value="hostel">Hostel</option>
+                          <option value="transport">Transport</option>
+                          <option value="misc">Misc / Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Amount ({currencySymbol}) *</label>
+                        <input value={miscAmount} onChange={e => setMiscAmount(e.target.value)} type="number" min="1" required placeholder="0" style={INPUT_STYLE} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Due Date</label>
+                        <DateInput value={miscDueDate} onChange={e => setMiscDueDate(e.target.value)} style={{ width: "100%", height: 38 }} />
+                      </div>
                     </div>
-                    <button type="submit" disabled={addingMisc} className={s("cf-misc-submit")}>
-                      {addingMisc ? <><Spinner size={14} color="#fff" /> Adding…</> : <><i className="fa-solid fa-plus" /> Add Fee</>}
+
+                    <button
+                      type="submit"
+                      disabled={addingMisc}
+                      style={{
+                        marginTop: 10, height: 34, padding: "0 14px", borderRadius: 6, border: "none",
+                        background: col.navy, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                      }}
+                    >
+                      {addingMisc ? <Spinner size={13} color="#fff" /> : <i className="fa-solid fa-plus" style={{ fontSize: 10 }} />} Add Fee to Ledger
                     </button>
                   </form>
                 )}
               </div>
-            )}
-          </aside>
 
-          {/* COL 2 — Fee table */}
-          <div className={s("cf-center")}>
-
-            {!selectedStudent ? (
-              <div className={s("cf-empty-state")}>
-                <i className="fa-solid fa-user-magnifying-glass" />
-                <strong>No student selected</strong>
-                <p>Search for a student on the left to view their fees.</p>
-              </div>
-            ) : (
-              <>
-                <div className={s("cf-card")}>
-                  <div className={s("cf-card-head")}>
-                    <div className={s("cf-card-icon")} style={{ background: "#fff1df", color: "#c46a14" }}>
-                      <i className="fa-solid fa-file-invoice-dollar" />
-                    </div>
-                    <div>
-                      <strong>Pending Fees</strong>
-                      <span>Bills are ordered oldest → newest. Pay in order.</span>
-                    </div>
-                    <select
-                      className={s("cf-type-filter")}
-                      value={typeFilter}
-                      onChange={e => { setTypeFilter(e.target.value); setSelectedIds(new Set()); }}
-                    >
-                      <option value="all">All Types</option>
-                      <option value="academic">Academic</option>
-                      <option value="transport">Transport</option>
-                      <option value="hostel">Hostel</option>
-                    </select>
-                  </div>
-
-                  <div className={s("table-wrap")}>
-                    <table className={s("cf-table")}>
-                      <thead>
-                      <tr>
-                          <th style={{ width: 44, textAlign: "center" }}>
-                            <input type="checkbox"
-                              checked={pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length > 0
-                                && selectedIds.size === pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length}
-                              onChange={toggleAll}
-                              className={s("cf-checkbox")}
-                            />
-                          </th>
-                          <th>Fee Name</th>
-                          <th>Generated</th>
-                          <th>Month(s)</th>
-                          <th>Type</th>
-                          <th>Total</th>
-                          <th>Paid</th>
-                          <th>Due Amt</th>
-                          <th>Due Date</th>
-                          <th>Status</th>
-                          <th></th>
-                        </tr>
-                      </thead>
+              {/* Cleared & Paid Fees Collapsible Accordion */}
+              {paidCollections.length > 0 && (
+                <details style={{ background: "#fff", border: `1px solid ${col.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <summary style={{ padding: "8px 12px", background: "#f8fafc", fontSize: 11.5, fontWeight: 700, color: col.muted, cursor: "pointer" }}>
+                    <i className="fa-solid fa-circle-check" style={{ color: col.green, marginRight: 6 }} />
+                    Show Paid / Waived Bills ({paidCollections.length})
+                  </summary>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <tbody>
-                        {groupedPending.length === 0 && (
-                          <tr>
-                            <td colSpan={11} className={s("cf-table-empty")}>
-                              <i className="fa-solid fa-circle-check" />
-                              No pending fees{typeFilter !== "all" ? " in this category" : ""}
+                        {paidCollections.map((c: any) => (
+                          <tr key={c.id} style={{ borderBottom: `1px solid #f1f5f9` }}>
+                            <td style={{ padding: "6px 12px", fontWeight: 600, color: col.navy }}>{formatFeeName(c.fee_name)}</td>
+                            <td style={{ padding: "6px 12px" }}><TypeBadge type={c.fee_type} /></td>
+                            <td style={{ padding: "6px 12px", fontWeight: 700, color: col.green }}>{fmt(c.paid_amount || c.total_amount)}</td>
+                            <td style={{ padding: "6px 12px", color: col.muted }}>{c.due_date ? formatDate(c.due_date.slice(0, 10)) : "—"}</td>
+                            <td style={{ padding: "6px 12px", textAlign: "right" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: col.green, background: col.greenBg, padding: "2px 5px", borderRadius: 4 }}>
+                                {c.status}
+                              </span>
                             </td>
                           </tr>
-                        )}
-                        {groupedPending.map((g: GroupedBill) => {
-                          const isOverdue  = isOverdueFn(g.earliest_due, g.status);
-                          const allSelected = g.ids.every(id => selectedIds.has(id));
-                          const someSelected = g.ids.some(id => selectedIds.has(id));
-                          const isLocked   = g.allLocked;
-                          const anyLocked  = g.anyLocked;
-                          return (
-                            <tr key={g.ids.join("-")}
-                              className={cx(
-                                s("cf-tr"),
-                                allSelected && s("cf-tr-selected"),
-                                isOverdue && !allSelected && !isLocked && s("cf-tr-overdue"),
-                              )}
-                              onClick={() => !anyLocked && toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
-                              style={anyLocked ? { opacity: 0.6, cursor: "not-allowed", background: "#f8fafc" } : {}}
-                              title={anyLocked ? `Pay or waive "${g.lockedMsg}" before this bill.` : undefined}
-                            >
-                              <td style={{ textAlign: "center" }}>
-                                {anyLocked ? (
-                                  <span style={{ color: "#94a3b8", fontSize: 13 }} title={`Pay "${g.lockedMsg}" first`}>
-                                    <i className="fa-solid fa-lock" />
-                                  </span>
-                                ) : (
-                                  <input type="checkbox" checked={allSelected}
-                                    ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                                    onChange={() => toggleSelect(g.ids, g.bills.map(b => b.remaining_amount))}
-                                    onClick={ev => ev.stopPropagation()} className={s("cf-checkbox")} />
-                                )}
-                              </td>
-                              <td>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span className={s("cf-fee-name")}>{formatFeeName(g.fee_name)}</span>
-                                  {isOverdue && !anyLocked && <span className={s("cf-overdue-tag")}>OVERDUE</span>}
-                                  {anyLocked && (
-                                    <span style={{ fontSize: 10.5, color: "#b45309", fontWeight: 700 }}>
-                                      <i className="fa-solid fa-lock" style={{ marginRight: 3, fontSize: 9 }} />
-                                      Pay &quot;{formatFeeName(g.lockedMsg)}&quot; first
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              {/* Generated Date */}
-                              <td className={s("cf-date")}>
-                                {g.created_at ? formatDate(g.created_at.split("T")[0]) : "-"}
-                              </td>
-                              {/* Month badges */}
-                              <td>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                                  {g.months.length > 1 ? (
-                                    <span style={{
-                                      fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
-                                      background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
-                                      whiteSpace: "nowrap",
-                                    }}>
-                                      {g.months[0].split(" ")[0]} – {g.months[g.months.length - 1]}
-                                    </span>
-                                  ) : g.months.length === 1 ? (
-                                    <span style={{
-                                      fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
-                                      background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
-                                      whiteSpace: "nowrap",
-                                    }}>{g.months[0]}</span>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td><TypeBadge type={g.fee_type} /></td>
-                              <td className={s("cf-amt")}>{fmt(g.total_amount)}</td>
-                              <td className={s("cf-amt-paid")}>{fmt(g.paid_amount)}</td>
-                              <td className={s("cf-amt-due")}>{fmt(g.remaining_amount)}</td>
-                              <td className={cx(s("cf-date"), isOverdue && !anyLocked && s("cf-date-overdue"))}>
-                                {g.months.length > 1
-                                  ? <span style={{ fontSize: 11, color: "#64748b" }}>{g.months[0]} – {g.months[g.months.length - 1]}</span>
-                                  : formatDate(g.latest_due?.split("T")[0])}
-                              </td>
-                              <td><StatusBadge status={g.status} /></td>
-                              <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                {isOverdue && !anyLocked && (
-                                  <button
-                                    className={s("cf-fine-btn")}
-                                    onClick={ev => { ev.stopPropagation(); setFineTarget(g.bills[0]); setFineAmount(""); setFineReason(""); }}
-                                  >
-                                    <i className="fa-solid fa-bolt" /> Fine
-                                  </button>
-                                )}
-                                <button
-                                  className={s("cf-fine-btn")}
-                                  style={{ background: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }}
-                                  onClick={ev => { ev.stopPropagation(); setWaiveTarget(g.bills[0]); setWaiveReason(""); }}
-                                  title={anyLocked ? `Waive "${g.lockedMsg}" or this bill` : "Waive this fee"}
-                                >
-                                  <i className="fa-solid fa-hand-holding-heart" /> Waive
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        ))}
                       </tbody>
                     </table>
                   </div>
+                </details>
+              )}
+            </div>
 
-                  {paidCollections.length > 0 && (
-                    <details className={s("cf-paid-details")}>
-                      <summary className={s("cf-paid-summary")}>
-                        <i className="fa-solid fa-chevron-right" style={{ fontSize: 10 }} />
-                        Show paid / waived fees ({paidCollections.length})
-                      </summary>
-                      <div className={s("table-wrap")}>
-                        <table className={s("cf-table")}>
-                          <tbody>
-                            {paidCollections.map((c: any) => (
-                              <tr key={c.id} className={s("cf-tr-paid")}>
-                                <td style={{ width: 44 }}></td>
-                                <td><span className={s("cf-fee-name")}>{formatFeeName(c.fee_name)}</span></td>
-                                <td><TypeBadge type={c.fee_type} /></td>
-                                <td className={s("cf-amt")}>{fmt(c.total_amount)}</td>
-                                <td className={s("cf-amt-paid")}>{fmt(c.paid_amount || 0)}</td>
-                                <td>{fmt(c.remaining_amount || 0)}</td>
-                                <td className={s("cf-date")}>{formatDate(c.due_date?.split("T")[0])}</td>
-                                <td><StatusBadge status={c.status} /></td>
-                                <td>
-                                  {(c.status === "paid" || c.status === "waived") && (
-                                    <Link href={`/fees/history?student_id=${selectedStudent?.id}`} className={s("cf-receipts-link")}>
-                                      <i className="fa-solid fa-clock-rotate-left" /> History
-                                    </Link>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
+            {/* ── RIGHT COLUMN: POS CASHIER CHECKOUT BOX ── */}
+            <div style={{ position: "sticky", top: 16 }}>
+              <form
+                onSubmit={handleBulkPayment}
+                style={{
+                  background: "#fff", border: `1px solid ${col.border}`, borderRadius: 12,
+                  padding: "16px", boxShadow: "0 2px 10px rgba(15,23,42,0.04)", display: "flex",
+                  flexDirection: "column", gap: 14,
+                }}
+              >
+                {/* POS Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${col.border}`, paddingBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 6, background: col.orangeBg,
+                      color: col.orange, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
+                    }}>
+                      <i className="fa-solid fa-receipt" />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: 14, fontWeight: 800, color: col.navy, display: "block" }}>Payment Summary</strong>
+                      <span style={{ fontSize: 11, color: col.muted }}>{selectedIds.size} item{selectedIds.size !== 1 ? "s" : ""} selected</span>
+                    </div>
+                  </div>
+
+                  {selectedIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedIds(new Set()); setBulkAmounts({}); }}
+                      style={{ border: "none", background: "none", color: col.red, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Clear All
+                    </button>
                   )}
                 </div>
 
-                {selectedIds.size === 0 && pendingCollections.filter((c: any) => !lockedIds.has(c.id)).length > 0 && (
-                  <div className={s("cf-hint")}>
-                    <i className="fa-solid fa-hand-pointer" />
-                    Click rows or the header checkbox to select fees for payment.
+                {/* Ledger Balance Summary */}
+                <div style={{
+                  display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, background: "#f8fafc", border: `1px solid ${col.border}`,
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: col.muted, textTransform: "uppercase", letterSpacing: "0.02em", display: "block" }}>
+                      Total Outstanding
+                    </span>
+                    <strong style={{ fontSize: 15, fontWeight: 800, color: totalDue > 0 ? col.red : col.green, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {fmt(totalDue)}
+                    </strong>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: col.muted, textTransform: "uppercase", letterSpacing: "0.02em", display: "block" }}>
+                      Total Collected
+                    </span>
+                    <strong style={{ fontSize: 15, fontWeight: 800, color: col.green, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {fmt(totalPaid)}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Selected Bills List for Payment with Partial Payment Cards */}
+                {selectedCollections.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 280, overflowY: "auto", paddingRight: 2 }}>
+                    {selectedCollections.map((c: any) => {
+                      const totalDueForFee = parseFloat(c.remaining_amount || "0");
+                      const payingAmt = parseFloat(bulkAmounts[c.id] ?? c.remaining_amount ?? "0");
+                      const remainingAfter = Math.max(0, totalDueForFee - (isNaN(payingAmt) ? 0 : payingAmt));
+                      const isPartial = payingAmt < totalDueForFee && payingAmt > 0;
+
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            padding: "10px 12px", borderRadius: 8, background: "#fff",
+                            border: `1px solid ${col.border}`, boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                            display: "flex", flexDirection: "column", gap: 8,
+                          }}
+                        >
+                          {/* Fee Title and Full Due */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                                <TypeBadge type={c.fee_type} />
+                              </div>
+                              <strong style={{ fontSize: 12.5, fontWeight: 700, color: col.navy, display: "block", wordBreak: "break-word" }}>
+                                {formatFeeName(c.fee_name)}
+                              </strong>
+                            </div>
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <span style={{ fontSize: 10, color: col.muted, fontWeight: 600, display: "block" }}>Total Due</span>
+                              <strong style={{ fontSize: 13, fontWeight: 800, color: col.navy }}>{fmt(totalDueForFee)}</strong>
+                            </div>
+                          </div>
+
+                          {/* Paying Amount Input Box */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", padding: "6px 10px", borderRadius: 6, border: `1px solid ${col.border}` }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, flexShrink: 0 }}>
+                              Paying ({currencySymbol}):
+                            </span>
+                            <input
+                              type="number"
+                              value={bulkAmounts[c.id] ?? c.remaining_amount}
+                              onChange={ev => setBulkAmounts(a => ({ ...a, [c.id]: ev.target.value }))}
+                              min="0.01"
+                              max={totalDueForFee}
+                              step="0.01"
+                              required
+                              style={{
+                                flex: 1, height: 30, padding: "0 8px", borderRadius: 5,
+                                border: `1px solid ${col.borderDark}`, fontSize: 13, fontWeight: 800,
+                                color: col.navy, textAlign: "right", outline: "none", background: "#fff",
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setBulkAmounts(a => ({ ...a, [c.id]: String(totalDueForFee) }))}
+                              style={{
+                                height: 26, padding: "0 8px", borderRadius: 4, border: `1px solid ${col.border}`,
+                                background: "#fff", color: col.blue, fontSize: 10.5, fontWeight: 700, cursor: "pointer",
+                                flexShrink: 0,
+                              }}
+                              title="Pay full due amount"
+                            >
+                              Full
+                            </button>
+                          </div>
+
+                          {/* Remaining / Status Note */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
+                            {isPartial ? (
+                              <span style={{ color: col.amber, fontWeight: 700 }}>
+                                <i className="fa-solid fa-circle-half-stroke" style={{ marginRight: 4 }} />
+                                Partial: Leaves {fmt(remainingAfter)} due
+                              </span>
+                            ) : payingAmt >= totalDueForFee ? (
+                              <span style={{ color: col.green, fontWeight: 700 }}>
+                                <i className="fa-solid fa-check" style={{ marginRight: 4 }} />
+                                Full Settlement
+                              </span>
+                            ) : (
+                              <span style={{ color: col.red, fontWeight: 700 }}>
+                                Enter valid amount
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ padding: "1.2rem", textAlign: "center", color: col.muted, fontSize: 12, fontWeight: 500, border: `1px dashed ${col.border}`, borderRadius: 8 }}>
+                    <i className="fa-solid fa-arrow-left" style={{ marginRight: 6, color: col.lightMuted }} />
+                    Select pending dues from the left table
                   </div>
                 )}
-              </>
-            )}
-          </div>
 
-          {/* COL 3 — Payment sidebar */}
-          {selectedStudent && selectedIds.size > 0 && (
-            <aside className={s("cf-right")}>
-              <form onSubmit={handleBulkPayment} className={s("cf-pay-card")}>
-                <div className={s("cf-pay-head")}>
-                  <div className={s("cf-card-icon")} style={{ background: "#3b5bdb", color: "#fff" }}>
-                    <i className="fa-solid fa-credit-card" />
-                  </div>
+                {/* Payment Fields */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
-                    <strong>Pay {selectedIds.size} fee{selectedIds.size > 1 ? "s" : ""}</strong>
-                    <span>Review amounts and confirm</span>
-                  </div>
-                  <button type="button" className={s("cf-clear-sel")} onClick={() => setSelectedIds(new Set())}>
-                    Clear
-                  </button>
-                </div>
-
-                <div className={s("cf-pay-items")}>
-                  {selectedCollections.map((c: any) => (
-                    <div key={c.id} className={s("cf-pay-item")}>
-                      <TypeBadge type={c.fee_type} />
-                      <span className={s("cf-pay-item-name")}>{formatFeeName(c.fee_name)}</span>
-                      <small>max {fmt(c.remaining_amount)}</small>
-                      <input
-                        type="number"
-                        value={bulkAmounts[c.id] ?? c.remaining_amount}
-                        onChange={ev => setBulkAmounts(a => ({ ...a, [c.id]: ev.target.value }))}
-                        min="0.01" max={parseFloat(c.remaining_amount || "0")} step="0.01" required
-                        onClick={ev => ev.stopPropagation()}
-                        className={s("cf-pay-amount-input")}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className={s("cf-pay-fields")}>
-                  <label className={s("cf-field")}>
-                    <span>Payment Date <b style={{ color: "#b42318" }}>*</b></span>
-                    <DateInput value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required style={{ width: "100%" }} />
-                  </label>
-                  <label className={s("cf-field")}>
-                    <span>Payment Mode</span>
-                    <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={INP}>
-                      <option value="cash">Cash</option>
-                      <option value="online">Online (eSewa / Khalti)</option>
-                      <option value="cheque">Cheque</option>
-                      <option value="bank_transfer">Bank Transfer</option>
-                    </select>
-                  </label>
-                  {needsRef && (
-                    <label className={s("cf-field")}>
-                      <span>Transaction / Cheque No. <b style={{ color: "#b42318" }}>*</b></span>
-                      <input value={referenceNo} onChange={e => setReferenceNo(e.target.value)} placeholder="Reference number" required style={INP} />
+                    <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>
+                      Payment Date *
                     </label>
+                    <DateInput value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required style={{ width: "100%", height: 36 }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>
+                      Payment Method
+                    </label>
+                    <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={INPUT_STYLE}>
+                      <option value="cash">Cash Counter</option>
+                      <option value="online">Online (eSewa / Khalti / Fonepay)</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="cheque">Cheque</option>
+                    </select>
+                  </div>
+
+                  {needsRef && (
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>
+                        Transaction / Reference No. *
+                      </label>
+                      <input value={referenceNo} onChange={e => setReferenceNo(e.target.value)} placeholder="eSewa / Khalti / Bank Ref ID" required style={INPUT_STYLE} />
+                    </div>
                   )}
-                  <label className={s("cf-field")}>
-                    <span>Remarks (optional)</span>
-                    <input value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional note…" style={INP} />
-                  </label>
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>
+                      Remarks / Note (Optional)
+                    </label>
+                    <input value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Cashier note…" style={INPUT_STYLE} />
+                  </div>
                 </div>
 
-                <div className={s("cf-pay-footer")}>
-                  <div>
-                    <span>TOTAL PAYING</span>
-                    <strong>{fmt(bulkTotal)}</strong>
+                {/* Total Paying Summary & Big Button */}
+                <div style={{ borderTop: `1px solid ${col.border}`, paddingTop: 10, marginTop: 2 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, textTransform: "uppercase" }}>Net Paying Amount</span>
+                    <strong style={{ fontSize: 22, fontWeight: 800, color: col.green }}>{fmt(bulkTotal)}</strong>
                   </div>
-                  <button type="submit" disabled={isPaying} className={s("cf-pay-submit")}>
-                    {isPaying
-                      ? <><Spinner size={16} color="#fff" /> Processing…</>
-                      : <><i className="fa-solid fa-check" /> Process Payment{selectedIds.size > 1 ? "s" : ""}</>
-                    }
+
+                  <button
+                    type="submit"
+                    disabled={isPaying || selectedIds.size === 0 || bulkTotal <= 0}
+                    style={{
+                      width: "100%", height: 42, borderRadius: 8, border: "none",
+                      background: col.orange, color: "#fff", fontSize: 13.5, fontWeight: 800,
+                      cursor: isPaying || selectedIds.size === 0 || bulkTotal <= 0 ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      opacity: isPaying || selectedIds.size === 0 ? 0.6 : 1,
+                      boxShadow: "0 2px 8px rgba(234,88,12,0.2)",
+                      transition: "background 0.15s, opacity 0.15s",
+                    }}
+                  >
+                    {isPaying ? (
+                      <Spinner size={15} color="#fff" />
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-print" style={{ fontSize: 12 }} />
+                        Collect &amp; Print Receipt ({fmt(bulkTotal)})
+                      </>
+                    )}
                   </button>
                 </div>
+
               </form>
-            </aside>
-          )}
-        </div>
+            </div>
+
+          </div>
+        )}
+
       </main>
 
-      {/* Waive modal */}
+      {/* ── MODALS ── */}
+      {/* Waive Modal */}
       {waiveTarget && (
-        <div className={s("cf-modal-overlay")} onClick={() => setWaiveTarget(null)}>
-          <div className={s("cf-modal")} onClick={e => e.stopPropagation()}>
-            <div className={s("cf-modal-head")}>
-              <div>
-                <h3>Waive Fee</h3>
-                <p>{waiveTarget.fee_name} · {fmt(waiveTarget.remaining_amount)} remaining</p>
-              </div>
-              <button onClick={() => setWaiveTarget(null)} className={s("cf-modal-close")}>
-                <i className="fa-solid fa-xmark" />
-              </button>
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(2px)",
+        }} onClick={() => setWaiveTarget(null)}>
+          <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 420, border: `1px solid ${col.border}`, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${col.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: col.navy }}>Waive Fee Bill</h3>
+              <button onClick={() => setWaiveTarget(null)} style={{ border: "none", background: "none", fontSize: 14, cursor: "pointer", color: col.muted }}>✕</button>
             </div>
-            <form onSubmit={handleWaive} className={s("cf-modal-body")}>
-              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 12px" }}>
-                Waiving sets the remaining balance to zero. This unlocks the next bill in the series.
+            <form onSubmit={handleWaive} style={{ padding: "14px 16px" }}>
+              <p style={{ fontSize: 12.5, color: col.muted, margin: "0 0 10px" }}>
+                Waiving sets the remaining balance for <strong>{waiveTarget.fee_name}</strong> ({fmt(waiveTarget.remaining_amount)}) to zero.
               </p>
-              <label className={s("cf-field")}>
-                <span>Reason (optional)</span>
-                <input value={waiveReason} onChange={e => setWaiveReason(e.target.value)} placeholder="e.g. Financial hardship, scholarship adjustment…" style={INP} />
-              </label>
-              <div className={s("cf-modal-actions")}>
-                <button type="submit" disabled={waiving} className={s("cf-fine-submit")} style={{ background: "#1d4ed8" }}>
-                  {waiving ? <><Spinner size={14} color="#fff" /> Waiving…</> : <><i className="fa-solid fa-hand-holding-heart" /> Confirm Waive</>}
-                </button>
-                <button type="button" onClick={() => setWaiveTarget(null)} className={s("cf-modal-cancel")}>
-                  Cancel
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: col.navy, display: "block", marginBottom: 3 }}>Reason for Waiving</label>
+              <input value={waiveReason} onChange={e => setWaiveReason(e.target.value)} placeholder="e.g. Scholarship adjustment, financial aid…" style={INPUT_STYLE} />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+                <button type="button" onClick={() => setWaiveTarget(null)} style={{ height: 34, padding: "0 12px", borderRadius: 6, border: `1px solid ${col.border}`, background: "#fff", cursor: "pointer", fontSize: 12 }}>Cancel</button>
+                <button type="submit" disabled={waiving} style={{ height: 34, padding: "0 14px", borderRadius: 6, border: "none", background: col.blue, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                  {waiving ? "Waiving…" : "Confirm Waive"}
                 </button>
               </div>
             </form>
@@ -957,40 +1465,33 @@ export default function CollectFeePage() {
         </div>
       )}
 
-      {/* Fine modal */}
+      {/* Fine Modal */}
       {fineTarget && (
-        <div className={s("cf-modal-overlay")} onClick={() => setFineTarget(null)}>
-          <div className={s("cf-modal")} onClick={e => e.stopPropagation()}>
-            <div className={s("cf-modal-head")}>
-              <div>
-                <h3>Add Fine</h3>
-                <p>{fineTarget.fee_name}</p>
-              </div>
-              <button onClick={() => setFineTarget(null)} className={s("cf-modal-close")}>
-                <i className="fa-solid fa-xmark" />
-              </button>
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(2px)",
+        }} onClick={() => setFineTarget(null)}>
+          <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 420, border: `1px solid ${col.border}`, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${col.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: col.navy }}>Add Late Fine</h3>
+              <button onClick={() => setFineTarget(null)} style={{ border: "none", background: "none", fontSize: 14, cursor: "pointer", color: col.muted }}>✕</button>
             </div>
-            <form onSubmit={handleAddFine} className={s("cf-modal-body")}>
-              <label className={s("cf-field")}>
-                <span>Fine Amount <b style={{ color: "#b42318" }}>*</b></span>
-                <input value={fineAmount} onChange={e => setFineAmount(e.target.value)} type="number" min="0.01" step="0.01" required placeholder="0.00" style={INP} />
-              </label>
-              <label className={s("cf-field")}>
-                <span>Reason</span>
-                <input value={fineReason} onChange={e => setFineReason(e.target.value)} placeholder="Late payment fine" style={INP} />
-              </label>
-              <div className={s("cf-modal-actions")}>
-                <button type="submit" disabled={addingFine} className={s("cf-fine-submit")}>
-                  {addingFine ? <><Spinner size={14} color="#fff" /> Applying…</> : <><i className="fa-solid fa-bolt" /> Apply Fine</>}
-                </button>
-                <button type="button" onClick={() => setFineTarget(null)} className={s("cf-modal-cancel")}>
-                  Cancel
+            <form onSubmit={handleAddFine} style={{ padding: "14px 16px" }}>
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: col.navy, display: "block", marginBottom: 3 }}>Fine Amount ({currencySymbol}) *</label>
+              <input value={fineAmount} onChange={e => setFineAmount(e.target.value)} type="number" min="1" required placeholder="100" style={INPUT_STYLE} />
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: col.navy, display: "block", margin: "8px 0 3px" }}>Reason</label>
+              <input value={fineReason} onChange={e => setFineReason(e.target.value)} placeholder="Late payment fine" style={INPUT_STYLE} />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+                <button type="button" onClick={() => setFineTarget(null)} style={{ height: 34, padding: "0 12px", borderRadius: 6, border: `1px solid ${col.border}`, background: "#fff", cursor: "pointer", fontSize: 12 }}>Cancel</button>
+                <button type="submit" disabled={addingFine} style={{ height: 34, padding: "0 14px", borderRadius: 6, border: "none", background: col.orange, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                  {addingFine ? "Applying…" : "Apply Fine"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
     </div>
   );
 }

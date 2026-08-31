@@ -84,11 +84,12 @@ export const deleteRoomService = async (id: number, school_id: number) => {
 // ── ASSIGNMENTS ───────────────────────────────────────────────────────────────
 
 export const assignStudentService = async (school_id: number, data: ICreateAssignment) => {
+  const joining_date = data.joining_date || (data as any).joined_date;
   if (!data.student_id)       throw new AppError('Student is required.', 400);
   if (!data.hostel_id)        throw new AppError('Hostel is required.', 400);
   if (!data.room_id)          throw new AppError('Room is required.', 400);
   if (!data.academic_year_id) throw new AppError('Academic year is required.', 400);
-  if (!data.joining_date)     throw new AppError('Joining date is required.', 400);
+  if (!joining_date)          throw new AppError('Joining date is required.', 400);
 
   // Check room capacity
   const room       = await getRoomById(data.room_id, school_id);
@@ -97,7 +98,7 @@ export const assignStudentService = async (school_id: number, data: ICreateAssig
   if (current.length >= room.capacity)
     throw new AppError(`Room ${room.room_number} is full (capacity: ${room.capacity}).`, 400);
 
-  return createAssignment(school_id, data);
+  return createAssignment(school_id, { ...data, joining_date });
 };
 
 export const getHostelAssignmentsService = async (hostel_id: number, school_id: number) =>

@@ -350,10 +350,13 @@ export default function MonthlyBillingPage() {
           }, 1200);
 
           const result = jobData.result || {};
+          const errors = Array.isArray(result.errors) ? result.errors : [];
           dispatch(showToast({
-            type: "success",
-            title: `${TYPE_META[feeType].label} Bills Generated`,
-            message: `${result.created ?? 0} bills created, ${result.skipped ?? 0} already existed`
+            type: errors.length ? "error" : "success",
+            title: errors.length ? `${TYPE_META[feeType].label} Billing Needs Attention` : `${TYPE_META[feeType].label} Bills Generated`,
+            message: errors.length
+              ? `${result.created ?? 0} bills created. ${errors[0]}`
+              : `${result.created ?? 0} bills created, ${result.skipped ?? 0} already existed`
           }));
           refetchAll(false);
           refetchUnbilled();
@@ -591,6 +594,7 @@ export default function MonthlyBillingPage() {
                   {monthRange.map((bm, idx) => {
                     const [by, bmon] = bm.split("-").map(Number);
                     const monthBills = allBills.filter(b => {
+                      if ((b.fee_type || "academic") !== activeFeeType) return false;
                       if (b.billing_from_month && b.billing_to_month) {
                         return bm >= b.billing_from_month && bm <= b.billing_to_month;
                       }

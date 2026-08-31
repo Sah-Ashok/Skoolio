@@ -1,7 +1,23 @@
-﻿import { Worker, Job } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import { redisConnectionOptions } from '../config/redis.config';
 import { FEE_BILLING_QUEUE_NAME, FeeBillingJobData } from '../queues/feeBilling.queue';
 import { generateMonthlyFeeBillsService, generateTransportBillsService, generateHostelBillsService } from '../Service/fee.service';
+
+function getMonthRange(start: string, end: string): string[] {
+  const months: string[] = [];
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end.split('-').map(Number);
+  let curY = sy, curM = sm;
+  while (curY < ey || (curY === ey && curM <= em)) {
+    months.push(`${curY}-${String(curM).padStart(2, '0')}`);
+    curM++;
+    if (curM > 12) {
+      curM = 1;
+      curY++;
+    }
+  }
+  return months.length ? months : [start];
+}
 
 export const feeBillingWorker = new Worker<FeeBillingJobData>(
   FEE_BILLING_QUEUE_NAME,
@@ -44,20 +60,24 @@ export const feeBillingWorker = new Worker<FeeBillingJobData>(
         school_id,
         created_by,
         academic_year_id,
-        billing_month,
+        to_month || billing_month,
         10,
         [],
-        custom_due_date
+        custom_due_date,
+        from_month,
+        to_month
       );
     } else if (fee_type === 'hostel') {
       result = await generateHostelBillsService(
         school_id,
         created_by,
         academic_year_id,
-        billing_month,
+        to_month || billing_month,
         10,
         [],
-        custom_due_date
+        custom_due_date,
+        from_month,
+        to_month
       );
     }
 

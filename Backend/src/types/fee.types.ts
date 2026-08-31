@@ -72,7 +72,7 @@ export interface IFeeCollection {
 
 export type ICreateFeeCollection = {
   student_id:         number;
-  enrollment_id:      number | null;   // null for transport/hostel bills (no enrollment link needed)
+  enrollment_id:      number | null;
   fee_structure_id:   number | null;   // null for transport/hostel bills (no fee_structure row)
   academic_year_id:   number;
   due_date:           Date | string;

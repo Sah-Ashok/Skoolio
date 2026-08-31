@@ -227,6 +227,9 @@ export function useDateFormat() {
         return `(AY ${prevYear}-${bs.year})`;
       });
 
+      // 4. Duplicate BS Year in range: "Jestha 2083 to Shrawan 2083" -> "Jestha to Shrawan 2083"
+      name = name.replace(/\b([A-Za-z]+)\s+(\d{4})\s+(?:to|-|–)\s+([A-Za-z]+)\s+\2\b/g, '$1 to $3 $2');
+
       return name;
     }
 

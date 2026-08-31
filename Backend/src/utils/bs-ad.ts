@@ -200,3 +200,41 @@ export function toBSMonthLabel(adYearMonth: string): string {
   const bs = isoToBS(dateStr);
   return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
 }
+
+export function formatPeriodLabel(fromMonthStr: string, toMonthStr: string, monthsCount: number, isBS: boolean = true): string {
+  if (!fromMonthStr || !toMonthStr) return '';
+  if (isBS) {
+    const fromBS = isoToBS(fromMonthStr.length === 7 ? `${fromMonthStr}-15` : fromMonthStr);
+    const toBS   = isoToBS(toMonthStr.length === 7 ? `${toMonthStr}-15` : toMonthStr);
+    const fromName = BS_MONTH_NAMES[fromBS.month - 1];
+    const toName   = BS_MONTH_NAMES[toBS.month - 1];
+
+    if (monthsCount === 1 || fromMonthStr === toMonthStr) {
+      return `${fromName} ${fromBS.year}`;
+    }
+    if (fromBS.year === toBS.year) {
+      return `${fromName} to ${toName} ${fromBS.year} · ${monthsCount} Months`;
+    }
+    return `${fromName} ${fromBS.year} to ${toName} ${toBS.year} · ${monthsCount} Months`;
+  } else {
+    const [fYStr, fMStr] = fromMonthStr.split('-');
+    const [tYStr, tMStr] = toMonthStr.split('-');
+    const fY = parseInt(fYStr, 10);
+    const tY = parseInt(tYStr, 10);
+    const fM = parseInt(fMStr, 10);
+    const tM = parseInt(tMStr, 10);
+    const d1 = new Date(fY, fM - 1, 1);
+    const d2 = new Date(tY, tM - 1, 1);
+    const fName = d1.toLocaleString('en-US', { month: 'short' });
+    const tName = d2.toLocaleString('en-US', { month: 'short' });
+
+    if (monthsCount === 1 || fromMonthStr === toMonthStr) {
+      return `${fName} ${fY}`;
+    }
+    if (fY === tY) {
+      return `${fName} to ${tName} ${fY} · ${monthsCount} Months`;
+    }
+    return `${fName} ${fY} to ${tName} ${tY} · ${monthsCount} Months`;
+  }
+}
+

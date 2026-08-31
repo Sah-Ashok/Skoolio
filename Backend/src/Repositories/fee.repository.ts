@@ -219,7 +219,16 @@ export const getFeeCollectionsBySchool = async (
   pending_only?: boolean,
 ): Promise<IFeeCollection[]> => {
   const params: Array<number | string> = [school_id, academic_year_id];
-  const monthFilter   = billing_month ? `AND to_char(fc.due_date, 'YYYY-MM') = $${params.push(billing_month)}` : '';
+  let monthFilter = '';
+  if (billing_month) {
+    const idx = params.push(billing_month);
+    monthFilter = `AND (
+      to_char(fc.due_date, 'YYYY-MM') = $${idx}
+      OR fc.billing_from_month = $${idx}
+      OR fc.billing_to_month = $${idx}
+      OR ($${idx} BETWEEN fc.billing_from_month AND fc.billing_to_month)
+    )`;
+  }
   const pendingFilter = pending_only
     ? `AND fc.status NOT IN ('paid', 'waived') AND COALESCE(fc.remaining_amount, fc.net_amount, fc.total_amount) > 0`
     : '';
@@ -355,11 +364,8 @@ export const getTransportFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
   academic_year_id: number,
-  due_date:         string   // YYYY-MM-DD — matched on YYYY-MM (billing month) only
+  due_date:         string   // YYYY-MM or YYYY-MM-DD
 ): Promise<IFeeCollection | null> => {
-  // Match on billing month, not exact day.  If an admin ever adjusts the due day
-  // (e.g. from 1st to 10th) and reruns, the same billing month still resolves
-  // to one row — preventing a second transport bill for the same month.
   const billing_month = due_date.slice(0, 7);
   const result = await pool.query(
     `SELECT * FROM fee_collections
@@ -367,7 +373,12 @@ export const getTransportFeeForPeriod = async (
        AND student_id             = $2
        AND academic_year_id       = $3
        AND fee_type               = 'transport'
-       AND to_char(due_date, 'YYYY-MM') = $4`,
+       AND (
+         to_char(due_date, 'YYYY-MM') = $4
+         OR billing_from_month = $4
+         OR billing_to_month = $4
+         OR ($4 BETWEEN billing_from_month AND billing_to_month)
+       )`,
     [school_id, student_id, academic_year_id, billing_month]
   );
   return result.rows[0] || null;
@@ -377,7 +388,7 @@ export const getHostelFeeForPeriod = async (
   school_id:        number,
   student_id:       number,
   academic_year_id: number,
-  due_date:         string   // YYYY-MM-DD — matched on YYYY-MM (billing month) only
+  due_date:         string   // YYYY-MM or YYYY-MM-DD
 ): Promise<IFeeCollection | null> => {
   const billing_month = due_date.slice(0, 7);
   const result = await pool.query(
@@ -386,7 +397,12 @@ export const getHostelFeeForPeriod = async (
        AND student_id             = $2
        AND academic_year_id       = $3
        AND fee_type               = 'hostel'
-       AND to_char(due_date, 'YYYY-MM') = $4`,
+       AND (
+         to_char(due_date, 'YYYY-MM') = $4
+         OR billing_from_month = $4
+         OR billing_to_month = $4
+         OR ($4 BETWEEN billing_from_month AND billing_to_month)
+       )`,
     [school_id, student_id, academic_year_id, billing_month]
   );
   return result.rows[0] || null;
@@ -759,8 +775,14 @@ export const voidMonthBilling = async (
      FROM fee_collections
      WHERE school_id        = $1
        AND academic_year_id = $2
-       AND to_char(due_date, 'YYYY-MM') = $3
        AND COALESCE(fee_type, 'academic') = $4
+       AND (
+         to_char(due_date, 'YYYY-MM') = $3
+         OR billing_from_month = $3
+         OR billing_to_month = $3
+         OR (billing_from_month IS NOT NULL AND billing_to_month IS NOT NULL
+             AND $3 >= billing_from_month AND $3 <= billing_to_month)
+       )
        AND status IN ('paid', 'partial')`,
     [school_id, academic_year_id, billing_month, fee_type]
   );
@@ -771,8 +793,14 @@ export const voidMonthBilling = async (
     `DELETE FROM fee_collections
      WHERE school_id        = $1
        AND academic_year_id = $2
-       AND to_char(due_date, 'YYYY-MM') = $3
        AND COALESCE(fee_type, 'academic') = $4
+       AND (
+         to_char(due_date, 'YYYY-MM') = $3
+         OR billing_from_month = $3
+         OR billing_to_month = $3
+         OR (billing_from_month IS NOT NULL AND billing_to_month IS NOT NULL
+             AND $3 >= billing_from_month AND $3 <= billing_to_month)
+       )
        AND status = 'unpaid'
        AND paid_amount = 0
      RETURNING id`,
@@ -839,7 +867,16 @@ export const getUnbilledStudents = async (
            AND fc.academic_year_id = $2
            AND fc.student_id       = s.id
            AND COALESCE(fc.fee_type, 'academic') = $3
-           AND to_char(fc.due_date, 'YYYY-MM') IN (${monthParams})
+           AND (
+             to_char(fc.due_date, 'YYYY-MM') IN (${monthParams})
+             OR fc.billing_from_month IN (${monthParams})
+             OR fc.billing_to_month IN (${monthParams})
+             OR EXISTS (
+               SELECT 1 FROM unnest(ARRAY[${monthParams}]::text[]) bm
+               WHERE fc.billing_from_month IS NOT NULL AND fc.billing_to_month IS NOT NULL
+                 AND bm >= fc.billing_from_month AND bm <= fc.billing_to_month
+             )
+           )
        )
      ORDER BY s.full_name ASC`,
     [school_id, academic_year_id, fee_type, ...billing_months]
@@ -868,7 +905,9 @@ export const getMonthlyBillingStatus = async (
        fc.paid_amount,
        fc.remaining_amount,
        fc.status,
-       fc.due_date::text
+       fc.due_date::text,
+       fc.billing_from_month,
+       fc.billing_to_month
      FROM fee_collections fc
      INNER JOIN students s ON s.id = fc.student_id
      LEFT JOIN student_enrollments se
@@ -880,7 +919,12 @@ export const getMonthlyBillingStatus = async (
      LEFT JOIN sections sec ON sec.id = se.section_id
      WHERE fc.school_id        = $1
        AND fc.academic_year_id = $2
-       AND to_char(fc.due_date, 'YYYY-MM') = $3
+       AND (
+         to_char(fc.due_date, 'YYYY-MM') = $3
+         OR fc.billing_from_month = $3
+         OR fc.billing_to_month = $3
+         OR (fc.billing_from_month IS NOT NULL AND fc.billing_to_month IS NOT NULL AND $3 >= fc.billing_from_month AND $3 <= fc.billing_to_month)
+       )
      ORDER BY s.full_name ASC, fc.fee_type ASC, fc.fee_name ASC`,
     [school_id, academic_year_id, billing_month]
   );

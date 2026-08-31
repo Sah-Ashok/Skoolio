@@ -857,8 +857,8 @@ export default function StudentFeeHistoryPage() {
                                       <td style={{ padding: "11px 13px" }}>
                                         {c.status !== "paid" && c.status !== "waived" && (
                                           <Link
-                                            href={`/fees/collect?student_id=${studentId}`}
-                                            style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 6, background: "#ff9b51", color: "#fff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+                                            href={`/fees/collect?student_id=${studentId}&collection_id=${c.id}`}
+                                            style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 6, background: "#ea580c", color: "#fff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
                                           >
                                             Pay
                                           </Link>

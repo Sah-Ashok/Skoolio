@@ -7,6 +7,7 @@ import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { isoToBS, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
@@ -322,7 +323,7 @@ export default function HostelPage() {
   const [assignRooms, setAssignRooms]               = useState<any[]>([]);
   const [aForm, setAForm]                           = useState({
     student_id: "", hostel_id: "", room_id: "",
-    joined_date: new Date().toISOString().slice(0, 10),
+    joining_date: new Date().toISOString().slice(0, 10),
     notes: ""
   });
 
@@ -529,12 +530,13 @@ export default function HostelPage() {
     setAssignHostelId(String(viewHostelAssignId || hostels?.[0]?.id || ""));
     setAForm({
       student_id: "", hostel_id: String(viewHostelAssignId || hostels?.[0]?.id || ""),
-      room_id: "", joined_date: new Date().toISOString().slice(0, 10), notes: ""
+      room_id: "", joining_date: new Date().toISOString().slice(0, 10), notes: ""
     });
     setShowAForm(true);
   };
 
   const saveAssignment = async () => {
+    const joining_date = aForm.joining_date || new Date().toISOString().slice(0, 10);
     if (!aForm.student_id || !aForm.hostel_id || !aForm.room_id || !activeYear?.id) {
       dispatch(showToast({ type: "error", title: "Required Fields", message: "Student, hostel, and room are required." }));
       return;
@@ -545,6 +547,7 @@ export default function HostelPage() {
         method: "POST",
         body: JSON.stringify({
           ...aForm,
+          joining_date,
           student_id: Number(aForm.student_id),
           hostel_id: Number(aForm.hostel_id),
           room_id: Number(aForm.room_id),
@@ -1575,11 +1578,10 @@ export default function HostelPage() {
             </Field>
 
             <Field label="Joining Date" required>
-              <input
-                type="date"
-                value={aForm.joined_date}
-                onChange={e => setAForm(f => ({ ...f, joined_date: e.target.value }))}
-                style={inputStyle}
+              <DateInput
+                value={aForm.joining_date}
+                onChange={(val: any) => setAForm(f => ({ ...f, joining_date: typeof val === "string" ? val : (val?.target?.value || "") }))}
+                style={{ width: "100%" }}
               />
             </Field>
 
