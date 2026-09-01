@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface AppFooterProps {
   role?: 'admin' | 'teacher' | 'student' | 'super_admin';
@@ -26,14 +27,16 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
 
           {/* ── Brand column ── */}
           <div className="sk-footer-brand-col">
-            <div className="sk-footer-logo">
-              <span className="sk-footer-logo-icon">
-                <i className="fa-solid fa-graduation-cap" />
-              </span>
-              <div className="sk-footer-logo-text">
-                <strong>Skoolio</strong>
-                <span>Smart School Management</span>
-              </div>
+            <div className="sk-footer-logo" style={{ marginBottom: 14 }}>
+              <Link href="/" aria-label="Skoolio — Home" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <Image
+                  src="/Logo.png"
+                  alt="Skoolio"
+                  width={140}
+                  height={48}
+                  style={{ objectFit: 'contain' }}
+                />
+              </Link>
             </div>
 
             <p className="sk-footer-desc">
@@ -61,22 +64,21 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
                 <i className="fa-brands fa-linkedin-in" />
               </a>
               <a
-                href="https://wa.me/"
+                href="https://wa.me/9779713823636"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="WhatsApp support"
+                aria-label="WhatsApp support: +977 9713823636"
                 className="sk-social-btn sk-social-whatsapp"
               >
                 <i className="fa-brands fa-whatsapp" />
               </a>
               <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Skoolio on Instagram"
-                className="sk-social-btn sk-social-instagram"
+                href="mailto:skoolio.support@gmail.com"
+                aria-label="Email support: skoolio.support@gmail.com"
+                className="sk-social-btn sk-social-email"
+                style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa' }}
               >
-                <i className="fa-brands fa-instagram" />
+                <i className="fa-solid fa-envelope" />
               </a>
             </div>
           </div>
@@ -104,19 +106,83 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
           </nav>
 
           {/* ── Support nav ── */}
-          <nav className="sk-footer-nav" aria-label="Support navigation">
-            <p className="sk-footer-nav-title">Support</p>
-            <ul>
-              <li><Link href={`${basePath}/dashboard`}>Help Center</Link></li>
-              <li>
-                <a href="https://wa.me/" target="_blank" rel="noopener noreferrer">
+          <div className="sk-footer-nav" aria-label="Support navigation">
+            <p className="sk-footer-nav-title">Support &amp; Contact</p>
+            
+            {/* WhatsApp Box */}
+            <a
+              href="https://wa.me/9779713823636"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '11px 14px',
+                borderRadius: 10,
+                background: '#f0fdf4',
+                border: '1.5px solid #bbf7d0',
+                textDecoration: 'none',
+                marginBottom: 10,
+              }}
+            >
+              <div style={{
+                width: 34, height: 34, borderRadius: 8,
+                background: '#25D366', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0,
+              }}>
+                <i className="fa-brands fa-whatsapp" />
+              </div>
+              <div>
+                <span style={{ display: 'block', fontSize: 10, fontWeight: 900, color: '#15803d', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   WhatsApp Support
-                </a>
-              </li>
+                </span>
+                <strong style={{ fontSize: 14, fontWeight: 900, color: '#166534', letterSpacing: 0.3 }}>
+                  +977 9713823636
+                </strong>
+              </div>
+            </a>
+
+            {/* Email Box */}
+            <a
+              href="mailto:skoolio.support@gmail.com"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '11px 14px',
+                borderRadius: 10,
+                background: '#fff7ed',
+                border: '1.5px solid #fed7aa',
+                textDecoration: 'none',
+                marginBottom: 12,
+              }}
+            >
+              <div style={{
+                width: 34, height: 34, borderRadius: 8,
+                background: '#FF9B51', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15, flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-envelope" />
+              </div>
+              <div>
+                <span style={{ display: 'block', fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Email Support
+                </span>
+                <strong style={{ fontSize: 12.5, fontWeight: 900, color: '#9a3412', wordBreak: 'break-all' }}>
+                  skoolio.support@gmail.com
+                </strong>
+              </div>
+            </a>
+
+            <ul>
+              <li><Link href="/contact"><i className="fa-solid fa-headset" style={{ color: '#ea580c', marginRight: 4 }} /> Contact Us Page</Link></li>
+              <li><Link href={`${basePath}/dashboard`}>Help Center</Link></li>
               <li><Link href={`${basePath}/settings`}>Settings</Link></li>
-              <li><Link href={`${basePath}/dashboard`}>Privacy &amp; Security</Link></li>
             </ul>
-          </nav>
+          </div>
 
         </div>
 

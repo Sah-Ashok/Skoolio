@@ -46,10 +46,10 @@ const emptyForm: YearFormState = {
 
 // formatDate is now provided by useDateFormat hook (BS/AD aware)
 
-const statusBadgeStyle = (status: AcademicYearStatus) => {
-  if (status === "active") return { background: "#dcfce7", color: "#166534" };
-  if (status === "upcoming") return { background: "#e0f2fe", color: "#0369a1" };
-  return { background: "#f1f5f9", color: "#475569" };
+const statusBadgeStyle = (status: AcademicYearStatus): React.CSSProperties => {
+  if (status === "active") return { background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0", fontWeight: 900, textTransform: "uppercase", fontSize: 11, padding: "4px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 };
+  if (status === "upcoming") return { background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 900, textTransform: "uppercase", fontSize: 11, padding: "4px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 };
+  return { background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", fontWeight: 900, textTransform: "uppercase", fontSize: 11, padding: "4px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 };
 };
 
 function YearFields({
@@ -228,7 +228,6 @@ export default function AcademicYearsPage() {
 
   return (
     <div className={s("academic-page")}>
-      <Topbar title="Academic Years" subtitle="Manage your school's academic year cycles" />
       <main className={s("content")}>
         <section className={s("hero")}>
           <div>
@@ -254,7 +253,7 @@ export default function AcademicYearsPage() {
         </section>
 
         <section className={s("stats-grid")}>
-          <article className={s("stat-card")}>
+          <article className={cx(s("stat-card"), s("stat-blue"))}>
             <div className={s("stat-icon")}>
               <i className="fa-solid fa-calendar-days" />
             </div>
@@ -263,25 +262,25 @@ export default function AcademicYearsPage() {
               <strong>{years?.length || 0}</strong>
             </div>
           </article>
-          <article className={s("stat-card")}>
+          <article className={cx(s("stat-card"), s("stat-green"))}>
             <div className={s("stat-icon")}>
               <i className="fa-solid fa-circle-check" />
             </div>
             <div>
               <p>Active Year</p>
-              <strong style={{ fontSize: 15 }}>{activeYear?.year_name || "None set"}</strong>
+              <strong style={{ fontSize: 17, color: "#059669" }}>{activeYear?.year_name || "None set"}</strong>
             </div>
           </article>
-          <article className={s("stat-card")}>
+          <article className={cx(s("stat-card"), s("stat-amber"))}>
             <div className={s("stat-icon")}>
-              <i className="fa-solid fa-hourglass-half" />
+              <i className="fa-solid fa-clock-rotate-left" />
             </div>
             <div>
               <p>Upcoming</p>
               <strong>{upcomingCount}</strong>
             </div>
           </article>
-          <article className={s("stat-card")}>
+          <article className={cx(s("stat-card"), s("stat-purple"))}>
             <div className={s("stat-icon")}>
               <i className="fa-solid fa-box-archive" />
             </div>
@@ -348,7 +347,7 @@ export default function AcademicYearsPage() {
 
                 if (isEditing) {
                   return (
-                    <div key={year.id} className={s("data-row")}>
+                    <div key={year.id} className={s("year-item")} style={{ flexDirection: "column", alignItems: "stretch" }}>
                       <YearFields form={editForm} onChange={setEditForm} />
                       <div className={s("form-actions")}>
                         <button type="button" className={s("btn")} onClick={cancelEdit} disabled={isBusy}>
@@ -360,30 +359,53 @@ export default function AcademicYearsPage() {
                           onClick={() => saveEdit(year.id)}
                           disabled={isBusy}
                         >
-                          {isBusy ? <Spinner size={16} /> : "Save Changes"}
+                          {isBusy ? <Spinner size={16} /> : <><i className="fa-solid fa-check" /> Save Changes</>}
                         </button>
                       </div>
                     </div>
                   );
                 }
 
+                const cardModifier =
+                  year.status === "active"
+                    ? s("year-active")
+                    : year.status === "upcoming"
+                    ? s("year-upcoming")
+                    : s("year-completed");
+
+                const iconClass =
+                  year.status === "active"
+                    ? "fa-solid fa-circle-check"
+                    : year.status === "upcoming"
+                    ? "fa-solid fa-calendar-plus"
+                    : "fa-solid fa-box-archive";
+
                 return (
-                  <div key={year.id} className={cx(s("data-row"), s("row-main"))}>
-                    <div>
-                      <div className={s("row-title")}>{year.year_name}</div>
-                      <div className={s("row-sub")}>
-                        {formatDate(year.start_date)} – {formatDate(year.end_date)}
-                        {year.description ? ` · ${year.description}` : ""}
+                  <div key={year.id} className={cx(s("year-item"), cardModifier)}>
+                    <div className={s("year-title-wrap")}>
+                      <div className={s("year-icon-box")}>
+                        <i className={iconClass} />
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 16, fontWeight: 900, color: "#0f172a" }}>{year.year_name}</span>
+                          <span style={statusBadgeStyle(year.status)}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: year.status === "active" ? "#16a34a" : year.status === "upcoming" ? "#2563eb" : "#64748b" }} />
+                            {year.status}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 4, color: "#64748b", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                          <i className="fa-regular fa-calendar" style={{ color: "#94a3b8" }} />
+                          <span>{formatDate(year.start_date)} – {formatDate(year.end_date)}</span>
+                          {year.description && <span style={{ color: "#94a3b8" }}>· {year.description}</span>}
+                        </div>
                       </div>
                     </div>
                     <div className={s("row-actions")} style={{ alignItems: "center" }}>
-                      <span className={s("badge")} style={statusBadgeStyle(year.status)}>
-                        {year.status}
-                      </span>
                       {year.status !== "active" && (
                         <button
                           type="button"
-                          className={s("btn")}
+                          className={cx(s("btn"), s("btn-activate"))}
                           onClick={() => handleActivate(year)}
                           disabled={busyId === year.id}
                           title="Make this the active academic year"
@@ -392,7 +414,7 @@ export default function AcademicYearsPage() {
                         </button>
                       )}
                       <button type="button" className={s("btn")} onClick={() => startEdit(year)} disabled={isBusy}>
-                        <i className="fa-solid fa-pen" /> Edit
+                        <i className="fa-solid fa-pen-to-square" /> Edit
                       </button>
                       <button
                         type="button"
@@ -400,7 +422,7 @@ export default function AcademicYearsPage() {
                         onClick={() => handleDelete(year)}
                         disabled={year.status === "active" || busyId === year.id}
                         title={year.status === "active" ? "An active year can't be deleted - complete it first" : "Delete"}
-                        style={year.status === "active" ? { opacity: 0.5, cursor: "not-allowed" } : { color: "#dc2626" }}
+                        style={year.status === "active" ? { opacity: 0.4, cursor: "not-allowed" } : { color: "#dc2626", background: "#fef2f2", borderColor: "#fecaca" }}
                       >
                         {busyId === year.id && deleting ? <Spinner size={14} /> : <i className="fa-solid fa-trash" />}
                       </button>

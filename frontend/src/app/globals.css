@@ -67,12 +67,22 @@ a { color: inherit; }
 }
 .sidebar-logo {
   min-height: 80px;
-  padding: 16px 20px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   background: #ffffff;
 }
-.skoolio-brand { display: flex; align-items: center; line-height: 0; text-decoration: none; }
+.skoolio-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 0;
+  text-decoration: none;
+}
 .sidebar-school-logo { padding: 14px 16px; }
 .school-brand { width: 100%; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; min-width: 0; }
 .school-monogram { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 12px; display: grid; place-items: center; color: #ea580c; background: #fff7ed; border: 1.5px solid #fed7aa; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.08); font-size: 20px; font-weight: 900; line-height: 1; letter-spacing: -0.5px; }

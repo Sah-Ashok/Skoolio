@@ -27,16 +27,24 @@ const SUBJECTS = [
 const CONTACT_INFO = [
   {
     icon: 'fa-envelope',
-    label: 'Email Us',
-    value: 'sahashokme@gmail.com',
-    href:  'mailto:sahashokme@gmail.com',
+    label: 'Email Support',
+    value: 'skoolio.support@gmail.com',
+    href:  'mailto:skoolio.support@gmail.com',
     color: '#FF9B51',
     bg:    '#fff7ed',
   },
   {
+    icon: 'fa-brands fa-whatsapp',
+    label: 'WhatsApp Support',
+    value: '+977 9713823636',
+    href:  'https://wa.me/9779713823636',
+    color: '#16a34a',
+    bg:    '#f0fdf4',
+  },
+  {
     icon: 'fa-clock',
     label: 'Response Time',
-    value: 'Within 24 hours',
+    value: 'Quick Support (< 2 hrs)',
     href:  null,
     color: '#12805c',
     bg:    '#f0fdf4',
@@ -44,7 +52,7 @@ const CONTACT_INFO = [
   {
     icon: 'fa-globe',
     label: 'Serving Schools in',
-    value: 'Nepal & beyond',
+    value: 'Nepal & India',
     href:  null,
     color: '#3b5bdb',
     bg:    '#eef2ff',
@@ -87,7 +95,7 @@ export default function ContactPage() {
       {/* ── Nav ── */}
       <nav className={styles.nav}>
         <Link href="/" className={styles.logo}>
-          <Image src="/Logo.png" alt="Skoolio" width={36} height={36} />
+          <Image src="/Logo.png" alt="Skoolio" width={105} height={36} style={{ objectFit: "contain" }} />
           <span>Skoolio</span>
         </Link>
         <div className={styles.navLinks}>

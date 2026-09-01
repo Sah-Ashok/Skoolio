@@ -218,10 +218,10 @@ export default function Sidebar({ role }: SidebarProps) {
               <Image
                 src="/Logo.png"
                 alt="Skoolio"
-                width={160}
-                height={48}
+                width={200}
+                height={80}
                 priority
-                style={{ objectFit: 'contain', width: 'auto', height: 48 }}
+                style={{ objectFit: 'contain' }}
               />
             </Link>
           )}

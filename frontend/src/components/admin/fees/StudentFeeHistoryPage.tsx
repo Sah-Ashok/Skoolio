@@ -65,6 +65,144 @@ function SummaryCard({ label, value, sub, accent, border }: {
   );
 }
 
+function DonutRing({ pct, color, size = 76, stroke = 8, trackColor = "#f1f5f9" }: {
+  pct: number; color: string; size?: number; stroke?: number; trackColor?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const clampedPct = Math.min(100, Math.max(0, pct));
+  const arc = (clampedPct / 100) * circ;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ flexShrink: 0 }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={stroke} />
+      {clampedPct > 0 && (
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={`${arc} ${circ - arc}`}
+          strokeDashoffset={0}
+          strokeLinecap="round"
+          style={{ transform: "rotate(-90deg)", transformOrigin: `${size / 2}px ${size / 2}px`, transition: "stroke-dasharray .5s ease" }}
+        />
+      )}
+    </svg>
+  );
+}
+
+function CategoryDonutCard({
+  type,
+  data,
+  fmt,
+}: {
+  type: string;
+  data: { billed: number; paid: number; waived: number; pending: number };
+  fmt: (n: number) => string;
+}) {
+  const settled = data.paid + (data.waived || 0);
+  const typePct = data.billed > 0 ? (settled / data.billed) * 100 : 0;
+  const isFullySettled = data.pending <= 0.009;
+
+  const categoryIcons: Record<string, string> = {
+    academic:  "fa-graduation-cap",
+    transport: "fa-bus",
+    hostel:    "fa-hotel",
+  };
+  const icon = categoryIcons[type] || "fa-receipt";
+
+  const color = isFullySettled
+    ? "#16a34a"
+    : (TYPE_COLOR[type] || "#4f46e5");
+
+  const badgeBg = TYPE_BG[type] || "#f8fafc";
+  const badgeBorder = TYPE_BORDER[type] || "#e2e8f0";
+
+  return (
+    <div style={{
+      padding: "16px 18px",
+      borderRadius: 14,
+      background: "#ffffff",
+      border: `1.5px solid ${isFullySettled ? "#bbf7d0" : badgeBorder}`,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 14,
+    }}>
+      {/* Card Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: badgeBg, color: TYPE_COLOR[type] || "#475569",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, border: `1px solid ${badgeBorder}`,
+          }}>
+            <i className={`fa-solid ${icon}`} />
+          </span>
+          <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#0f172a", textTransform: "capitalize" }}>
+            {type} Fees
+          </strong>
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 900, padding: "2px 8px", borderRadius: 999,
+          background: isFullySettled ? "#f0fdf4" : badgeBg,
+          color: isFullySettled ? "#16a34a" : TYPE_COLOR[type] || "#475569",
+          border: `1px solid ${isFullySettled ? "#bbf7d0" : badgeBorder}`,
+          textTransform: "uppercase", letterSpacing: 0.5,
+        }}>
+          {isFullySettled ? "Cleared" : "Pending"}
+        </span>
+      </div>
+
+      {/* Card Body */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {/* Donut Ring */}
+        <div style={{ position: "relative", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <DonutRing pct={typePct} color={color} size={76} stroke={8} trackColor="#f1f5f9" />
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
+              {typePct.toFixed(0)}%
+            </span>
+            <span style={{ fontSize: 8.5, fontWeight: 800, color: color, textTransform: "uppercase", marginTop: 2 }}>
+              {isFullySettled ? "Done" : "Paid"}
+            </span>
+          </div>
+        </div>
+
+        {/* Breakdown Key-Values */}
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px" }}>
+          <div>
+            <span style={{ display: "block", fontSize: 9.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>Billed</span>
+            <strong style={{ fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>{fmt(data.billed)}</strong>
+          </div>
+          <div>
+            <span style={{ display: "block", fontSize: 9.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>Cash Paid</span>
+            <strong style={{ fontSize: 12.5, fontWeight: 800, color: "#16a34a" }}>{fmt(data.paid)}</strong>
+          </div>
+          {data.waived > 0 ? (
+            <div>
+              <span style={{ display: "block", fontSize: 9.5, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: 0.4 }}>Waived</span>
+              <strong style={{ fontSize: 12.5, fontWeight: 800, color: "#6b21a8" }}>{fmt(data.waived)}</strong>
+            </div>
+          ) : (
+            <div>
+              <span style={{ display: "block", fontSize: 9.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>Waived</span>
+              <strong style={{ fontSize: 12.5, fontWeight: 700, color: "#94a3b8" }}>—</strong>
+            </div>
+          )}
+          <div>
+            <span style={{ display: "block", fontSize: 9.5, fontWeight: 800, color: data.pending > 0 ? "#dc2626" : "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>Pending</span>
+            <strong style={{ fontSize: 12.5, fontWeight: 800, color: data.pending > 0 ? "#dc2626" : "#16a34a" }}>{fmt(data.pending)}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pending months timeline ──────────────────────────────────────────────────
 function buildMonthRange(startYYYYMM: string, endYYYYMM: string): string[] {
   const months: string[] = [];
@@ -613,71 +751,160 @@ export default function StudentFeeHistoryPage() {
             {/* ── Yearly fee banner — A2 fix: uses feeStructures frequency ── */}
             <YearlyFeesBanner collections={collections} feeStructures={feeStructures} fmt={fmt} />
 
-            {/* ── Summary stats ── */}
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
-              <SummaryCard
-                label="Total Billed"
-                value={fmt(totalBilled)}
-                sub={`${collections.length} invoices`}
-                accent="#1f2d36"
-                border="#d4dde2"
-              />
-              <SummaryCard
-                label="Cash Paid"
-                value={fmt(totalPaid)}
-                sub={totalWaived > 0
-                  ? `${payments.length} payments · ${fmt(totalWaived)} waived`
-                  : `${payments.length} payments`}
-                accent="#059669"
-                border="#a7f3d0"
-              />
-              <SummaryCard
-                label="Pending"
-                value={fmt(totalPending)}
-                sub={`${pendingCollections.length} unpaid`}
-                accent={totalPending > 0 ? "#be123c" : "#059669"}
-                border={totalPending > 0 ? "#fecdd3" : "#a7f3d0"}
-              />
-              {overdueCt > 0 && (
-                <SummaryCard
-                  label="Overdue"
-                  value={`${overdueCt} bill${overdueCt !== 1 ? "s" : ""}`}
-                  sub="past due date"
-                  accent="#b45309"
-                  border="#fde68a"
-                />
-              )}
-            </div>
-
-            {/* ── Overall progress bar ── */}
-            {totalBilled > 0 && (
-              <div style={{ padding: "14px 20px", borderRadius: 12, background: "#fff", border: "1.5px solid #e5ebee", marginBottom: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "#6a7882" }}>Overall Payment Progress</span>
-                  <strong style={{ fontSize: 13, fontWeight: 900, color: paidPct >= 100 ? "#059669" : "#b45309" }}>
-                    {paidPct.toFixed(0)}% cleared
-                    {totalWaived > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#3b5bdb", marginLeft: 8 }}>(incl. {fmt(totalWaived)} waived)</span>
-                    )}
-                  </strong>
+            {/* ── Master Financial Overview Hero (Donut Gauge + 4 Stats) ── */}
+            <div style={{
+              padding: "20px 24px",
+              borderRadius: 16,
+              background: "#ffffff",
+              border: "1.5px solid #e2e8f0",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 6px 16px rgba(0,0,0,0.02)",
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 28,
+              flexWrap: "wrap",
+            }}>
+              {/* Master Donut Gauge on Left */}
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                minWidth: 140,
+                paddingRight: 24,
+                borderRight: "1.5px solid #f1f5f9",
+              }}>
+                <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <DonutRing
+                    pct={paidPct}
+                    color={paidPct >= 100 ? "#16a34a" : "#ff9b51"}
+                    size={98}
+                    stroke={10}
+                    trackColor="#f1f5f9"
+                  />
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
+                      {paidPct.toFixed(0)}%
+                    </span>
+                    <span style={{
+                      fontSize: 9.5,
+                      fontWeight: 900,
+                      color: paidPct >= 100 ? "#16a34a" : "#ea580c",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                      marginTop: 3,
+                    }}>
+                      {paidPct >= 100 ? "CLEARED" : "PAID"}
+                    </span>
+                  </div>
                 </div>
-                <div style={{ height: 10, borderRadius: 999, background: "#f1f5f9", overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%",
-                    width: `${Math.min(100, paidPct).toFixed(1)}%`,
-                    background: paidPct >= 100 ? "#059669" : "linear-gradient(90deg, #ff9b51, #ea580c)",
-                    borderRadius: "inherit",
-                    transition: "width .5s ease",
-                  }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                  <small style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>
-                    {fmt(totalPaid)} cash paid{totalWaived > 0 ? ` + ${fmt(totalWaived)} waived` : ""}
-                  </small>
-                  <small style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>of {fmt(totalBilled)} billed</small>
-                </div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", marginTop: 8, textAlign: "center" }}>
+                  Overall Clearance
+                </span>
               </div>
-            )}
+
+              {/* 4 KPI Stats Grid on Right */}
+              <div style={{
+                flex: 1,
+                minWidth: 280,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
+                gap: 12,
+              }}>
+                {/* Total Billed */}
+                <div style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: "#f8fafc",
+                  border: "1.5px solid #e2e8f0",
+                }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Total Billed
+                  </p>
+                  <strong style={{ fontSize: 18, fontWeight: 900, color: "#0f172a", display: "block", margin: "4px 0 2px" }}>
+                    {fmt(totalBilled)}
+                  </strong>
+                  <small style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>
+                    {collections.length} invoices
+                  </small>
+                </div>
+
+                {/* Cash Paid */}
+                <div style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: "#f0fdf4",
+                  border: "1.5px solid #bbf7d0",
+                }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: "#15803d", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Cash Paid
+                  </p>
+                  <strong style={{ fontSize: 18, fontWeight: 900, color: "#166534", display: "block", margin: "4px 0 2px" }}>
+                    {fmt(totalPaid)}
+                  </strong>
+                  <small style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>
+                    {payments.length} payment{payments.length !== 1 ? "s" : ""}
+                  </small>
+                </div>
+
+                {/* Waived */}
+                <div style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: totalWaived > 0 ? "#faf5ff" : "#f8fafc",
+                  border: `1.5px solid ${totalWaived > 0 ? "#e9d5ff" : "#e2e8f0"}`,
+                }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: totalWaived > 0 ? "#7c3aed" : "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Waived
+                  </p>
+                  <strong style={{ fontSize: 18, fontWeight: 900, color: totalWaived > 0 ? "#6b21a8" : "#94a3b8", display: "block", margin: "4px 0 2px" }}>
+                    {fmt(totalWaived)}
+                  </strong>
+                  <small style={{ fontSize: 11, fontWeight: 700, color: totalWaived > 0 ? "#9333ea" : "#94a3b8" }}>
+                    {totalWaived > 0 ? "Admin forgiven" : "None"}
+                  </small>
+                </div>
+
+                {/* Pending */}
+                <div style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: totalPending > 0 ? "#fff1f2" : "#f0fdf4",
+                  border: `1.5px solid ${totalPending > 0 ? "#fecdd3" : "#bbf7d0"}`,
+                }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: totalPending > 0 ? "#be123c" : "#15803d", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Pending
+                  </p>
+                  <strong style={{ fontSize: 18, fontWeight: 900, color: totalPending > 0 ? "#9f1239" : "#166534", display: "block", margin: "4px 0 2px" }}>
+                    {fmt(totalPending)}
+                  </strong>
+                  <small style={{ fontSize: 11, fontWeight: 700, color: totalPending > 0 ? "#e11d48" : "#16a34a" }}>
+                    {totalPending > 0 ? `${pendingCollections.length} unpaid` : "Fully cleared"}
+                  </small>
+                </div>
+
+                {/* Overdue alert card if any overdue bills */}
+                {overdueCt > 0 && (
+                  <div style={{
+                    padding: "14px 16px",
+                    borderRadius: 12,
+                    background: "#fffbeb",
+                    border: "1.5px solid #fde68a",
+                  }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 900, color: "#b45309", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Overdue
+                    </p>
+                    <strong style={{ fontSize: 18, fontWeight: 900, color: "#92400e", display: "block", margin: "4px 0 2px" }}>
+                      {overdueCt} bill{overdueCt !== 1 ? "s" : ""}
+                    </strong>
+                    <small style={{ fontSize: 11, fontWeight: 700, color: "#b45309" }}>
+                      Past due date
+                    </small>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* ── Month-by-month pending timeline ── */}
             {student.admission_date && collections.length > 0 && (
@@ -690,53 +917,25 @@ export default function StudentFeeHistoryPage() {
               />
             )}
 
-            {/* ── Fee breakdown by category ── */}
+            {/* ── Fee breakdown by category (Donut Ring Cards) ── */}
             {Object.keys(byType).length > 0 && (
-              <div style={{ padding: "18px 20px", borderRadius: 12, background: "#fff", border: "1.5px solid #e5ebee", marginBottom: 20 }}>
-                <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>Fee Breakdown by Category</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {Object.entries(byType).map(([type, data]) => {
-                    const settled = data.paid + (data.waived || 0);
-                    const typePct = data.billed > 0 ? (settled / data.billed) * 100 : 0;
-                    const isFullySettled = data.pending === 0;
-                    const tColor   = isFullySettled ? "#059669" : (TYPE_COLOR[type] || "#475569");
-                    const tBorder  = isFullySettled ? "#bbf7d0" : (TYPE_BORDER[type] || "#e2e8f0");
-                    const tBg      = isFullySettled ? "#f0fdf4" : (TYPE_BG[type] || "#f8fafc");
-                    return (
-                      <div key={type} style={{ padding: "12px 16px", borderRadius: 10, border: `1.5px solid ${tBorder}`, background: tBg }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 12, flexWrap: "wrap" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <TypeBadge type={type} />
-                            <span style={{ fontSize: 13, fontWeight: 800, color: tColor }}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)} Fees
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                            {([
-                              { label: "Billed",  val: data.billed,  color: "#1f2d36" },
-                              { label: "Paid",    val: data.paid,    color: "#059669" },
-                              ...(data.waived > 0 ? [{ label: "Waived", val: data.waived, color: "#3b82f6" }] : []),
-                              { label: "Pending", val: data.pending, color: data.pending > 0 ? "#be123c" : "#059669" },
-                            ]).map(({ label, val, color }) => (
-                              <div key={label} style={{ textAlign: "right" }}>
-                                <p style={{ margin: 0, fontSize: 10, fontWeight: 800, color: "#6a7882", textTransform: "uppercase" }}>{label}</p>
-                                <strong style={{ fontSize: 14, fontWeight: 900, color }}>{fmt(val)}</strong>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div style={{ height: 6, borderRadius: 999, background: "#fff", border: `1px solid ${tBorder}`, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${Math.min(100, typePct).toFixed(1)}%`, background: tColor, borderRadius: "inherit", transition: "width .5s ease" }} />
-                        </div>
-                        <div style={{ marginTop: 4, textAlign: "right" }}>
-                          <small style={{ fontSize: 10, fontWeight: 700, color: tColor }}>
-                            {isFullySettled ? "100% cleared" : `${typePct.toFixed(0)}% paid`}
-                            {data.waived > 0 && isFullySettled ? ` (incl. ${fmt(data.waived)} waived)` : ""}
-                          </small>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>
+                    Fee Breakdown by Category
+                  </h3>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#6a7882" }}>
+                    {Object.keys(byType).length} fee categories
+                  </span>
+                </div>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: Object.keys(byType).length === 1 ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
+                  gap: 14,
+                }}>
+                  {Object.entries(byType).map(([type, data]) => (
+                    <CategoryDonutCard key={type} type={type} data={data} fmt={fmt} />
+                  ))}
                 </div>
               </div>
             )}

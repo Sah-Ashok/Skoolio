@@ -915,54 +915,55 @@
 
 /* HERO */
 .sp-hero {
-  margin-bottom: 18px;
+  margin-bottom: 22px;
   padding: 24px 28px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #ff9b51;
-  box-shadow: 0 2px 12px rgba(37, 52, 63, 0.06);
+  border: 1.5px solid #e2e8f0;
+  border-left: 5px solid #ff9b51;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 18px rgba(0, 0, 0, 0.02);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
   flex-wrap: wrap;
 }
 
 .sp-hero-left {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
   flex: 1;
-  min-width: 0;
+  min-width: 280px;
 }
 
 .sp-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #ff9b51, #f97316);
+  width: 76px;
+  height: 76px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ff9b51, #ea580c);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 900;
   flex-shrink: 0;
   letter-spacing: 1px;
-  box-shadow: 0 4px 12px rgba(255, 155, 81, 0.35);
+  box-shadow: 0 4px 14px rgba(255, 155, 81, 0.4);
 }
 
 .sp-avatar-img {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
+  width: 76px;
+  height: 76px;
+  border-radius: 18px;
   object-fit: cover;
   flex-shrink: 0;
-  border: 2px solid #e2e8f0;
+  border: 2.5px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.sp-hero-info { min-width: 0; }
+.sp-hero-info { flex: 1; min-width: 0; }
 
 .sp-kicker {
   display: flex;
@@ -977,35 +978,37 @@
 }
 
 .sp-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.sp-dot-green  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
-.sp-dot-yellow { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+.sp-dot-green  { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+.sp-dot-yellow { background: #d97706; box-shadow: 0 0 0 3px rgba(217,119,6,.18); }
 
 .sp-name {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 900;
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
 }
 
 .sp-sub {
-  margin-top: 4px;
+  margin-top: 5px;
   font-size: 13px;
   color: #64748b;
   font-weight: 600;
 }
 
 .sp-tags {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* STAT BOXES inside hero */
@@ -1019,29 +1022,31 @@
 .sp-stat {
   padding: 14px 20px;
   text-align: center;
-  min-width: 100px;
+  min-width: 120px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid #e2e8f0;
   border-radius: 12px;
-  transition: box-shadow .15s;
+  transition: all .15s ease;
 }
 
 .sp-stat:hover {
-  box-shadow: 0 4px 12px rgba(37,52,63,.08);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.06);
+  border-color: #cbd5e1;
 }
 
 .sp-stat-label {
   display: block;
   font-size: 10px;
-  font-weight: 800;
-  color: #94a3b8;
+  font-weight: 900;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: .5px;
 }
 
 .sp-stat-val {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 20px;
   font-weight: 900;
   color: #0f172a;
@@ -1050,7 +1055,7 @@
 .sp-stat-sub {
   display: block;
   margin-top: 3px;
-  font-size: 10px;
+  font-size: 11px;
   color: #94a3b8;
   font-weight: 700;
 }
@@ -1058,78 +1063,80 @@
 /* MAIN GRID */
 .sp-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.6fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+  gap: 20px;
   align-items: start;
 }
 
 .sp-col {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .sp-side {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 /* SECTION HEADER */
 .sp-sechead {
-  padding: 15px 20px;
+  padding: 16px 20px;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #fafbfc;
-  border-radius: 14px 14px 0 0;
+  background: #ffffff;
+  border-radius: 16px 16px 0 0;
 }
 
 .sp-sectitle {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 900;
   color: #0f172a;
-  letter-spacing: -.1px;
+  letter-spacing: -.2px;
 }
 
 .sp-secsub {
   margin-top: 2px;
-  font-size: 11px;
-  color: #94a3b8;
-  font-weight: 700;
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
 }
 
 /* DETAIL LIST */
 .sp-dlist {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: #f1f5f9;
 }
 
 .sp-drow {
-  padding: 12px 20px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 12px 18px;
+  background: #ffffff;
+  transition: background 0.15s ease;
 }
 
 .sp-drow:hover {
-  background: #fafbfc;
+  background: #f8fafc;
 }
 
 .sp-drow span {
   display: block;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 800;
-  color: #94a3b8;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: .5px;
 }
 
 .sp-drow strong {
   display: block;
-  margin-top: 4px;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 800;
   color: #0f172a;
 }
 
@@ -1340,21 +1347,28 @@
 }
 
 /* SERVICES */
-.sp-svcbody { padding: 6px 20px 16px; }
+.sp-svcbody {
+  padding: 14px 18px 16px;
+}
+
+.sp-svcgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
 
 .sp-svcrow {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid #f8fafc;
+  gap: 9px;
+  min-width: 0;
 }
 
 .sp-svcicon {
   margin-top: 2px;
-  font-size: 12px;
-  color: #94a3b8;
-  width: 16px;
+  font-size: 13px;
+  color: #ff9b51;
+  width: 15px;
   flex-shrink: 0;
 }
 
@@ -1362,7 +1376,7 @@
   display: block;
   font-size: 10px;
   font-weight: 800;
-  color: #94a3b8;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: .4px;
 }
@@ -1370,10 +1384,12 @@
 .sp-svcval {
   display: block;
   margin-top: 2px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #1e293b;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
   text-transform: capitalize;
+  word-break: break-word;
+  line-height: 1.3;
 }
 
 .sp-svcload {

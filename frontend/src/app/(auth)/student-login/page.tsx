@@ -99,7 +99,7 @@ export default function StudentLoginPage() {
 
           {/* Logo */}
           <div className={styles.logoWrap}>
-            <Image src="/Logo.png" alt="Skoolio" width={52} height={52} className={styles.logo} />
+            <Image src="/Logo.png" alt="Skoolio" width={105} height={36} className={styles.logo} style={{ objectFit: "contain" }} />
             <div className={styles.logoText}>
               <span className={styles.logoName}>Skoolio</span>
               <span className={styles.logoSub}>Student Portal</span>

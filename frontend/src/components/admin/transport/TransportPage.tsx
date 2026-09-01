@@ -1,12 +1,15 @@
 "use client";
-import { useState, useEffect } from "react";
-import Topbar from "@/components/shared/Topbar";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import styles from "./transport.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
+import DateInput from "@/components/shared/DateInput";
+import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -26,6 +29,8 @@ const statusBadge = (st: string) => {
 
 export default function TransportPage() {
   const dispatch = useAppDispatch();
+  const { isBS } = useDateFormat();
+  const { fmt: fmtCur } = useCurrency();
   const [tab, setTab] = useState<Tab>("overview");
 
   const { data: activeYear } = useApi<any>("/academic-years/active");
@@ -36,7 +41,44 @@ export default function TransportPage() {
   const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
   const [generating, setGenerating] = useState(false);
 
+  const bsMonthOptions = useMemo(() => {
+    if (!isBS) return [];
+    const startAD = activeYear?.start_date
+      ? new Date(activeYear.start_date + "T00:00:00")
+      : (() => { const d = new Date(); d.setMonth(d.getMonth() - 12); return d; })();
+    const endAD = activeYear?.end_date
+      ? new Date(activeYear.end_date + "T00:00:00")
+      : (() => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d; })();
+    const startBS = adToBS(startAD), endBS = adToBS(endAD);
+    const opts: { key: string; label: string; adValue: string }[] = [];
+    let y = startBS.year, m = startBS.month;
+    while (y < endBS.year || (y === endBS.year && m <= endBS.month)) {
+      const ad = new Date(bsToISO({ year: y, month: m, day: 15 }) + "T00:00:00");
+      opts.push({
+        key: `${y}-${String(m).padStart(2, "0")}`,
+        label: `${BS_MONTH_NAMES[m - 1]} ${y}`,
+        adValue: `${ad.getFullYear()}-${String(ad.getMonth() + 1).padStart(2, "0")}`,
+      });
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+    return opts;
+  }, [isBS, activeYear]);
+
+  // Set default current BS month when BS mode is active
+  useEffect(() => {
+    if (isBS && bsMonthOptions.length > 0) {
+      const todayBS = adToBS(new Date());
+      const currentOpt = bsMonthOptions.find(o => o.label.startsWith(`${BS_MONTH_NAMES[todayBS.month - 1]} ${todayBS.year}`));
+      if (currentOpt) {
+        setBillingMonth(currentOpt.adValue);
+      } else if (bsMonthOptions[0]) {
+        setBillingMonth(bsMonthOptions[0].adValue);
+      }
+    }
+  }, [isBS, bsMonthOptions]);
+
   const { data: vehicles, loading: vLoading, refetch: refetchVehicles } = useApi<any[]>("/transport/vehicles");
+  const { data: staffList } = useApi<any[]>("/staff");
   const { data: routes,   loading: rLoading, refetch: refetchRoutes   } = useApi<any[]>(
     activeYear?.id ? `/transport/routes?academic_year_id=${activeYear.id}` : "", [activeYear?.id]
   );
@@ -47,10 +89,52 @@ export default function TransportPage() {
   // ── Vehicle form ──────────────────────────────────────────────────────────
   const [showVForm, setShowVForm] = useState(false);
   const [vForm, setVForm] = useState({ vehicle_number:"", vehicle_type:"bus", capacity:"", driver_name:"", driver_phone:"", driver_license:"", helper_name:"", helper_phone:"", gps_tracking:false, status:"active", notes:"" });
+  const [selectedStaffDriverId, setSelectedStaffDriverId] = useState<string>("");
+  const [selectedStaffHelperId, setSelectedStaffHelperId] = useState<string>("");
   const [vSaving, setVSaving] = useState(false);
   const [editVehicleId, setEditVehicleId] = useState<number|null>(null);
   const [confirmVId, setConfirmVId] = useState<number|null>(null);
   const [deletingVId, setDeletingVId] = useState<number|null>(null);
+
+  // Sort staff to show Drivers / Transport staff first
+  const sortedStaffForDriver = useMemo(() => {
+    if (!staffList) return [];
+    return [...staffList].sort((a, b) => {
+      const aRole = (a.role_name || "").toLowerCase();
+      const bRole = (b.role_name || "").toLowerCase();
+      const aIsDriver = aRole.includes("driver") || aRole.includes("transport") ? 1 : 0;
+      const bIsDriver = bRole.includes("driver") || bRole.includes("transport") ? 1 : 0;
+      if (aIsDriver !== bIsDriver) return bIsDriver - aIsDriver;
+      return (a.full_name || "").localeCompare(b.full_name || "");
+    });
+  }, [staffList]);
+
+  const handleSelectDriver = (staffId: string) => {
+    setSelectedStaffDriverId(staffId);
+    if (!staffId) return;
+    const selected = (staffList || []).find((s: any) => String(s.id) === String(staffId));
+    if (selected) {
+      setVForm(prev => ({
+        ...prev,
+        driver_name: selected.full_name,
+        driver_phone: selected.phone || prev.driver_phone,
+        driver_license: selected.license_number || prev.driver_license,
+      }));
+    }
+  };
+
+  const handleSelectHelper = (staffId: string) => {
+    setSelectedStaffHelperId(staffId);
+    if (!staffId) return;
+    const selected = (staffList || []).find((s: any) => String(s.id) === String(staffId));
+    if (selected) {
+      setVForm(prev => ({
+        ...prev,
+        helper_name: selected.full_name,
+        helper_phone: selected.phone || prev.helper_phone,
+      }));
+    }
+  };
 
   // ── Route form ────────────────────────────────────────────────────────────
   const [showRForm, setShowRForm] = useState(false);
@@ -75,19 +159,28 @@ export default function TransportPage() {
   const [aLoading, setALoading] = useState(false);
   const [confirmAId, setConfirmAId] = useState<number|null>(null);
 
-  // Load route detail when selected
+  // Load route detail helper
+  const fetchRouteDetail = useCallback(async (routeId: number) => {
+    if (!routeId) { setRouteDetail(null); return; }
+    setRDetailLoading(true);
+    try {
+      const res = await apiRequest<{data:any}>(`/transport/routes/${routeId}`);
+      setRouteDetail(res.data);
+    } catch {
+      setRouteDetail(null);
+    } finally {
+      setRDetailLoading(false);
+    }
+  }, []);
+
+  // Load route detail when selectedRouteId changes
   useEffect(() => {
-    if (!selectedRouteId) { setRouteDetail(null); return; }
-    const load = async () => {
-      setRDetailLoading(true);
-      try {
-        const res = await apiRequest<{data:any}>(`/transport/routes/${selectedRouteId}`);
-        setRouteDetail(res.data);
-      } catch { setRouteDetail(null); }
-      finally { setRDetailLoading(false); }
-    };
-    load();
-  }, [selectedRouteId]);
+    if (selectedRouteId) {
+      fetchRouteDetail(selectedRouteId);
+    } else {
+      setRouteDetail(null);
+    }
+  }, [selectedRouteId, fetchRouteDetail]);
 
   // Load stops when route selected in assignment form
   useEffect(() => {
@@ -101,23 +194,27 @@ export default function TransportPage() {
     load();
   }, [aForm.route_id]);
 
+  // Load all assignments helper
+  const fetchAssignments = useCallback(async () => {
+    if (!activeYear?.id) return;
+    setALoading(true);
+    try {
+      const all: any[] = [];
+      for (const route of routes || []) {
+        const res = await apiRequest<{data:any[]}>(`/transport/routes/${route.id}/students`);
+        all.push(...(res.data || []).map((a:any) => ({ ...a, route_name: route.name })));
+      }
+      setAssignments(all);
+    } catch { setAssignments([]); }
+    finally { setALoading(false); }
+  }, [activeYear?.id, routes]);
+
   // Load all assignments for overview
   useEffect(() => {
-    if (tab !== "assignments" || !activeYear?.id) return;
-    const load = async () => {
-      setALoading(true);
-      try {
-        const all: any[] = [];
-        for (const route of routes || []) {
-          const res = await apiRequest<{data:any[]}>(`/transport/routes/${route.id}/students`);
-          all.push(...(res.data || []).map((a:any) => ({ ...a, route_name: route.name })));
-        }
-        setAssignments(all);
-      } catch { setAssignments([]); }
-      finally { setALoading(false); }
-    };
-    load();
-  }, [tab, routes]);
+    if (tab === "assignments") {
+      fetchAssignments();
+    }
+  }, [tab, fetchAssignments]);
 
   // ── GENERATE BILLS ────────────────────────────────────────────────────────
   const generateBills = async () => {
@@ -157,8 +254,10 @@ export default function TransportPage() {
         dispatch(showToast({ type:"success", title:"Created", message:"Vehicle added." }));
       }
       setShowVForm(false); setEditVehicleId(null);
+      setSelectedStaffDriverId(""); setSelectedStaffHelperId("");
       setVForm({ vehicle_number:"", vehicle_type:"bus", capacity:"", driver_name:"", driver_phone:"", driver_license:"", helper_name:"", helper_phone:"", gps_tracking:false, status:"active", notes:"" });
       refetchVehicles();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setVSaving(false); }
   };
@@ -169,12 +268,15 @@ export default function TransportPage() {
       await apiRequest(`/transport/vehicles/${id}`, { method:"DELETE" });
       dispatch(showToast({ type:"success", title:"Deleted", message:"Vehicle removed." }));
       refetchVehicles();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setDeletingVId(null); }
   };
 
   const startEditVehicle = (v: any) => {
     setEditVehicleId(v.id);
+    setSelectedStaffDriverId("");
+    setSelectedStaffHelperId("");
     setVForm({ vehicle_number: v.vehicle_number, vehicle_type: v.vehicle_type, capacity: String(v.capacity), driver_name: v.driver_name, driver_phone: v.driver_phone||"", driver_license: v.driver_license||"", helper_name: v.helper_name||"", helper_phone: v.helper_phone||"", gps_tracking: v.gps_tracking, status: v.status, notes: v.notes||"" });
     setShowVForm(true);
   };
@@ -189,6 +291,7 @@ export default function TransportPage() {
       dispatch(showToast({ type:"success", title:"Created", message:"Route created." }));
       setShowRForm(false); setRForm({ name:"", description:"", vehicle_id:"", status:"active" });
       refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setRSaving(false); }
   };
@@ -199,7 +302,8 @@ export default function TransportPage() {
       await apiRequest(`/transport/routes/${id}`, { method:"DELETE" });
       dispatch(showToast({ type:"success", title:"Deleted", message:"Route removed." }));
       if (selectedRouteId === id) setSelectedRouteId(null);
-      refetchRoutes(); refetchSummary();
+      refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setDeletingRId(null); }
   };
@@ -209,10 +313,21 @@ export default function TransportPage() {
     if (!stopForm.name || !selectedRouteId) return;
     setStopSaving(true);
     try {
-      await apiRequest("/transport/stops", { method:"POST", body: JSON.stringify({ ...stopForm, route_id: selectedRouteId, monthly_fee: Number(stopForm.monthly_fee)||0, stop_order: Number(stopForm.stop_order)||1 }) });
+      await apiRequest("/transport/stops", {
+        method: "POST",
+        body: JSON.stringify({
+          ...stopForm,
+          route_id: selectedRouteId,
+          monthly_fee: Number(stopForm.monthly_fee) || 0,
+          stop_order: Number(stopForm.stop_order) || 1,
+        }),
+      });
       dispatch(showToast({ type:"success", title:"Stop Added", message:`Stop "${stopForm.name}" added.` }));
-      setShowStopForm(false); setStopForm({ name:"", pickup_time:"", drop_time:"", monthly_fee:"", stop_order:"" });
-      setSelectedRouteId(selectedRouteId); // re-trigger detail load
+      setShowStopForm(false);
+      setStopForm({ name:"", pickup_time:"", drop_time:"", monthly_fee:"", stop_order:"" });
+      fetchRouteDetail(selectedRouteId);
+      refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setStopSaving(false); }
   };
@@ -221,7 +336,9 @@ export default function TransportPage() {
     try {
       await apiRequest(`/transport/stops/${id}`, { method:"DELETE" });
       dispatch(showToast({ type:"success", title:"Deleted", message:"Stop removed." }));
-      setSelectedRouteId(selectedRouteId);
+      if (selectedRouteId) fetchRouteDetail(selectedRouteId);
+      refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
   };
 
@@ -237,13 +354,10 @@ export default function TransportPage() {
       dispatch(showToast({ type:"success", title:"Assigned", message:"Student assigned to route." }));
       setAForm({ student_id:"", route_id:"", stop_id:"", start_date: new Date().toISOString().split("T")[0] });
       setAStops([]);
-      // reload assignments
-      const all: any[] = [];
-      for (const route of routes || []) {
-        const res = await apiRequest<{data:any[]}>(`/transport/routes/${route.id}/students`);
-        all.push(...(res.data || []).map((a:any) => ({ ...a, route_name: route.name })));
-      }
-      setAssignments(all);
+      fetchAssignments();
+      if (selectedRouteId) fetchRouteDetail(selectedRouteId);
+      refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
     finally { setASaving(false); }
   };
@@ -254,6 +368,9 @@ export default function TransportPage() {
       await apiRequest(`/transport/assignments/${id}`, { method:"PATCH", body: JSON.stringify({ status:"inactive", end_date: new Date().toISOString().split("T")[0] }) });
       dispatch(showToast({ type:"success", title:"Ended", message:"Transport assignment ended." }));
       setAssignments(prev => prev.filter(a => a.id !== id));
+      if (selectedRouteId) fetchRouteDetail(selectedRouteId);
+      refetchRoutes();
+      refetchSummary();
     } catch (e:any) { dispatch(showToast({ type:"error", title:"Failed", message: e.message })); }
   };
 
@@ -267,7 +384,6 @@ export default function TransportPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Transport" subtitle="Manage school transport — vehicles, routes and student assignments" />
       <main className={s("content")}>
 
         {/* Hero */}
@@ -279,15 +395,39 @@ export default function TransportPage() {
           </div>
           <div className={s("hero-actions")}>
             {tab === "overview" && (
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <input 
-                  type="month" 
-                  value={billingMonth} 
-                  onChange={e => setBillingMonth(e.target.value)} 
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, fontWeight: 700 }}
-                />
-                <button className={cx(s("btn"), s("btn-primary"))} onClick={generateBills} disabled={generating}>
-                  {generating ? <Spinner size={14}/> : <i className="fa-solid fa-file-invoice-dollar" />} {generating ? "Generating..." : "Generate Bills"}
+              <div className={s("billing-group")}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 6, color: "#64748b", fontSize: 13 }}>
+                  <i className="fa-regular fa-calendar" />
+                  <span style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase" }}>Month:</span>
+                </div>
+                {isBS && bsMonthOptions.length > 0 ? (
+                  <select
+                    className={s("month-select")}
+                    value={billingMonth}
+                    onChange={e => setBillingMonth(e.target.value)}
+                  >
+                    {bsMonthOptions.map(opt => (
+                      <option key={opt.key} value={opt.adValue}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="month"
+                    value={billingMonth}
+                    onChange={e => setBillingMonth(e.target.value)}
+                    className={s("month-select")}
+                  />
+                )}
+                <button
+                  className={cx(s("btn"), s("btn-primary"))}
+                  onClick={generateBills}
+                  disabled={generating}
+                  style={{ minHeight: 34, padding: "0 14px", fontSize: 12.5 }}
+                >
+                  {generating ? <Spinner size={14} /> : <i className="fa-solid fa-file-invoice-dollar" />}
+                  {generating ? "Generating..." : "Generate Bills"}
                 </button>
               </div>
             )}
@@ -317,19 +457,45 @@ export default function TransportPage() {
         {tab === "overview" && (
           <>
             <div className={s("stats-grid")}>
-              {[
-                { label:"Active Vehicles", value: summary?.active_vehicles||0, icon:"fa-bus", color:"#ff9b51", bg:"#fff3e8" },
-                { label:"Active Routes",   value: summary?.active_routes||0,   icon:"fa-route", color:"#1d4ed8", bg:"#dbeafe" },
-                { label:"Students Riding", value: summary?.students_assigned||0, icon:"fa-users", color:"#15803d", bg:"#dcfce7" },
-                { label:"Total Vehicles",  value: vehicles?.length||0,          icon:"fa-car", color:"#7c3aed", bg:"#f3e8ff" },
-              ].map(c => (
-                <div key={c.label} className={s("stat-card")}>
-                  <div className={s("stat-icon")} style={{ background: c.bg, color: c.color }}>
-                    <i className={`fa-solid ${c.icon}`} />
-                  </div>
-                  <div><p>{c.label}</p><strong>{c.value}</strong></div>
+              <div className={cx(s("stat-card"), s("stat-blue"))}>
+                <div className={s("stat-icon")}>
+                  <i className="fa-solid fa-bus" />
                 </div>
-              ))}
+                <div>
+                  <p>Fleet Vehicles</p>
+                  <strong>{summary?.active_vehicles || 0} <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700 }}>/ {vehicles?.length || 0} Total</span></strong>
+                </div>
+              </div>
+
+              <div className={cx(s("stat-card"), s("stat-amber"))}>
+                <div className={s("stat-icon")}>
+                  <i className="fa-solid fa-route" />
+                </div>
+                <div>
+                  <p>Active Routes</p>
+                  <strong>{summary?.active_routes || 0}</strong>
+                </div>
+              </div>
+
+              <div className={cx(s("stat-card"), s("stat-green"))}>
+                <div className={s("stat-icon")}>
+                  <i className="fa-solid fa-user-graduate" />
+                </div>
+                <div>
+                  <p>Students Riding</p>
+                  <strong>{summary?.students_assigned || 0}</strong>
+                </div>
+              </div>
+
+              <div className={cx(s("stat-card"), s("stat-purple"))}>
+                <div className={s("stat-icon")}>
+                  <i className="fa-solid fa-map-location-dot" />
+                </div>
+                <div>
+                  <p>Pickup Stops</p>
+                  <strong>{routes?.reduce((acc: number, r: any) => acc + (r.stop_count || 0), 0) || 0}</strong>
+                </div>
+              </div>
             </div>
             {/* Route overview cards */}
             <div className={s("panel")}>
@@ -369,9 +535,36 @@ export default function TransportPage() {
                   <label className={s("field")}><span>Vehicle No <em>*</em></span><input value={vForm.vehicle_number} onChange={e=>setVForm({...vForm,vehicle_number:e.target.value})} placeholder="BA-1-KHA-1234"/></label>
                   <label className={s("field")}><span>Type</span><select value={vForm.vehicle_type} onChange={e=>setVForm({...vForm,vehicle_type:e.target.value})}>{VEHICLE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></label>
                   <label className={s("field")}><span>Capacity <em>*</em></span><input type="number" min="1" value={vForm.capacity} onChange={e=>setVForm({...vForm,capacity:e.target.value})} placeholder="40"/></label>
-                  <label className={s("field")}><span>Driver Name <em>*</em></span><input value={vForm.driver_name} onChange={e=>setVForm({...vForm,driver_name:e.target.value})} placeholder="Ram Sharma"/></label>
+
+                  {/* Staff Driver Selector */}
+                  <label className={s("field")}>
+                    <span>Select Driver from Staff</span>
+                    <select value={selectedStaffDriverId} onChange={e=>handleSelectDriver(e.target.value)}>
+                      <option value="">— Select from Staff List —</option>
+                      {sortedStaffForDriver.map((st: any) => (
+                        <option key={st.id} value={st.id}>
+                          {st.full_name} {st.role_name ? `(${st.role_name})` : ""} {st.phone ? `— ${st.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={s("field")}><span>Driver Name <em>*</em></span><input value={vForm.driver_name} onChange={e=>setVForm({...vForm,driver_name:e.target.value})} placeholder="Driver full name"/></label>
                   <label className={s("field")}><span>Driver Phone</span><input value={vForm.driver_phone} onChange={e=>setVForm({...vForm,driver_phone:e.target.value})} placeholder="98XXXXXXXX"/></label>
+
                   <label className={s("field")}><span>License No</span><input value={vForm.driver_license} onChange={e=>setVForm({...vForm,driver_license:e.target.value})} placeholder="License number"/></label>
+
+                  {/* Staff Helper Selector */}
+                  <label className={s("field")}>
+                    <span>Select Helper from Staff</span>
+                    <select value={selectedStaffHelperId} onChange={e=>handleSelectHelper(e.target.value)}>
+                      <option value="">— Select from Staff List (Optional) —</option>
+                      {(staffList || []).map((st: any) => (
+                        <option key={st.id} value={st.id}>
+                          {st.full_name} {st.role_name ? `(${st.role_name})` : ""} {st.phone ? `— ${st.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className={s("field")}><span>Helper Name</span><input value={vForm.helper_name} onChange={e=>setVForm({...vForm,helper_name:e.target.value})} placeholder="Optional"/></label>
                   <label className={s("field")}><span>Helper Phone</span><input value={vForm.helper_phone} onChange={e=>setVForm({...vForm,helper_phone:e.target.value})} placeholder="Optional"/></label>
                   <label className={s("field")}><span>Status</span><select value={vForm.status} onChange={e=>setVForm({...vForm,status:e.target.value})}>{VEHICLE_STATUSES.map(t=><option key={t} value={t}>{t}</option>)}</select></label>
@@ -494,13 +687,13 @@ export default function TransportPage() {
                     </button>
                   </div>
 
-                  {showStopForm && (
+                    {showStopForm && (
                     <div className={s("inline-form")} style={{margin:"14px 14px 0"}}>
                       <div className={s("form-grid")}>
                         <label className={s("field")}><span>Stop Name <em>*</em></span><input autoFocus value={stopForm.name} onChange={e=>setStopForm({...stopForm,name:e.target.value})} placeholder="Main Chowk"/></label>
                         <label className={s("field")}><span>Pickup Time</span><input type="time" value={stopForm.pickup_time} onChange={e=>setStopForm({...stopForm,pickup_time:e.target.value})}/></label>
                         <label className={s("field")}><span>Drop Time</span><input type="time" value={stopForm.drop_time} onChange={e=>setStopForm({...stopForm,drop_time:e.target.value})}/></label>
-                        <label className={s("field")}><span>Monthly Fee (₹)</span><input type="number" value={stopForm.monthly_fee} onChange={e=>setStopForm({...stopForm,monthly_fee:e.target.value})} placeholder="500"/></label>
+                        <label className={s("field")}><span>Monthly Fee</span><input type="number" value={stopForm.monthly_fee} onChange={e=>setStopForm({...stopForm,monthly_fee:e.target.value})} placeholder="500"/></label>
                         <label className={s("field")}><span>Order</span><input type="number" min="1" value={stopForm.stop_order} onChange={e=>setStopForm({...stopForm,stop_order:e.target.value})} placeholder="1"/></label>
                       </div>
                       <div className={s("form-actions")}><button className={s("btn")} onClick={()=>setShowStopForm(false)}>Cancel</button><button className={cx(s("btn"),s("btn-primary"))} onClick={saveStop} disabled={stopSaving}>{stopSaving?<><Spinner size={14}/>Saving…</>:<><i className="fa-solid fa-check"/>Add Stop</>}</button></div>
@@ -518,7 +711,7 @@ export default function TransportPage() {
                           <span>{stop.pickup_time ? `↑ ${stop.pickup_time}` : ""}{stop.drop_time ? `  ↓ ${stop.drop_time}` : ""}{!stop.pickup_time && !stop.drop_time ? "No times set" : ""}</span>
                         </div>
                         {stop.student_count > 0 && <span className={cx(s("badge"),s("badge-blue"))}>{stop.student_count} students</span>}
-                        <span className={s("stop-fee")}>₹{stop.monthly_fee||0}/mo</span>
+                        <span className={s("stop-fee")}>{fmtCur(stop.monthly_fee||0)}/mo</span>
                         <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>deleteStop(stop.id)}><i className="fa-solid fa-trash"/></button>
                       </div>
                     ))}
@@ -539,7 +732,7 @@ export default function TransportPage() {
                                 <td><div className={s("avatar-cell")}><span className={s("avatar")}>{initials(a.full_name)}</span><div><strong style={{fontSize:13}}>{a.full_name}</strong><span style={{display:"block",fontSize:11,color:"#6b7b86"}}>{a.admission_number}</span></div></div></td>
                                 <td style={{fontWeight:700}}>{a.stop_name}</td>
                                 <td style={{color:"#6b7b86",fontSize:13}}>{a.pickup_time||"—"}</td>
-                                <td style={{fontWeight:800,color:"#ff9b51"}}>₹{a.monthly_fee||0}</td>
+                                <td style={{fontWeight:800,color:"#ff9b51"}}>{fmtCur(a.monthly_fee||0)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -555,68 +748,156 @@ export default function TransportPage() {
 
         {/* ══ ASSIGNMENTS ══ */}
         {tab === "assignments" && (
-          <div className={s("two-col")}>
-            {/* Assign form */}
-            <div className={s("panel")}>
-              <div className={s("panel-head")}><div><h2><i className="fa-solid fa-user-plus" style={{color:"#ff9b51",marginRight:8}}/>Assign Student to Route</h2></div></div>
-              <div className={s("form-grid-2")}>
-                <label className={s("field")}><span>Student <em>*</em></span>
-                  <select value={aForm.student_id} onChange={e=>setAForm({...aForm,student_id:e.target.value})}>
-                    <option value="">— Select Student —</option>
-                    {(enrollments||[]).map((en:any) => <option key={en.student_id} value={en.student_id}>{en.full_name} ({en.admission_number})</option>)}
-                  </select>
-                </label>
-                <label className={s("field")}><span>Route <em>*</em></span>
-                  <select value={aForm.route_id} onChange={e=>setAForm({...aForm,route_id:e.target.value,stop_id:""})}>
-                    <option value="">— Select Route —</option>
-                    {(routes||[]).map((r:any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                </label>
-                <label className={s("field")}><span>Stop <em>*</em></span>
-                  <select value={aForm.stop_id} onChange={e=>setAForm({...aForm,stop_id:e.target.value})} disabled={!aForm.route_id||!aStops.length}>
-                    <option value="">— Select Stop —</option>
-                    {aStops.map((st:any) => <option key={st.id} value={st.id}>{st.name} — ₹{st.monthly_fee}/mo</option>)}
-                  </select>
-                </label>
-                <label className={s("field")}><span>Start Date</span><input type="date" value={aForm.start_date} onChange={e=>setAForm({...aForm,start_date:e.target.value})}/></label>
+          (!vehicles || vehicles.length === 0 || !routes || routes.length === 0) ? (
+            <div className={s("panel")} style={{ padding: "48px 24px", textAlign: "center", maxWidth: 720, margin: "16px auto" }}>
+              <div style={{
+                width: 68, height: 68, borderRadius: 20,
+                background: (!vehicles || vehicles.length === 0) ? "#fff3e8" : "#eff6ff",
+                color: (!vehicles || vehicles.length === 0) ? "#ea580c" : "#2563eb",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontSize: 28, marginBottom: 18
+              }}>
+                <i className={`fa-solid ${(!vehicles || vehicles.length === 0) ? "fa-bus" : "fa-route"}`} />
               </div>
-              <div className={s("form-actions")}>
-                <button className={cx(s("btn"),s("btn-primary"))} onClick={saveAssignment} disabled={aSaving}>{aSaving?<><Spinner size={14}/>Assigning…</>:<><i className="fa-solid fa-check"/>Assign Student</>}</button>
-              </div>
-            </div>
 
-            {/* Assignment list */}
-            <div className={s("panel")}>
-              <div className={s("panel-head")}><div><h2><i className="fa-solid fa-list" style={{color:"#ff9b51",marginRight:8}}/>Current Assignments</h2><p>{assignments.length} active assignments</p></div></div>
-              <div className={s("table-wrap")}>
-                {aLoading ? <div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div> : (
-                  <table>
-                    <thead><tr><th>Student</th><th>Route</th><th>Stop</th><th>Fee</th><th></th></tr></thead>
-                    <tbody>
-                      {assignments.length===0 ? <tr><td colSpan={5} className={s("empty")}><i className="fa-solid fa-users-slash"/><p>No assignments yet.</p></td></tr>
-                      : assignments.map((a:any) => (
-                        <tr key={a.id}>
-                          <td><div className={s("avatar-cell")}><span className={s("avatar")}>{initials(a.full_name)}</span><strong style={{fontSize:13}}>{a.full_name}</strong></div></td>
-                          <td style={{fontSize:13,fontWeight:700}}>{a.route_name}</td>
-                          <td style={{fontSize:13}}>{a.stop_name}</td>
-                          <td style={{fontWeight:800,color:"#ff9b51",fontSize:13}}>₹{a.monthly_fee||0}</td>
-                          <td>
-                            {confirmAId===a.id ? (
-                              <div className={s("confirm-row")}>
-                                <span style={{fontSize:11,fontWeight:700,color:"#f43f5e"}}>End?</span>
-                                <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>endAssignment(a.id)}>Yes</button>
-                                <button className={cx(s("btn"),s("btn-sm"))} onClick={()=>setConfirmAId(null)}>No</button>
-                              </div>
-                            ) : <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>setConfirmAId(a.id)}><i className="fa-solid fa-xmark"/></button>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <h2 style={{ fontSize: 21, fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>
+                {(!vehicles || vehicles.length === 0) ? "Add a Vehicle First" : "Create a Route & Stops First"}
+              </h2>
+
+              <p style={{ fontSize: 13.5, color: "#64748b", fontWeight: 600, maxWidth: 500, margin: "0 auto 26px", lineHeight: 1.6 }}>
+                {(!vehicles || vehicles.length === 0)
+                  ? "Before assigning students to transport, you need to register at least one school vehicle in your fleet."
+                  : "Vehicles are registered, but no routes or stops have been created yet. Create a route first so students can be mapped to pickup stops."}
+              </p>
+
+              {/* Step indicator */}
+              <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 30, flexWrap: "wrap" }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 10,
+                  background: (vehicles && vehicles.length > 0) ? "#ecfdf5" : "#fff7ed",
+                  border: `1px solid ${(vehicles && vehicles.length > 0) ? "#a7f3d0" : "#ffedd5"}`,
+                  fontSize: 12.5, fontWeight: 800, color: (vehicles && vehicles.length > 0) ? "#059669" : "#c2410c"
+                }}>
+                  <i className={`fa-solid ${(vehicles && vehicles.length > 0) ? "fa-circle-check" : "fa-1"}`} />
+                  <span>1. Fleet Vehicle {(vehicles && vehicles.length > 0) ? `(${vehicles.length})` : ""}</span>
+                </div>
+
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 10,
+                  background: (routes && routes.length > 0) ? "#ecfdf5" : "#eff6ff",
+                  border: `1px solid ${(routes && routes.length > 0) ? "#a7f3d0" : "#bfdbfe"}`,
+                  fontSize: 12.5, fontWeight: 800, color: (routes && routes.length > 0) ? "#059669" : "#1d4ed8"
+                }}>
+                  <i className={`fa-solid ${(routes && routes.length > 0) ? "fa-circle-check" : "fa-2"}`} />
+                  <span>2. Route & Stops {(routes && routes.length > 0) ? `(${routes.length})` : ""}</span>
+                </div>
+
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 10,
+                  background: "#f8fafc", border: "1px solid #e2e8f0",
+                  fontSize: 12.5, fontWeight: 800, color: "#94a3b8"
+                }}>
+                  <i className="fa-solid fa-3" />
+                  <span>3. Student Assignment</span>
+                </div>
+              </div>
+
+              <div>
+                {(!vehicles || vehicles.length === 0) ? (
+                  <button
+                    type="button"
+                    className={cx(s("btn"), s("btn-primary"))}
+                    style={{ padding: "10px 24px", fontSize: 13.5 }}
+                    onClick={() => {
+                      setTab("vehicles");
+                      setShowVForm(true);
+                      setEditVehicleId(null);
+                    }}
+                  >
+                    <i className="fa-solid fa-plus" /> Add First Vehicle
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={cx(s("btn"), s("btn-primary"))}
+                    style={{ padding: "10px 24px", fontSize: 13.5 }}
+                    onClick={() => {
+                      setTab("routes");
+                      setShowRForm(true);
+                    }}
+                  >
+                    <i className="fa-solid fa-plus" /> Create First Route
+                  </button>
                 )}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className={s("two-col")}>
+              {/* Assign form */}
+              <div className={s("panel")}>
+                <div className={s("panel-head")}><div><h2><i className="fa-solid fa-user-plus" style={{color:"#ff9b51",marginRight:8}}/>Assign Student to Route</h2></div></div>
+                <div className={s("form-grid-2")}>
+                  <label className={s("field")}><span>Student <em>*</em></span>
+                    <select value={aForm.student_id} onChange={e=>setAForm({...aForm,student_id:e.target.value})}>
+                      <option value="">— Select Student —</option>
+                      {(enrollments||[]).map((en:any) => <option key={en.student_id} value={en.student_id}>{en.full_name} ({en.admission_number})</option>)}
+                    </select>
+                  </label>
+                  <label className={s("field")}><span>Route <em>*</em></span>
+                    <select value={aForm.route_id} onChange={e=>setAForm({...aForm,route_id:e.target.value,stop_id:""})}>
+                      <option value="">— Select Route —</option>
+                      {(routes||[]).map((r:any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  </label>
+                  <label className={s("field")}><span>Stop <em>*</em></span>
+                    <select value={aForm.stop_id} onChange={e=>setAForm({...aForm,stop_id:e.target.value})} disabled={!aForm.route_id||!aStops.length}>
+                      <option value="">— Select Stop —</option>
+                      {aStops.map((st:any) => <option key={st.id} value={st.id}>{st.name} — {fmtCur(st.monthly_fee)}/mo</option>)}
+                    </select>
+                  </label>
+                  <label className={s("field")}>
+                    <span>Start Date</span>
+                    <DateInput value={aForm.start_date} onChange={e => setAForm({...aForm, start_date: e.target.value})} />
+                  </label>
+                </div>
+                <div className={s("form-actions")}>
+                  <button className={cx(s("btn"),s("btn-primary"))} onClick={saveAssignment} disabled={aSaving}>{aSaving?<><Spinner size={14}/>Assigning…</>:<><i className="fa-solid fa-check"/>Assign Student</>}</button>
+                </div>
+              </div>
+
+              {/* Assignment list */}
+              <div className={s("panel")}>
+                <div className={s("panel-head")}><div><h2><i className="fa-solid fa-list" style={{color:"#ff9b51",marginRight:8}}/>Current Assignments</h2><p>{assignments.length} active assignments</p></div></div>
+                <div className={s("table-wrap")}>
+                  {aLoading ? <div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div> : (
+                    <table>
+                      <thead><tr><th>Student</th><th>Route</th><th>Stop</th><th>Fee</th><th></th></tr></thead>
+                      <tbody>
+                        {assignments.length===0 ? <tr><td colSpan={5} className={s("empty")}><i className="fa-solid fa-users-slash"/><p>No assignments yet.</p></td></tr>
+                        : assignments.map((a:any) => (
+                          <tr key={a.id}>
+                            <td><div className={s("avatar-cell")}><span className={s("avatar")}>{initials(a.full_name)}</span><strong style={{fontSize:13}}>{a.full_name}</strong></div></td>
+                            <td style={{fontSize:13,fontWeight:700}}>{a.route_name}</td>
+                            <td style={{fontSize:13}}>{a.stop_name}</td>
+                            <td style={{fontWeight:800,color:"#ff9b51",fontSize:13}}>{fmtCur(a.monthly_fee||0)}</td>
+                            <td>
+                              {confirmAId===a.id ? (
+                                <div className={s("confirm-row")}>
+                                  <span style={{fontSize:11,fontWeight:700,color:"#f43f5e"}}>End?</span>
+                                  <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>endAssignment(a.id)}>Yes</button>
+                                  <button className={cx(s("btn"),s("btn-sm"))} onClick={()=>setConfirmAId(null)}>No</button>
+                                </div>
+                              ) : <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>setConfirmAId(a.id)}><i className="fa-solid fa-xmark"/></button>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
         )}
       </main>
     </div>

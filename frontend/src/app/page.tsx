@@ -243,10 +243,10 @@ export default function LandingPage() {
             <Image
               src="/Logo.png"
               alt="Skoolio"
-              width={140}
+              width={123}
               height={42}
               priority
-              style={{ objectFit: "contain", height: 42, width: "auto" }}
+              style={{ objectFit: "contain" }}
             />
           </Link>
 
@@ -685,19 +685,19 @@ export default function LandingPage() {
                 <Image
                   src="/Logo.png"
                   alt="Skoolio"
-                  width={120}
-                  height={36}
-                  style={{ objectFit: "contain", height: 36, width: "auto" }}
+                  width={140}
+                  height={48}
+                  style={{ objectFit: "contain" }}
                 />
               </Link>
               <p>
                 The all-in-one school management platform for Nepal and India. Attendance, fees, exams, and staff — entered once, visible to the right role.
               </p>
               <div className={s.footerSocial}>
-                <a href="#" aria-label="Skoolio on X / Twitter"><i className="fa-brands fa-x-twitter" /></a>
+                <a href="https://wa.me/9779713823636" target="_blank" rel="noopener noreferrer" aria-label="Skoolio WhatsApp Support: +977 9713823636"><i className="fa-brands fa-whatsapp" /></a>
+                <a href="mailto:skoolio.support@gmail.com" aria-label="Email Skoolio Support: skoolio.support@gmail.com"><i className="fa-solid fa-envelope" /></a>
                 <a href="#" aria-label="Skoolio on LinkedIn"><i className="fa-brands fa-linkedin-in" /></a>
                 <a href="#" aria-label="Skoolio on Facebook"><i className="fa-brands fa-facebook-f" /></a>
-                <a href="#" aria-label="Skoolio on Instagram"><i className="fa-brands fa-instagram" /></a>
               </div>
             </div>
 
@@ -718,10 +718,40 @@ export default function LandingPage() {
                 <a href="#partners">Trusted By</a>
               </div>
               <div className={s.footerCol}>
-                <h5>SUPPORT</h5>
-                <a href="#faq">FAQ</a>
-                <a href="#faq">Help Center</a>
-                <a href="/contact">Contact Us</a>
+                <h5>SUPPORT &amp; CONTACT</h5>
+                <a
+                  href="https://wa.me/9779713823636"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    color: "#16a34a",
+                    marginBottom: 6,
+                  }}
+                >
+                  <i className="fa-brands fa-whatsapp" style={{ fontSize: "16px", color: "#25D366" }} />
+                  +977 9713823636
+                </a>
+                <a
+                  href="mailto:skoolio.support@gmail.com"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    color: "#ea580c",
+                    marginBottom: 8,
+                  }}
+                >
+                  <i className="fa-solid fa-envelope" style={{ fontSize: "14px", color: "#FF9B51" }} />
+                  skoolio.support@gmail.com
+                </a>
+                <a href="/contact"><i className="fa-solid fa-headset" style={{ color: "#ea580c", marginRight: 4 }} /> Contact Us Page</a>
                 <Link href="/login">Sign In</Link>
                 <Link href="/register">Register School</Link>
               </div>
