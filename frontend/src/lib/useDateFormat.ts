@@ -45,10 +45,28 @@ export function useDateFormat() {
 
   return useMemo(() => {
 
+    /** Normalize ISO string to YYYY-MM-DD handling UTC timezone shifts */
+    function toDateStr(iso: string | null | undefined): string {
+      if (!iso) return '';
+      const s = String(iso).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (s.includes('T')) {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+      }
+      return s.slice(0, 10);
+    }
+
     /** Format an AD ISO string to a full display string */
     function formatDate(iso: string | null | undefined): string {
       if (!iso) return '—';
-      const dateStr = String(iso).slice(0, 10);
+      const dateStr = toDateStr(iso);
+      if (!dateStr || dateStr.length < 10) return '—';
       if (isBS) {
         const bs = isoToBS(dateStr);
         return `${bs.day} ${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
@@ -60,7 +78,8 @@ export function useDateFormat() {
     /** Short format: "13 Apr 2024" or "31 Shr 2082" */
     function formatDateShort(iso: string | null | undefined): string {
       if (!iso) return '—';
-      const dateStr = String(iso).slice(0, 10);
+      const dateStr = toDateStr(iso);
+      if (!dateStr || dateStr.length < 10) return '—';
       if (isBS) {
         const bs = isoToBS(dateStr);
         return `${bs.day} ${BS_MONTH_NAMES[bs.month - 1].slice(0, 3)} ${bs.year}`;

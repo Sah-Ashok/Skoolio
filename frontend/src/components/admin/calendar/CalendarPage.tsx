@@ -423,12 +423,23 @@ export default function CalendarPage() {
             <div className={s("cardHead")}>
               <div>
                 <h2>{monthLabel}</h2>
-                <p>
-                  Attendance counts only working days.&nbsp;
-                  <span style={{ color: "#b42318" }}>■</span> Off/Holiday&nbsp;
-                  <span style={{ color: "#3b5bdb" }}>■</span> Event&nbsp;
-                  <span style={{ color: "#7c3aed" }}>■</span> Early Closing
-                </p>
+                <div className={s("legendRow")}>
+                  <span style={{ color: "#6a7882", fontSize: 11.5, fontWeight: 700 }}>
+                    Attendance counts only working days:
+                  </span>
+                  <span className={s("legendItem")}>
+                    <span style={{ background: "#b42318" }} />
+                    Off / Holiday
+                  </span>
+                  <span className={s("legendItem")}>
+                    <span style={{ background: "#3b5bdb" }} />
+                    Event
+                  </span>
+                  <span className={s("legendItem")}>
+                    <span style={{ background: "#7c3aed" }} />
+                    Early Closing
+                  </span>
+                </div>
               </div>
               <div className={s("monthControls")}>
                 <button type="button" onClick={() => goToMonth(-1)} disabled={selectedIndex <= 0}><i className="fa-solid fa-chevron-left" /></button>

@@ -9,6 +9,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
 
@@ -18,17 +19,20 @@ const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join
 function formatTime(t: string) {
   if (!t) return "—";
   const [h, m] = t.split(":");
-  const d = new Date();
-  d.setHours(+h, +m, 0);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (h === undefined || m === undefined) return t;
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${m} ${ampm}`;
 }
 
 export default function ExamSchedulePage() {
   const { id: examId } = useParams() as { id: string };
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
 
-  const { data: exam,      loading: examLoading } = useApi<any>(`/exams/${examId}`);
-  const { data: schedules, refetch }               = useApi<any[]>(`/exams/${examId}/schedules`);
+  const { data: exam,      loading: examLoading, refetch: refetchExam } = useApi<any>(`/exams/${examId}`);
+  const { data: schedules, loading: schedulesLoading, refetch }               = useApi<any[]>(`/exams/${examId}/schedules`);
   const { academicYearId }                          = useAcademicYear();
   const { data: classes }                           = useApi<any[]>(
     academicYearId ? `/classes?academic_year_id=${academicYearId}` : "", [academicYearId]
@@ -36,6 +40,9 @@ export default function ExamSchedulePage() {
 
   const { execute: saveSchedule, loading: saving } = useMutation("/exams/schedules", "POST");
   const { execute: deleteSchedule }                 = useMutation("/exams/schedules", "DELETE");
+  const { execute: publishSchedule, loading: publishing } = useMutation(`/exams/${examId}/publish-schedule`, "POST");
+
+  const isSchedulePublished = Boolean(exam?.is_schedule_published);
 
   const [classId,   setClassId]   = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -46,7 +53,7 @@ export default function ExamSchedulePage() {
   const [passMarks, setPassMarks] = useState("40");
   const [venue,     setVenue]     = useState("");
 
-  const { data: subjects } = useApi<any[]>(classId ? `/classes/${classId}/subjects` : "");
+  const { data: subjects, loading: subjectsLoading } = useApi<any[]>(classId ? `/classes/${classId}/subjects` : "");
 
   // Auto-select first class
   useEffect(() => {
@@ -60,8 +67,46 @@ export default function ExamSchedulePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjects]);
 
+  const hasPublishedResults = Boolean(exam?.has_published_results);
+
+  const handleTogglePublish = async () => {
+    if (!schedules || schedules.length === 0) {
+      return dispatch(showToast({
+        type: "error",
+        title: "No Schedule",
+        message: "Please add at least one schedule entry before publishing.",
+      }));
+    }
+
+    const nextState = !isSchedulePublished;
+    try {
+      await publishSchedule({ is_published: nextState });
+      dispatch(showToast({
+        type: "success",
+        title: nextState ? "Schedule Published" : "Schedule Unpublished",
+        message: nextState
+          ? "Exam schedule is now visible to students in the student portal."
+          : "Exam schedule has been unpublished.",
+      }));
+      refetchExam();
+    } catch (err: any) {
+      dispatch(showToast({
+        type: "error",
+        title: "Failed",
+        message: err.message ?? "Could not update publish status.",
+      }));
+    }
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasPublishedResults) {
+      return dispatch(showToast({
+        type: "error",
+        title: "Schedule Locked",
+        message: "Cannot add schedule entries because exam results are already published.",
+      }));
+    }
     if (!classId || !subjectId || !examDate || !startTime || !endTime)
       return dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please fill all required fields." }));
     if (+passMarks > +maxMarks)
@@ -83,6 +128,7 @@ export default function ExamSchedulePage() {
       });
       dispatch(showToast({ type: "success", title: "Schedule Added", message: "New schedule entry saved successfully." }));
       refetch();
+      refetchExam();
       setExamDate(""); setStartTime(""); setEndTime(""); setVenue("");
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not add schedule." }));
@@ -90,11 +136,19 @@ export default function ExamSchedulePage() {
   };
 
   const handleDelete = async (id: number) => {
+    if (hasPublishedResults) {
+      return dispatch(showToast({
+        type: "error",
+        title: "Schedule Locked",
+        message: "Cannot delete schedule entries because exam results are already published.",
+      }));
+    }
     if (!confirm("Remove this schedule entry?")) return;
     try {
       await deleteSchedule(undefined, `/exams/schedules/${id}`);
       dispatch(showToast({ type: "success", title: "Removed", message: "Schedule entry deleted." }));
       refetch();
+      refetchExam();
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not delete schedule." }));
     }
@@ -113,9 +167,9 @@ export default function ExamSchedulePage() {
             <h1>{exam?.name}</h1>
             <div className={s("infoChips")}>
               <span className={s("chip")}><i className="fa-solid fa-calendar" />
-                {exam?.start_date ? new Date(exam.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}
-                {" — "}
-                {exam?.end_date   ? new Date(exam.end_date).toLocaleDateString("en-IN",   { day: "2-digit", month: "short", year: "numeric" }) : ""}
+                {exam?.start_date ? formatDate(exam.start_date) : ""}
+                {exam?.start_date && exam?.end_date ? " — " : ""}
+                {exam?.end_date ? formatDate(exam.end_date) : ""}
               </span>
               <span className={s("chip")} style={{ textTransform: "capitalize" }}>
                 <i className="fa-solid fa-tag" />
@@ -125,12 +179,45 @@ export default function ExamSchedulePage() {
                 <i className="fa-solid fa-list-check" />
                 {schedules?.length ?? 0} schedule{schedules?.length !== 1 ? "s" : ""}
               </span>
+              {isSchedulePublished ? (
+                <span className={s("chip")} style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0" }}>
+                  <i className="fa-solid fa-eye" /> Published to Students
+                </span>
+              ) : (
+                <span className={s("chip")} style={{ background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a" }}>
+                  <i className="fa-solid fa-eye-slash" /> Draft (Not Published)
+                </span>
+              )}
+              {hasPublishedResults && (
+                <span className={s("chip")} style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fecaca" }}>
+                  <i className="fa-solid fa-lock" /> Results Published (Locked)
+                </span>
+              )}
             </div>
           </div>
           <div className={s("actions")}>
             <Link className={cx(s("btn"), s("btnOutline"))} href="/exams">
               <i className="fa-solid fa-arrow-left" /> Back
             </Link>
+            <button
+              type="button"
+              className={cx(s("btn"), isSchedulePublished ? s("btnSoft") : s("btnOutline"))}
+              onClick={handleTogglePublish}
+              disabled={publishing || (schedules?.length ?? 0) === 0}
+              style={{
+                borderColor: isSchedulePublished ? "#86efac" : "#FF9B51",
+                color: isSchedulePublished ? "#15803d" : "#ea580c",
+                background: isSchedulePublished ? "#f0fdf4" : "#fff7ed",
+              }}
+            >
+              {publishing ? (
+                <><Spinner size={13} color="#FF9B51" /> Updating…</>
+              ) : isSchedulePublished ? (
+                <><i className="fa-solid fa-circle-check" style={{ color: "#16a34a" }} /> Published ✓</>
+              ) : (
+                <><i className="fa-solid fa-share-from-square" style={{ color: "#ea580c" }} /> Publish Schedule</>
+              )}
+            </button>
             <Link className={cx(s("btn"), s("btnPrimary"))} href={`/exams/${examId}/results`}>
               <i className="fa-solid fa-chart-bar" /> Enter Results
             </Link>
@@ -140,18 +227,65 @@ export default function ExamSchedulePage() {
         <div className={s("formLayout")}>
           <div className={s("formStack")}>
 
+            {/* ── Lock notice banner if results are published ── */}
+            {hasPublishedResults && (
+              <div style={{
+                background: "#fffbeb",
+                border: "1.5px solid #fde68a",
+                borderRadius: 14,
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: "#fef3c7",
+                    color: "#b45309",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    flexShrink: 0,
+                  }}>
+                    <i className="fa-solid fa-lock" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: "#92400e" }}>
+                      Exam Schedule is Locked
+                    </h4>
+                    <p style={{ margin: "3px 0 0", fontSize: 12.5, fontWeight: 600, color: "#b45309" }}>
+                      Results for this exam have already been published. Schedule modifications and deletions are disabled to protect student marks.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/exams/${examId}/results`}
+                  className={cx(s("btn"), s("btnOutline"))}
+                  style={{ fontSize: 12.5, padding: "7px 16px", borderColor: "#fde68a", color: "#92400e", background: "#ffffff", fontWeight: 800 }}
+                >
+                  <i className="fa-solid fa-chart-bar" /> Manage Results
+                </Link>
+              </div>
+            )}
+
             {/* ── Add schedule form ── */}
-            <div className={s("card")}>
+            <div className={s("card")} style={hasPublishedResults ? { opacity: 0.7 } : {}}>
               <div className={s("cardHead")}>
                 <div>
                   <h2><i className="fa-solid fa-calendar-plus" style={{ marginRight: 8, color: "#FF9B51" }} />Add Schedule Entry</h2>
-                  <p>Assign a class, subject and date to this exam</p>
+                  <p>{hasPublishedResults ? "Schedule editing is disabled while results are published" : "Assign a class, subject and date to this exam"}</p>
                 </div>
               </div>
               <form className={s("formGrid")} onSubmit={handleAdd}>
                 <label className={s("field")}>
                   <span>Class <b>*</b></span>
-                  <select value={classId} onChange={(e) => setClassId(e.target.value)} required>
+                  <select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={hasPublishedResults} required>
                     <option value="">— Select class —</option>
                     {classes?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -159,47 +293,70 @@ export default function ExamSchedulePage() {
 
                 <label className={s("field")}>
                   <span>Subject <b>*</b></span>
-                  <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} required disabled={!subjects?.length}>
-                    {subjects?.length
-                      ? subjects.map((sub: any) => <option key={sub.id} value={sub.id}>{sub.name}</option>)
-                      : <option value="">— Select class first —</option>
-                    }
+                  <select
+                    value={subjectId}
+                    onChange={(e) => setSubjectId(e.target.value)}
+                    required
+                    disabled={hasPublishedResults || !classId || subjectsLoading || !subjects?.length}
+                  >
+                    {!classId ? (
+                      <option value="">— Select class first —</option>
+                    ) : subjectsLoading ? (
+                      <option value="">Loading subjects…</option>
+                    ) : subjects?.length ? (
+                      subjects.map((sub: any) => <option key={sub.id} value={sub.id}>{sub.name}</option>)
+                    ) : (
+                      <option value="">No subjects assigned to this class</option>
+                    )}
                   </select>
                 </label>
 
                 <label className={s("field")}>
                   <span>Exam Date <b>*</b></span>
-                  <DateInput value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
+                  <DateInput
+                    value={examDate}
+                    onChange={(e) => setExamDate(e.target.value)}
+                    minDate={exam?.start_date}
+                    maxDate={exam?.end_date}
+                    disabled={hasPublishedResults}
+                    required
+                  />
                 </label>
 
                 <label className={s("field")}>
                   <span>Venue</span>
-                  <input placeholder="e.g. Hall A, Room 201" value={venue} onChange={(e) => setVenue(e.target.value)} />
+                  <input placeholder="e.g. Hall A, Room 201" value={venue} onChange={(e) => setVenue(e.target.value)} disabled={hasPublishedResults} />
                 </label>
 
                 <label className={s("field")}>
                   <span>Start Time <b>*</b></span>
-                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={hasPublishedResults} required />
                 </label>
 
                 <label className={s("field")}>
                   <span>End Time <b>*</b></span>
-                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} disabled={hasPublishedResults} required />
                 </label>
 
                 <label className={s("field")}>
                   <span>Max Marks <b>*</b></span>
-                  <input type="number" min="1" max="1000" value={maxMarks} onChange={(e) => setMaxMarks(e.target.value)} required />
+                  <input type="number" min="1" max="1000" value={maxMarks} onChange={(e) => setMaxMarks(e.target.value)} disabled={hasPublishedResults} required />
                 </label>
 
                 <label className={s("field")}>
                   <span>Pass Marks <b>*</b></span>
-                  <input type="number" min="0" max={maxMarks} value={passMarks} onChange={(e) => setPassMarks(e.target.value)} required />
+                  <input type="number" min="0" max={maxMarks} value={passMarks} onChange={(e) => setPassMarks(e.target.value)} disabled={hasPublishedResults} required />
                 </label>
 
                 <div className={cx(s("field"), s("full"))} style={{ paddingTop: 4 }}>
-                  <button className={cx(s("btn"), s("btnPrimary"))} type="submit" disabled={saving || !subjectId}>
-                    {saving ? <><Spinner size={15} /> Adding…</> : <><i className="fa-solid fa-plus" /> Add to Schedule</>}
+                  <button className={cx(s("btn"), s("btnPrimary"))} type="submit" disabled={saving || !subjectId || hasPublishedResults}>
+                    {saving ? (
+                      <><Spinner size={15} /> Adding…</>
+                    ) : hasPublishedResults ? (
+                      <><i className="fa-solid fa-lock" /> Schedule Locked (Results Published)</>
+                    ) : (
+                      <><i className="fa-solid fa-plus" /> Add to Schedule</>
+                    )}
                   </button>
                 </div>
               </form>
@@ -237,7 +394,7 @@ export default function ExamSchedulePage() {
                       {schedules.map((sch) => (
                         <tr key={sch.id}>
                           <td style={{ fontWeight: 700 }}>
-                            {new Date(sch.exam_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                            {formatDate(sch.exam_date)}
                           </td>
                           <td>{sch.class_name ?? `Class ${sch.class_id}`}</td>
                           <td><strong>{sch.subject_name ?? `Sub ${sch.subject_id}`}</strong></td>
@@ -254,8 +411,11 @@ export default function ExamSchedulePage() {
                             <button
                               className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
                               onClick={() => handleDelete(sch.id)}
+                              disabled={hasPublishedResults}
+                              title={hasPublishedResults ? "Cannot delete schedule when results are published" : "Remove entry"}
+                              style={hasPublishedResults ? { opacity: 0.4, cursor: "not-allowed" } : {}}
                             >
-                              <i className="fa-solid fa-trash" />
+                              <i className={hasPublishedResults ? "fa-solid fa-lock" : "fa-solid fa-trash"} />
                             </button>
                           </td>
                         </tr>
@@ -279,11 +439,11 @@ export default function ExamSchedulePage() {
                 </div>
                 <div className={s("summaryRow")}>
                   <span>Starts</span>
-                  <strong>{exam?.start_date ? new Date(exam.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}</strong>
+                  <strong>{exam?.start_date ? formatDate(exam.start_date) : "—"}</strong>
                 </div>
                 <div className={s("summaryRow")}>
                   <span>Ends</span>
-                  <strong>{exam?.end_date ? new Date(exam.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}</strong>
+                  <strong>{exam?.end_date ? formatDate(exam.end_date) : "—"}</strong>
                 </div>
                 <div className={s("summaryRow")}><span>Entries</span><strong>{schedules?.length ?? 0}</strong></div>
               </div>

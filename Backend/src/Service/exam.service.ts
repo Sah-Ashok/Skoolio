@@ -4,6 +4,7 @@ import {
   createExamResult, getResultsByExamAndClass, getResultsByStudent, getStudentAllResults,
   getResultById, updateExamResult, publishExamResults,
   createGradeScale, getGradeScalesBySchool, getGradeByPercentage, updateGradeScale, deleteGradeScale,
+  getStudentExamSchedules, publishExamSchedule, unpublishExamResults, hasPublishedResultsForExam,
 } from '../Repositories/exam.repository';
 import {
   ICreateExam, IUpdateExam, ICreateExamSchedule, IUpdateExamSchedule,
@@ -66,6 +67,11 @@ export const createExamScheduleService = async (
   const exam = await getExamById(data.exam_id, school_id);
   if (!exam) throw new AppError('Exam not found.', 404);
 
+  const isPublished = await hasPublishedResultsForExam(data.exam_id, school_id);
+  if (isPublished) {
+    throw new AppError('Cannot add schedule entries because results for this exam have already been published. Please unpublish results first if changes are required.', 400);
+  }
+
   if (data.pass_marks > data.max_marks) {
     throw new AppError('Pass marks cannot be greater than max marks.', 400);
   }
@@ -84,6 +90,14 @@ export const updateExamScheduleService = async (
   school_id: number,
   data: IUpdateExamSchedule
 ) => {
+  const existing = await getScheduleById(id, school_id);
+  if (!existing) throw new AppError('Exam schedule not found.', 404);
+
+  const isPublished = await hasPublishedResultsForExam(existing.exam_id, school_id);
+  if (isPublished) {
+    throw new AppError('Cannot edit schedule entries because results for this exam have already been published. Please unpublish results first if changes are required.', 400);
+  }
+
   const schedule = await updateExamSchedule(id, school_id, data);
   if (!schedule) throw new AppError('Exam schedule not found.', 404);
   return schedule;
@@ -92,6 +106,11 @@ export const updateExamScheduleService = async (
 export const deleteExamScheduleService = async (id: number, school_id: number) => {
   const schedule = await getScheduleById(id, school_id);
   if (!schedule) throw new AppError('Exam schedule not found.', 404);
+
+  const isPublished = await hasPublishedResultsForExam(schedule.exam_id, school_id);
+  if (isPublished) {
+    throw new AppError('Cannot delete schedule entries because results for this exam have already been published. Please unpublish results first if changes are required.', 400);
+  }
 
   const deleted = await deleteExamSchedule(id, school_id);
   if (!deleted) throw new AppError('Failed to delete exam schedule.', 500);
@@ -260,6 +279,20 @@ export const publishExamResultsService = async (
   return { published_count: count };
 };
 
+export const unpublishExamResultsService = async (
+  exam_id: number,
+  class_id: number,
+  school_id: number
+) => {
+  const exam = await getExamById(exam_id, school_id);
+  if (!exam) throw new AppError('Exam not found.', 404);
+
+  const count = await unpublishExamResults(exam_id, class_id, school_id);
+  if (count === 0) throw new AppError('No published results found to unpublish.', 404);
+
+  return { unpublished_count: count };
+};
+
 // ── GRADE SCALE SERVICES ──
 
 export const createGradeScaleService = async (
@@ -291,4 +324,23 @@ export const updateGradeScaleService = async (
 export const deleteGradeScaleService = async (id: number, school_id: number) => {
   const deleted = await deleteGradeScale(id, school_id);
   if (!deleted) throw new AppError('Grade scale not found.', 404);
+};
+
+export const getStudentExamSchedulesService = async (
+  student_id: number,
+  school_id: number,
+  academic_year_id?: number
+) => {
+  return await getStudentExamSchedules(student_id, school_id, academic_year_id);
+};
+
+export const publishExamScheduleService = async (
+  exam_id: number,
+  school_id: number,
+  is_published: boolean = true
+) => {
+  const exam = await getExamById(exam_id, school_id);
+  if (!exam) throw new AppError('Exam not found.', 404);
+  const updated = await publishExamSchedule(exam_id, school_id, is_published);
+  return updated;
 };

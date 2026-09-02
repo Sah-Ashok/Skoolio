@@ -1,7 +1,10 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 import dotenv from 'dotenv'
 
 dotenv.config();
+
+// Ensure PostgreSQL DATE (OID 1082) is always parsed as pure 'YYYY-MM-DD' string without timezone shifting
+types.setTypeParser(1082, (val: string) => val);
 
 const pool = new Pool({
     host:     process.env.DB_HOST,

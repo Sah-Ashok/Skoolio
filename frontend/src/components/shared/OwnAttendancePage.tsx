@@ -369,20 +369,49 @@ export default function OwnAttendancePage({
   return (
     <>
       <style>{`
-        .oa-page  { min-height:100vh; background:#eef2f3; }
-        .oa-main  { padding:20px; max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
-        .oa-card  { background:#fff; border-radius:14px; border:1px solid #dce5e9; overflow:hidden; box-shadow:0 2px 8px rgba(31,45,54,.05); }
-        .oa-head  { padding:14px 18px; border-bottom:1px solid #eef2f3; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-        .oa-title { font-size:14px; font-weight:900; color:#1f2d36; margin:0; }
-        .oa-sub   { font-size:11px; font-weight:700; color:#6a7882; margin:2px 0 0; }
-        .oa-body  { padding:18px; }
-        .oa-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-        @media(max-width:640px){ .oa-grid2{grid-template-columns:1fr;} .oa-main{padding:14px;gap:12px;} }
+        .oa-page  { min-height: 100vh; background: #f8fafc; }
+        .oa-main  { padding: 20px 24px 48px; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+        
+        .oa-page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 2px; }
+        .oa-page-head h1 { margin: 0; font-size: 24px; font-weight: 900; color: #0f172a; }
+        .oa-page-head p  { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: #64748b; }
+        
+        .oa-year-badge { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 9px; background: #fff; border: 1px solid #e2e8f0; font-size: 12.5px; font-weight: 700; color: #475569; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+        .oa-year-badge i { color: #ff9148; font-size: 13px; }
+        .oa-year-badge strong { color: #0f172a; }
+
+        .oa-card  { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.02); }
+        .oa-head  { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .oa-title { font-size: 15px; font-weight: 900; color: #0f172a; margin: 0; }
+        .oa-sub   { font-size: 11.5px; font-weight: 700; color: #64748b; margin: 2px 0 0; }
+        .oa-body  { padding: 18px; }
+        .oa-grid2 { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px; align-items: start; }
+        
+        @media (max-width: 900px) { .oa-grid2 { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { 
+          .oa-main { padding: 14px 12px 32px; gap: 14px; }
+          .oa-page-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+          .oa-year-badge { width: 100%; }
+        }
       `}</style>
 
       <div className="oa-page">
-        <Topbar title={topbarTitle} subtitle={topbarSub} />
-        <div className="oa-main">
+        <main className="oa-main">
+          
+          {/* ── Page Header ── */}
+          <section className="oa-page-head">
+            <div>
+              <h1>{topbarTitle}</h1>
+              <p>{topbarSub}</p>
+            </div>
+            {activeYearName && (
+              <div className="oa-year-badge">
+                <i className="fa-solid fa-calendar-check" />
+                <span>Academic Year: <strong>{activeYearName}</strong></span>
+              </div>
+            )}
+          </section>
+
           <div className="oa-grid2">
 
             {/* ── Left: Calendar ── */}
@@ -392,17 +421,19 @@ export default function OwnAttendancePage({
                   <p className="oa-title">{monthLabel}</p>
                   <p className="oa-sub">Daily attendance calendar</p>
                 </div>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button type="button" onClick={() => goToMonth(-1)} disabled={selectedIdx <= 0}
-                    style={{ width:28, height:28, borderRadius:7, border:"1px solid #d4dde2", background:selectedIdx<=0?"#f8fafc":"#fff", color:selectedIdx<=0?"#c6d0d7":"#1f2d36", cursor:selectedIdx<=0?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11 }}>
+                    aria-label="Previous Month"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #cbd5e1", background: selectedIdx <= 0 ? "#f8fafc" : "#fff", color: selectedIdx <= 0 ? "#cbd5e1" : "#1e293b", cursor: selectedIdx <= 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, transition: "all 0.15s ease" }}>
                     <i className="fa-solid fa-chevron-left" />
                   </button>
                   <select value={selectedValue} onChange={e => setSelectedValue(e.target.value)}
-                    style={{ padding:"5px 8px", borderRadius:8, border:"1px solid #d4dde2", fontSize:12, fontWeight:800, cursor:"pointer", background:"#fff", outline:"none" }}>
+                    style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12.5, fontWeight: 800, cursor: "pointer", background: "#fff", color: "#0f172a", outline: "none" }}>
                     {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                   <button type="button" onClick={() => goToMonth(1)} disabled={selectedIdx >= monthOptions.length - 1}
-                    style={{ width:28, height:28, borderRadius:7, border:"1px solid #d4dde2", background:selectedIdx>=monthOptions.length-1?"#f8fafc":"#fff", color:selectedIdx>=monthOptions.length-1?"#c6d0d7":"#1f2d36", cursor:selectedIdx>=monthOptions.length-1?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11 }}>
+                    aria-label="Next Month"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #cbd5e1", background: selectedIdx >= monthOptions.length - 1 ? "#f8fafc" : "#fff", color: selectedIdx >= monthOptions.length - 1 ? "#cbd5e1" : "#1e293b", cursor: selectedIdx >= monthOptions.length - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, transition: "all 0.15s ease" }}>
                     <i className="fa-solid fa-chevron-right" />
                   </button>
                 </div>
@@ -410,17 +441,17 @@ export default function OwnAttendancePage({
 
               <div className="oa-body">
                 {/* Day headers */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:4 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
                   {DAY_HEADERS.map(d => (
-                    <div key={d} style={{ textAlign:"center", fontSize:11, fontWeight:900, color:"#94a3b8", padding:"4px 0" }}>{d}</div>
+                    <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 900, color: "#94a3b8", padding: "4px 0", textTransform: "uppercase" }}>{d}</div>
                   ))}
                 </div>
 
                 {/* Day cells */}
                 {loading ? (
-                  <div style={{ padding:"2rem", textAlign:"center" }}><Spinner size={24} color="#FF9B51" /></div>
+                  <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#ff9b51" /></div>
                 ) : (
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
                     {cells.map((cell, i) => {
                       if (!cell.displayDay) return <div key={`e${i}`} />;
                       const adStr     = cell.adStr!;
@@ -431,25 +462,25 @@ export default function OwnAttendancePage({
                       const isRemain  = !status && !isWeekOff && !isHoliday && (cell.isPast || cell.isToday);
 
                       const bg = isWeekOff ? OFF_BG : isHoliday ? HOL_BG : isRemain ? REM_BG : cfg ? cfg.bg : "#f8fafc";
-                      const border = cell.isToday ? "2px solid #FF9B51"
+                      const border = cell.isToday ? "2px solid #ea580c"
                         : isWeekOff ? `1px solid ${OFF_BORDER}`
                         : isHoliday ? `1px solid ${HOL_BORDER}`
                         : isRemain  ? `1px solid ${REM_BORDER}`
                         : cfg       ? `1px solid ${cfg.border}`
                         : "1px solid #e2e8f0";
-                      const numColor = cell.isToday ? "#FF9B51"
+                      const numColor = cell.isToday ? "#ea580c"
                         : isWeekOff ? OFF_COLOR
                         : isHoliday ? HOL_COLOR
                         : isRemain  ? REM_COLOR
                         : cfg       ? cfg.color
-                        : "#1e293b";
+                        : "#0f172a";
                       const badge = cfg ? cfg.short : isWeekOff ? "Off" : isHoliday ? "H" : isRemain ? "R" : null;
 
                       return (
-                        <div key={`d${i}`} style={{ borderRadius:8, border, background:bg, padding:"6px 4px", display:"flex", flexDirection:"column", alignItems:"center", gap:3, minHeight:52 }}>
-                          <span style={{ fontSize:12, fontWeight:900, color:numColor }}>{cell.displayDay}</span>
+                        <div key={`d${i}`} style={{ borderRadius: 8, border, background: bg, padding: "6px 4px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minHeight: 52 }}>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: numColor }}>{cell.displayDay}</span>
                           {badge && (
-                            <span style={{ fontSize:9, fontWeight:800, color:cfg ? cfg.color : numColor, padding:"1px 4px", borderRadius:4, background:cfg ? cfg.bg : bg, border:`1px solid ${cfg ? cfg.border : border}` }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, color: cfg ? cfg.color : numColor, padding: "1px 4px", borderRadius: 4, background: cfg ? cfg.bg : bg, border: `1px solid ${cfg ? cfg.border : border}` }}>
                               {badge}
                             </span>
                           )}
@@ -460,18 +491,20 @@ export default function OwnAttendancePage({
                 )}
 
                 {/* Monthly Summary */}
-                <div style={{ marginTop:14 }}>
-                  <p style={{ fontSize:11, fontWeight:800, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", margin:"0 0 8px" }}>Monthly Summary</p>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px 16px" }}>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #f1f5f9" }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>Monthly Summary</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
                     {[
-                      ...monthlySummaryItems,
-                      { symbol:"💼", label:"Working Days", val:workingDaysInMonth, color:"#475569", bg:"#f1f5f9", border:"#e2e8f0" },
+                      ...monthlySummaryItems.map(i => ({ ...i, icon: undefined as string | undefined })),
+                      { symbol: "WD", icon: "fa-calendar-check", label: "Working Days", val: workingDaysInMonth, color: "#12805c", bg: "#e2f6ee", border: "#a7f3d0" },
                     ].map(item => (
-                      <div key={item.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <span style={{ fontSize:11, fontWeight:800, color:item.color, background:item.bg, border:`1px solid ${item.border}`, padding:"2px 6px", borderRadius:4, flexShrink:0 }}>{item.symbol}</span>
-                        <span style={{ fontSize:13, fontWeight:700, color:"#475569" }}>{item.label}</span>
-                        <span style={{ fontSize:13, fontWeight:600, color:"#94a3b8" }}>:</span>
-                        <span style={{ fontSize:14, fontWeight:900, color:item.color }}>{item.val}</span>
+                      <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: item.color, background: item.bg, border: `1px solid ${item.border}`, padding: "2px 6px", borderRadius: 4, flexShrink: 0, minWidth: 26, textAlign: "center" }}>
+                          {item.icon ? <i className={`fa-solid ${item.icon}`} style={{ fontSize: 10 }} /> : item.symbol}
+                        </span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#475569" }}>{item.label}</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: "#94a3b8" }}>:</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 900, color: item.color }}>{item.val}</span>
                       </div>
                     ))}
                   </div>
@@ -480,7 +513,7 @@ export default function OwnAttendancePage({
             </div>
 
             {/* ── Right: Sidebar ── */}
-            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {todayCard}
 
               {/* Yearly Summary */}
@@ -493,64 +526,65 @@ export default function OwnAttendancePage({
                 </div>
                 <div className="oa-body">
                   {sumLoading ? (
-                    <div style={{ textAlign:"center", padding:"1rem" }}><Spinner size={20} color="#FF9B51" /></div>
+                    <div style={{ textAlign: "center", padding: "1rem" }}><Spinner size={20} color="#ff9b51" /></div>
                   ) : (
-                    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         {/* Donut */}
-                        <div style={{ position:"relative", flexShrink:0 }}>
+                        <div style={{ position: "relative", flexShrink: 0 }}>
                           <svg viewBox="0 0 100 100" width={84} height={84}>
                             <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="14" />
                             {yAbsent > 0 && yDenominator > 0 && (
-                              <circle cx="50" cy="50" r="38" fill="none" stroke="#fca5a5" strokeWidth="14"
+                              <circle cx="50" cy="50" r="38" fill="none" stroke="#dc2626" strokeWidth="14"
                                 strokeDasharray={`${absArc} ${circ - absArc}`}
                                 strokeDashoffset={0} strokeLinecap="butt"
-                                style={{ transform:`rotate(${absDeg}deg)`, transformOrigin:"50px 50px" }} />
+                                style={{ transform: `rotate(${absDeg}deg)`, transformOrigin: "50px 50px" }} />
                             )}
-                            <circle cx="50" cy="50" r="38" fill="none" stroke="#4b8ff7" strokeWidth="14"
+                            <circle cx="50" cy="50" r="38" fill="none" stroke="#059669" strokeWidth="14"
                               strokeDasharray={`${presArc} ${circ - presArc}`}
                               strokeDashoffset={0} strokeLinecap="butt"
-                              style={{ transform:"rotate(-90deg)", transformOrigin:"50px 50px" }} />
+                              style={{ transform: "rotate(-90deg)", transformOrigin: "50px 50px" }} />
                           </svg>
-                          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                            <span style={{ fontSize:15, fontWeight:900, color:"#1f2d36" }}>{`${yPct}%`}</span>
-                            <span style={{ fontSize:8, fontWeight:700, color:"#6a7882" }}>attend.</span>
+                          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: "#0f172a" }}>{`${yPct}%`}</span>
+                            <span style={{ fontSize: 8.5, fontWeight: 700, color: "#64748b" }}>attend.</span>
                           </div>
                         </div>
                         {/* Legend rows */}
-                        <div style={{ display:"flex", flexDirection:"column", gap:7, flex:1 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                           {[
-                            { label:"Present",  val:yPresent, color:"#4b8ff7" },
-                            { label:"Absent",   val:yAbsent,  color:"#fca5a5" },
-                            { label:"Leave",    val:yLeave,   color:"#7c3aed" },
-                            ...(yLate    > 0 ? [{ label:"Suspended", val:yLate,    color:"#0369a1" }] : []),
-                            ...(yHalfDay > 0 ? [{ label:"Half Day",  val:yHalfDay, color:"#d97706" }] : []),
+                            { label: "Present",   val: yPresent, color: "#059669" },
+                            { label: "Absent",    val: yAbsent,  color: "#dc2626" },
+                            { label: "Leave",     val: yLeave,   color: "#7c3aed" },
+                            ...(yLate    > 0 ? [{ label: "Suspended", val: yLate,    color: "#0369a1" }] : []),
+                            ...(yHalfDay > 0 ? [{ label: "Half Day",  val: yHalfDay, color: "#d97706" }] : []),
                           ].map(it => (
-                            <div key={it.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ width:8, height:8, borderRadius:2, background:it.color, flexShrink:0 }} />
-                              <span style={{ fontSize:11, color:"#6a7882", fontWeight:600 }}>{it.label}</span>
-                              <span style={{ fontSize:12, fontWeight:900, color:"#1f2d36", marginLeft:"auto" }}>{it.val}</span>
+                            <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 2, background: it.color, flexShrink: 0 }} />
+                              <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 700 }}>{it.label}</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 900, color: "#0f172a", marginLeft: "auto" }}>{it.val}</span>
                             </div>
                           ))}
-                          <div style={{ marginTop:4, padding:"6px 8px", borderRadius:7, background:"#f7fafb", border:"1px solid #e2e8f0" }}>
-                            <span style={{ fontSize:10, fontWeight:700, color:"#6a7882" }}>% = (days − absent) ÷ days × 100</span>
+                          <div style={{ marginTop: 4, padding: "5px 8px", borderRadius: 6, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b" }}>% = (days − absent) ÷ days × 100</span>
                           </div>
                         </div>
                       </div>
+
                       {yearlyDaySplit.total > 0 && (
-                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderRadius:9, background:"#f7fafb", border:"1px solid #e2e8f0" }}>
-                            <span style={{ fontSize:13, fontWeight:700, color:"#1e293b" }}>Total Working Days</span>
-                            <strong style={{ fontSize:16, fontWeight:900, color:"#1f2d36" }}>{yearlyDaySplit.total}</strong>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 9, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#475569" }}>Total Working Days</span>
+                            <strong style={{ fontSize: 16, fontWeight: 900, color: "#0f172a" }}>{yearlyDaySplit.total}</strong>
                           </div>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                            <div style={{ padding:"8px 12px", borderRadius:8, background:"#e2f6ee", border:"1px solid #a7f3d0", textAlign:"center" }}>
-                              <div style={{ fontSize:14, fontWeight:900, color:"#12805c" }}>{yearlyDaySplit.elapsed}</div>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#12805c", opacity:0.8 }}>Elapsed</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                            <div style={{ padding: "8px 12px", borderRadius: 8, background: "#e2f6ee", border: "1px solid #a7f3d0", textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 900, color: "#12805c" }}>{yearlyDaySplit.elapsed}</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#12805c", opacity: 0.85 }}>Elapsed</div>
                             </div>
-                            <div style={{ padding:"8px 12px", borderRadius:8, background:"#e8f0fe", border:"1px solid #a8c7fa", textAlign:"center" }}>
-                              <div style={{ fontSize:14, fontWeight:900, color:"#1a73e8" }}>{yearlyDaySplit.remaining}</div>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#1a73e8", opacity:0.8 }}>Remaining</div>
+                            <div style={{ padding: "8px 12px", borderRadius: 8, background: "#e8f0fe", border: "1px solid #a8c7fa", textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 900, color: "#1a73e8" }}>{yearlyDaySplit.remaining}</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#1a73e8", opacity: 0.85 }}>Remaining</div>
                             </div>
                           </div>
                         </div>
@@ -560,7 +594,7 @@ export default function OwnAttendancePage({
                 </div>
               </div>
 
-              {/* Legend — dot + label + badge pill, no duplicate icon box */}
+              {/* Legend */}
               <div className="oa-card">
                 <div className="oa-head">
                   <div>
@@ -569,12 +603,12 @@ export default function OwnAttendancePage({
                   </div>
                 </div>
                 <div className="oa-body">
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {legendItems.map(item => (
-                      <div key={item.label} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                        <span style={{ width:10, height:10, borderRadius:3, background:item.color, flexShrink:0, display:"inline-block" }} />
-                        <span style={{ fontSize:13, fontWeight:700, color:"#1e293b", flex:1 }}>{item.label}</span>
-                        <span style={{ fontSize:11, fontWeight:800, color:item.color, background:item.bg, border:`1px solid ${item.border}`, padding:"1px 7px", borderRadius:5 }}>{item.symbol}</span>
+                      <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0, display: "inline-block" }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#334155", flex: 1 }}>{item.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: item.color, background: item.bg, border: `1px solid ${item.border}`, padding: "1px 7px", borderRadius: 5 }}>{item.symbol}</span>
                       </div>
                     ))}
                   </div>
@@ -585,13 +619,13 @@ export default function OwnAttendancePage({
           </div>
 
           {/* Footer */}
-          <div style={{ padding:"12px 16px", borderRadius:10, background:"#fff7ed", border:"1px solid #fed7aa", display:"flex", gap:9, alignItems:"flex-start" }}>
-            <i className="fa-solid fa-circle-info" style={{ flexShrink:0, color:"#c2410c", marginTop:1, fontSize:13 }} />
-            <span style={{ fontSize:12, fontWeight:700, color:"#92400e" }}>
+          <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <i className="fa-solid fa-circle-info" style={{ flexShrink: 0, color: "#c2410c", marginTop: 2, fontSize: 13 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", lineHeight: 1.5 }}>
               For any discrepancies in your attendance records, contact your class teacher or school administration.
             </span>
           </div>
-        </div>
+        </main>
       </div>
     </>
   );

@@ -23,14 +23,12 @@ export default function StudentMySubmissionsPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-        .smsp *, .smsp *::before, .smsp *::after { box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
-        .smsp { min-height: 100vh; background: #eef2f3; }
-        .smsp-main { padding: 20px; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-        .smsp-card { background: #fff; border-radius: 14px; border: 1px solid #dce5e9; box-shadow: 0 2px 12px rgba(31,45,54,.05); overflow: hidden; }
-        .smsp-card-head { padding: 14px 18px; border-bottom: 1px solid #eef2f3; display: flex; align-items: center; gap: 12px; }
+        .smsp { min-height: 100vh; background: #f8fafc; }
+        .smsp-main { padding: 20px 24px 48px; max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+        .smsp-card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.02); overflow: hidden; }
+        .smsp-card-head { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; }
         .smsp-card-body { padding: 18px; }
-        @media (max-width: 600px) { .smsp-main { padding: 14px; } }
+        @media (max-width: 600px) { .smsp-main { padding: 14px 12px 32px; } }
       `}</style>
 
       <div className="smsp">

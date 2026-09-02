@@ -2,11 +2,13 @@
 
 export {};
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, logoutThunk } from '@/store/authSlice';
+import LogoutConfirmModal from '@/components/shared/LogoutConfirmModal';
 
 type SidebarRole = 'admin' | 'teacher' | 'student';
 
@@ -109,7 +111,7 @@ const studentNav: NavSection[] = [
       { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
       { href: '/student/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
       { href: '/student/attendance', icon: 'fa-clipboard-check', label: 'Attendance' },
-      { href: '/student/results', icon: 'fa-file-circle-check', label: 'Results' },
+      { href: '/student/results', icon: 'fa-file-circle-check', label: 'Exams & Results' },
       { href: '/student/fees', icon: 'fa-file-invoice-dollar', label: 'Fee Status' },
       { href: '/student/notices', icon: 'fa-bullhorn', label: 'Notices' },
     ],
@@ -172,11 +174,16 @@ export default function Sidebar({ role }: SidebarProps) {
   const { user }    = useAppSelector(s => s.auth);
   const navSections = navMap[role];
   const activeRole  = role as SidebarRole;
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
     await dispatch(logoutThunk());
     dispatch(logout());
-    router.push('/login');
+    if (role === 'student') {
+      router.push('/student-login');
+    } else {
+      router.push('/login');
+    }
   };
 
   const openFeedback = () => {
@@ -266,7 +273,11 @@ export default function Sidebar({ role }: SidebarProps) {
               <p>{displayName}</p>
               <span>{roleLabel[activeRole]}</span>
             </div>
-            <button className="logout-btn" onClick={handleLogout} title="Logout">
+            <button
+              className="logout-btn"
+              onClick={() => setShowLogoutModal(true)}
+              title="Logout"
+            >
               <i className="fa-solid fa-right-from-bracket" />
             </button>
           </div>
@@ -288,13 +299,24 @@ export default function Sidebar({ role }: SidebarProps) {
               </Link>
             );
           })}
-          <button className="mobile-nav-item mobile-nav-logout" onClick={handleLogout}>
+          <button
+            className="mobile-nav-item mobile-nav-logout"
+            onClick={() => setShowLogoutModal(true)}
+          >
             <i className="fa-solid fa-right-from-bracket" />
             <span>Logout</span>
           </button>
         </div>
         <div className="mobile-nav-fade" />
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        userName={displayName}
+        userRole={roleLabel[activeRole]}
+      />
     </>
   );
 }

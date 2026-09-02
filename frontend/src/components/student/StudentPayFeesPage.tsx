@@ -437,12 +437,10 @@ export default function StudentPayFeesPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-        .spfp *, .spfp *::before, .spfp *::after { box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
-        .spfp { min-height: 100vh; background: #eef2f3; }
-        .spfp-main { padding: 20px; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-        .spfp-card { background: #fff; border-radius: 14px; border: 1px solid #dce5e9; box-shadow: 0 2px 12px rgba(31,45,54,.05); overflow: hidden; }
-        .spfp-card-head { padding: 14px 18px; border-bottom: 1px solid #eef2f3; display: flex; align-items: center; gap: 12px; }
+        .spfp { min-height: 100vh; background: #f8fafc; }
+        .spfp-main { padding: 20px 24px 48px; max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+        .spfp-card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.02); overflow: hidden; }
+        .spfp-card-head { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; }
         .spfp-card-body { padding: 18px; }
         .spfp-tab { flex: 1; min-height: 52px; border-radius: 11px; border: 2px solid transparent; cursor: pointer; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; }
         .spfp-tab-active { background: #1f2d36; color: #fff; border-color: #1f2d36; }

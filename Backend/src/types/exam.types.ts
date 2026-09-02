@@ -13,6 +13,7 @@ export interface IExam {
   start_date: Date;
   end_date: Date;
   status: ExamStatus;
+  is_schedule_published: boolean;
   description?: string;
   created_at: Date;
   updated_at: Date;
@@ -27,6 +28,7 @@ export type ICreateExam = Pick<
   | 'end_date'
   | 'status'
 > & {
+  is_schedule_published?: boolean;
   description?: string;
 };
 

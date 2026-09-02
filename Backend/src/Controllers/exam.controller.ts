@@ -6,8 +6,9 @@ import {
   createExamService, getExamsService, getExamByIdService, updateExamService, deleteExamService,
   createExamScheduleService, getExamSchedulesService, updateExamScheduleService, deleteExamScheduleService,
   createExamResultService, getClassResultsService, getStudentExamResultsService,
-  getStudentAllResultsService, updateExamResultService, publishExamResultsService,
+  getStudentAllResultsService, updateExamResultService, publishExamResultsService, unpublishExamResultsService,
   createGradeScaleService, getGradeScalesService, updateGradeScaleService, deleteGradeScaleService,
+  getStudentExamSchedulesService, publishExamScheduleService,
 } from '../Service/exam.service';
 
 const resolveSchoolId = (req: Request): number => {
@@ -145,6 +146,13 @@ export const publishExamResults = catchAsync(async (req: Request, res: Response,
   sendResponse(res, 200, true, 'Results published successfully', result);
 });
 
+export const unpublishExamResults = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const { exam_id, class_id } = req.body;
+  const result = await unpublishExamResultsService(exam_id, class_id, school_id);
+  sendResponse(res, 200, true, 'Results unpublished successfully', result);
+});
+
 // ── GRADE SCALE CONTROLLERS (ADMIN) ──
 
 export const createGradeScale = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -181,4 +189,23 @@ export const getMyResults = catchAsync(async (req: Request, res: Response, next:
   }
   const result = await getStudentAllResultsService(id, school_id, Number(academic_year_id));
   sendResponse(res, 200, true, 'Your results fetched successfully', result);
+});
+
+export const getMyExamSchedules = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id, school_id } = req.user as IJwtUserPayload;
+  const { academic_year_id } = req.query;
+  const result = await getStudentExamSchedulesService(
+    id,
+    school_id,
+    academic_year_id ? Number(academic_year_id) : undefined
+  );
+  sendResponse(res, 200, true, 'Your exam schedules fetched successfully', result);
+});
+
+export const publishExamSchedule = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { id: school_id } = req.user as IJwtAdminPayload;
+  const examId = Number(req.params.id);
+  const is_published = req.body.is_published !== undefined ? Boolean(req.body.is_published) : true;
+  const result = await publishExamScheduleService(examId, school_id, is_published);
+  sendResponse(res, 200, true, is_published ? 'Exam schedule published successfully' : 'Exam schedule unpublished successfully', result);
 });

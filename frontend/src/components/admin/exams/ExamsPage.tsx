@@ -7,6 +7,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
 
 function getExamStatus(exam: any): "upcoming" | "active" | "completed" {
@@ -36,6 +37,7 @@ type Filter = typeof FILTER_TABS[number];
 
 export default function ExamsPage() {
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: exams, loading, refetch } = useApi<any[]>(
     academicYearId ? `/exams?academic_year_id=${academicYearId}` : ""
@@ -205,10 +207,10 @@ export default function ExamsPage() {
                           </span>
                         </td>
                         <td className={s.dateCell}>
-                          {new Date(ex.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          {formatDate(ex.start_date)}
                         </td>
                         <td className={s.dateCell}>
-                          {new Date(ex.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          {formatDate(ex.end_date)}
                         </td>
                         <td>
                           <span className={`${s.badge} ${meta.cls}`}>

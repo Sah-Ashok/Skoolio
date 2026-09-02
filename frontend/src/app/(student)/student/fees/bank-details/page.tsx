@@ -150,13 +150,11 @@ export default function BankDetailsPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-        .bd-wrap *, .bd-wrap *::before, .bd-wrap *::after { box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
-        .bd-wrap { min-height: 100vh; background: #f0f2f5; }
-        .bd-main  { padding: 22px; max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+        .bd-wrap { min-height: 100vh; background: #f8fafc; }
+        .bd-main  { padding: 20px 24px 48px; max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
         .bd-how   { padding: 16px 18px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; }
         @media (max-width: 600px) {
-          .bd-main { padding: 14px; gap: 14px; }
+          .bd-main { padding: 14px 12px 32px; gap: 14px; }
         }
       `}</style>
 

@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
 
 const s  = (c: string) => styles[c] || c;
@@ -39,6 +40,7 @@ function ScorePill({ obtained, max, pass, absent }: { obtained: string; max: num
 export default function ExamResultsPage() {
   const { id: examId } = useParams() as { id: string };
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
 
   const { data: exam,      loading: examLoading } = useApi<any>(`/exams/${examId}`);
   const { data: schedules }                        = useApi<any[]>(`/exams/${examId}/schedules`);
@@ -54,9 +56,10 @@ export default function ExamResultsPage() {
   const [enrollments,         setEnrollments]         = useState<any[]>([]);
   const [enrollmentsLoading,  setEnrollmentsLoading]  = useState(false);
 
-  const { execute: saveResult,     loading: saving }     = useMutation("/exams/results", "POST");
-  const { execute: updateResult }                         = useMutation("/exams/results", "PATCH");
-  const { execute: publishResults, loading: publishing } = useMutation("/exams/results/publish", "POST");
+  const { execute: saveResult,     loading: saving }       = useMutation("/exams/results", "POST");
+  const { execute: updateResult }                           = useMutation("/exams/results", "PATCH");
+  const { execute: publishResults,   loading: publishing }   = useMutation("/exams/results/publish", "POST");
+  const { execute: unpublishResults, loading: unpublishing } = useMutation("/exams/results/unpublish", "POST");
 
   const [marksMap, setMarksMap] = useState<Record<string, { marks_obtained: string; is_absent: boolean; remarks: string }>>({});
 
@@ -86,15 +89,15 @@ export default function ExamResultsPage() {
     const subjectResults = (results ?? []).filter((r: any) => r.subject_id === selectedSchedule.subject_id);
     const map: Record<string, any> = {};
     enrollments.forEach((en) => {
-      const existing = subjectResults.find((r: any) => r.student_id === en.student_id);
+      const r = subjectResults.find((res: any) => res.student_id === en.student_id);
       map[en.student_id] = {
-        marks_obtained: existing && existing.marks_obtained !== null ? existing.marks_obtained.toString() : "",
-        is_absent:      existing ? existing.is_absent : false,
-        remarks:        existing?.remarks ?? "",
+        marks_obtained: r?.marks_obtained !== null && r?.marks_obtained !== undefined ? r.marks_obtained.toString() : "",
+        is_absent:      r?.is_absent ?? false,
+        remarks:        r?.remarks   ?? "",
       };
     });
     setMarksMap(map);
-  }, [enrollments, results, selectedSchedule]);
+  }, [results, selectedSchedule, enrollments]);
 
   const existingResultsBySubject = useMemo(() => {
     const map = new Map<number, any>();
@@ -163,15 +166,26 @@ export default function ExamResultsPage() {
     }
   };
 
-  const handlePublish = async () => {
+  const handleTogglePublish = async () => {
     if (!selectedSchedule) return;
-    if (!confirm(`Publish results for ${selectedSchedule.class_name} — ${selectedSchedule.subject_name}?\n\nPublished results are visible to students and cannot be edited.`)) return;
-    try {
-      await publishResults({ exam_id: parseInt(examId), class_id: selectedSchedule.class_id });
-      dispatch(showToast({ type: "success", title: "Published!", message: "Results are now visible to students." }));
-      refetchResults();
-    } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not publish results." }));
+    if (isPublished) {
+      if (!confirm(`Unpublish results for ${selectedSchedule.class_name} — ${selectedSchedule.subject_name}?\n\nThis will allow editing marks and unlocking the schedule.`)) return;
+      try {
+        await unpublishResults({ exam_id: parseInt(examId), class_id: selectedSchedule.class_id });
+        dispatch(showToast({ type: "success", title: "Unpublished", message: "Results reverted to draft mode." }));
+        refetchResults();
+      } catch (err: any) {
+        dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not unpublish results." }));
+      }
+    } else {
+      if (!confirm(`Publish results for ${selectedSchedule.class_name} — ${selectedSchedule.subject_name}?\n\nPublished results are visible to students and lock the schedule.`)) return;
+      try {
+        await publishResults({ exam_id: parseInt(examId), class_id: selectedSchedule.class_id });
+        dispatch(showToast({ type: "success", title: "Published!", message: "Results are now visible to students." }));
+        refetchResults();
+      } catch (err: any) {
+        dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not publish results." }));
+      }
     }
   };
 
@@ -185,34 +199,40 @@ export default function ExamResultsPage() {
         {/* ── Header ── */}
         <div className={s("head")}>
           <div>
-            <h1>{exam?.name} — Results</h1>
+            <h1>{exam?.name}</h1>
             <div className={s("infoChips")}>
-              <span className={s("chip")} style={{ textTransform: "capitalize" }}>
-                <i className="fa-solid fa-tag" />{exam?.exam_type?.replace("_", " ")}
+              <span className={s("chip")}><i className="fa-solid fa-calendar" />
+                {exam?.start_date ? formatDate(exam.start_date) : ""}
+                {exam?.start_date && exam?.end_date ? " — " : ""}
+                {exam?.end_date ? formatDate(exam.end_date) : ""}
               </span>
-              <span className={s("chip")}>
-                <i className="fa-solid fa-users" />{enrollments.length} students
+              <span className={s("chip")} style={{ textTransform: "capitalize" }}>
+                <i className="fa-solid fa-tag" /> {exam?.exam_type?.replace("_", " ")}
               </span>
               {isPublished && (
-                <span className={cx(s("chip"))} style={{ background: "#dcfce7", color: "#15803d" }}>
-                  <i className="fa-solid fa-circle-check" />Published
+                <span className={s("chip")} style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0" }}>
+                  <i className="fa-solid fa-circle-check" /> Published to Students
                 </span>
               )}
             </div>
           </div>
           <div className={s("actions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/exams">
-              <i className="fa-solid fa-arrow-left" /> Back
-            </Link>
-            <Link className={cx(s("btn"), s("btnSoft"))} href={`/exams/${examId}/schedule`}>
+            <Link className={cx(s("btn"), s("btnOutline"))} href={`/exams/${examId}/schedule`}>
               <i className="fa-solid fa-calendar-days" /> Schedule
             </Link>
             <button
-              className={cx(s("btn"), s("btnOutline"))}
-              onClick={handlePublish}
-              disabled={publishing || !selectedSchedule || isPublished || enteredCount === 0}
+              className={cx(s("btn"), isPublished ? s("btnSoft") : s("btnOutline"))}
+              onClick={handleTogglePublish}
+              disabled={publishing || unpublishing || !selectedSchedule || (!isPublished && enteredCount === 0)}
+              style={isPublished ? { borderColor: "#bbf7d0", color: "#15803d", background: "#f0fdf4" } : {}}
             >
-              {publishing ? <><Spinner size={14} /> Publishing…</> : <><i className="fa-solid fa-share-from-square" /> {isPublished ? "Published" : "Publish"}</>}
+              {publishing || unpublishing ? (
+                <><Spinner size={14} color="#FF9B51" /> Updating…</>
+              ) : isPublished ? (
+                <><i className="fa-solid fa-arrow-rotate-left" /> Unpublish Results</>
+              ) : (
+                <><i className="fa-solid fa-share-from-square" /> Publish Results</>
+              )}
             </button>
             <button
               className={cx(s("btn"), s("btnPrimary"))}
@@ -247,7 +267,7 @@ export default function ExamResultsPage() {
                   {schedules.map((sch) => (
                     <option key={sch.id} value={sch.id}>
                       {sch.class_name ?? `Class ${sch.class_id}`} — {sch.subject_name ?? `Subject ${sch.subject_id}`}
-                      {" "}({new Date(sch.exam_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })})
+                      {" "}({formatDate(sch.exam_date)})
                       {" · "}{sch.max_marks} marks
                     </option>
                   ))}
@@ -411,15 +431,24 @@ export default function ExamResultsPage() {
                       {saving ? <><Spinner size={14} /> Saving…</> : <><i className="fa-solid fa-floppy-disk" /> Save Marks</>}
                     </button>
                     <button
-                      className={cx(s("btn"), s("btnOutline"))}
-                      style={{ width: "100%", justifyContent: "center" }}
-                      onClick={handlePublish}
-                      disabled={publishing || isPublished || enteredCount === 0}
+                      className={cx(s("btn"), isPublished ? s("btnSoft") : s("btnOutline"))}
+                      style={{
+                        width: "100%",
+                        justifyContent: "center",
+                        borderColor: isPublished ? "#bbf7d0" : undefined,
+                        color: isPublished ? "#15803d" : undefined,
+                        background: isPublished ? "#f0fdf4" : undefined,
+                      }}
+                      onClick={handleTogglePublish}
+                      disabled={publishing || unpublishing || (!isPublished && enteredCount === 0)}
                     >
-                      {publishing
-                        ? <><Spinner size={14} /> Publishing…</>
-                        : <><i className="fa-solid fa-share-from-square" /> Publish Results</>
-                      }
+                      {publishing || unpublishing ? (
+                        <><Spinner size={14} color="#FF9B51" /> Updating…</>
+                      ) : isPublished ? (
+                        <><i className="fa-solid fa-arrow-rotate-left" /> Unpublish Results</>
+                      ) : (
+                        <><i className="fa-solid fa-share-from-square" /> Publish Results</>
+                      )}
                     </button>
                   </div>
                 </div>

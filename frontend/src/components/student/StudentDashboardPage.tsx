@@ -43,7 +43,7 @@ export default function StudentDashboardPage() {
   );
 
   // ── Fees ──
-  const pendingFees = (feeCollections || []).filter((f) => f.status !== "paid");
+  const pendingFees = (feeCollections || []).filter((f) => f.status !== "paid" && f.status !== "waived" && Number(f.remaining_amount || 0) > 0);
   const totalDue = pendingFees.reduce((sum, f) => sum + Number(f.remaining_amount || 0), 0);
 
   const paidFees = (feeCollections || [])
