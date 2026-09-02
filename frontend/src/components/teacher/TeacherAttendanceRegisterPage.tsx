@@ -40,11 +40,10 @@ interface MonthOption {
   endDate:   string;
 }
 
-// Column descriptor — every calendar day is a column
 interface DayCol {
-  iso:     string;       // "YYYY-MM-DD"
-  kind:    "working" | "weekend" | "holiday";
-  label:   string;       // display text for header (e.g. "Weekly Off", "Dashain")
+  iso:   string;
+  kind:  "working" | "weekend" | "holiday";
+  label: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -56,6 +55,7 @@ function localDate(iso: string): Date {
 }
 function localDow(iso: string) { return localDate(iso).getDay(); }
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_MINI  = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function buildDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
@@ -112,14 +112,14 @@ function parseRows(rows: RegisterRow[]) {
   return students;
 }
 
-// ── Cell badge ─────────────────────────────────────────────────────────────
+// ── Cell Badge ─────────────────────────────────────────────────────────────
 type CellStatus = "present" | "absent" | "leave" | "remain";
 
 const BADGE: Record<CellStatus, { cls: string; label: string }> = {
-  present: { cls: "badge-p",  label: "P"  },
-  absent:  { cls: "badge-a",  label: "A"  },
+  present: { cls: "badge-p",  label: "P" },
+  absent:  { cls: "badge-a",  label: "A" },
   leave:   { cls: "badge-lv", label: "Lv" },
-  remain:  { cls: "badge-r",  label: "R"  },
+  remain:  { cls: "badge-r",  label: "—" },
 };
 
 function AttendanceBadge({ status }: { status: CellStatus }) {
@@ -127,7 +127,7 @@ function AttendanceBadge({ status }: { status: CellStatus }) {
   return <span className={`att-badge ${b.cls}`}>{b.label}</span>;
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────
 export default function TeacherAttendanceRegisterPage() {
   const { activeYear, academicYearId } = useAcademicYear();
   const { isBS }                       = useDateFormat();
@@ -142,10 +142,9 @@ export default function TeacherAttendanceRegisterPage() {
   const [rows,       setRows]       = useState<RegisterRow[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string | null>(null);
-  // Map: iso → event title (for holidays that affect attendance)
   const [holidayMap,  setHolidayMap]  = useState<Map<string, string>>(new Map());
-  // Set of day-of-week numbers (0=Sun … 6=Sat) that are weekly offs for this school
-  const [weekendDows, setWeekendDows] = useState<Set<number>>(new Set([0, 6])); // fallback
+  // Default weekly offs: in Nepal (isBS), Saturday (6) only; in AD, Sunday (0) only
+  const [weekendDows, setWeekendDows] = useState<Set<number>>(new Set(isBS ? [6] : [0]));
 
   // Auto-select first section
   useEffect(() => {
@@ -236,14 +235,12 @@ export default function TeacherAttendanceRegisterPage() {
           // ── Weekly offs ──
           const offs: any[] = offRes?.data ?? [];
           if (offs.length > 0) {
-            // calendar_weekly_offs rows have day_of_week (0–6)
             setWeekendDows(new Set(offs.map((o: any) => Number(o.day_of_week))));
           } else {
-            // Fallback to calendar.weekend_type
-            const wt = calRes.data.weekend_type ?? "sunday_only";
+            const wt = calRes.data.weekend_type;
             if (wt === "sunday_only")        setWeekendDows(new Set([0]));
-            else if (wt === "saturday_only") setWeekendDows(new Set([6]));
-            else                             setWeekendDows(new Set([0, 6]));
+            else if (wt === "both")          setWeekendDows(new Set([0, 6]));
+            else                             setWeekendDows(new Set([6])); // Default: Saturday only in Nepal
           }
 
           // ── Holidays ──
@@ -268,12 +265,11 @@ export default function TeacherAttendanceRegisterPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionId, academicYearId, selectedMonth?.key]);
+  }, [sectionId, academicYearId, selectedMonth?.key, isBS]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Derived ──
+  // ── Derived Data ──
   const students = useMemo(() => parseRows(rows), [rows]);
 
   const TODAY = useMemo(() => {
@@ -281,14 +277,11 @@ export default function TeacherAttendanceRegisterPage() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }, []);
 
-  // ALL calendar dates in the month — each becomes a column
   const allDates = useMemo(() =>
     selectedMonth ? buildDateRange(selectedMonth.startDate, selectedMonth.endDate) : [],
     [selectedMonth]
   );
 
-  // Build column descriptors (working | weekend | holiday)
-  // holidays take priority over weekly offs (a holiday on a weekend is still a holiday)
   const dayCols = useMemo((): DayCol[] => {
     return allDates.map(iso => {
       if (holidayMap.has(iso)) {
@@ -302,8 +295,8 @@ export default function TeacherAttendanceRegisterPage() {
     });
   }, [allDates, holidayMap, weekendDows]);
 
-  const workingCols  = useMemo(() => dayCols.filter(c => c.kind === "working"),  [dayCols]);
-  const markedDays   = useMemo(() => {
+  const workingCols = useMemo(() => dayCols.filter(c => c.kind === "working"), [dayCols]);
+  const markedDays  = useMemo(() => {
     const s = new Set<string>();
     for (const r of rows) if (r.date) s.add(r.date.slice(0, 10));
     return s;
@@ -315,15 +308,15 @@ export default function TeacherAttendanceRegisterPage() {
     return "remain";
   };
 
-  // Day totals for working days only
   const dayTotals = useMemo(() => {
-    const out: Record<string, { P: number; A: number }> = {};
+    const out: Record<string, { P: number; A: number; Lv: number }> = {};
     for (const col of workingCols) {
-      out[col.iso] = { P: 0, A: 0 };
+      out[col.iso] = { P: 0, A: 0, Lv: 0 };
       for (const st of students) {
         const s = st.byDate[col.iso];
         if (s === "present") out[col.iso].P++;
         else if (s === "absent") out[col.iso].A++;
+        else if (s === "leave") out[col.iso].Lv++;
       }
     }
     return out;
@@ -336,133 +329,201 @@ export default function TeacherAttendanceRegisterPage() {
 
   const showEmpty = !loading && !error && students.length === 0;
 
-  // Fixed col widths
-  const W_ROLL = 48;
-  const W_NAME = 190;
-  const W_DAY  = 36;   // working
-  const W_OFF  = 28;   // weekend / holiday (narrower)
-  const W_TOT  = 46;
+  // Fixed column widths
+  const W_ROLL = 46;
+  const W_NAME = 195;
+  const W_DAY  = 34;
+  const W_OFF  = 26;
+  const W_TOT  = 44;
 
   return (
     <>
-      {/* ── Scoped styles ── */}
       <style>{`
-        /* Badge styles */
+        /* Badge Styles */
         .att-badge {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 28px;
-          height: 28px;
+          width: 24px;
+          height: 24px;
           border-radius: 6px;
           font-size: 11px;
           font-weight: 800;
-          letter-spacing: -0.3px;
+          letter-spacing: -0.2px;
+          transition: transform 0.15s ease;
         }
-        .badge-p  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-        .badge-a  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-        .badge-lv { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; font-size: 9px; }
-        .badge-r  { background: #f8fafc; color: #cbd5e1; border: 1px dashed #e2e8f0; }
+        .att-badge:hover {
+          transform: scale(1.1);
+        }
+        .badge-p  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; box-shadow: 0 1px 2px rgba(22, 163, 74, 0.08); }
+        .badge-a  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08); }
+        .badge-lv { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; font-size: 9.5px; }
+        .badge-r  { background: transparent; color: #cbd5e1; border: none; font-size: 13px; font-weight: 400; }
 
-        /* Controls bar */
+        /* Controls Bar */
         .reg-controls {
-          background: #fff;
-          border-bottom: 1px solid #e8edf2;
-          padding: 12px 20px;
+          background: #ffffff;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 14px 24px;
           display: flex;
-          gap: 14px;
+          gap: 16px;
           flex-wrap: wrap;
-          align-items: flex-end;
+          align-items: center;
         }
-        .reg-label-wrap { display: flex; flex-direction: column; gap: 3px; }
-        .reg-label-txt  { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; }
-        .reg-select {
-          height: 38px;
-          padding: 0 10px;
-          border: 1.5px solid #e2e8f2;
-          border-radius: 8px;
+        .reg-filter-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .reg-input-card {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 12px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 10px;
+          background: #f8fafc;
+          transition: all 0.18s ease;
+        }
+        .reg-input-card:focus-within {
+          border-color: #ff9148;
+          background: #ffffff;
+          box-shadow: 0 0 0 3px rgba(255, 145, 72, 0.12);
+        }
+        .reg-input-card i {
+          color: #ff9148;
           font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-          background: #fff;
+        }
+        .reg-input-inner {
+          display: flex;
+          flex-direction: column;
+        }
+        .reg-label-txt {
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          line-height: 1;
+        }
+        .reg-select {
+          border: none;
+          background: transparent;
+          font-size: 13px;
+          font-weight: 700;
+          color: #0f172a;
           outline: none;
-          min-width: 175px;
           cursor: pointer;
           font-family: inherit;
-          transition: border-color .15s;
+          padding: 2px 0 0 0;
         }
-        .reg-select:focus { border-color: #FF9B51; }
 
         /* Legend */
-        .reg-legend {
+        .reg-legend-wrap {
           margin-left: auto;
           display: flex;
           align-items: center;
           gap: 10px;
           flex-wrap: wrap;
         }
-        .leg-item {
+        .leg-pill {
           display: inline-flex;
           align-items: center;
           gap: 5px;
+          padding: 4px 9px;
+          border-radius: 6px;
           font-size: 11px;
           font-weight: 700;
-          color: #64748b;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          color: #475569;
         }
         .leg-dot {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 20px;
-          height: 20px;
-          border-radius: 4px;
-          font-size: 9px;
-          font-weight: 800;
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
         }
+        .leg-dot.p  { background: #16a34a; }
+        .leg-dot.a  { background: #dc2626; }
+        .leg-dot.lv { background: #2563eb; }
+        .leg-dot.r  { background: #cbd5e1; }
 
-        /* Mark-attendance button */
-        .mark-btn {
+        .reg-meta-badge {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 10px 16px;
+          padding: 5px 10px;
           border-radius: 8px;
-          background: linear-gradient(135deg, #FF9B51, #f08840);
-          color: #fff;
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
+          color: #c2410c;
+          font-size: 11.5px;
           font-weight: 800;
-          font-size: 13px;
+        }
+
+        /* Mark Button */
+        .mark-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 8px 16px;
+          border-radius: 9px;
+          background: linear-gradient(135deg, #ff9148 0%, #ff7a22 100%);
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 12.5px;
           text-decoration: none;
           white-space: nowrap;
-          transition: transform .15s, box-shadow .15s;
-          box-shadow: 0 4px 10px rgba(255, 155, 81, 0.3);
+          transition: all 0.18s ease;
+          box-shadow: 0 2px 6px rgba(255, 145, 72, 0.25);
         }
-        .mark-btn:hover { 
+        .mark-btn:hover {
+          background: linear-gradient(135deg, #ff7a22 0%, #ea580c 100%);
           transform: translateY(-1px);
-          box-shadow: 0 6px 14px rgba(255, 155, 81, 0.4); 
+          box-shadow: 0 4px 12px rgba(255, 145, 72, 0.35);
         }
 
         /* Sub-header */
         .reg-subhdr {
-          padding: 14px 22px;
-          background: #fff;
-          border-bottom: 1px solid #e8edf2;
+          padding: 12px 24px;
+          background: #ffffff;
+          border-bottom: 1px solid #e2e8f0;
           display: flex;
           align-items: center;
           justify-content: space-between;
           flex-wrap: wrap;
-          gap: 6px;
+          gap: 8px;
         }
 
-        /* Table wrapper */
+        /* Table Wrapper */
         .reg-wrap {
           flex: 1;
           overflow: auto;
-          margin: 16px 20px 20px;
+          margin: 16px 20px 24px;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: #fff;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+          background: #ffffff;
+          box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 #f8fafc;
         }
+        .reg-wrap::-webkit-scrollbar {
+          height: 8px;
+          width: 8px;
+        }
+        .reg-wrap::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 4px;
+        }
+        .reg-wrap::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .reg-wrap::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
         .reg-table {
           border-collapse: separate;
           border-spacing: 0;
@@ -470,25 +531,29 @@ export default function TeacherAttendanceRegisterPage() {
           min-width: 100%;
         }
 
-        /* Sticky columns */
+        /* Sticky Columns */
         .col-roll {
-          position: sticky; left: 0; z-index: 4;
-          background: inherit;
+          position: sticky;
+          left: 0;
+          z-index: 4;
         }
         .col-name {
-          background: inherit;
+          position: sticky;
+          left: 46px;
+          z-index: 4;
+          box-shadow: 3px 0 6px rgba(15, 23, 42, 0.04);
         }
 
-        /* Head row styles */
+        /* Table Head Base */
         .th-base {
           position: sticky;
           top: 0;
-          padding: 7px 4px;
+          padding: 8px 4px;
           text-align: center;
           font-size: 10px;
           font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: .05em;
+          letter-spacing: 0.05em;
           white-space: nowrap;
           border-bottom: 1px solid #e2e8f0;
           z-index: 3;
@@ -496,209 +561,242 @@ export default function TeacherAttendanceRegisterPage() {
         .th-roll-name {
           z-index: 6 !important;
         }
-        .th-month-group {
-          background: #1e293b;
-          color: #FF9B51;
-          font-size: 11px;
-          letter-spacing: .08em;
-        }
-        .th-total-group {
-          background: #1e293b;
-          color: #94a3b8;
-          font-size: 10px;
-        }
-        /* Working day header */
-        .th-working {
-          background: #f8fafc;
-          color: #475569;
-        }
-        .th-working.is-today {
-          background: #fff7ed;
-          color: #FF9B51;
-        }
-        .th-working.is-unmarked {
-          background: #fef9f9;
-          color: #94a3b8;
-        }
-        /* Weekend / holiday header */
-        .th-off {
-          background: #f8fafc;
-          color: #94a3b8;
-          font-size: 9px;
-          padding: 6px 2px;
-          vertical-align: middle;
-        }
-        .th-off-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 20px;
-          width: 20px;
-          margin: 0 auto;
-          border-radius: 5px;
-        }
-        .th-off.is-weekend .th-off-icon { background: #f1f5f9; color: #94a3b8; }
-        .th-off.is-holiday .th-off-icon { background: #fce7f3; color: #ec4899; }
 
-        /* Sub-header row (day numbers) */
-        .th-day-num {
-          padding: 5px 2px;
+        /* Row 1 Group Banners (Light, warm theme) */
+        .th-month-banner {
+          background: #fff7ed;
+          color: #ea580c;
+          font-size: 11.5px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          border-bottom: 1px solid #fed7aa;
+          border-right: 2px solid #e2e8f0;
+        }
+        .th-total-banner {
+          background: #f1f5f9;
+          color: #334155;
+          font-size: 10px;
+          font-weight: 800;
+          border-left: 2px solid #e2e8f0;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        /* Day Headers */
+        .th-day-working {
+          background: #f8fafc;
+          color: #334155;
+          padding: 6px 2px;
           border-bottom: 2px solid #e2e8f0;
         }
-        .th-day-num.is-today { border-bottom-color: #FF9B51; }
+        .th-day-working.is-today {
+          background: #fff7ed;
+          color: #ea580c;
+          border-bottom-color: #ff9148;
+        }
+        .th-day-off {
+          background: #f1f5f9;
+          color: #94a3b8;
+          padding: 6px 2px;
+          border-bottom: 2px solid #e2e8f0;
+        }
+        .th-day-holiday {
+          background: #fdf2f8;
+          color: #db2777;
+          padding: 6px 2px;
+          border-bottom: 2px solid #fbcfe8;
+        }
 
-        /* Body cells */
+        /* Body Cells */
         .td-base {
-          padding: 8px 4px;
+          padding: 7px 4px;
           border-bottom: 1px solid #f1f5f9;
           vertical-align: middle;
           text-align: center;
         }
-        .td-base.is-today { background: #fffbf5 !important; }
-        .td-off {
+        .td-base.is-today {
+          background: #fffbf5 !important;
+        }
+        .td-off-weekend {
           background: #f8fafc;
           border-bottom: 1px solid #f1f5f9;
           vertical-align: middle;
-          position: relative;
+          text-align: center;
         }
-        .td-off.is-holiday {
-          background: #fffafa;
+        .td-off-holiday {
+          background: #fdf2f8;
+          border-bottom: 1px solid #fce7f3;
+          vertical-align: middle;
+          text-align: center;
         }
 
-        /* Total cells */
+        /* Month Totals */
         .td-tot {
           text-align: center;
           padding: 6px 5px;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 800;
           border-bottom: 1px solid #f1f5f9;
-          border-left: 1px solid #e8edf2;
+          border-left: 1px solid #f1f5f9;
           vertical-align: middle;
           white-space: nowrap;
         }
         .td-tot.tot-p  { color: #16a34a; }
         .td-tot.tot-a  { color: #dc2626; }
         .td-tot.tot-lv { color: #2563eb; }
-        .td-tot.tot-n  { color: #334155; }
+        .td-tot.tot-n  { color: #0f172a; }
 
-        /* Footer day-total row */
+        /* Footer Row */
         .tr-foot td {
           background: #f8fafc;
           border-top: 2px solid #e2e8f0;
           border-bottom: none;
-          padding: 6px 4px;
+          padding: 8px 4px;
           text-align: center;
           font-size: 11px;
           font-weight: 800;
         }
-        .foot-label {
+        .foot-pinned-label {
           position: sticky;
           left: 0;
-          z-index: 2;
+          z-index: 5;
           background: #f8fafc;
-          text-align: center;
-          color: #b45309;
-          font-size: 10px;
-          letter-spacing: .05em;
-          border-right: 1px solid #e8edf2;
+          text-align: left;
+          padding-left: 14px !important;
+          color: #0f172a;
+          font-size: 11px;
+          font-weight: 800;
+          border-right: 2px solid #e2e8f0;
+          box-shadow: 3px 0 6px rgba(15, 23, 42, 0.04);
         }
-        .foot-p { color: #16a34a; line-height: 1.3; }
-        .foot-a { color: #dc2626; line-height: 1.3; }
+        .foot-stat-p { color: #16a34a; font-size: 11px; font-weight: 800; }
+        .foot-stat-a { color: #dc2626; font-size: 10px; font-weight: 800; margin-top: 1px; }
 
-        /* Responsive */
-        @media (max-width: 640px) {
-          .reg-controls { padding: 10px 12px; gap: 10px; }
-          .reg-wrap     { margin: 12px 10px 16px; }
-          .reg-select   { min-width: 140px; font-size: 12px; }
-          .reg-legend   { display: none; }
-          .mark-btn     { padding: 8px 10px; font-size: 11px; }
+        @media (max-width: 768px) {
+          .reg-controls { padding: 12px 16px; }
+          .reg-legend-wrap { display: none; }
+          .reg-wrap { margin: 12px 10px; }
         }
       `}</style>
 
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 52px)", background: "#f6f8fa", minWidth: 0, maxWidth: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 52px)", background: "#f8fafc", minWidth: 0, maxWidth: "100%" }}>
 
-        {/* ── Controls ── */}
+        {/* ── 1. Controls Bar ── */}
         <div className="reg-controls">
-          <div className="reg-label-wrap">
-            <span className="reg-label-txt">Section</span>
-            {sectionsLoading
-              ? <div style={{ height: 38, display: "flex", alignItems: "center" }}><Spinner size={16} color="#ff9b51" /></div>
-              : <select value={sectionId} onChange={e => setSectionId(e.target.value)} className="reg-select">
-                  {(mySections ?? []).map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.class_name} — Section {s.name}</option>
+          <div className="reg-filter-group">
+            {/* Section Select */}
+            <div className="reg-input-card">
+              <i className="fa-solid fa-users" />
+              <div className="reg-input-inner">
+                <span className="reg-label-txt">Section</span>
+                {sectionsLoading ? (
+                  <Spinner size={14} color="#ff9148" />
+                ) : (
+                  <select
+                    value={sectionId}
+                    onChange={e => setSectionId(e.target.value)}
+                    className="reg-select"
+                  >
+                    {(mySections ?? []).map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.class_name} — Section {s.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Month Select */}
+            <div className="reg-input-card">
+              <i className="fa-solid fa-calendar-days" />
+              <div className="reg-input-inner">
+                <span className="reg-label-txt">Month</span>
+                <select
+                  value={monthKey}
+                  onChange={e => setMonthKey(e.target.value)}
+                  className="reg-select"
+                >
+                  {monthOptions.map(o => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
-            }
-          </div>
-
-          <div className="reg-label-wrap">
-            <span className="reg-label-txt">Month</span>
-            <select value={monthKey} onChange={e => setMonthKey(e.target.value)} className="reg-select">
-              {monthOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
+              </div>
+            </div>
           </div>
 
           {/* Legend */}
-          <div className="reg-legend">
-            {([
-              { label: "P",  cls: "badge-p",  name: "Present" },
-              { label: "A",  cls: "badge-a",  name: "Absent"  },
-              { label: "Lv", cls: "badge-lv", name: "Leave"   },
-              { label: "R",  cls: "badge-r",  name: "Remain"  },
-            ] as const).map(i => (
-              <span key={i.name} className="leg-item">
-                <span className={`leg-dot ${i.cls}`}>{i.label}</span>
-                {i.name}
-              </span>
-            ))}
+          <div className="reg-legend-wrap">
+            <span className="leg-pill">
+              <span className="leg-dot p" /> Present
+            </span>
+            <span className="leg-pill">
+              <span className="leg-dot a" /> Absent
+            </span>
+            <span className="leg-pill">
+              <span className="leg-dot lv" /> Leave
+            </span>
+            <span className="leg-pill">
+              <span className="leg-dot r" /> Unmarked
+            </span>
+
             {!loading && students.length > 0 && (
-              <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginLeft: 4 }}>
-                {students.length} students · {workingCols.length} working days
+              <span className="reg-meta-badge">
+                <i className="fa-solid fa-user-graduate" />
+                {students.length} Students · {workingCols.length} Teaching Days
               </span>
             )}
           </div>
 
+          {/* Action CTA */}
           <Link href="/teacher/attendance/class" className="mark-btn">
-            <i className="fa-solid fa-clipboard-check" /> Mark Attendance
+            <i className="fa-solid fa-pen-to-square" /> Mark Attendance
           </Link>
         </div>
 
-        {/* ── States ── */}
+        {/* ── 2. Content States ── */}
         {loading ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Spinner size={36} color="#ff9b51" />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+            <Spinner size={36} color="#ff9148" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Loading attendance register...</span>
           </div>
         ) : error ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#dc2626", gap: 10 }}>
             <i className="fa-solid fa-circle-exclamation" style={{ fontSize: 32 }} />
-            <p style={{ fontWeight: 700, margin: 0 }}>{error}</p>
+            <p style={{ fontWeight: 800, margin: 0 }}>{error}</p>
           </div>
         ) : showEmpty ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", gap: 10 }}>
-            <i className="fa-solid fa-table-list" style={{ fontSize: 40, opacity: 0.2 }} />
-            <p style={{ fontWeight: 800, fontSize: 14, margin: 0 }}>No attendance marked for {selectedMonth?.label}</p>
-            <p style={{ fontSize: 12, margin: 0 }}>Try a different month or mark attendance first.</p>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", gap: 12, padding: 32 }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, border: "1px solid #fed7aa" }}>
+              <i className="fa-solid fa-calendar-xmark" />
+            </div>
+            <p style={{ fontWeight: 800, fontSize: 15, color: "#0f172a", margin: 0 }}>No attendance records found</p>
+            <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>No attendance has been recorded for {selectedMonth?.label}. Click &quot;Mark Attendance&quot; to begin.</p>
           </div>
         ) : (
           <>
             {/* Sub-header */}
             <div className="reg-subhdr">
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>
-                  Attendance Register — {selectedMonth?.label}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 14, fontWeight: 900, color: "#0f172a" }}>
+                  📋 Register Overview
                 </span>
                 {selectedSection && (
-                  <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginLeft: 10 }}>
+                  <span style={{ fontSize: 12, color: "#475569", fontWeight: 700, padding: "3px 9px", background: "#f1f5f9", borderRadius: 6 }}>
                     {selectedSection.class_name} · Section {selectedSection.name}
                   </span>
                 )}
+                <span style={{ fontSize: 12, color: "#ea580c", fontWeight: 700, padding: "3px 9px", background: "#fff7ed", borderRadius: 6, border: "1px solid #fed7aa" }}>
+                  {selectedMonth?.label}
+                </span>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>
-                {markedDays.size} day{markedDays.size !== 1 ? "s" : ""} marked · {workingCols.length - markedDays.size} remaining
+              <span style={{ fontSize: 12, fontWeight: 800, color: markedDays.size > 0 ? "#16a34a" : "#94a3b8" }}>
+                {markedDays.size} of {workingCols.length} days marked · {Math.max(0, workingCols.length - markedDays.size)} remaining
               </span>
             </div>
 
-            {/* ── REGISTER TABLE ── */}
+            {/* ── 3. Register Table ── */}
             <div className="reg-wrap">
               <table className="reg-table">
                 <colgroup>
@@ -707,126 +805,124 @@ export default function TeacherAttendanceRegisterPage() {
                   {dayCols.map(c => (
                     <col key={c.iso} style={{ width: c.kind === "working" ? W_DAY : W_OFF }} />
                   ))}
-                  {[0,1,2,3].map(i => <col key={i} style={{ width: W_TOT }} />)}
+                  {[0, 1, 2, 3].map(i => (
+                    <col key={i} style={{ width: W_TOT }} />
+                  ))}
                 </colgroup>
 
                 <thead>
-                  {/* Row 1: Group labels */}
+                  {/* Row 1: Header Banners */}
                   <tr>
-                    {/* Roll – sticky */}
                     <th
                       rowSpan={2}
                       className="th-base th-roll-name col-roll"
                       style={{
-                        width: W_ROLL, left: 0,
-                        background: "#1e293b", color: "#64748b",
-                        borderRight: "1px solid #334155",
-                        fontSize: 9,
+                        width: W_ROLL,
+                        background: "#f8fafc",
+                        color: "#475569",
+                        borderRight: "1px solid #e2e8f0",
+                        borderBottom: "1px solid #e2e8f0",
+                        fontSize: 10,
+                        fontWeight: 800,
                       }}
                     >
                       Roll
                     </th>
-                    {/* Name – sticky */}
                     <th
                       rowSpan={2}
                       className="th-base th-roll-name col-name"
                       style={{
                         width: W_NAME,
-                        background: "#1e293b", color: "#64748b",
-                        borderRight: "2px solid #2d3f55",
-                        textAlign: "left", paddingLeft: 14,
-                        fontSize: 10,
+                        background: "#f8fafc",
+                        color: "#0f172a",
+                        borderRight: "2px solid #cbd5e1",
+                        borderBottom: "1px solid #e2e8f0",
+                        textAlign: "left",
+                        paddingLeft: 14,
+                        fontSize: 11,
+                        fontWeight: 800,
                       }}
                     >
                       Student Name
                     </th>
-                    {/* Month group */}
                     <th
                       colSpan={dayCols.length}
-                      className="th-base th-month-group"
-                      style={{ zIndex: 3, borderRight: "2px solid #2d3f55", borderBottom: "1px solid #2d3f55" }}
+                      className="th-base th-month-banner"
                     >
                       {selectedMonth?.label.toUpperCase()}
                     </th>
-                    {/* Month total group */}
                     <th
                       colSpan={4}
-                      className="th-base th-total-group"
-                      style={{ zIndex: 3, borderLeft: "2px solid #2d3f55", borderBottom: "1px solid #2d3f55" }}
+                      className="th-base th-total-banner"
                     >
-                      Month Total
+                      Month Summary
                     </th>
                   </tr>
 
-                  {/* Row 2: Day headers */}
+                  {/* Row 2: Day numbers and headers */}
                   <tr>
                     {dayCols.map(col => {
                       const isToday   = col.iso === TODAY;
                       const isWorking = col.kind === "working";
 
                       if (!isWorking) {
-                        // Weekend / holiday
+                        const isHol = col.kind === "holiday";
                         return (
                           <th
                             key={col.iso}
-                            className={`th-base th-off th-day-num ${col.kind === "holiday" ? "is-holiday" : "is-weekend"}`}
+                            className={`th-base ${isHol ? "th-day-holiday" : "th-day-off"}`}
                             style={{
-                              width: W_OFF, top: 25, zIndex: 3,
-                              borderRight: "1px solid #e8edf2",
+                              width: W_OFF,
+                              top: 29,
+                              borderRight: "1px solid #e2e8f0",
                             }}
                             title={col.label}
                           >
-                            <div style={{ fontWeight: 800, fontSize: 10, color: col.kind === "holiday" ? "#ec4899" : "#cbd5e1", lineHeight: 1, marginBottom: 2 }}>
+                            <div style={{ fontWeight: 800, fontSize: 10, lineHeight: 1 }}>
                               {getDisplayDay(col.iso)}
                             </div>
-                            <div style={{ fontSize: 8, color: col.kind === "holiday" ? "#ec4899" : "#cbd5e1", marginBottom: 4 }}>
-                              {DAY_SHORT[localDow(col.iso)]}
-                            </div>
-                            <div className="th-off-icon">
-                              {col.kind === "holiday" ? (
-                                <i className="fa-solid fa-gift" style={{ fontSize: 10 }} />
-                              ) : (
-                                <i className="fa-solid fa-mug-hot" style={{ fontSize: 10 }} />
-                              )}
+                            <div style={{ fontSize: 8, fontWeight: 700, marginTop: 2, opacity: 0.8 }}>
+                              {DAY_MINI[localDow(col.iso)]}
                             </div>
                           </th>
                         );
                       }
 
-                      // Working day
-                      const isUnmarked = col.iso < TODAY && !markedDays.has(col.iso);
                       return (
                         <th
                           key={col.iso}
-                          className={`th-base th-working th-day-num ${isToday ? "is-today" : ""} ${isUnmarked ? "is-unmarked" : ""}`}
+                          className={`th-base th-day-working ${isToday ? "is-today" : ""}`}
                           style={{
-                            width: W_DAY, top: 25, zIndex: 3,
-                            borderRight: "1px solid #e8edf2",
+                            width: W_DAY,
+                            top: 29,
+                            borderRight: "1px solid #e2e8f0",
                           }}
                         >
-                          <div style={{ fontWeight: 900, fontSize: 12, lineHeight: 1 }}>{getDisplayDay(col.iso)}</div>
-                          <div style={{ fontSize: 8, fontWeight: 700, marginTop: 2, opacity: 0.7 }}>{DAY_SHORT[localDow(col.iso)]}</div>
-                          {isToday && (
-                            <div style={{ width: 12, height: 2, background: "#FF9B51", borderRadius: 99, margin: "3px auto 0" }} />
-                          )}
+                          <div style={{ fontWeight: 900, fontSize: 11.5, lineHeight: 1 }}>
+                            {getDisplayDay(col.iso)}
+                          </div>
+                          <div style={{ fontSize: 8.5, fontWeight: 700, marginTop: 2, opacity: isToday ? 1 : 0.7 }}>
+                            {DAY_MINI[localDow(col.iso)]}
+                          </div>
                         </th>
                       );
                     })}
 
-                    {/* Month total sub-headers */}
+                    {/* Month Total Header Badges */}
                     {[
                       { lbl: "P",   cls: "tot-p",  bg: "#f0fdf4" },
                       { lbl: "A",   cls: "tot-a",  bg: "#fef2f2" },
                       { lbl: "Lv",  cls: "tot-lv", bg: "#eff6ff" },
-                      { lbl: "Tot", cls: "tot-n",  bg: "#f8fafc" },
+                      { lbl: "Att%", cls: "tot-n", bg: "#f8fafc" },
                     ].map((h, i) => (
                       <th
                         key={h.lbl}
                         className={`th-base td-tot ${h.cls}`}
                         style={{
-                          width: W_TOT, top: 25, zIndex: 3,
+                          width: W_TOT,
+                          top: 29,
                           background: h.bg,
-                          borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #e8edf2",
+                          borderLeft: i === 0 ? "2px solid #cbd5e1" : "1px solid #e2e8f0",
                           borderBottom: "2px solid #e2e8f0",
                         }}
                       >
@@ -838,12 +934,12 @@ export default function TeacherAttendanceRegisterPage() {
 
                 <tbody>
                   {students.map((st, idx) => {
-                    const rowBg = idx % 2 === 0 ? "#ffffff" : "#fafbfc";
+                    const rowBg = idx % 2 === 0 ? "#ffffff" : "#fbfcfe";
                     const pct   = st.month_total > 0
                       ? Math.round((st.month_present / st.month_total) * 100)
                       : null;
                     const pctColor = pct !== null
-                      ? (pct >= 75 ? "#16a34a" : "#dc2626")
+                      ? (pct >= 75 ? "#16a34a" : pct >= 50 ? "#ea580c" : "#dc2626")
                       : "#94a3b8";
 
                     return (
@@ -853,130 +949,138 @@ export default function TeacherAttendanceRegisterPage() {
                           className="td-base col-roll"
                           style={{
                             width: W_ROLL,
-                            fontWeight: 800, fontSize: 12, color: "#64748b",
-                            borderRight: "1px solid #e8edf2",
+                            fontWeight: 800,
+                            fontSize: 12,
+                            color: "#64748b",
+                            background: rowBg,
+                            borderRight: "1px solid #e2e8f0",
                           }}
                         >
                           {st.roll_number ?? idx + 1}
                         </td>
 
-                        {/* Name */}
+                        {/* Student Name */}
                         <td
                           className="col-name"
                           style={{
-                            padding: "8px 8px 8px 14px",
+                            padding: "8px 12px 8px 14px",
                             borderBottom: "1px solid #f1f5f9",
-                            borderRight: "2px solid #e8edf2",
+                            borderRight: "2px solid #cbd5e1",
                             verticalAlign: "middle",
                             background: rowBg,
                           }}
                         >
                           <span style={{
-                            fontWeight: 700, fontSize: 13, color: "#1e293b",
-                            display: "block", whiteSpace: "nowrap",
-                            overflow: "hidden", textOverflow: "ellipsis",
+                            fontWeight: 700,
+                            fontSize: 13,
+                            color: "#0f172a",
+                            display: "block",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             maxWidth: W_NAME - 24,
                           }}>
                             {st.full_name}
                           </span>
                         </td>
 
-                        {/* Day cells — ALL calendar days */}
+                        {/* Calendar Day Cells */}
                         {dayCols.map(col => {
                           if (col.kind !== "working") {
-                            // Weekend / holiday — shaded with small label
                             const isHol = col.kind === "holiday";
                             return (
                               <td
                                 key={col.iso}
-                                className={`td-off ${isHol ? "is-holiday" : ""}`}
-                                style={{ width: W_OFF, textAlign: "center", verticalAlign: "middle" }}
+                                className={isHol ? "td-off-holiday" : "td-off-weekend"}
+                                style={{ width: W_OFF }}
                                 title={col.label}
                               >
                                 <span style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  width: 22,
-                                  height: 22,
-                                  margin: "0 auto",
-                                  borderRadius: 5,
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   fontWeight: 800,
-                                  background: isHol ? "#fce7f3" : "#f1f5f9",
-                                  color: isHol ? "#ec4899" : "#94a3b8",
+                                  color: isHol ? "#db2777" : "#cbd5e1",
                                 }}>
-                                  {isHol ? "H" : "W"}
+                                  {isHol ? "H" : "—"}
                                 </span>
                               </td>
                             );
                           }
-                          // Working day
-                          const isToday  = col.iso === TODAY;
-                          const status   = getCellStatus(st, col.iso);
+
+                          const isToday = col.iso === TODAY;
+                          const status  = getCellStatus(st, col.iso);
                           return (
                             <td
                               key={col.iso}
                               className={`td-base ${isToday ? "is-today" : ""}`}
-                              style={{ width: W_DAY, borderRight: "1px solid #f1f5f9" }}
+                              style={{ width: W_DAY, borderRight: "1px solid #f8fafc" }}
                             >
                               <AttendanceBadge status={status} />
                             </td>
                           );
                         })}
 
-                        {/* Month totals */}
-                        <td className="td-tot tot-p"  style={{ borderLeft: "2px solid #e2e8f0", background: rowBg }}>{st.month_present}</td>
-                        <td className="td-tot tot-a"  style={{ background: rowBg }}>{st.month_absent}</td>
-                        <td className="td-tot tot-lv" style={{ background: rowBg }}>{st.month_leave}</td>
+                        {/* Month Total Columns */}
+                        <td className="td-tot tot-p"  style={{ borderLeft: "2px solid #cbd5e1", background: rowBg }}>
+                          {st.month_present}
+                        </td>
+                        <td className="td-tot tot-a"  style={{ background: rowBg }}>
+                          {st.month_absent}
+                        </td>
+                        <td className="td-tot tot-lv" style={{ background: rowBg }}>
+                          {st.month_leave}
+                        </td>
                         <td className="td-tot tot-n"  style={{ background: rowBg }}>
-                          {st.month_total}
-                          {pct !== null && (
-                            <div style={{ fontSize: 9, fontWeight: 700, color: pctColor, marginTop: 1 }}>
+                          {pct !== null ? (
+                            <span style={{ color: pctColor, fontWeight: 900 }}>
                               {pct}%
-                            </div>
+                            </span>
+                          ) : (
+                            <span style={{ color: "#cbd5e1" }}>—</span>
                           )}
                         </td>
                       </tr>
                     );
                   })}
 
-                  {/* Day total footer */}
+                  {/* ── 4. Daily Attendance Totals Footer Row ── */}
                   <tr className="tr-foot">
                     <td
-                      className="foot-label"
-                      style={{ width: W_ROLL }}
+                      colSpan={2}
+                      className="foot-pinned-label"
                     >
-                      DT
+                      <i className="fa-solid fa-chart-simple" style={{ color: "#ff9148", marginRight: 6 }} />
+                      Daily Total (Present / Absent)
                     </td>
-                    <td style={{ width: W_NAME, borderRight: "2px solid #e2e8f0" }}></td>
                     {dayCols.map(col => {
                       if (col.kind !== "working") {
                         return (
                           <td
                             key={col.iso}
-                            style={{ width: W_OFF, background: col.kind === "holiday" ? "#fdf4ff" : "#f1f5f9" }}
+                            style={{
+                              width: W_OFF,
+                              background: col.kind === "holiday" ? "#fdf2f8" : "#f1f5f9",
+                            }}
                           />
                         );
                       }
                       const t = dayTotals[col.iso];
-                      const hasData = t && (t.P > 0 || t.A > 0);
+                      const hasData = t && (t.P > 0 || t.A > 0 || t.Lv > 0);
                       return (
                         <td key={col.iso} style={{ width: W_DAY }}>
                           {hasData ? (
-                            <>
-                              <div className="foot-p">{t.P}</div>
-                              <div className="foot-a">{t.A}</div>
-                            </>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                              <span className="foot-stat-p">{t.P}</span>
+                              <span className="foot-stat-a">{t.A}</span>
+                            </div>
                           ) : (
-                            <span style={{ color: "#e2e8f0", fontSize: 10 }}>
-                              {col.iso < TODAY ? "—" : ""}
-                            </span>
+                            <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>
                           )}
                         </td>
                       );
                     })}
-                    <td colSpan={4} style={{ borderLeft: "2px solid #e2e8f0" }} />
+                    <td colSpan={4} style={{ borderLeft: "2px solid #cbd5e1", color: "#64748b", fontSize: 11 }}>
+                      Summary
+                    </td>
                   </tr>
                 </tbody>
               </table>

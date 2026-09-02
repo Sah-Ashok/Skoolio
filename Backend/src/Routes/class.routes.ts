@@ -7,7 +7,7 @@ import {
   createSubject, getSubjects, updateSubject, deleteSubject,
   assignSubject, getClassSubjects, removeSubject,
   assignSubjectTeacher, removeSubjectTeacher,
-  getSubjectTeachers, getMySubjectClasses,
+  getSubjectTeachers, getMySubjectClasses, getMyCoordinatedSections,
 } from '../Controllers/class.controller';
 
 const router = Router();
@@ -19,6 +19,14 @@ router.get(
   protect,
   restrictTo('faculty'),
   getMySubjectClasses
+);
+
+// GET /classes/me/coordinated-sections — sections where this teacher is coordinator
+router.get(
+  '/me/coordinated-sections',
+  protect,
+  restrictTo('faculty'),
+  getMyCoordinatedSections
 );
 
 // Apply admin guard to everything below

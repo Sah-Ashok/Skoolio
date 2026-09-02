@@ -355,8 +355,6 @@ export default function TeacherMarkAttendancePage() {
         }
       `}</style>
 
-      <Topbar title="Mark Attendance" subtitle="Record daily attendance for your section" />
-
       <main style={{ padding: "24px 28px 48px", display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* ── Page head ── */}

@@ -353,7 +353,6 @@ export default function TeacherMarkAttendancePage() {
   if (!sectionsLoading && academicYearId && mySections?.length === 0) {
     return (
       <div className={s("page")}>
-        <Topbar title="Mark Attendance" subtitle="You have no sections assigned" />
         <ToastNotification />
         <main className={s("content")} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320 }}>
           <div style={{ textAlign: "center", maxWidth: 380 }}>
@@ -385,7 +384,6 @@ export default function TeacherMarkAttendancePage() {
         }
       `}</style>
 
-      <Topbar title="Mark Attendance" subtitle="Record daily attendance for your section" />
       <ToastNotification />
 
       <main className={s("content")}>

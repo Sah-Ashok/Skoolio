@@ -154,3 +154,6 @@ export const getSubjectTeachersService = async (class_id: number, school_id: num
 
 export const getMySubjectClassesService = async (teacher_id: number, school_id: number) =>
   getTeacherSubjectClasses(teacher_id, school_id);
+
+export const getMyCoordinatedSectionsService = async (teacher_id: number, school_id: number) =>
+  getSectionsByCoordinator(teacher_id, school_id);

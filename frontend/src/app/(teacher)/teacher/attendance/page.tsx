@@ -19,39 +19,50 @@ export default function TeacherAttendanceRoutePage() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       {/* Tab bar */}
       <div style={{
-        display: "flex", gap: 0,
-        background: "#fff",
-        borderBottom: "2px solid #dce5e9",
-        padding: "0 28px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#ffffff",
+        borderBottom: "1px solid #e2e8f0",
+        padding: "12px 24px",
         flexShrink: 0,
         overflowX: "auto",
         WebkitOverflowScrolling: "touch",
       }}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              padding: "13px 20px",
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-              color:        tab === t.key ? "#ff9b51" : "#6a7882",
-              borderBottom: tab === t.key ? "2px solid #ff9b51" : "2px solid transparent",
-              marginBottom: -2,
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              transition: "color .15s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <i className={`fa-solid ${t.icon}`} style={{ fontSize: 12 }} />
-            {t.label}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const isActive = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "8px 18px",
+                borderRadius: 9,
+                border: isActive ? "1.5px solid #ff9148" : "1.5px solid #e2e8f0",
+                background: isActive ? "#fff7ed" : "#ffffff",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 800,
+                color: isActive ? "#ea580c" : "#64748b",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                transition: "all 0.18s ease",
+                whiteSpace: "nowrap",
+                boxShadow: isActive ? "0 1px 4px rgba(255, 145, 72, 0.15)" : "none",
+              }}
+            >
+              <i
+                className={`fa-solid ${t.icon}`}
+                style={{
+                  fontSize: 13,
+                  color: isActive ? "#ff9148" : "#94a3b8",
+                }}
+              />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content */}

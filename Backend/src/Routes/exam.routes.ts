@@ -7,7 +7,7 @@ import {
   createExamResult, getClassResults, getStudentExamResults, getStudentAllResults,
   updateExamResult, publishExamResults, unpublishExamResults,
   createGradeScale, getGradeScales, updateGradeScale, deleteGradeScale,
-  getMyResults, getMyExamSchedules, publishExamSchedule,
+  getMyResults, getMyExamSchedules, publishExamSchedule, getClassExamRegister,
 } from '../Controllers/exam.controller';
 
 const router = Router();
@@ -35,6 +35,7 @@ router.delete('/schedules/:id', restrictTo('admin', 'super_admin'), deleteExamSc
 // ── EXAM RESULT ROUTES (FACULTY enters marks for their subjects, ADMIN can do everything) ──
 router.post('/results', restrictTo('admin', 'super_admin', 'faculty'), createExamResult);
 router.get('/:examId/class/:classId/results', restrictTo('admin', 'super_admin', 'faculty'), getClassResults);
+router.get('/:examId/class/:classId/register', restrictTo('admin', 'super_admin', 'faculty'), getClassExamRegister);
 router.get('/:examId/student/:studentId/results', restrictTo('admin', 'super_admin', 'faculty'), getStudentExamResults);
 router.get('/student/:id/all-results', restrictTo('admin', 'super_admin'), getStudentAllResults);
 router.patch('/results/:id', restrictTo('admin', 'super_admin', 'faculty'), updateExamResult);

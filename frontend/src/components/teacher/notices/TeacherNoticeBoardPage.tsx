@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Topbar from "@/components/shared/Topbar";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
@@ -151,14 +150,18 @@ export default function TeacherNoticeBoardPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Notice Board" subtitle="View school announcements and post notices to your sections" />
       <main className={s("content")}>
 
         {/* Head */}
         <section className={s("head")}>
-          <div>
-            <h1>Notice Board</h1>
-            <p>School-wide notices and notices for your sections.</p>
+          <div className={s("headLeft")}>
+            <div className={s("headIcon")}>
+              <i className="fa-solid fa-bullhorn" />
+            </div>
+            <div>
+              <h1>Notice Board</h1>
+              <p>School-wide notices and announcements for your sections.</p>
+            </div>
           </div>
           <div className={s("actions")}>
             {(mySections && mySections.length > 0) && (
@@ -171,29 +174,45 @@ export default function TeacherNoticeBoardPage() {
 
         {/* Stats */}
         <section className={s("stats")}>
-          <article className={cx(s("stat"), s("blue"))}>
-            <div><i className="fa-solid fa-school" /></div>
-            <span>School-wide</span>
-            <strong>{totalSchool}</strong>
-            <small>From Admin</small>
+          <article className={cx(s("stat"), s("blue"))} onClick={() => setFilterType("school")} style={{ cursor: "pointer" }}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>School-wide</span>
+              <div className={s("statValue")}>{totalSchool}</div>
+              <span className={s("statSub")}>From Admin</span>
+            </div>
+            <div className={s("statIcon")}>
+              <i className="fa-solid fa-school" />
+            </div>
           </article>
-          <article className={cx(s("stat"), s("green"))}>
-            <div><i className="fa-solid fa-users" /></div>
-            <span>Section</span>
-            <strong>{totalSection}</strong>
-            <small>Targeted</small>
+          <article className={cx(s("stat"), s("green"))} onClick={() => setFilterType("section")} style={{ cursor: "pointer" }}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Section</span>
+              <div className={s("statValue")}>{totalSection}</div>
+              <span className={s("statSub")}>Targeted</span>
+            </div>
+            <div className={s("statIcon")}>
+              <i className="fa-solid fa-users" />
+            </div>
           </article>
           <article className={cx(s("stat"), s("orange"))}>
-            <div><i className="fa-solid fa-thumbtack" /></div>
-            <span>Pinned</span>
-            <strong>{totalPinned}</strong>
-            <small>Important</small>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>Pinned</span>
+              <div className={s("statValue")}>{totalPinned}</div>
+              <span className={s("statSub")}>Important</span>
+            </div>
+            <div className={s("statIcon")}>
+              <i className="fa-solid fa-thumbtack" />
+            </div>
           </article>
-          <article className={cx(s("stat"), s("purple"))}>
-            <div><i className="fa-solid fa-pen" /></div>
-            <span>My Notices</span>
-            <strong>{totalMine}</strong>
-            <small>Posted by me</small>
+          <article className={cx(s("stat"), s("purple"))} onClick={() => setFilterType("mine")} style={{ cursor: "pointer" }}>
+            <div className={s("statInfo")}>
+              <span className={s("statLabel")}>My Notices</span>
+              <div className={s("statValue")}>{totalMine}</div>
+              <span className={s("statSub")}>Posted by me</span>
+            </div>
+            <div className={s("statIcon")}>
+              <i className="fa-solid fa-pen-to-square" />
+            </div>
           </article>
         </section>
 
@@ -202,17 +221,45 @@ export default function TeacherNoticeBoardPage() {
           <label className={s("search")}>
             <i className="fa-solid fa-magnifying-glass" />
             <input
-              placeholder="Search notice..."
+              placeholder="Search notices by title or content..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </label>
-          <select value={filterType} onChange={e => setFilterType(e.target.value as any)}>
-            <option value="all">All Notices</option>
-            <option value="school">School-wide</option>
-            <option value="section">Section Notices</option>
-            <option value="mine">My Notices</option>
-          </select>
+          <div className={s("filterGroup")}>
+            <button
+              type="button"
+              className={cx(s("filterBtn"), filterType === "all" && s("filterBtnActive"))}
+              onClick={() => setFilterType("all")}
+            >
+              <i className="fa-solid fa-layer-group" />
+              <span>All Notices</span>
+            </button>
+            <button
+              type="button"
+              className={cx(s("filterBtn"), filterType === "school" && s("filterBtnActive"))}
+              onClick={() => setFilterType("school")}
+            >
+              <i className="fa-solid fa-school" />
+              <span>School-wide</span>
+            </button>
+            <button
+              type="button"
+              className={cx(s("filterBtn"), filterType === "section" && s("filterBtnActive"))}
+              onClick={() => setFilterType("section")}
+            >
+              <i className="fa-solid fa-users" />
+              <span>Section Notices</span>
+            </button>
+            <button
+              type="button"
+              className={cx(s("filterBtn"), filterType === "mine" && s("filterBtnActive"))}
+              onClick={() => setFilterType("mine")}
+            >
+              <i className="fa-solid fa-pen-to-square" />
+              <span>My Notices</span>
+            </button>
+          </div>
         </section>
 
         {/* Main grid */}
@@ -221,17 +268,35 @@ export default function TeacherNoticeBoardPage() {
           {/* List */}
           <article className={s("card")}>
             <div className={s("cardHead")}>
-              <div>
-                <h3><i className="fa-solid fa-list" />Notices</h3>
-                <p>{filtered.length} notice{filtered.length !== 1 ? "s" : ""}</p>
+              <div className={s("cardHeadLeft")}>
+                <h3>
+                  <i className="fa-solid fa-list-ul" style={{ color: "#ff9148" }} />
+                  <span>Notices</span>
+                </h3>
+                <span style={{
+                  fontSize: 11.5,
+                  padding: "3px 10px",
+                  borderRadius: 99,
+                  background: "#fff7ed",
+                  color: "#c2410c",
+                  border: "1px solid #fed7aa",
+                  fontWeight: 800,
+                }}>
+                  {filtered.length} {filtered.length === 1 ? "notice" : "notices"}
+                </span>
               </div>
             </div>
             <div className={s("noticeList")}>
-              {loading && <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={28} /></div>}
+              {loading && <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={28} color="#ff9148" /></div>}
               {!loading && filtered.length === 0 && (
-                <div className={s("emptyState")}>
-                  <i className="fa-solid fa-bullhorn" />
-                  <p>No notices found.</p>
+                <div style={{ padding: "3rem 1.5rem", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 50, height: 50, borderRadius: 14, background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: "1px solid #fed7aa" }}>
+                    <i className="fa-solid fa-bullhorn" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0f172a" }}>No notices found</h4>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>Try changing your filter or search keyword.</p>
+                  </div>
                 </div>
               )}
               {!loading && filtered.map((notice) => (
@@ -292,9 +357,14 @@ export default function TeacherNoticeBoardPage() {
           {/* Detail */}
           <article className={s("card")}>
             {!selected ? (
-              <div className={s("noSelection")}>
-                <i className="fa-solid fa-newspaper" />
-                <p>Click a notice to read it.</p>
+              <div style={{ padding: "4rem 2rem", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, minHeight: 380, justifyContent: "center" }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "1px solid #e2e8f0" }}>
+                  <i className="fa-regular fa-newspaper" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Select a notice to read</h4>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#64748b", fontWeight: 600, maxWidth: 300 }}>Choose any announcement from the list on the left to view full details.</p>
+                </div>
               </div>
             ) : (
               <div className={s("detailPanel")}>

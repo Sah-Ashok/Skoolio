@@ -5,13 +5,16 @@ import {
   getResultById, updateExamResult, publishExamResults,
   createGradeScale, getGradeScalesBySchool, getGradeByPercentage, updateGradeScale, deleteGradeScale,
   getStudentExamSchedules, publishExamSchedule, unpublishExamResults, hasPublishedResultsForExam,
+  getExamClassRegisterData,
 } from '../Repositories/exam.repository';
 import {
   ICreateExam, IUpdateExam, ICreateExamSchedule, IUpdateExamSchedule,
   ICreateExamResult, IUpdateExamResult, ICreateGradeScale, IUpdateGradeScale,
 } from '../types/exam.types';
 import { syncExamCalendarEventService } from './calendar.service';
-import { isTeacherAssignedToSubjectInClass } from '../Repositories/class.repository';
+import {
+  isTeacherAssignedToSubjectInClass, getSectionById, getSectionsByCoordinator,
+} from '../Repositories/class.repository';
 import AppError from '../utils/AppError';
 
 // ── EXAM SERVICES ──
@@ -343,4 +346,203 @@ export const publishExamScheduleService = async (
   if (!exam) throw new AppError('Exam not found.', 404);
   const updated = await publishExamSchedule(exam_id, school_id, is_published);
   return updated;
+};
+
+export const getClassExamRegisterService = async (
+  exam_id: number,
+  class_id: number,
+  section_id: number | null,
+  school_id: number,
+  requester_teacher_id?: number
+) => {
+  // If requester is faculty, verify coordinator permission
+  if (requester_teacher_id !== undefined) {
+    if (section_id) {
+      const section = await getSectionById(section_id, school_id);
+      if (!section || section.coordinator_id !== requester_teacher_id) {
+        throw new AppError('You are not assigned as the coordinator for this section and cannot view the full class register.', 403);
+      }
+    } else {
+      const coordinated = await getSectionsByCoordinator(requester_teacher_id, school_id);
+      const isCoordinatingThisClass = coordinated.some((s: any) => s.class_id === class_id);
+      if (!isCoordinatingThisClass) {
+        throw new AppError('You are not assigned as the coordinator for this class and cannot view the full class register.', 403);
+      }
+    }
+  }
+
+  const rawData = await getExamClassRegisterData(exam_id, class_id, section_id, school_id);
+  if (!rawData.exam) throw new AppError('Exam not found.', 404);
+
+  const { exam, classInfo, sectionInfo, subjects, students, results } = rawData;
+
+  // Build results lookup map
+  const resultsByStudent = new Map<number, Map<number, any>>();
+  results.forEach((r: any) => {
+    if (!resultsByStudent.has(r.student_id)) {
+      resultsByStudent.set(r.student_id, new Map());
+    }
+    resultsByStudent.get(r.student_id)!.set(r.subject_id, r);
+  });
+
+  // Calculate student rows
+  const studentRows = students.map((stu: any) => {
+    const studentResults = resultsByStudent.get(stu.student_id) || new Map();
+    const marks: Record<string, any> = {};
+    let totalObtained = 0;
+    let totalMax = 0;
+    let passedSubjectsCount = 0;
+    let failedSubjectsCount = 0;
+    let absentSubjectsCount = 0;
+    let totalGpaSum = 0;
+    let subjectsWithGpaCount = 0;
+    let marksEnteredCount = 0;
+
+    subjects.forEach((sub: any) => {
+      const res = studentResults.get(sub.subject_id);
+      if (res) {
+        marks[sub.subject_id] = res;
+        totalMax += Number(res.max_marks || sub.max_marks || 100);
+        if (res.is_absent) {
+          absentSubjectsCount++;
+          failedSubjectsCount++;
+        } else if (res.marks_obtained !== null && res.marks_obtained !== undefined) {
+          marksEnteredCount++;
+          totalObtained += Number(res.marks_obtained);
+          if (res.is_passed) passedSubjectsCount++;
+          else failedSubjectsCount++;
+
+          if (res.gpa !== null && res.gpa !== undefined) {
+            totalGpaSum += Number(res.gpa);
+            subjectsWithGpaCount++;
+          }
+        }
+      } else {
+        totalMax += Number(sub.max_marks || 100);
+        marks[sub.subject_id] = null;
+      }
+    });
+
+    const hasMarks = marksEnteredCount > 0 || absentSubjectsCount > 0;
+    const overallPercentage = totalMax > 0 && hasMarks ? Math.round((totalObtained / totalMax) * 10000) / 100 : null;
+    const overallGpa = subjectsWithGpaCount > 0 ? Math.round((totalGpaSum / subjectsWithGpaCount) * 100) / 100 : null;
+    const isPassedAll = subjects.length > 0 && passedSubjectsCount === subjects.length;
+
+    return {
+      student_id: stu.student_id,
+      enrollment_id: stu.enrollment_id,
+      admission_number: stu.admission_number,
+      full_name: stu.full_name,
+      roll_number: stu.roll_number,
+      photo: stu.photo,
+      gender: stu.gender,
+      section_name: stu.section_name,
+      marks,
+      has_marks: hasMarks,
+      total_obtained: totalObtained,
+      total_max: totalMax,
+      overall_percentage: overallPercentage,
+      overall_gpa: overallGpa,
+      passed_subjects_count: passedSubjectsCount,
+      failed_subjects_count: failedSubjectsCount,
+      absent_subjects_count: absentSubjectsCount,
+      is_passed_all: isPassedAll,
+      status: !hasMarks ? 'pending' : (isPassedAll ? 'passed' : 'failed'),
+    };
+  });
+
+  // Calculate Ranks among students who appeared
+  const appearedStudents = studentRows.filter(s => s.has_marks);
+  appearedStudents.sort((a, b) => {
+    if ((b.overall_percentage ?? 0) !== (a.overall_percentage ?? 0)) {
+      return (b.overall_percentage ?? 0) - (a.overall_percentage ?? 0);
+    }
+    return b.total_obtained - a.total_obtained;
+  });
+
+  let currentRank = 0;
+  let lastScore: number | null = null;
+  appearedStudents.forEach((stu, index) => {
+    if (stu.overall_percentage !== lastScore) {
+      currentRank = index + 1;
+      lastScore = stu.overall_percentage;
+    }
+    (stu as any).rank = currentRank;
+    (stu as any).is_topper = currentRank === 1;
+  });
+
+  const rankMap = new Map<number, { rank: number; is_topper: boolean }>();
+  appearedStudents.forEach(stu => rankMap.set(stu.student_id, { rank: (stu as any).rank, is_topper: (stu as any).is_topper }));
+
+  const finalStudents = studentRows.map(stu => ({
+    ...stu,
+    rank: rankMap.get(stu.student_id)?.rank ?? null,
+    is_topper: rankMap.get(stu.student_id)?.is_topper ?? false,
+  }));
+
+  // Statistics
+  const totalStudents = finalStudents.length;
+  const appearedCount = appearedStudents.length;
+  const passedAllCount = finalStudents.filter(s => s.is_passed_all).length;
+  const failedCount = appearedCount - passedAllCount;
+  const passRatePct = appearedCount > 0 ? Math.round((passedAllCount / appearedCount) * 1000) / 10 : 0;
+  
+  const avgPercentage = appearedCount > 0
+    ? Math.round((appearedStudents.reduce((sum, s) => sum + (s.overall_percentage || 0), 0) / appearedCount) * 10) / 10
+    : 0;
+
+  const topper = appearedStudents.length > 0 && appearedStudents[0].overall_percentage !== null ? {
+    student_name: appearedStudents[0].full_name,
+    roll_number: appearedStudents[0].roll_number,
+    admission_number: appearedStudents[0].admission_number,
+    percentage: appearedStudents[0].overall_percentage,
+    total_obtained: appearedStudents[0].total_obtained,
+    total_max: appearedStudents[0].total_max,
+  } : null;
+
+  // Subject performance stats
+  const subjectStats = subjects.map((sub: any) => {
+    const subResults = results.filter((r: any) => r.subject_id === sub.subject_id);
+    const entered = subResults.filter((r: any) => !r.is_absent && r.marks_obtained !== null && r.marks_obtained !== undefined);
+    const passed = entered.filter((r: any) => r.is_passed);
+    const absents = subResults.filter((r: any) => r.is_absent);
+    
+    const marksArr = entered.map((r: any) => Number(r.marks_obtained));
+    const highestMarks = marksArr.length > 0 ? Math.max(...marksArr) : null;
+    const lowestMarks = marksArr.length > 0 ? Math.min(...marksArr) : null;
+    const avgMarks = marksArr.length > 0 ? Math.round((marksArr.reduce((a, b) => a + b, 0) / marksArr.length) * 10) / 10 : null;
+
+    return {
+      subject_id: sub.subject_id,
+      subject_name: sub.subject_name,
+      max_marks: sub.max_marks,
+      pass_marks: sub.pass_marks,
+      entered_count: entered.length,
+      passed_count: passed.length,
+      failed_count: entered.length - passed.length,
+      absent_count: absents.length,
+      highest_marks: highestMarks,
+      lowest_marks: lowestMarks,
+      avg_marks: avgMarks,
+      pass_rate_pct: entered.length > 0 ? Math.round((passed.length / entered.length) * 1000) / 10 : 0,
+    };
+  });
+
+  return {
+    exam,
+    class_info: classInfo,
+    section_info: sectionInfo,
+    subjects,
+    students: finalStudents,
+    stats: {
+      total_students: totalStudents,
+      appeared_count: appearedCount,
+      passed_count: passedAllCount,
+      failed_count: failedCount,
+      pass_rate_pct: passRatePct,
+      class_avg_percentage: avgPercentage,
+      topper,
+      subject_stats: subjectStats,
+    },
+  };
 };

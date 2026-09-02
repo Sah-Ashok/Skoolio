@@ -586,3 +586,88 @@ export const getStudentExamSchedules = async (
   );
   return result.rows;
 };
+
+export const getExamClassRegisterData = async (
+  exam_id: number,
+  class_id: number,
+  section_id: number | null,
+  school_id: number
+) => {
+  // 1. Exam metadata
+  const examRes = await pool.query(
+    `SELECT id, name, exam_type, start_date::text, end_date::text, status,
+            COALESCE(is_schedule_published, false) as is_schedule_published
+     FROM exams WHERE id = $1 AND school_id = $2`,
+    [exam_id, school_id]
+  );
+  const exam = examRes.rows[0] || null;
+
+  // 2. Class & Section info
+  const classRes = await pool.query(
+    `SELECT c.id, c.name as class_name,
+            (SELECT COUNT(*)::int FROM sections WHERE class_id = c.id AND school_id = $2 AND status = 'active') as section_count
+     FROM classes c WHERE c.id = $1 AND c.school_id = $2`,
+    [class_id, school_id]
+  );
+  const classInfo = classRes.rows[0] || null;
+
+  let sectionInfo = null;
+  if (section_id) {
+    const secRes = await pool.query(
+      `SELECT s.id, s.name as section_name, s.coordinator_id, t.full_name as coordinator_name
+       FROM sections s
+       LEFT JOIN teachers t ON t.id = s.coordinator_id
+       WHERE s.id = $1 AND s.school_id = $2`,
+      [section_id, school_id]
+    );
+    sectionInfo = secRes.rows[0] || null;
+  }
+
+  // 3. Scheduled subjects
+  const subjectsRes = await pool.query(
+    `SELECT es.id as schedule_id, es.subject_id, s.name as subject_name, s.code as subject_code,
+            es.exam_date::text, es.start_time, es.end_time, es.max_marks, es.pass_marks
+     FROM exam_schedules es
+     INNER JOIN subjects s ON s.id = es.subject_id
+     WHERE es.exam_id = $1 AND es.class_id = $2 AND es.school_id = $3
+     ORDER BY es.exam_date ASC, s.name ASC`,
+    [exam_id, class_id, school_id]
+  );
+
+  // 4. Students
+  const studentsRes = await pool.query(
+    `SELECT se.id as enrollment_id, se.student_id, se.roll_number, se.section_id,
+            st.admission_number, st.full_name, st.gender, st.photo, sec.name as section_name
+     FROM student_enrollments se
+     INNER JOIN students st ON st.id = se.student_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
+     WHERE se.class_id = $1 AND se.school_id = $2
+       AND ($3::int IS NULL OR se.section_id = $3)
+       AND se.status = 'active'
+     ORDER BY LPAD(COALESCE(se.roll_number, '999999'), 6, '0') ASC, st.full_name ASC`,
+    [class_id, school_id, section_id || null]
+  );
+
+  // 5. Results
+  const resultsRes = await pool.query(
+    `SELECT er.id, er.student_id, er.enrollment_id, er.subject_id, er.schedule_id,
+            er.marks_obtained, er.max_marks, er.pass_marks, er.percentage,
+            er.grade, er.gpa, er.is_passed, er.is_absent, er.remarks, er.status
+     FROM exam_results er
+     WHERE er.exam_id = $1 AND er.school_id = $2
+       AND er.enrollment_id IN (
+         SELECT id FROM student_enrollments
+         WHERE class_id = $3 AND ($4::int IS NULL OR section_id = $4) AND school_id = $2
+       )`,
+    [exam_id, school_id, class_id, section_id || null]
+  );
+
+  return {
+    exam,
+    classInfo,
+    sectionInfo,
+    subjects: subjectsRes.rows,
+    students: studentsRes.rows,
+    results: resultsRes.rows,
+  };
+};

@@ -8,7 +8,7 @@ import {
   createExamResultService, getClassResultsService, getStudentExamResultsService,
   getStudentAllResultsService, updateExamResultService, publishExamResultsService, unpublishExamResultsService,
   createGradeScaleService, getGradeScalesService, updateGradeScaleService, deleteGradeScaleService,
-  getStudentExamSchedulesService, publishExamScheduleService,
+  getStudentExamSchedulesService, publishExamScheduleService, getClassExamRegisterService,
 } from '../Service/exam.service';
 
 const resolveSchoolId = (req: Request): number => {
@@ -151,6 +151,20 @@ export const unpublishExamResults = catchAsync(async (req: Request, res: Respons
   const { exam_id, class_id } = req.body;
   const result = await unpublishExamResultsService(exam_id, class_id, school_id);
   sendResponse(res, 200, true, 'Results unpublished successfully', result);
+});
+
+export const getClassExamRegister = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req);
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const isFaculty = 'school_id' in user;
+  const requester_teacher_id = isFaculty ? user.id : undefined;
+
+  const exam_id = Number(req.params.examId);
+  const class_id = Number(req.params.classId);
+  const section_id = req.query.section_id ? Number(req.query.section_id) : null;
+
+  const result = await getClassExamRegisterService(exam_id, class_id, section_id, school_id, requester_teacher_id);
+  sendResponse(res, 200, true, 'Class exam register fetched successfully', result);
 });
 
 // ── GRADE SCALE CONTROLLERS (ADMIN) ──

@@ -10,7 +10,7 @@ import {
   createSubjectService, getSubjectsService, updateSubjectService, deleteSubjectService,
   assignSubjectService, getClassSubjectsService, removeSubjectService,
   assignSubjectTeacherService, removeSubjectTeacherService,
-  getSubjectTeachersService, getMySubjectClassesService,
+  getSubjectTeachersService, getMySubjectClassesService, getMyCoordinatedSectionsService,
 } from '../Service/class.service';
 
 // ── CLASS ─────────────────────────────────────────────────────────────────────
@@ -145,4 +145,9 @@ export const getSubjectTeachers = catchAsync(async (req, res) => {
 export const getMySubjectClasses = catchAsync(async (req, res) => {
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
   sendResponse(res, 200, true, 'Your subject assignments fetched', await getMySubjectClassesService(teacher_id, school_id));
+});
+
+export const getMyCoordinatedSections = catchAsync(async (req, res) => {
+  const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
+  sendResponse(res, 200, true, 'Coordinated sections fetched', await getMyCoordinatedSectionsService(teacher_id, school_id));
 });

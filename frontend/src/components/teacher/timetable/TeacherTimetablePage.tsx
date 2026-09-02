@@ -18,14 +18,14 @@ const DAYS_OF_WEEK = [
 ];
 
 const SUBJECT_COLORS = [
-  { bg: "#eef2ff", text: "#4338ca", border: "#c7d2fe" },
-  { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0" },
-  { bg: "#fff7ed", text: "#c2410c", border: "#fed7aa" },
-  { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff" },
-  { bg: "#f0fdfa", text: "#0f766e", border: "#99f6e4" },
-  { bg: "#fff1f2", text: "#be123c", border: "#fecdd3" },
-  { bg: "#fefce8", text: "#a16207", border: "#fef08a" },
-  { bg: "#f8fafc", text: "#334155", border: "#cbd5e1" },
+  { bg: "#f0fdf4", text: "#166534", border: "#bbf7d0", badgeBg: "#dcfce7", badgeText: "#15803d" }, // Mint
+  { bg: "#eff6ff", text: "#1e40af", border: "#bfdbfe", badgeBg: "#dbeafe", badgeText: "#1d4ed8" }, // Sky Blue
+  { bg: "#fff7ed", text: "#9a3412", border: "#fed7aa", badgeBg: "#ffedd5", badgeText: "#c2410c" }, // Warm Peach
+  { bg: "#faf5ff", text: "#6b21a8", border: "#e9d5ff", badgeBg: "#f3e8ff", badgeText: "#7e22ce" }, // Lavender
+  { bg: "#f0fdfa", text: "#115e59", border: "#99f6e4", badgeBg: "#ccfbf1", badgeText: "#0f766e" }, // Soft Teal
+  { bg: "#fff1f2", text: "#9f1239", border: "#fecdd3", badgeBg: "#ffe4e6", badgeText: "#be123c" }, // Soft Rose
+  { bg: "#fefce8", text: "#854d0e", border: "#fef08a", badgeBg: "#fef9c3", badgeText: "#a16207" }, // Soft Amber
+  { bg: "#f8fafc", text: "#334155", border: "#e2e8f0", badgeBg: "#f1f5f9", badgeText: "#475569" }, // Soft Slate
 ];
 
 function getSubjectColor(id?: number | null) {
@@ -443,11 +443,11 @@ export default function TeacherTimetablePage() {
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 14 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#1f2d36", display: "flex", alignItems: "center", gap: 10 }}>
-            <i className="fa-solid fa-calendar-days" style={{ color: "#3b5bdb" }} />
-            Section Timetable
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
+            <i className="fa-solid fa-calendar-days" style={{ color: "#ff9148" }} />
+            <span>Section Timetable</span>
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6a7882", fontWeight: 700 }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b", fontWeight: 700 }}>
             Create and organize weekly routine for class sections with period time slots and subject teachers.
           </p>
         </div>
@@ -462,19 +462,21 @@ export default function TeacherTimetablePage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 7,
-                  padding: "8px 14px",
-                  borderRadius: 8,
+                  gap: 8,
+                  padding: "9px 16px",
+                  borderRadius: 10,
                   border: "none",
-                  background: "#3b5bdb",
-                  color: "#fff",
+                  background: "linear-gradient(135deg, #ff9148 0%, #ff7a22 100%)",
+                  color: "#ffffff",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(59,91,219,0.25)",
+                  boxShadow: "0 2px 8px rgba(255,145,72,0.25)",
+                  transition: "all .15s",
                 }}
               >
-                <i className="fa-solid fa-bolt" /> ⚡ Quick Shift Setup
+                <i className="fa-solid fa-bolt" />
+                <span>Quick Shift Setup</span>
               </button>
 
               <button
@@ -483,38 +485,21 @@ export default function TeacherTimetablePage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 7,
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #c6d0d7",
-                  background: "#fff",
-                  color: "#1f2d36",
+                  gap: 8,
+                  padding: "9px 16px",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#1e293b",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
+                  boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+                  transition: "all .15s",
                 }}
               >
-                <i className="fa-solid fa-copy" style={{ color: "#3b5bdb" }} /> Copy Day Schedule
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #c6d0d7",
-                  background: "#fff",
-                  color: "#1f2d36",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
-                <i className="fa-solid fa-print" style={{ color: "#12805c" }} /> Print Routine
+                <i className="fa-solid fa-copy" style={{ color: "#ff9148" }} />
+                <span>Copy Day Schedule</span>
               </button>
             </>
           )}
@@ -522,53 +507,72 @@ export default function TeacherTimetablePage() {
       </div>
 
       {/* ── Tabs Navigation ── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div style={{
+        display: "inline-flex",
+        background: "#ffffff",
+        padding: 4,
+        borderRadius: 12,
+        border: "1px solid #e2e8f0",
+        boxShadow: "0 1px 3px rgba(15,23,42,0.05)",
+        gap: 4,
+        marginBottom: 16,
+      }}>
         <button
           type="button"
           onClick={() => setActiveTab("section")}
           style={{
-            padding: "9px 18px",
-            borderRadius: 8,
+            padding: "8px 18px",
+            borderRadius: 9,
             border: "none",
-            background: activeTab === "section" ? "#3b5bdb" : "#fff",
-            color: activeTab === "section" ? "#fff" : "#4a5a65",
+            background: activeTab === "section" ? "#ff9148" : "transparent",
+            color: activeTab === "section" ? "#ffffff" : "#64748b",
             fontWeight: 800,
             fontSize: 13,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            boxShadow: activeTab === "section" ? "0 2px 8px rgba(59,91,219,0.25)" : "none",
-            borderWidth: activeTab === "section" ? 0 : 1,
-            borderStyle: "solid",
-            borderColor: "#d4dde2",
+            boxShadow: activeTab === "section" ? "0 2px 8px rgba(255,145,72,0.25)" : "none",
+            transition: "all .15s",
           }}
         >
-          <i className="fa-solid fa-table" /> Section Routine Maker
+          <i className="fa-solid fa-table-cells" />
+          <span>Section Routine Maker</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("my_schedule")}
           style={{
-            padding: "9px 18px",
-            borderRadius: 8,
+            padding: "8px 18px",
+            borderRadius: 9,
             border: "none",
-            background: activeTab === "my_schedule" ? "#3b5bdb" : "#fff",
-            color: activeTab === "my_schedule" ? "#fff" : "#4a5a65",
+            background: activeTab === "my_schedule" ? "#ff9148" : "transparent",
+            color: activeTab === "my_schedule" ? "#ffffff" : "#64748b",
             fontWeight: 800,
             fontSize: 13,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            boxShadow: activeTab === "my_schedule" ? "0 2px 8px rgba(59,91,219,0.25)" : "none",
-            borderWidth: activeTab === "my_schedule" ? 0 : 1,
-            borderStyle: "solid",
-            borderColor: "#d4dde2",
+            boxShadow: activeTab === "my_schedule" ? "0 2px 8px rgba(255,145,72,0.25)" : "none",
+            transition: "all .15s",
           }}
         >
-          <i className="fa-solid fa-chalkboard-user" /> My Teaching Schedule
+          <i className="fa-solid fa-chalkboard-user" />
+          <span>My Teaching Schedule</span>
+          {myScheduleData?.slots?.length ? (
+            <span style={{
+              padding: "2px 7px",
+              borderRadius: 12,
+              fontSize: 11,
+              fontWeight: 900,
+              background: activeTab === "my_schedule" ? "rgba(255,255,255,0.25)" : "#f1f5f9",
+              color: activeTab === "my_schedule" ? "#ffffff" : "#0f172a",
+            }}>
+              {myScheduleData.slots.length}
+            </span>
+          ) : null}
         </button>
       </div>
 
@@ -577,11 +581,11 @@ export default function TeacherTimetablePage() {
         <>
           {/* Controls bar */}
           <div style={{
-            background: "#fff",
+            background: "#ffffff",
             padding: "14px 18px",
-            borderRadius: 10,
-            border: "1px solid #d4dde2",
-            boxShadow: "0 2px 12px rgba(31,45,54,0.06)",
+            borderRadius: 12,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
             marginBottom: 16,
             display: "flex",
             alignItems: "center",
@@ -590,8 +594,9 @@ export default function TeacherTimetablePage() {
             gap: 12,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <label style={{ fontSize: 13, fontWeight: 800, color: "#1f2d36", display: "flex", alignItems: "center", gap: 6 }}>
-                <i className="fa-solid fa-school" style={{ color: "#3b5bdb" }} /> Select Section:
+              <label style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-school" style={{ color: "#ff9148" }} />
+                <span>Select Section:</span>
               </label>
               <select
                 value={selectedSectionId}
@@ -599,14 +604,15 @@ export default function TeacherTimetablePage() {
                 style={{
                   minHeight: 38,
                   padding: "0 14px",
-                  borderRadius: 8,
-                  border: "1.5px solid #c6d0d7",
-                  background: "#fff",
-                  color: "#1f2d36",
+                  borderRadius: 9,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#0f172a",
                   fontSize: 13,
                   fontWeight: 800,
                   outline: "none",
                   cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
                 }}
               >
                 {teacherSections.length === 0 && <option value="">No coordinated sections</option>}
@@ -616,62 +622,67 @@ export default function TeacherTimetablePage() {
                   </option>
                 ))}
               </select>
-
-              {currentSection && (
-                <span style={{ fontSize: 12, color: "#6a7882", fontWeight: 700 }}>
-                  <i className="fa-solid fa-circle-info" style={{ color: "#ff9b51", marginRight: 4 }} />
-                  {currentSection.class_name ? `${currentSection.class_name} - Section ${currentSection.name}` : `Section ${currentSection.name}`}
-                  {currentSection.room_no ? ` · Room ${currentSection.room_no}` : ""}
-                </span>
-              )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#6a7882", cursor: "pointer" }}>
+              <label style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12.5,
+                fontWeight: 800,
+                color: "#475569",
+                cursor: "pointer",
+                padding: "6px 12px",
+                borderRadius: 8,
+                background: includeSaturday ? "#fff7ed" : "#f8fafc",
+                border: `1px solid ${includeSaturday ? "#fed7aa" : "#e2e8f0"}`,
+                transition: "all .15s",
+              }}>
                 <input
                   type="checkbox"
                   checked={includeSaturday}
                   onChange={e => setIncludeSaturday(e.target.checked)}
-                  style={{ accentColor: "#3b5bdb", cursor: "pointer" }}
+                  style={{ accentColor: "#ff9148", cursor: "pointer", width: 15, height: 15 }}
                 />
-                Include Saturday
+                <span>Include Saturday</span>
               </label>
             </div>
           </div>
 
           {/* ── Timetable Grid Table ── */}
           <div style={{
-            background: "#fff",
-            borderRadius: 10,
-            border: "1px solid #d4dde2",
-            boxShadow: "0 2px 12px rgba(31,45,54,0.06)",
+            background: "#ffffff",
+            borderRadius: 12,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
             overflowX: "auto",
           }}>
             {loadingTimetable ? (
               <div style={{ padding: "4rem", textAlign: "center" }}>
-                <Spinner size={36} color="#FF9B51" />
+                <Spinner size={36} color="#ff9148" />
               </div>
             ) : !selectedSectionId ? (
-              <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
+              <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
                 <i className="fa-solid fa-circle-exclamation" style={{ fontSize: 28, color: "#f97316", marginBottom: 10 }} />
                 <p style={{ fontWeight: 800, margin: 0 }}>No section selected. Please select a section above to view/edit timetable.</p>
               </div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 960 }}>
                 <thead>
-                  <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 13, fontWeight: 900, color: "#1e293b", width: 120 }}>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", width: 120 }}>
                       Day / Period
                     </th>
                     {periodNumbers.map(pNum => {
                       const timing = periodTimings[pNum];
                       return (
-                        <th key={pNum} style={{ padding: "12px 10px", textAlign: "center", fontSize: 12, fontWeight: 800, color: "#475569", borderLeft: "1px solid #e2e8f0" }}>
-                          <div style={{ fontWeight: 900, color: "#1e293b" }}>Period {pNum}</div>
+                        <th key={pNum} style={{ padding: "12px 10px", textAlign: "center", fontSize: 12, fontWeight: 800, color: "#475569", borderLeft: "1px solid #f1f5f9" }}>
+                          <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 12.5 }}>Period {pNum}</div>
                           {timing ? (
-                            <div style={{ fontSize: 11, color: timing.isBreak ? "#c2410c" : "#64748b", fontWeight: 800, marginTop: 2 }}>
-                              {timing.start} - {timing.end}
-                              {timing.isBreak && <span style={{ marginLeft: 4 }}>🍜</span>}
+                            <div style={{ fontSize: 11, color: timing.isBreak ? "#c2410c" : "#64748b", fontWeight: 700, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              {timing.isBreak && <i className="fa-solid fa-mug-hot" style={{ fontSize: 10, color: "#ea580c" }} />}
+                              <span>{timing.start} – {timing.end}</span>
                             </div>
                           ) : (
                             <div style={{ fontSize: 10.5, color: "#94a3b8", fontWeight: 700, marginTop: 2 }}>
@@ -685,15 +696,15 @@ export default function TeacherTimetablePage() {
                 </thead>
                 <tbody>
                   {displayDays.map(day => (
-                    <tr key={day.key} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <tr key={day.key} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       {/* Day Label Header */}
                       <td style={{
                         padding: "14px 16px",
                         fontWeight: 900,
                         fontSize: 13,
-                        color: "#1e3a5f",
+                        color: "#0f172a",
                         background: "#f8fafc",
-                        borderRight: "2px solid #e2e8f0",
+                        borderRight: "1.5px solid #e2e8f0",
                         textTransform: "capitalize",
                       }}>
                         {day.label}
@@ -705,87 +716,43 @@ export default function TeacherTimetablePage() {
                         if (slot) {
                           const colors = getSubjectColor(slot.subject_id);
                           return (
-                            <td key={pNum} style={{ padding: 6, verticalAlign: "top", borderLeft: "1px solid #e2e8f0" }}>
+                            <td key={pNum} style={{ padding: "8px 6px", verticalAlign: "top", borderLeft: "1px solid #f1f5f9" }}>
                               {slot.is_break ? (
                                 <div style={{
-                                  padding: "10px 8px",
-                                  borderRadius: 8,
-                                  background: "#fff7ed",
-                                  border: "1.5px dashed #fdba74",
-                                  textAlign: "center",
-                                  position: "relative",
-                                  minHeight: 82,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  justifyContent: "center",
-                                  alignItems: "center",
-                                }}>
-                                  <span style={{ fontSize: 16 }}>🍜</span>
-                                  <strong style={{ fontSize: 12, fontWeight: 900, color: "#c2410c", marginTop: 2 }}>
-                                    {slot.title || "Break"}
-                                  </strong>
-                                  <span style={{ fontSize: 10.5, color: "#9a3412", fontWeight: 700, marginTop: 2 }}>
-                                    {slot.start_time?.slice(0, 5)} - {slot.end_time?.slice(0, 5)}
-                                  </span>
-
-                                  {/* Hover Actions */}
-                                  <div style={{ marginTop: 6, display: "flex", gap: 4 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditSlot(slot)}
-                                      title="Edit slot"
-                                      style={{ background: "#ffedd5", border: "none", borderRadius: 4, width: 22, height: 22, cursor: "pointer", color: "#c2410c", fontSize: 10 }}
-                                    >
-                                      <i className="fa-solid fa-pen" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSlot(slot.id)}
-                                      title="Remove slot"
-                                      style={{ background: "#fee2e2", border: "none", borderRadius: 4, width: 22, height: 22, cursor: "pointer", color: "#dc2626", fontSize: 10 }}
-                                    >
-                                      <i className="fa-solid fa-trash" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{
-                                  padding: "8px 10px",
-                                  borderRadius: 8,
-                                  background: colors.bg,
-                                  border: `1px solid ${colors.border}`,
-                                  minHeight: 82,
+                                  padding: "10px 10px",
+                                  borderRadius: 10,
+                                  background: "#fffbeb",
+                                  border: "1px solid #fde68a",
+                                  minHeight: 88,
                                   display: "flex",
                                   flexDirection: "column",
                                   justifyContent: "space-between",
+                                  textAlign: "center",
                                 }}>
-                                  <div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                      <strong style={{ fontSize: 12.5, fontWeight: 900, color: colors.text, display: "block", lineHeight: "1.2" }}>
-                                        {slot.subject_name || "Subject"}
-                                      </strong>
-                                      {slot.room_no && (
-                                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#fff", color: "#475569", fontWeight: 800, border: "1px solid #cbd5e1" }}>
-                                          {slot.room_no}
-                                        </span>
-                                      )}
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                                    <div style={{
+                                      width: 26, height: 26, borderRadius: 8,
+                                      background: "#fef3c7", color: "#b45309",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontSize: 11,
+                                    }}>
+                                      <i className="fa-solid fa-mug-hot" />
                                     </div>
-                                    <span style={{ fontSize: 11, color: "#475569", fontWeight: 700, display: "block", marginTop: 4 }}>
-                                      <i className="fa-solid fa-user-tie" style={{ fontSize: 9.5, marginRight: 4, opacity: 0.7 }} />
-                                      {slot.teacher_name || "Unassigned"}
-                                    </span>
+                                    <strong style={{ fontSize: 12, fontWeight: 900, color: "#92400e", textTransform: "capitalize" }}>
+                                      {slot.title || "Break"}
+                                    </strong>
                                   </div>
 
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, paddingTop: 4, borderTop: "1px solid rgba(0,0,0,0.05)" }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: "#64748b" }}>
-                                      {slot.start_time?.slice(0, 5)} - {slot.end_time?.slice(0, 5)}
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 4, borderTop: "1px solid #fef3c7" }}>
+                                    <span style={{ fontSize: 10.5, fontWeight: 800, color: "#b45309" }}>
+                                      {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
                                     </span>
                                     <div style={{ display: "flex", gap: 3 }}>
                                       <button
                                         type="button"
                                         onClick={() => handleOpenEditSlot(slot)}
                                         title="Edit slot"
-                                        style={{ background: "#fff", border: "1px solid #cbd5e1", borderRadius: 4, width: 20, height: 20, cursor: "pointer", color: "#3b5bdb", fontSize: 9.5 }}
+                                        style={{ background: "#ffffff", border: "1px solid #fde68a", borderRadius: 5, width: 22, height: 22, cursor: "pointer", color: "#b45309", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
                                       >
                                         <i className="fa-solid fa-pen" />
                                       </button>
@@ -793,7 +760,117 @@ export default function TeacherTimetablePage() {
                                         type="button"
                                         onClick={() => handleDeleteSlot(slot.id)}
                                         title="Remove slot"
-                                        style={{ background: "#fff", border: "1px solid #cbd5e1", borderRadius: 4, width: 20, height: 20, cursor: "pointer", color: "#dc2626", fontSize: 9.5 }}
+                                        style={{ background: "#ffffff", border: "1px solid #fecdd3", borderRadius: 5, width: 22, height: 22, cursor: "pointer", color: "#dc2626", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
+                                      >
+                                        <i className="fa-solid fa-trash" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{
+                                  padding: "10px 10px",
+                                  borderRadius: 10,
+                                  background: colors.bg,
+                                  border: `1px solid ${colors.border}`,
+                                  minHeight: 88,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  justifyContent: "space-between",
+                                  transition: "transform .12s, box-shadow .12s",
+                                }}>
+                                  <div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 4 }}>
+                                      <strong style={{
+                                        fontSize: 12.5,
+                                        fontWeight: 900,
+                                        color: colors.text,
+                                        lineHeight: "1.25",
+                                        textTransform: "capitalize",
+                                      }}>
+                                        {slot.subject_name || "Subject"}
+                                      </strong>
+                                      {slot.room_no && (
+                                        <span style={{
+                                          fontSize: 10,
+                                          padding: "1px 6px",
+                                          borderRadius: 5,
+                                          background: colors.badgeBg,
+                                          color: colors.badgeText,
+                                          fontWeight: 800,
+                                          border: `1px solid ${colors.border}`,
+                                          flexShrink: 0,
+                                        }}>
+                                          {slot.room_no}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span style={{
+                                      fontSize: 11,
+                                      color: "#475569",
+                                      fontWeight: 700,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      marginTop: 4,
+                                      textTransform: "capitalize",
+                                    }}>
+                                      <i className="fa-solid fa-user-tie" style={{ fontSize: 9.5, opacity: 0.7 }} />
+                                      {slot.teacher_name || "Unassigned"}
+                                    </span>
+                                  </div>
+
+                                  <div style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginTop: 6,
+                                    paddingTop: 5,
+                                    borderTop: "1px solid rgba(0,0,0,0.05)",
+                                  }}>
+                                    <span style={{ fontSize: 10.5, fontWeight: 800, color: "#64748b" }}>
+                                      {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
+                                    </span>
+                                    <div style={{ display: "flex", gap: 3 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditSlot(slot)}
+                                        title="Edit slot"
+                                        style={{
+                                          background: "#ffffff",
+                                          border: `1px solid ${colors.border}`,
+                                          borderRadius: 5,
+                                          width: 22,
+                                          height: 22,
+                                          cursor: "pointer",
+                                          color: colors.text,
+                                          fontSize: 10,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          transition: "all .15s",
+                                        }}
+                                      >
+                                        <i className="fa-solid fa-pen" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        title="Remove slot"
+                                        style={{
+                                          background: "#ffffff",
+                                          border: "1px solid #fecdd3",
+                                          borderRadius: 5,
+                                          width: 22,
+                                          height: 22,
+                                          cursor: "pointer",
+                                          color: "#dc2626",
+                                          fontSize: 10,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          transition: "all .15s",
+                                        }}
                                       >
                                         <i className="fa-solid fa-trash" />
                                       </button>
@@ -807,15 +884,15 @@ export default function TeacherTimetablePage() {
 
                         // Empty Slot
                         return (
-                          <td key={pNum} style={{ padding: 6, verticalAlign: "middle", textAlign: "center", borderLeft: "1px solid #e2e8f0" }}>
+                          <td key={pNum} style={{ padding: "8px 6px", verticalAlign: "middle", textAlign: "center", borderLeft: "1px solid #f1f5f9" }}>
                             <button
                               type="button"
                               onClick={() => handleOpenAddSlot(day.key, pNum)}
                               style={{
                                 width: "100%",
-                                minHeight: 82,
+                                minHeight: 88,
                                 border: "1.5px dashed #cbd5e1",
-                                borderRadius: 8,
+                                borderRadius: 10,
                                 background: "#fafafa",
                                 color: "#94a3b8",
                                 cursor: "pointer",
@@ -829,9 +906,9 @@ export default function TeacherTimetablePage() {
                                 transition: "all 0.15s",
                               }}
                               onMouseEnter={e => {
-                                e.currentTarget.style.borderColor = "#3b5bdb";
-                                e.currentTarget.style.color = "#3b5bdb";
-                                e.currentTarget.style.background = "#eff6ff";
+                                e.currentTarget.style.borderColor = "#ff9148";
+                                e.currentTarget.style.color = "#ff9148";
+                                e.currentTarget.style.background = "#fff7ed";
                               }}
                               onMouseLeave={e => {
                                 e.currentTarget.style.borderColor = "#cbd5e1";
@@ -857,76 +934,85 @@ export default function TeacherTimetablePage() {
       {/* ── MY TEACHING SCHEDULE TAB ── */}
       {activeTab === "my_schedule" && (
         <div style={{
-          background: "#fff",
-          borderRadius: 10,
-          border: "1px solid #d4dde2",
-          boxShadow: "0 2px 12px rgba(31,45,54,0.06)",
-          padding: 20,
+          background: "#ffffff",
+          borderRadius: 12,
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+          padding: 24,
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: "#1f2d36" }}>
-                <i className="fa-solid fa-user-clock" style={{ color: "#3b5bdb", marginRight: 8 }} />
-                My Weekly Teaching Routine
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-user-clock" style={{ color: "#ff9148" }} />
+                <span>My Weekly Teaching Routine</span>
               </h3>
-              <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#6a7882", fontWeight: 700 }}>
+              <p style={{ margin: "3px 0 0", fontSize: 13, color: "#64748b", fontWeight: 700 }}>
                 All assigned periods across different classes and sections.
               </p>
             </div>
-            <span style={{ padding: "4px 12px", borderRadius: 99, background: "#e0e7ff", color: "#3730a3", fontSize: 12, fontWeight: 900 }}>
+            <span style={{ padding: "5px 14px", borderRadius: 99, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", fontSize: 12, fontWeight: 900 }}>
               {myScheduleData?.slots?.length ?? 0} periods / week
             </span>
           </div>
 
           {loadingMySchedule ? (
             <div style={{ padding: "3rem", textAlign: "center" }}>
-              <Spinner size={32} color="#FF9B51" />
+              <Spinner size={32} color="#ff9148" />
             </div>
           ) : (myScheduleData?.slots?.length ?? 0) === 0 ? (
-            <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
+            <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
               <i className="fa-solid fa-calendar-xmark" style={{ fontSize: 32, color: "#cbd5e1", marginBottom: 8 }} />
               <p style={{ fontWeight: 800, margin: 0 }}>No classes assigned to you in the timetable yet.</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
               {DAYS_OF_WEEK.map(d => {
                 const daySlots = myScheduleByDay[d.key] ?? [];
                 if (daySlots.length === 0) return null;
                 return (
-                  <div key={d.key} style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#f8fafc" }}>
-                    <div style={{ padding: "10px 14px", background: "#1e3a5f", color: "#fff", fontWeight: 900, fontSize: 13, textTransform: "capitalize" }}>
-                      <i className="fa-regular fa-calendar" style={{ marginRight: 6 }} />
-                      {d.label} ({daySlots.length} class{daySlots.length !== 1 ? "es" : ""})
+                  <div key={d.key} style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", background: "#f8fafc" }}>
+                    <div style={{ padding: "11px 16px", background: "#0f172a", color: "#ffffff", fontWeight: 900, fontSize: 13, textTransform: "capitalize", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                        <i className="fa-regular fa-calendar" />
+                        {d.label}
+                      </span>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(255,255,255,0.2)", color: "#fff", fontWeight: 800 }}>
+                        {daySlots.length} class{daySlots.length !== 1 ? "es" : ""}
+                      </span>
                     </div>
-                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                       {daySlots.map((s: any) => (
                         <div key={s.id} style={{
-                          padding: "10px 12px",
-                          borderRadius: 8,
-                          background: "#fff",
-                          border: "1px solid #cbd5e1",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                          padding: "12px 14px",
+                          borderRadius: 10,
+                          background: "#ffffff",
+                          border: "1px solid #e2e8f0",
+                          boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
                         }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                            <strong style={{ fontSize: 13, fontWeight: 900, color: "#1e293b" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                            <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#0f172a", textTransform: "capitalize" }}>
                               {s.subject_name}
                             </strong>
-                            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "#e0f2fe", color: "#0369a1", fontWeight: 800 }}>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", fontWeight: 900 }}>
                               Period {s.period_number}
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 12, color: "#475569", fontWeight: 700 }}>
-                            <span>
-                              <i className="fa-solid fa-school" style={{ marginRight: 4, color: "#3b5bdb" }} />
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 12, color: "#475569", fontWeight: 700 }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <i className="fa-solid fa-school" style={{ color: "#ff9148" }} />
                               {s.class_name} - Sec {s.section_name}
                             </span>
-                            {s.room_no && <span>Room {s.room_no}</span>}
+                            {s.room_no && (
+                              <span style={{ padding: "1px 6px", borderRadius: 4, background: "#f1f5f9", color: "#334155", fontSize: 10.5, fontWeight: 800 }}>
+                                Room {s.room_no}
+                              </span>
+                            )}
                           </div>
 
-                          <div style={{ marginTop: 6, paddingTop: 4, borderTop: "1px solid #f1f5f9", fontSize: 11, fontWeight: 800, color: "#64748b" }}>
-                            <i className="fa-regular fa-clock" style={{ marginRight: 4 }} />
-                            {s.start_time?.slice(0, 5)} - {s.end_time?.slice(0, 5)}
+                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid #f1f5f9", fontSize: 11, fontWeight: 800, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>
+                            <i className="fa-regular fa-clock" style={{ color: "#94a3b8" }} />
+                            <span>{s.start_time?.slice(0, 5)} – {s.end_time?.slice(0, 5)}</span>
                           </div>
                         </div>
                       ))}
@@ -944,7 +1030,8 @@ export default function TeacherTimetablePage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.5)",
+          background: "rgba(15,23,42,0.5)",
+          backdropFilter: "blur(2px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -952,17 +1039,17 @@ export default function TeacherTimetablePage() {
           padding: 16,
         }}>
           <div style={{
-            background: "#fff",
-            borderRadius: 12,
+            background: "#ffffff",
+            borderRadius: 16,
             width: "100%",
             maxWidth: 520,
             padding: 24,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+            boxShadow: "0 20px 40px rgba(15,23,42,0.15)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e2e8f0", paddingBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#1f2d36" }}>
-                <i className="fa-solid fa-bolt" style={{ color: "#3b5bdb", marginRight: 8 }} />
-                ⚡ Setup Section Shift Timings
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-bolt" style={{ color: "#ff9148" }} />
+                <span>Setup Section Shift Timings</span>
               </h3>
               <button
                 type="button"
@@ -990,16 +1077,17 @@ export default function TeacherTimetablePage() {
                 style={{
                   flex: 1,
                   padding: "8px 10px",
-                  borderRadius: 6,
-                  border: shiftStartTime === "07:00" ? "2px solid #3b5bdb" : "1px solid #cbd5e1",
-                  background: shiftStartTime === "07:00" ? "#eff6ff" : "#fff",
-                  color: shiftStartTime === "07:00" ? "#1e40af" : "#475569",
+                  borderRadius: 8,
+                  border: shiftStartTime === "07:00" ? "2px solid #ff9148" : "1px solid #e2e8f0",
+                  background: shiftStartTime === "07:00" ? "#fff7ed" : "#ffffff",
+                  color: shiftStartTime === "07:00" ? "#c2410c" : "#475569",
                   fontWeight: 800,
                   fontSize: 12,
                   cursor: "pointer",
+                  transition: "all .15s",
                 }}
               >
-                🌅 Morning Shift (7 AM)
+                🌅 Morning (7 AM)
               </button>
 
               <button
@@ -1013,16 +1101,17 @@ export default function TeacherTimetablePage() {
                 style={{
                   flex: 1,
                   padding: "8px 10px",
-                  borderRadius: 6,
-                  border: shiftStartTime === "10:00" ? "2px solid #3b5bdb" : "1px solid #cbd5e1",
-                  background: shiftStartTime === "10:00" ? "#eff6ff" : "#fff",
-                  color: shiftStartTime === "10:00" ? "#1e40af" : "#475569",
+                  borderRadius: 8,
+                  border: shiftStartTime === "10:00" ? "2px solid #ff9148" : "1px solid #e2e8f0",
+                  background: shiftStartTime === "10:00" ? "#fff7ed" : "#ffffff",
+                  color: shiftStartTime === "10:00" ? "#c2410c" : "#475569",
                   fontWeight: 800,
                   fontSize: 12,
                   cursor: "pointer",
+                  transition: "all .15s",
                 }}
               >
-                ☀️ Day Shift (10 AM)
+                ☀️ Day (10 AM)
               </button>
 
               <button
@@ -1036,16 +1125,17 @@ export default function TeacherTimetablePage() {
                 style={{
                   flex: 1,
                   padding: "8px 10px",
-                  borderRadius: 6,
-                  border: shiftStartTime === "08:00" ? "2px solid #3b5bdb" : "1px solid #cbd5e1",
-                  background: shiftStartTime === "08:00" ? "#eff6ff" : "#fff",
-                  color: shiftStartTime === "08:00" ? "#1e40af" : "#475569",
+                  borderRadius: 8,
+                  border: shiftStartTime === "08:00" ? "2px solid #ff9148" : "1px solid #e2e8f0",
+                  background: shiftStartTime === "08:00" ? "#fff7ed" : "#ffffff",
+                  color: shiftStartTime === "08:00" ? "#c2410c" : "#475569",
                   fontWeight: 800,
                   fontSize: 12,
                   cursor: "pointer",
+                  transition: "all .15s",
                 }}
               >
-                🏢 Early Shift (8 AM)
+                🏢 Early (8 AM)
               </button>
             </div>
 
@@ -1058,7 +1148,7 @@ export default function TeacherTimetablePage() {
                   type="time"
                   value={shiftStartTime}
                   onChange={e => setShiftStartTime(e.target.value)}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                 />
               </div>
 
@@ -1072,7 +1162,7 @@ export default function TeacherTimetablePage() {
                   max={90}
                   value={shiftPeriodDuration}
                   onChange={e => setShiftPeriodDuration(Number(e.target.value))}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                 />
               </div>
             </div>
@@ -1088,7 +1178,7 @@ export default function TeacherTimetablePage() {
                   max={12}
                   value={shiftTotalPeriods}
                   onChange={e => setShiftTotalPeriods(Number(e.target.value))}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                 />
               </div>
 
@@ -1098,7 +1188,7 @@ export default function TeacherTimetablePage() {
                     type="checkbox"
                     checked={shiftHasBreak}
                     onChange={e => setShiftHasBreak(e.target.checked)}
-                    style={{ accentColor: "#f97316" }}
+                    style={{ accentColor: "#ff9148" }}
                   />
                   <span>Include Lunch/Tiffin Break</span>
                 </label>
@@ -1107,7 +1197,7 @@ export default function TeacherTimetablePage() {
                     <select
                       value={shiftBreakAfterPeriod}
                       onChange={e => setShiftBreakAfterPeriod(Number(e.target.value))}
-                      style={{ flex: 1, padding: "8px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12, fontWeight: 800 }}
+                      style={{ flex: 1, padding: "8px 8px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12, fontWeight: 800 }}
                     >
                       {Array.from({ length: shiftTotalPeriods - 1 }, (_, i) => i + 1).map(p => (
                         <option key={p} value={p}>After Period {p}</option>
@@ -1120,7 +1210,7 @@ export default function TeacherTimetablePage() {
                       value={shiftBreakDuration}
                       onChange={e => setShiftBreakDuration(Number(e.target.value))}
                       title="Break duration in minutes"
-                      style={{ width: 65, padding: "8px 6px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12, fontWeight: 800 }}
+                      style={{ width: 65, padding: "8px 6px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12, fontWeight: 800 }}
                     />
                   </div>
                 )}
@@ -1143,13 +1233,14 @@ export default function TeacherTimetablePage() {
                         alignItems: "center",
                         gap: 6,
                         padding: "6px 8px",
-                        borderRadius: 6,
-                        border: `1px solid ${isChecked ? "#3b5bdb" : "#e2e8f0"}`,
-                        background: isChecked ? "#eff6ff" : "#fff",
+                        borderRadius: 8,
+                        border: `1px solid ${isChecked ? "#ff9148" : "#e2e8f0"}`,
+                        background: isChecked ? "#fff7ed" : "#ffffff",
                         cursor: "pointer",
                         fontSize: 12,
                         fontWeight: 800,
-                        color: isChecked ? "#1e40af" : "#475569",
+                        color: isChecked ? "#c2410c" : "#475569",
+                        transition: "all .15s",
                       }}
                     >
                       <input
@@ -1162,7 +1253,7 @@ export default function TeacherTimetablePage() {
                             setShiftTargetDays(prev => prev.filter(k => k !== d.key));
                           }
                         }}
-                        style={{ accentColor: "#3b5bdb" }}
+                        style={{ accentColor: "#ff9148" }}
                       />
                       <span>{d.label}</span>
                     </label>
@@ -1175,7 +1266,7 @@ export default function TeacherTimetablePage() {
               <button
                 type="button"
                 onClick={() => setShiftModalOpen(false)}
-                style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
               >
                 Cancel
               </button>
@@ -1184,17 +1275,18 @@ export default function TeacherTimetablePage() {
                 onClick={handleGenerateShift}
                 disabled={savingBulk}
                 style={{
-                  padding: "8px 18px",
-                  borderRadius: 7,
+                  padding: "9px 18px",
+                  borderRadius: 8,
                   border: "none",
-                  background: "#3b5bdb",
-                  color: "#fff",
+                  background: "linear-gradient(135deg, #ff9148 0%, #ff7a22 100%)",
+                  color: "#ffffff",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
+                  boxShadow: "0 2px 8px rgba(255,145,72,0.25)",
                 }}
               >
                 {savingBulk && <Spinner size={14} color="#fff" />}
@@ -1210,7 +1302,8 @@ export default function TeacherTimetablePage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.5)",
+          background: "rgba(15,23,42,0.5)",
+          backdropFilter: "blur(2px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1218,15 +1311,15 @@ export default function TeacherTimetablePage() {
           padding: 16,
         }}>
           <div style={{
-            background: "#fff",
-            borderRadius: 12,
+            background: "#ffffff",
+            borderRadius: 16,
             width: "100%",
             maxWidth: 500,
             padding: 24,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+            boxShadow: "0 20px 40px rgba(15,23,42,0.15)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#1f2d36" }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#0f172a" }}>
                 {modalSlot.id ? "Edit Period Slot" : "Add Period Slot"}
               </h3>
               <button
@@ -1266,7 +1359,7 @@ export default function TeacherTimetablePage() {
                   <select
                     value={modalSlot.day_of_week}
                     onChange={e => setModalSlot({ ...modalSlot, day_of_week: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                   >
                     {DAYS_OF_WEEK.map(d => (
                       <option key={d.key} value={d.key}>{d.label}</option>
@@ -1284,7 +1377,7 @@ export default function TeacherTimetablePage() {
                     max={12}
                     value={modalSlot.period_number}
                     onChange={e => setModalSlot({ ...modalSlot, period_number: Number(e.target.value) })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                   />
                 </div>
               </div>
@@ -1298,7 +1391,7 @@ export default function TeacherTimetablePage() {
                     type="time"
                     value={modalSlot.start_time}
                     onChange={e => setModalSlot({ ...modalSlot, start_time: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                   />
                 </div>
 
@@ -1310,7 +1403,7 @@ export default function TeacherTimetablePage() {
                     type="time"
                     value={modalSlot.end_time}
                     onChange={e => setModalSlot({ ...modalSlot, end_time: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                   />
                 </div>
               </div>
@@ -1321,7 +1414,7 @@ export default function TeacherTimetablePage() {
                     type="checkbox"
                     checked={modalSlot.is_break}
                     onChange={e => setModalSlot({ ...modalSlot, is_break: e.target.checked })}
-                    style={{ accentColor: "#f97316", width: 16, height: 16, cursor: "pointer" }}
+                    style={{ accentColor: "#ff9148", width: 16, height: 16, cursor: "pointer" }}
                   />
                   <span>Mark as Break / Tiffin / Recess</span>
                 </label>
@@ -1334,10 +1427,10 @@ export default function TeacherTimetablePage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Lunch Break, Morning Assembly"
+                    placeholder="e.g. Lunch Break, Short Break"
                     value={modalSlot.title}
                     onChange={e => setModalSlot({ ...modalSlot, title: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                   />
                 </div>
               ) : (
@@ -1349,7 +1442,7 @@ export default function TeacherTimetablePage() {
                     <select
                       value={modalSlot.subject_id}
                       onChange={e => handleSubjectChange(e.target.value)}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                     >
                       <option value="">Select subject…</option>
                       {(classSubjects ?? []).map((sub: any) => (
@@ -1368,7 +1461,7 @@ export default function TeacherTimetablePage() {
                       <select
                         value={modalSlot.teacher_id}
                         onChange={e => setModalSlot({ ...modalSlot, teacher_id: e.target.value })}
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                       >
                         <option value="">Select teacher…</option>
                         {(teachers ?? []).map((t: any) => (
@@ -1386,7 +1479,7 @@ export default function TeacherTimetablePage() {
                         placeholder="e.g. 101, Lab-1"
                         value={modalSlot.room_no}
                         onChange={e => setModalSlot({ ...modalSlot, room_no: e.target.value })}
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
                       />
                     </div>
                   </div>
@@ -1397,7 +1490,7 @@ export default function TeacherTimetablePage() {
                 <button
                   type="button"
                   onClick={() => setModalSlot(null)}
-                  style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                 >
                   Cancel
                 </button>
@@ -1405,17 +1498,18 @@ export default function TeacherTimetablePage() {
                   type="submit"
                   disabled={savingSlot}
                   style={{
-                    padding: "8px 18px",
-                    borderRadius: 7,
+                    padding: "9px 18px",
+                    borderRadius: 8,
                     border: "none",
-                    background: "#3b5bdb",
-                    color: "#fff",
+                    background: "linear-gradient(135deg, #ff9148 0%, #ff7a22 100%)",
+                    color: "#ffffff",
                     fontWeight: 800,
                     fontSize: 13,
                     cursor: "pointer",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
+                    boxShadow: "0 2px 8px rgba(255,145,72,0.25)",
                   }}
                 >
                   {savingSlot && <Spinner size={14} color="#fff" />}
@@ -1432,7 +1526,8 @@ export default function TeacherTimetablePage() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.5)",
+          background: "rgba(15,23,42,0.5)",
+          backdropFilter: "blur(2px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1440,17 +1535,17 @@ export default function TeacherTimetablePage() {
           padding: 16,
         }}>
           <div style={{
-            background: "#fff",
-            borderRadius: 12,
+            background: "#ffffff",
+            borderRadius: 16,
             width: "100%",
             maxWidth: 460,
             padding: 24,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+            boxShadow: "0 20px 40px rgba(15,23,42,0.15)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e2e8f0", paddingBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#1f2d36" }}>
-                <i className="fa-solid fa-copy" style={{ color: "#3b5bdb", marginRight: 8 }} />
-                Copy Day Schedule
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-copy" style={{ color: "#ff9148" }} />
+                <span>Copy Day Schedule</span>
               </h3>
               <button
                 type="button"
@@ -1468,7 +1563,7 @@ export default function TeacherTimetablePage() {
               <select
                 value={copySourceDay}
                 onChange={e => setCopySourceDay(e.target.value)}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontWeight: 800, fontSize: 13 }}
               >
                 {DAYS_OF_WEEK.map(d => (
                   <option key={d.key} value={d.key}>{d.label}</option>
@@ -1490,14 +1585,15 @@ export default function TeacherTimetablePage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: `1px solid ${isChecked ? "#3b5bdb" : "#e2e8f0"}`,
-                        background: isChecked ? "#eff6ff" : "#fff",
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        border: `1px solid ${isChecked ? "#ff9148" : "#e2e8f0"}`,
+                        background: isChecked ? "#fff7ed" : "#ffffff",
                         cursor: "pointer",
                         fontSize: 12.5,
                         fontWeight: 800,
-                        color: isChecked ? "#1e40af" : "#475569",
+                        color: isChecked ? "#c2410c" : "#475569",
+                        transition: "all .15s",
                       }}
                     >
                       <input
@@ -1510,7 +1606,7 @@ export default function TeacherTimetablePage() {
                             setCopyTargetDays(prev => prev.filter(k => k !== d.key));
                           }
                         }}
-                        style={{ accentColor: "#3b5bdb" }}
+                        style={{ accentColor: "#ff9148" }}
                       />
                       <span>{d.label}</span>
                     </label>
@@ -1523,7 +1619,7 @@ export default function TeacherTimetablePage() {
               <button
                 type="button"
                 onClick={() => setCopyModalOpen(false)}
-                style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
               >
                 Cancel
               </button>
@@ -1532,17 +1628,18 @@ export default function TeacherTimetablePage() {
                 onClick={handleCopySchedule}
                 disabled={savingBulk}
                 style={{
-                  padding: "8px 18px",
-                  borderRadius: 7,
+                  padding: "9px 18px",
+                  borderRadius: 8,
                   border: "none",
-                  background: "#3b5bdb",
-                  color: "#fff",
+                  background: "linear-gradient(135deg, #ff9148 0%, #ff7a22 100%)",
+                  color: "#ffffff",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
+                  boxShadow: "0 2px 8px rgba(255,145,72,0.25)",
                 }}
               >
                 {savingBulk && <Spinner size={14} color="#fff" />}

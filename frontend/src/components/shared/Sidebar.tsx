@@ -5,7 +5,7 @@ export {};
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, logoutThunk } from '@/store/authSlice';
 import LogoutConfirmModal from '@/components/shared/LogoutConfirmModal';
@@ -90,7 +90,8 @@ const teacherNav: NavSection[] = [
       { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Mark Attendance', exact: true },
       { href: '/teacher/attendance', icon: 'fa-user-check', label: 'My Attendance', exact: true },
       { href: '/teacher/students', icon: 'fa-users', label: 'My Students' },
-      { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Enter Results' },
+      { href: '/teacher/results?tab=register', icon: 'fa-table-list', label: 'Result Register' },
+      { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Enter Results', exact: true },
     ],
   },
   {
@@ -138,8 +139,8 @@ const mobileNavMap: Record<SidebarRole, NavItem[]> = {
     { href: '/teacher/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
     { href: '/teacher/timetable', icon: 'fa-calendar-week', label: 'Timetable' },
     { href: '/teacher/attendance/class', icon: 'fa-clipboard-check', label: 'Attendance' },
-    { href: '/teacher/students', icon: 'fa-users', label: 'Students' },
-    { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Results' },
+    { href: '/teacher/results?tab=register', icon: 'fa-table-list', label: 'Register' },
+    { href: '/teacher/results', icon: 'fa-pen-to-square', label: 'Results', exact: true },
   ],
   student: [
     { href: '/student/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
@@ -156,11 +157,26 @@ const navMap: Record<SidebarRole, NavSection[]> = {
   student: studentNav,
 };
 
-function isNavItemActive(pathname: string, item: NavItem) {
-  if (item.exact) {
-    return pathname === item.href;
+function isNavItemActive(pathname: string, searchParams: ReturnType<typeof useSearchParams> | null, item: NavItem) {
+  const [itemPath, itemQuery] = item.href.split('?');
+
+  if (itemQuery) {
+    if (pathname !== itemPath) return false;
+    const itemParams = new URLSearchParams(itemQuery);
+    for (const [key, val] of itemParams.entries()) {
+      if (searchParams?.get(key) !== val) return false;
+    }
+    return true;
   }
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+  if (item.exact) {
+    if (searchParams && searchParams.get('tab')) return false;
+    return pathname === itemPath;
+  }
+
+  if (searchParams && searchParams.get('tab') && pathname === itemPath) return false;
+
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
 }
 
 interface SidebarProps {
@@ -168,12 +184,13 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ role }: SidebarProps) {
-  const pathname    = usePathname();
-  const router      = useRouter();
-  const dispatch    = useAppDispatch();
-  const { user }    = useAppSelector(s => s.auth);
-  const navSections = navMap[role];
-  const activeRole  = role as SidebarRole;
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const dispatch     = useAppDispatch();
+  const { user }     = useAppSelector(s => s.auth);
+  const navSections  = navMap[role];
+  const activeRole   = role as SidebarRole;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
@@ -239,7 +256,7 @@ export default function Sidebar({ role }: SidebarProps) {
             <div key={section.label}>
               <div className="nav-label">{section.label}</div>
               {section.items.map(item => {
-                const isActive = isNavItemActive(pathname, item);
+                const isActive = isNavItemActive(pathname, searchParams, item);
                 return (
                   <Link
                     key={item.href}
@@ -287,7 +304,7 @@ export default function Sidebar({ role }: SidebarProps) {
       <div className="mobile-bottom-nav">
         <div className="mobile-nav-scroll">
           {allMobileItems.map(item => {
-            const isActive = isNavItemActive(pathname, item);
+            const isActive = isNavItemActive(pathname, searchParams, item);
             return (
               <Link
                 key={item.href}

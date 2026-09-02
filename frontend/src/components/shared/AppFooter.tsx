@@ -14,34 +14,34 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
 
   return (
     <footer className="sk-footer" aria-label="Site footer">
-
-      {/* ── Top wave divider ── */}
-      <div className="sk-footer-wave" aria-hidden="true">
-        <svg viewBox="0 0 1440 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0,20 C360,40 1080,0 1440,20 L1440,0 L0,0 Z" fill="#EAEFEF" />
-        </svg>
-      </div>
+      {/* ── Top brand accent strip ── */}
+      <div className="sk-footer-accent-bar" aria-hidden="true" />
 
       <div className="sk-footer-body">
         <div className="sk-footer-inner">
 
-          {/* ── Brand column ── */}
+          {/* ── 1. Brand & Mission Column ── */}
           <div className="sk-footer-brand-col">
-            <div className="sk-footer-logo" style={{ marginBottom: 14 }}>
-              <Link href="/" aria-label="Skoolio — Home" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <div className="sk-footer-logo-row">
+              <Link href="/" aria-label="Skoolio — Home" className="sk-footer-logo-link">
                 <Image
                   src="/Logo.png"
-                  alt="Skoolio"
-                  width={140}
-                  height={48}
+                  alt="Skoolio Logo"
+                  width={145}
+                  height={46}
                   style={{ objectFit: 'contain' }}
+                  priority={false}
                 />
               </Link>
+              <div className="sk-footer-status-pill">
+                <span className="sk-footer-status-dot" />
+                <span>Cloud Active</span>
+              </div>
             </div>
 
             <p className="sk-footer-desc">
-              Everything your school office manages — attendance, exams, fees,
-              and staff — in one clean, role-aware dashboard.
+              Everything your school manages — attendance, results, notices,
+              and daily operations — in one seamless, role-aware platform.
             </p>
 
             <div className="sk-footer-social" aria-label="Social links">
@@ -49,7 +49,7 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
                 href="https://facebook.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Skoolio on Facebook"
+                aria-label="Facebook"
                 className="sk-social-btn sk-social-facebook"
               >
                 <i className="fa-brands fa-facebook-f" />
@@ -58,7 +58,7 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
                 href="https://linkedin.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Skoolio on LinkedIn"
+                aria-label="LinkedIn"
                 className="sk-social-btn sk-social-linkedin"
               >
                 <i className="fa-brands fa-linkedin-in" />
@@ -67,130 +67,114 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
                 href="https://wa.me/9779713823636"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="WhatsApp support: +977 9713823636"
+                aria-label="WhatsApp"
                 className="sk-social-btn sk-social-whatsapp"
               >
                 <i className="fa-brands fa-whatsapp" />
               </a>
               <a
                 href="mailto:skoolio.support@gmail.com"
-                aria-label="Email support: skoolio.support@gmail.com"
+                aria-label="Email Support"
                 className="sk-social-btn sk-social-email"
-                style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa' }}
               >
                 <i className="fa-solid fa-envelope" />
               </a>
             </div>
           </div>
 
-          {/* ── Academic nav ── */}
-          <nav className="sk-footer-nav" aria-label="Academic navigation">
-            <p className="sk-footer-nav-title">Academic</p>
+          {/* ── 2. Quick Platform Links (No Academic / Finance clutter) ── */}
+          <nav className="sk-footer-nav" aria-label="Platform navigation">
+            <p className="sk-footer-nav-title">Platform &amp; Links</p>
             <ul>
-              <li><Link href={`${basePath}/students`}>Students</Link></li>
-              <li><Link href={`${basePath}/teachers`}>Teachers / Faculty</Link></li>
-              <li><Link href={`${basePath}/classes`}>Classes &amp; Sections</Link></li>
-              <li><Link href={`${basePath}/exams`}>Exams &amp; Results</Link></li>
-              <li><Link href={`${basePath}/attendance`}>Attendance</Link></li>
+              <li>
+                <Link href={`${basePath}/dashboard`}>
+                  <i className="fa-solid fa-house" />
+                  <span>Dashboard Home</span>
+                </Link>
+              </li>
+              <li>
+                <Link href={`${basePath}/notices`}>
+                  <i className="fa-solid fa-bullhorn" />
+                  <span>Notice Board</span>
+                </Link>
+              </li>
+              <li>
+                <Link href={`${basePath}/calendar`}>
+                  <i className="fa-solid fa-calendar-days" />
+                  <span>Academic Calendar</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact">
+                  <i className="fa-solid fa-headset" />
+                  <span>Helpdesk &amp; Support</span>
+                </Link>
+              </li>
+              <li>
+                <Link href={`${basePath}/settings`}>
+                  <i className="fa-solid fa-sliders" />
+                  <span>Preferences</span>
+                </Link>
+              </li>
             </ul>
           </nav>
 
-          {/* ── Finance nav ── */}
-          <nav className="sk-footer-nav" aria-label="Finance navigation">
-            <p className="sk-footer-nav-title">Finance</p>
-            <ul>
-              <li><Link href={`${basePath}/fees`}>Fee Management</Link></li>
-              <li><Link href={`${basePath}/expenses`}>Expenses</Link></li>
-              <li><Link href={`${basePath}/salary`}>Staff Salary</Link></li>
-            </ul>
-          </nav>
-
-          {/* ── Support nav ── */}
-          <div className="sk-footer-nav" aria-label="Support navigation">
-            <p className="sk-footer-nav-title">Support &amp; Contact</p>
+          {/* ── 3. Direct Support & Contact Column ── */}
+          <div className="sk-footer-nav" aria-label="Direct support">
+            <p className="sk-footer-nav-title">Direct Support</p>
             
-            {/* WhatsApp Box */}
-            <a
-              href="https://wa.me/9779713823636"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '11px 14px',
-                borderRadius: 10,
-                background: '#f0fdf4',
-                border: '1.5px solid #bbf7d0',
-                textDecoration: 'none',
-                marginBottom: 10,
-              }}
-            >
-              <div style={{
-                width: 34, height: 34, borderRadius: 8,
-                background: '#25D366', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0,
-              }}>
-                <i className="fa-brands fa-whatsapp" />
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: 10, fontWeight: 900, color: '#15803d', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  WhatsApp Support
-                </span>
-                <strong style={{ fontSize: 14, fontWeight: 900, color: '#166534', letterSpacing: 0.3 }}>
-                  +977 9713823636
-                </strong>
-              </div>
-            </a>
+            <div className="sk-footer-contact-list">
+              {/* WhatsApp Contact */}
+              <a
+                href="https://wa.me/9779713823636"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sk-footer-contact-item"
+              >
+                <div className="sk-contact-icon-badge wa">
+                  <i className="fa-brands fa-whatsapp" />
+                </div>
+                <div className="sk-contact-details">
+                  <span className="sk-contact-lbl wa">WhatsApp Instant Chat</span>
+                  <strong className="sk-contact-val big-phone">+977 9713823636</strong>
+                </div>
+              </a>
 
-            {/* Email Box */}
-            <a
-              href="mailto:skoolio.support@gmail.com"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '11px 14px',
-                borderRadius: 10,
-                background: '#fff7ed',
-                border: '1.5px solid #fed7aa',
-                textDecoration: 'none',
-                marginBottom: 12,
-              }}
-            >
-              <div style={{
-                width: 34, height: 34, borderRadius: 8,
-                background: '#FF9B51', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, flexShrink: 0,
-              }}>
-                <i className="fa-solid fa-envelope" />
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Email Support
-                </span>
-                <strong style={{ fontSize: 12.5, fontWeight: 900, color: '#9a3412', wordBreak: 'break-all' }}>
-                  skoolio.support@gmail.com
-                </strong>
-              </div>
-            </a>
+              {/* Email Contact */}
+              <a
+                href="mailto:skoolio.support@gmail.com"
+                className="sk-footer-contact-item"
+              >
+                <div className="sk-contact-icon-badge mail">
+                  <i className="fa-solid fa-envelope" />
+                </div>
+                <div className="sk-contact-details">
+                  <span className="sk-contact-lbl mail">Official Email Helpdesk</span>
+                  <strong className="sk-contact-val big-email">skoolio.support@gmail.com</strong>
+                </div>
+              </a>
 
-            <ul>
-              <li><Link href="/contact"><i className="fa-solid fa-headset" style={{ color: '#ea580c', marginRight: 4 }} /> Contact Us Page</Link></li>
-              <li><Link href={`${basePath}/dashboard`}>Help Center</Link></li>
-              <li><Link href={`${basePath}/settings`}>Settings</Link></li>
-            </ul>
+              {/* Action link */}
+              <Link href="/contact" className="sk-footer-contact-action">
+                <i className="fa-solid fa-headset" />
+                <span>Helpdesk &amp; Inquiry Page →</span>
+              </Link>
+            </div>
           </div>
 
         </div>
 
-        {/* ── Bottom bar ── */}
+        {/* ── Bottom Bar ── */}
         <div className="sk-footer-bottom">
-          <span>© {new Date().getFullYear()} Skoolio. All rights reserved.</span>
-          <strong>@ZenoSoft.in</strong>
-          <span>Built for schools that run on order, not chaos.</span>
+          <span className="sk-footer-copyright">
+            © {new Date().getFullYear()} <strong>Skoolio</strong>. All rights reserved.
+          </span>
+          <span className="sk-footer-builder">
+            Crafted with <i className="fa-solid fa-heart" style={{ color: '#ef4444', fontSize: 11, margin: '0 2px' }} /> by <strong>@ZenoSoft.in</strong>
+          </span>
+          <span className="sk-footer-motto">
+            Engineered for modern school management
+          </span>
         </div>
       </div>
     </footer>
