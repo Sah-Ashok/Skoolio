@@ -5,6 +5,7 @@ import {
   verifyResetOTPService, resetPasswordService, verify2FAService,
   blockUnblockSchoolService, verifySchoolService,
   changeTeacherPasswordService, changeStudentPasswordService,
+  sendRegistrationOTPService, verifyRegistrationOTPService,
 } from '../Service/auth.service';
 import { IRegisterSchool, ILoginSchool, IJwtPayload } from '../types/auth.types';
 import catchAsync  from '../utils/catchAsync';
@@ -18,6 +19,24 @@ const setAuthCookie = (res: Response, token: string) => {
     maxAge:   7 * 24 * 60 * 60 * 1000,
   });
 };
+
+// ── SEND REGISTRATION OTP ─────────────────────────────────────────────────────
+
+export const sendRegistrationOTP = catchAsync(async (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) throw { message: 'Email is required.', statusCode: 400 };
+  await sendRegistrationOTPService(email);
+  sendResponse(res, 200, true, 'OTP sent to your email address', null);
+});
+
+// ── VERIFY REGISTRATION OTP ───────────────────────────────────────────────────
+
+export const verifyRegistrationOTP = catchAsync(async (req: Request, res: Response) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) throw { message: 'Email and OTP are required.', statusCode: 400 };
+  await verifyRegistrationOTPService(email, otp);
+  sendResponse(res, 200, true, 'Email verified successfully', null);
+});
 
 // ── REGISTER ──────────────────────────────────────────────────────────────────
 

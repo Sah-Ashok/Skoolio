@@ -31,6 +31,30 @@ const generateSchoolCode = (schoolName: string): string => {
 const generateOTPCode = (): string =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+// ── SEND REGISTRATION OTP ─────────────────────────────────────────────────────
+
+export const sendRegistrationOTPService = async (email: string): Promise<void> => {
+  const existing = await findSchoolByEmail(email);
+  if (existing) throw new AppError('An account with this email already exists.', 400);
+
+  const otp = generateOTPCode();
+  await storeOTP(email, otp, 'registration');
+  try {
+    await sendOTPEmail(email, otp, 'registration');
+  } catch (err: any) {
+    console.error('[Registration OTP] Failed to send email:', err.message);
+    throw new AppError('Could not send verification code. Please try again.', 503);
+  }
+};
+
+// ── VERIFY REGISTRATION OTP ───────────────────────────────────────────────────
+
+export const verifyRegistrationOTPService = async (email: string, otp: string): Promise<boolean> => {
+  const valid = await consumeOTP(email, otp, 'registration');
+  if (!valid) throw new AppError('Invalid or expired OTP. Please try again.', 400);
+  return true;
+};
+
 // ── REGISTER ─────────────────────────────────────────────────────────────────
 
 export const registerSchoolService = async (data: IRegisterSchool) => {

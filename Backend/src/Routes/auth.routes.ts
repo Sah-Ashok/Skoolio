@@ -3,12 +3,15 @@ import {
   registerSchool, loginSchool, loginTeacher, loginStudent,
   logout, getMe, forgotPassword, verifyResetOTP, resetPassword, verify2FA,
   changeTeacherPassword, changeStudentPassword,
+  sendRegistrationOTP, verifyRegistrationOTP,
 } from '../Controllers/auth.controller';
 import protect     from '../middlewares/auth.middleware';
 import restrictTo  from '../middlewares/role.middleware';
 
 const router = Router();
 
+router.post('/register/send-otp',  sendRegistrationOTP);
+router.post('/register/verify-otp', verifyRegistrationOTP);
 router.post('/register',           registerSchool);
 router.post('/login',              loginSchool);
 router.post('/login/teacher',      loginTeacher);
