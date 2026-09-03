@@ -89,11 +89,11 @@ export default function MySubscriptionPage() {
                       </span>
                     </h1>
                     <p className={s("planDesc")}>
-                      {plan?.name === "Free"
-                        ? "Basic access — upgrade to unlock all school management features"
-                        : plan?.name === "Pro"
-                          ? "Full fee management, online payments, and advanced portal access"
-                          : "Unlimited school management capacity — everything unlocked"}
+                      {plan?.name === "Ultra"
+                        ? "Enterprise tier — unlimited students & faculty with 24/7 priority support"
+                        : plan?.name === "Plus"
+                          ? "Scaling institution tier — transport, hostel, fee management and payments"
+                          : "Core school management tier with online fee collection and exams"}
                     </p>
                   </div>
                 </div>
@@ -107,7 +107,7 @@ export default function MySubscriptionPage() {
                   )}
                   <Link href="/upgrade" className={s("btnUpgrade")}>
                     <i className="fa-solid fa-rocket" />
-                    {plan?.name === "Plus" ? "Change Plan" : "Upgrade Plan"}
+                    {plan?.name === "Ultra" ? "Manage Plan" : "Upgrade Plan"}
                   </Link>
                 </div>
               </div>
@@ -117,7 +117,7 @@ export default function MySubscriptionPage() {
                 <div style={{ padding: "12px 28px", background: "#fef3c7", borderBottom: "1px solid #fde68a", display: "flex", gap: 10, alignItems: "center", color: "#92400e", fontSize: 13, fontWeight: 700 }}>
                   <i className="fa-solid fa-triangle-exclamation" style={{ color: "#d97706", fontSize: 15 }} />
                   <span>
-                    Plan expired — <strong>{status.days_until_lock} day{status.days_until_lock !== 1 ? "s" : ""}</strong> left in grace period before downgrade.
+                    Plan expired — <strong>{status.days_until_lock} day{status.days_until_lock !== 1 ? "s" : ""}</strong> left in grace period before access is locked.
                   </span>
                 </div>
               )}
@@ -127,7 +127,7 @@ export default function MySubscriptionPage() {
                 <div className={s("billingSpecs")}>
                   <div className={s("specItem")}>
                     <span className={s("specLabel")}>Billing Cycle</span>
-                    <span className={s("specValue")}>{sub?.billing_cycle === "monthly" ? "Monthly" : sub?.billing_cycle === "yearly" ? "Yearly" : "Free Tier"}</span>
+                    <span className={s("specValue")}>{sub?.billing_cycle === "monthly" ? "Monthly" : sub?.billing_cycle === "yearly" ? "Yearly" : "14-Day Trial"}</span>
                   </div>
                   <div className={s("specItem")}>
                     <span className={s("specLabel")}>Cycle Started</span>
@@ -254,7 +254,7 @@ export default function MySubscriptionPage() {
                                   {Number(h.amount_paid) > 0 ? (
                                     <span style={{ color: "#0f172a" }}>{h.currency ?? "NPR"} {h.amount_paid}</span>
                                   ) : (
-                                    <span style={{ color: "#94a3b8" }}>Free</span>
+                                    <span style={{ color: "#94a3b8" }}>14-Day Trial</span>
                                   )}
                                 </td>
                                 <td style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>

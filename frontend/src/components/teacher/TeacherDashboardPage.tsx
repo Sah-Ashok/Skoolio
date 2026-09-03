@@ -50,7 +50,6 @@ export default function TeacherDashboardPage() {
 
   const name       = me?.full_name || user?.full_name || "Teacher";
   const firstName  = name.split(" ")[0];
-  const initials   = name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
   const schoolName = me?.school_name || user?.school_name || "";
   const honorific  = getHonorific(me?.gender ?? (user as any)?.gender);
   const greeting   = getGreeting();
@@ -83,7 +82,7 @@ export default function TeacherDashboardPage() {
         .td2-wrap{padding:24px 16px 60px;display:flex;flex-direction:column;gap:18px;max-width:1080px;margin:0 auto}
         @media(min-width:768px){.td2-wrap{padding:28px 28px 60px}}
         .td2-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:4px 2px 0}
-        .td2-eye{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
+        .td2-eye{font-size:26px;color:#94a3b8;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700}
         .td2-name{font-size:clamp(28px,5vw,42px);font-weight:900;line-height:1;margin:0 0 8px;color:#1e293b}
         .td2-sch{font-size:clamp(24px,4.5vw,40px);color:#FF9B51;font-weight:900;line-height:1.12;margin:0 0 8px}
         .td2-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -143,13 +142,13 @@ export default function TeacherDashboardPage() {
             {/* Hero */}
             <div className="td2-hero">
               <div style={{ flex:1, minWidth:0 }}>
-                {schoolName && <div className="td2-sch" style={{ fontSize:"clamp(24px,4.5vw,40px)", fontWeight:900, color:"#FF9B51", lineHeight:1.12, margin:0, marginBottom:8 }}>{schoolName}</div>}
+                {schoolName && <div className="td2-sch" style={{ fontSize:"clamp(34px,4.5vw,40px)", fontWeight:900, color:"#FF9B51", lineHeight:1.12, margin:0, marginBottom:8 }}>{schoolName}</div>}
                 <div className="td2-eye">
                   <img
                     src={greeting.icon === "fa-sun" ? "/icons/GoodMorning.svg" : greeting.icon === "fa-cloud-sun" ? "/icons/Afternoon.svg" : "/icons/GoodEvening.svg"}
                     alt={greeting.text}
-                    width={44}
-                    height={44}
+                    width={60}
+                    height={60}
                     style={{ objectFit:"contain" }}
                   />
                   {greeting.text},
@@ -161,7 +160,6 @@ export default function TeacherDashboardPage() {
                   <span className="td2-status"><span className="td2-sdot" />{(me?.status ?? "Active").replace("_"," ")}</span>
                 </div>
               </div>
-              <div className="td2-av">{initials}</div>
             </div>
 
             {/* Stats */}

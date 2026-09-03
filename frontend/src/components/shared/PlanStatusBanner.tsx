@@ -24,7 +24,7 @@ export default function PlanStatusBanner() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <i className="fa-solid fa-triangle-exclamation" style={{ color: '#92400e' }} />
         <span style={{ fontSize: '13px', fontWeight: 700, color: '#92400e' }}>
-          Your {status.plan?.name} plan has expired. You have {status.days_until_lock} day{status.days_until_lock === 1 ? '' : 's'} left before your account is downgraded to Free.
+          Your {status.plan?.name} plan has expired. You have {status.days_until_lock} day{status.days_until_lock === 1 ? '' : 's'} left before your portal access is locked.
         </span>
       </div>
       <Link

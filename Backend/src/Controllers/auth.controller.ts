@@ -171,14 +171,18 @@ export const verifySchoolById = catchAsync(async (req: Request, res: Response) =
   sendResponse(res, 200, true, 'School has been verified successfully.', null);
 });
 
+import { setSchoolBlockedState } from '../Service/redis.service';
+
 export const blockSchool = catchAsync(async (req: Request, res: Response) => {
   const { schoolId } = req.params;
   await blockUnblockSchoolService(Number(schoolId), 'block');
+  await setSchoolBlockedState(Number(schoolId), true);
   sendResponse(res, 200, true, 'School account has been blocked.', null);
 });
 
 export const unblockSchool = catchAsync(async (req: Request, res: Response) => {
   const { schoolId } = req.params;
   await blockUnblockSchoolService(Number(schoolId), 'unblock');
+  await setSchoolBlockedState(Number(schoolId), false);
   sendResponse(res, 200, true, 'School account has been unblocked.', null);
 });

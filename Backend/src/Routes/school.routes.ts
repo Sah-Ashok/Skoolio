@@ -3,6 +3,7 @@ import protect     from '../middlewares/auth.middleware';
 import restrictTo  from '../middlewares/role.middleware';
 import {
   getSettings, updateSettings, changePassword, toggleTwoFA, toggleMyTwoFA,
+  getSuperAdminSchoolDetails,
 } from '../Controllers/school.controller';
 import {
   blockSchool, unblockSchool, verifySchoolById,
@@ -18,6 +19,7 @@ router.patch ('/change-password',   protect, restrictTo('admin'), changePassword
 router.patch ('/toggle-2fa',        protect, restrictTo('admin'), toggleMyTwoFA);
 
 // Super admin — manage any school
+router.get  ('/:schoolId/details',   protect, restrictTo('super_admin'), getSuperAdminSchoolDetails);
 router.patch('/:schoolId/verify',    protect, restrictTo('super_admin'), verifySchoolById);
 router.patch('/:schoolId/toggle-2fa', protect, restrictTo('super_admin'), toggleTwoFA);
 router.patch('/:schoolId/block',      protect, restrictTo('super_admin'), blockSchool);

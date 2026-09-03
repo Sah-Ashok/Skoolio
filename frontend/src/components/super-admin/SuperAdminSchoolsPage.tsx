@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
@@ -14,7 +15,7 @@ const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
 
 const planBadge = (p: string) => {
-  const m: Record<string, string> = { Free: "badge-blue", Pro: "badge-violet", Plus: "badge-teal" };
+  const m: Record<string, string> = { Free: "badge-blue", Pro: "badge-violet", Plus: "badge-teal", Ultra: "badge-yellow" };
   return s(m[p] ?? "badge-blue");
 };
 
@@ -41,6 +42,8 @@ export default function SuperAdminSchoolsPage() {
   const [planFilter, setPlanFilter]     = useState("all");
   const [activating, setActivating]     = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [currentPage, setCurrentPage]   = useState(1);
+  const [pageSize, setPageSize]         = useState(10);
 
   const handleVerify = async (sc: any) => {
     setActionLoading(sc.school_id);
@@ -110,6 +113,12 @@ export default function SuperAdminSchoolsPage() {
     });
   }, [schools, search, statusFilter, planFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredSchools.length / pageSize));
+  const paginatedSchools = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSchools.slice(start, start + pageSize);
+  }, [filteredSchools, currentPage, pageSize]);
+
   const total    = schools?.length || 0;
   const active   = schools?.filter((sc) => sc.status === "active").length        || 0;
   const grace    = schools?.filter((sc) => sc.status === "grace_period").length  || 0;
@@ -125,29 +134,93 @@ export default function SuperAdminSchoolsPage() {
       <Topbar title="Schools" subtitle="Manage all registered schools and their subscriptions" />
 
       <main className={s("page-content")}>
-        {/* Page header */}
-        <div className={s("page-head")}>
-          <div>
-            <h1>All Schools</h1>
-            <p>Every school on the platform — view, activate, or manage their plan.</p>
+        {/* KPI stat cards */}
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 14,
+          }}
+        >
+          {/* Card 1: Total Schools */}
+          <div style={{ background: "#ffffff", borderRadius: 14, padding: "18px 20px", border: "1.5px solid #e2e8f0", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 }}>Total Tenants</span>
+                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a" }}>{total}</h3>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff7ed", border: "1.5px solid #fed7aa", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                <i className="fa-solid fa-building-columns" />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#ea580c", background: "#fff7ed", padding: "2px 7px", borderRadius: 6, border: "1px solid #fed7aa" }}>
+                {active} Active
+              </span>
+              <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 600 }}>
+                {schools?.filter((sc) => sc.plan_name === "Pro").length || 0} Pro · {schools?.filter((sc) => sc.plan_name === "Plus").length || 0} Plus · {schools?.filter((sc) => sc.plan_name === "Ultra").length || 0} Ultra
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Hero stat cards */}
-        <section className={s("hero-cards")}>
-          {[
-            { tone: "g1", icon: "fa-building-columns",  label: "Total Schools",      value: total   },
-            { tone: "g2", icon: "fa-circle-check",       label: "Active Plans",       value: active  },
-            { tone: "g3", icon: "fa-hourglass-half",     label: "Grace Period",       value: grace   },
-            { tone: "g4", icon: "fa-ban",                label: "Expired / Cancelled",value: expired },
-          ].map((c) => (
-            <article className={cx(s("hero-card"), s(c.tone))} key={c.label}>
-              <div className={s("hc-icon")}><i className={`fa-solid ${c.icon}`} /></div>
-              <div className={s("hc-label")}>{c.label}</div>
-              <div className={s("hc-value")}>{c.value}</div>
-              <div className={s("hc-sub")}>{freePlan} on free plan</div>
-            </article>
-          ))}
+          {/* Card 2: Active Plans */}
+          <div style={{ background: "#ffffff", borderRadius: 14, padding: "18px 20px", border: "1.5px solid #e2e8f0", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 }}>Active Subscriptions</span>
+                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a" }}>{active}</h3>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#f0fdf4", border: "1.5px solid #bbf7d0", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                <i className="fa-solid fa-circle-check" />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#16a34a", background: "#f0fdf4", padding: "2px 7px", borderRadius: 6, border: "1px solid #bbf7d0" }}>
+                {total > 0 ? Math.round((active / total) * 100) : 0}% Active
+              </span>
+              <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 600 }}>Good standing</span>
+            </div>
+          </div>
+
+          {/* Card 3: Grace Period */}
+          <div style={{ background: "#ffffff", borderRadius: 14, padding: "18px 20px", border: "1.5px solid #e2e8f0", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 }}>Grace Period</span>
+                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a" }}>{grace}</h3>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fffbeb", border: "1.5px solid #fde68a", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                <i className="fa-solid fa-hourglass-half" />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: grace === 0 ? "#16a34a" : "#b45309", background: grace === 0 ? "#f0fdf4" : "#fffbeb", padding: "2px 7px", borderRadius: 6, border: `1px solid ${grace === 0 ? "#bbf7d0" : "#fde68a"}` }}>
+                {grace === 0 ? "All Healthy" : "Renewal Needed"}
+              </span>
+              <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 600 }}>Expired before lockout</span>
+            </div>
+          </div>
+
+          {/* Card 4: Action Required (Unverified or Blocked) */}
+          <div style={{ background: "#ffffff", borderRadius: 14, padding: "18px 20px", border: "1.5px solid #e2e8f0", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 }}>Review Required</span>
+                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a" }}>
+                  {(schools || []).filter(s => !s.is_verified || s.is_account === 'blocked').length}
+                </h3>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef2f2", border: "1.5px solid #fca5a5", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                <i className="fa-solid fa-shield-halved" />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "2px 7px", borderRadius: 6, border: "1px solid #fca5a5" }}>
+                {(schools || []).filter(s => !s.is_verified).length} Unverified
+              </span>
+              <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 600 }}>{(schools || []).filter(s => s.is_account === 'blocked').length} Blocked</span>
+            </div>
+          </div>
         </section>
 
         {/* Table card */}
@@ -160,14 +233,20 @@ export default function SuperAdminSchoolsPage() {
                 type="search"
                 placeholder="Search by school name or email…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </label>
 
             <select
               className={s("filter-field")}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -179,7 +258,10 @@ export default function SuperAdminSchoolsPage() {
             <select
               className={s("filter-field")}
               value={planFilter}
-              onChange={(e) => setPlanFilter(e.target.value)}
+              onChange={(e) => {
+                setPlanFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="all">All Plans</option>
               {uniquePlans.map((p) => (
@@ -193,7 +275,7 @@ export default function SuperAdminSchoolsPage() {
             <div>
               <h3>School Directory</h3>
               <p>
-                Showing <strong>{filteredSchools.length}</strong> of {total} schools
+                Showing <strong>{filteredSchools.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredSchools.length)}</strong> of <strong>{filteredSchools.length}</strong> schools {filteredSchools.length !== total && `(filtered from ${total})`}
               </p>
             </div>
           </div>
@@ -207,27 +289,35 @@ export default function SuperAdminSchoolsPage() {
               <table className={s("table")}>
                 <thead>
                   <tr>
+                    <th style={{ width: 44, textAlign: "center" }}>#</th>
                     <th>School</th>
                     <th>Country</th>
                     <th>Plan</th>
                     <th>Sub Status</th>
                     <th>Expires</th>
                     <th>Verified</th>
-                    <th>Account</th>
-                    <th>Actions</th>
+                    <th style={{ textAlign: "right" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSchools.map((sc) => (
+                  {paginatedSchools.map((sc, idx) => (
                     <tr key={sc.school_id}>
+                      <td style={{ textAlign: "center", color: "#64748b", fontWeight: 700, fontSize: 12.5 }}>
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
                       <td>
-                        <div className={s("avatar-cell")}>
-                          <div className={s("avatar")}>{sc.school_name?.charAt(0)}</div>
+                        <Link
+                          href={`/super-admin/schools/${sc.school_id}`}
+                          style={{ textDecoration: "none" }}
+                        >
                           <div>
-                            <strong>{sc.school_name}</strong>
-                            <span>{sc.email}</span>
+                            <strong style={{ color: "#0f172a", display: "flex", alignItems: "center", gap: 5, fontSize: 13.5 }}>
+                              {sc.school_name}
+                              <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: 10, color: "#94a3b8" }} />
+                            </strong>
+                            <span style={{ fontSize: 12, color: "#64748b" }}>{sc.email}</span>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td style={{ color: "#6b7b86" }}>{sc.country || "—"}</td>
                       <td>
@@ -248,7 +338,7 @@ export default function SuperAdminSchoolsPage() {
                           ? new Date(sc.end_date).toLocaleDateString("en-IN", {
                               day: "2-digit", month: "short", year: "numeric",
                             })
-                          : <span style={{ color: "#0f766e", fontWeight: 700 }}>Never (Free)</span>}
+                          : <span style={{ color: "#94a3b8", fontWeight: 600 }}>Pending</span>}
                       </td>
                       <td>
                         <span
@@ -257,69 +347,32 @@ export default function SuperAdminSchoolsPage() {
                           {sc.is_verified ? <><i className="fa-solid fa-circle-check" /> Verified</> : <><i className="fa-solid fa-clock" /> Pending</>}
                         </span>
                       </td>
-                      <td>
-                        <span
-                          className={cx(s("badge"), accountBadge(sc.is_account))}
-                          style={{ textTransform: "capitalize" }}
+                      <td style={{ textAlign: "right" }}>
+                        <Link
+                          href={`/super-admin/schools/${sc.school_id}`}
+                          style={{
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            fontWeight: 800,
+                            fontSize: 12.5,
+                            color: "#ea580c",
+                            background: "#fff7ed",
+                            border: "1.5px solid #ff9148",
+                            transition: "all 0.15s ease",
+                          }}
                         >
-                          {sc.is_account}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {!sc.is_verified && (
-                            <button
-                              className={cx(s("btn"), s("btn-sm"), s("btn-success"))}
-                              onClick={() => handleVerify(sc)}
-                              disabled={actionLoading === sc.school_id}
-                              title="Verify this school so they can log in"
-                            >
-                              {actionLoading === sc.school_id
-                                ? <Spinner size={12} />
-                                : <><i className="fa-solid fa-circle-check" /> Verify</>
-                              }
-                            </button>
-                          )}
-                          <button
-                            className={cx(s("btn"), s("btn-sm"), s("btn-primary"))}
-                            onClick={() => setActivating(sc)}
-                          >
-                            <i className="fa-solid fa-rotate" /> Activate
-                          </button>
-                          <button
-                            className={cx(s("btn"), s("btn-sm"), s("btn-soft"))}
-                            onClick={() => router.push(`/super-admin/schools/${sc.school_id}/history`)}
-                            title="Subscription history"
-                          >
-                            <i className="fa-solid fa-clock-rotate-left" />
-                          </button>
-                          <button
-                            className={cx(s("btn"), s("btn-sm"), sc.is_account === 'blocked' ? s("btn-soft") : s("btn-danger"))}
-                            onClick={() => handleBlockUnblock(sc)}
-                            disabled={actionLoading === sc.school_id}
-                            title={sc.is_account === 'blocked' ? 'Unblock school' : 'Block school'}
-                          >
-                            {actionLoading === sc.school_id
-                              ? <Spinner size={12} />
-                              : <><i className={`fa-solid ${sc.is_account === 'blocked' ? 'fa-lock-open' : 'fa-ban'}`} /> {sc.is_account === 'blocked' ? 'Unblock' : 'Block'}</>
-                            }
-                          </button>
-                          <button
-                            className={cx(s("btn"), s("btn-sm"), sc.two_fa_enabled ? s("btn-soft") : s("btn-outline"))}
-                            onClick={() => handleToggle2FA(sc)}
-                            disabled={actionLoading === sc.school_id}
-                            title={sc.two_fa_enabled ? 'Disable 2FA' : 'Enable 2FA'}
-                          >
-                            <i className={`fa-solid fa-shield-${sc.two_fa_enabled ? 'halved' : 'blank'}`} />
-                            {sc.two_fa_enabled ? '2FA On' : '2FA Off'}
-                          </button>
-                        </div>
+                          <i className="fa-solid fa-circle-info" /> Details
+                        </Link>
                       </td>
                     </tr>
                   ))}
                   {filteredSchools.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "3rem", color: "#6b7b86" }}>
+                      <td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "#6b7b86" }}>
                         <i
                           className="fa-solid fa-building-columns"
                           style={{ fontSize: 28, marginBottom: 8, display: "block", opacity: 0.3 }}
@@ -332,6 +385,140 @@ export default function SuperAdminSchoolsPage() {
               </table>
             )}
           </div>
+
+          {/* ── Pagination Footer Bar ── */}
+          {filteredSchools.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 18px",
+                borderTop: "1px solid #e2e8f0",
+                fontSize: 13,
+                color: "#64748b",
+                flexWrap: "wrap",
+                gap: 12,
+                background: "#fafafa",
+                borderBottomLeftRadius: 12,
+                borderBottomRightRadius: 12,
+              }}
+            >
+              {/* Range & Per-page selector */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span>
+                  Showing{" "}
+                  <strong style={{ color: "#0f172a" }}>
+                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredSchools.length)}
+                  </strong>{" "}
+                  of <strong style={{ color: "#0f172a" }}>{filteredSchools.length}</strong>
+                </span>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                  <span>Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border: "1px solid #cbd5e1",
+                      background: "#fff",
+                      fontSize: 12,
+                      color: "#334155",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Prev / Page Pills / Next */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #cbd5e1",
+                    background: currentPage === 1 ? "#f1f5f9" : "#fff",
+                    color: currentPage === 1 ? "#94a3b8" : "#334155",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <i className="fa-solid fa-chevron-left" style={{ fontSize: 10 }} /> Prev
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => {
+                    if (totalPages <= 7) return true;
+                    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                  })
+                  .map((page, idx, arr) => {
+                    const prev = arr[idx - 1];
+                    const showEllipsis = prev && page - prev > 1;
+                    return (
+                      <span key={page} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        {showEllipsis && <span style={{ color: "#94a3b8", padding: "0 2px" }}>…</span>}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          style={{
+                            minWidth: 32,
+                            height: 32,
+                            borderRadius: 6,
+                            border: page === currentPage ? "1.5px solid #ff9148" : "1px solid #cbd5e1",
+                            background: page === currentPage ? "#fff7ed" : "#fff",
+                            color: page === currentPage ? "#ea580c" : "#334155",
+                            fontSize: 12.5,
+                            fontWeight: page === currentPage ? 900 : 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {page}
+                        </button>
+                      </span>
+                    );
+                  })}
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || filteredSchools.length === 0}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #cbd5e1",
+                    background: currentPage === totalPages || filteredSchools.length === 0 ? "#f1f5f9" : "#fff",
+                    color: currentPage === totalPages || filteredSchools.length === 0 ? "#94a3b8" : "#334155",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: currentPage === totalPages || filteredSchools.length === 0 ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  Next <i className="fa-solid fa-chevron-right" style={{ fontSize: 10 }} />
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
 

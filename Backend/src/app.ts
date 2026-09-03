@@ -29,10 +29,17 @@ import contactRoutes from './Routes/contact.routes';
 import payrollPolicyRoutes    from './Routes/payroll_policy.routes';
 import feeBillingPolicyRoutes from './Routes/fee_billing_policy.routes';
 import timetableRoutes        from './Routes/timetable.routes';
+import securityRoutes         from './Routes/security.routes';
 import { globalHistoryMiddleware } from './middlewares/history.middleware';
-
+import { ipBanAndMaintenanceMiddleware } from './middlewares/ipBan.middleware';
+import { globalApiLimiter } from './middlewares/rateLimiter.middleware';
+import { activeUserMiddleware } from './middlewares/activeUser.middleware';
+import { syncBlockedSchools } from './Service/redis.service';
 
 const app:Application = express();
+
+// Synchronize blocked schools state with Redis on server startup
+syncBlockedSchools().catch(() => {});
 
 // P6 fix: CORS origin from env var — set CORS_ORIGIN in .env for staging/production
 app.use(cors({
@@ -42,6 +49,15 @@ app.use(cors({
 ))
 app.use(express.json());
 app.use(cookieParser())
+
+// Edge defense: block banned IPs and enforce platform maintenance
+app.use(ipBanAndMaintenanceMiddleware);
+
+// Global API rate limiter (150 req/min per IP)
+app.use('/api', globalApiLimiter);
+
+// Live active user heartbeat tracker (fire-and-forget to Redis)
+app.use(activeUserMiddleware);
 
 // Global activity logger — fire-and-forget, never blocks main loop
 // Logs all successful POST/PUT/PATCH/DELETE requests for authenticated users
@@ -60,6 +76,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/security', securityRoutes);
 app.use('/api/transport', transportRoutes);
 app.use('/api/hostel', hostelRoutes);
 app.use('/api/upload', uploadRoutes);

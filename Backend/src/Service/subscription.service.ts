@@ -94,13 +94,19 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   let latest = await getLatestSubscription(school_id);
 
   if (!latest) {
-    const freePlan = await getPlanByName('Free');
-    if (!freePlan) throw new AppError('Free plan not configured.', 500);
-    latest = await createSubscription(school_id, {
+    const proPlan = await getPlanByName('Pro');
+    if (!proPlan) throw new AppError('Pro plan not configured.', 500);
+    const startDate = new Date();
+    const endDate = new Date(Date.now() + 14 * 86400000);
+    await createSubscription(school_id, {
       school_id,
-      plan_id: freePlan.id,
-      billing_cycle: 'free',
-    }) as any;
+      plan_id: proPlan.id,
+      billing_cycle: 'monthly',
+      amount_paid: 0,
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0],
+      notes: 'Initial 14-Day Free Trial on Pro',
+    });
     latest = await getLatestSubscription(school_id);
   }
 
@@ -109,30 +115,32 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   let is_in_grace_period = false;
   let days_until_lock: number | null = null;
 
-  if (latest.billing_cycle !== 'free' && latest.end_date) {
+  if (latest.end_date) {
     const today = new Date();
     const endDate = new Date(latest.end_date);
     const daysSinceExpiry = Math.floor((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysSinceExpiry > GRACE_PERIOD_DAYS) {
-      const freePlan = await getPlanByName('Free');
-      if (!freePlan) throw new AppError('Free plan not configured.', 500);
-      await downgradeToFreeTransaction(
-        latest.id, school_id, freePlan.id,
-        `Auto-downgraded from ${latest.plan_name} after grace period expired.`
-      );
-      latest = await getLatestSubscription(school_id);
-      if (!latest) throw new AppError('Unable to resolve subscription.', 500);
+      if (latest.status !== 'expired') {
+        await updateSubscriptionStatus(latest.id, 'expired');
+        const refreshed = await getLatestSubscription(school_id);
+        if (refreshed) latest = refreshed;
+      }
+      is_in_grace_period = false;
+      days_until_lock = 0;
     } else if (daysSinceExpiry > 0) {
       is_in_grace_period = true;
       days_until_lock = GRACE_PERIOD_DAYS - daysSinceExpiry;
       if (latest.status === 'active') {
         await updateSubscriptionStatus(latest.id, 'grace_period');
+        const refreshed = await getLatestSubscription(school_id);
+        if (refreshed) latest = refreshed;
       }
     }
   }
 
-  const plan = await getPlanById(latest.plan_id);
+  const currentSub = latest;
+  const plan = await getPlanById(currentSub.plan_id);
   if (!plan) throw new AppError('Plan not found.', 404);
 
   const student_count = await getStudentCount(school_id);
@@ -142,7 +150,7 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   const can_add_teacher = plan.max_teachers === null || teacher_count < plan.max_teachers;
 
   return {
-    subscription: latest,
+    subscription: currentSub,
     plan,
     is_in_grace_period,
     days_until_lock,
@@ -239,7 +247,7 @@ export const assertFeeManagementEnabled = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.plan.fee_management_enabled) {
     throw new AppError(
-      `Fee Management is not available on the ${status.plan.name} plan. Please upgrade to Pro or Plus.`,
+      `Fee Management is not available on the ${status.plan.name} plan. Please upgrade to Pro, Plus, or Ultra.`,
       403
     );
   }
@@ -249,7 +257,7 @@ export const assertOnlinePaymentEnabled = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.plan.online_payment_enabled) {
     throw new AppError(
-      `Online Payment is not available on the ${status.plan.name} plan. Please upgrade to Pro or Plus to accept online payments from students.`,
+      `Online Payment is not available on the ${status.plan.name} plan. Please upgrade to Pro, Plus, or Ultra to accept online payments from students.`,
       403
     );
   }

@@ -10,7 +10,7 @@ import { computeSavingText } from "@/components/super-admin/OfferModal";
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan order for upgrade/downgrade logic (index = tier level)
 // ─────────────────────────────────────────────────────────────────────────────
-const PLAN_ORDER = ["Free", "Pro", "Plus"];
+const PLAN_ORDER = ["Pro", "Plus", "Ultra"];
 
 function getPlanTier(name: string): number {
   const idx = PLAN_ORDER.indexOf(name);
@@ -189,12 +189,12 @@ export default function UpgradePlanPage() {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
 
   const loading         = sL || pL;
-  const currentPlanName = status?.plan?.name ?? "Free";
+  const currentPlanName = status?.plan?.name ?? "Pro";
   const currentTier     = getPlanTier(currentPlanName);
   const activeOffers    = (offers ?? []).filter((o: any) => o.is_active);
 
   // Compute yearly saving % from first paid plan for the toggle label
-  const repPlan = (plans ?? []).find((p: any) => p.name !== "Free");
+  const repPlan = (plans ?? []).find((p: any) => p.name !== "Free") || (plans ?? [])[0];
   const repYearlySavingPct = repPlan?.price_npr_monthly && repPlan?.price_npr_yearly
     ? Math.round(((repPlan.price_npr_monthly * 12 - repPlan.price_npr_yearly) / (repPlan.price_npr_monthly * 12)) * 100)
     : 0;
@@ -246,7 +246,7 @@ export default function UpgradePlanPage() {
 
             {/* ── Plan cards ── */}
             <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
-              {(plans ?? []).map((plan: any) => {
+              {(plans ?? []).filter((plan: any) => plan.name !== "Free").map((plan: any) => {
                 const isCurrent  = plan.name === currentPlanName;
                 const planTier   = getPlanTier(plan.name);
                 const isUpgrade  = planTier > currentTier;

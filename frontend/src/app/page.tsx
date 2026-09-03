@@ -17,9 +17,9 @@ const JSON_LD = {
   description:
     "Skoolio is a cloud-based school management system for schools in Nepal and India. Manage attendance, fees, exams, staff, hostel, transport and more from one platform.",
   offers: [
-    { "@type": "Offer", name: "Free Plan", price: "0", priceCurrency: "NPR" },
     { "@type": "Offer", name: "Pro Plan", priceCurrency: "NPR" },
     { "@type": "Offer", name: "Plus Plan", priceCurrency: "NPR" },
+    { "@type": "Offer", name: "Ultra Plan", priceCurrency: "NPR" },
   ],
   featureList: [
     "Attendance Management",
@@ -118,36 +118,57 @@ const MODULES = [
 
 const PLANS = [
   {
-    name: "Free",
-    price: "₹0 / NPR 0",
-    sub: "forever",
-    color: "#64748b",
-    students: "100 students",
-    teachers: "5 teachers",
-    highlight: false,
-    features: ["Students & Classes", "Attendance", "Exams & Results", "Calendar & Notices", "Role Portals"],
-    missing: ["Fee Management", "Transport & Hostel billing", "Priority support"],
-  },
-  {
     name: "Pro",
-    price: "Contact us",
-    sub: "monthly or yearly",
-    color: "#FF9B51",
-    students: "300 students",
-    teachers: "20 teachers",
+    price: "14-Day Free Trial",
+    sub: "then flexible subscription",
+    color: "#7c3aed",
+    students: "500 students",
+    teachers: "25 teachers",
     highlight: true,
-    features: ["Everything in Free", "Full Fee Management", "PDF Receipt generation", "Transport billing", "Hostel billing"],
-    missing: ["Priority support"],
+    features: [
+      "14-Day Full Access Trial",
+      "Full Fee Management & Invoicing",
+      "Online Fee Payment & QR Collection",
+      "Attendance, Classes & Report Cards",
+      "Staff Salary & Leave Tracking",
+      "Parent & Student Mobile Portals",
+    ],
+    missing: ["Transport & Hostel billing", "Dedicated Account Manager"],
   },
   {
     name: "Plus",
-    price: "Contact us",
+    price: "Affordable Tier",
     sub: "monthly or yearly",
-    color: "#25343F",
+    color: "#059669",
     students: "1,500 students",
-    teachers: "40 teachers",
+    teachers: "75 teachers",
     highlight: false,
-    features: ["Everything in Pro", "Large school capacity", "Priority support", "Dedicated onboarding"],
+    features: [
+      "Everything in Pro",
+      "Transport & Route Fee Billing",
+      "Hostel Room & Meal Allocations",
+      "SMS & Automated WhatsApp Alerts",
+      "Priority Email & Chat Support",
+      "Custom School Branding & Badges",
+    ],
+    missing: ["Dedicated Account Manager"],
+  },
+  {
+    name: "Ultra",
+    price: "Enterprise",
+    sub: "custom annual plan",
+    color: "#FF9B51",
+    students: "Unlimited students",
+    teachers: "Unlimited teachers",
+    highlight: false,
+    features: [
+      "Everything in Plus",
+      "Unlimited Student & Faculty Capacity",
+      "Dedicated 24/7 Priority Manager",
+      "Multi-Branch & Campus Unification",
+      "Custom Report Card Formats",
+      "On-Site Training & Data Migration",
+    ],
     missing: [],
   },
 ];
@@ -191,8 +212,8 @@ const FAQS = [
     a: "Yes. Students log in separately and see only their own profile, attendance, results, and fee history. They cannot see any other student's data — not even classmates.",
   },
   {
-    q: "How does fee management work on the Free plan?",
-    a: "Fee Management is not available on the Free plan. All other modules — students, classes, attendance, exams, calendar, and notices — are fully available. Upgrade to Pro or Plus to enable fee collection and PDF receipts.",
+    q: "Can I try Skoolio before purchasing a subscription?",
+    a: "Yes! Every newly registered school gets an automatic 14-day free trial on the Pro plan with full access to fee management, online payments, attendance, and exam management without needing a credit card.",
   },
 ];
 
@@ -313,7 +334,7 @@ export default function LandingPage() {
               ) : (
                 <>
                   <Link href="/register" className={s.btnHeroPrimary}>
-                    <i className="fa-solid fa-school" /> Register Your School — Free
+                    <i className="fa-solid fa-school" /> Start 14-Day Free Trial
                   </Link>
                   <Link href="/login" className={s.btnHeroGhost}>
                     Sign In <i className="fa-solid fa-arrow-right" />
@@ -391,7 +412,7 @@ export default function LandingPage() {
               { num: "4",  label: "Role portals",         sub: "Admin, Faculty, Student, Super Admin" },
               { num: "15+",label: "Modules",               sub: "All connected, one system" },
               { num: "BS", label: "Nepali calendar",       sub: "Bikram Sambat display support" },
-              { num: "0₹", label: "Free plan forever",     sub: "Up to 100 students, no credit card" },
+              { num: "14d", label: "Free trial on Pro",     sub: "Full access, no credit card required" },
             ].map((s2) => (
               <div className={s.statItem} key={s2.label}>
                 <strong>{s2.num}</strong>
@@ -622,11 +643,11 @@ export default function LandingPage() {
                     ))}
                   </ul>
                   <Link
-                    href={plan.name === "Free" ? "/register" : "/register"}
+                    href="/register"
                     className={plan.highlight ? s.btnPrimary : s.btnGhost}
                     style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}
                   >
-                    {plan.name === "Free" ? "Get Started Free" : "Contact Us"}
+                    {plan.name === "Pro" ? "Start 14-Day Free Trial" : plan.name === "Ultra" ? "Contact Enterprise" : "Get Started"}
                   </Link>
                 </article>
               </Reveal>
@@ -655,7 +676,7 @@ export default function LandingPage() {
                 Ready to put your school's records in order?
               </h2>
               <p className={s.ctaSub}>
-                Register in minutes. Add classes, sections, and staff as you go. Free forever for small schools.
+                Register in minutes. Add classes, sections, and staff as you go. 14-day full free trial on Pro.
               </p>
               <div className={s.ctaActions}>
                 {isAuthenticated && user ? (
@@ -665,7 +686,7 @@ export default function LandingPage() {
                 ) : (
                   <>
                     <Link href="/register" className={s.btnHeroPrimary}>
-                      <i className="fa-solid fa-school" /> Register Free
+                      <i className="fa-solid fa-school" /> Start 14-Day Free Trial
                     </Link>
                     <Link href="/login" className={`${s.btnHeroGhost} ${s.ctaGhost}`}>
                       Sign In

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAppSelector, useAppDispatch } from '@/store/hooks'
 import { logoutThunk } from '@/store/authSlice'
@@ -124,14 +125,18 @@ export default function SuperAdminSidebar() {
       `}</style>
 
       <aside className="sa-sidebar">
-        <div className="sa-logo">
-          <div className="sa-logo-icon">
-            <i className="fa-solid fa-shield-halved" />
-          </div>
-          <div>
-            <h1><span>Campus</span>POS</h1>
-            <p>Control Center</p>
-          </div>
+        <div className="sa-logo" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '16px 20px 14px', gap: '2px' }}>
+          <Image
+            src="/Logo.png"
+            alt="Skoolio"
+            width={130}
+            height={42}
+            priority
+            style={{ objectFit: 'contain', width: 'auto', height: '36px' }}
+          />
+          <span style={{ fontSize: '10px', fontWeight: 800, color: '#ff9148', letterSpacing: '1px', textTransform: 'uppercase', paddingLeft: '2px' }}>
+            Control Center
+          </span>
         </div>
 
         <div className="sa-role-badge">
@@ -144,6 +149,9 @@ export default function SuperAdminSidebar() {
           <Link href="/super-admin/dashboard" className={isActive('/super-admin/dashboard')}>
             <i className="fa-solid fa-gauge-high" /> Dashboard
           </Link>
+          <Link href="/super-admin/traffic" className={isActive('/super-admin/traffic')}>
+            <i className="fa-solid fa-shield-halved" /> Traffic &amp; Security
+          </Link>
 
           <div className="sa-nav-label">Management</div>
           <Link href="/super-admin/schools" className={isActive('/super-admin/schools')}>
@@ -151,6 +159,9 @@ export default function SuperAdminSidebar() {
           </Link>
           <Link href="/super-admin/subscriptions" className={isActive('/super-admin/subscriptions')}>
             <i className="fa-solid fa-credit-card" /> Subscriptions
+          </Link>
+          <Link href="/super-admin/feedback" className={isActive('/super-admin/feedback')}>
+            <i className="fa-solid fa-comments" /> Feedback Desk
           </Link>
 
           <div className="sa-nav-label">System</div>

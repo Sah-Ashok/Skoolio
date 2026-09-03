@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import StoreProvider from "@/store/StoreProvider";
 import ToastNotification from "@/components/shared/ToastNotification";
+import HeartbeatTracker from "@/components/shared/HeartbeatTracker";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://skoolio.app"),
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <StoreProvider>
+          <HeartbeatTracker />
           {children}
           <ToastNotification />
         </StoreProvider>

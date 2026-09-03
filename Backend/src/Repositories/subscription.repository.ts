@@ -10,13 +10,15 @@ import {
 
 export const getActivePlans = async (): Promise<ISubscriptionPlan[]> => {
   const result = await pool.query(
-    `SELECT * FROM subscription_plans WHERE is_active = true ORDER BY id ASC`
+    `SELECT * FROM subscription_plans WHERE is_active = true AND name != 'Free' ORDER BY id ASC`
   );
   return result.rows;
 };
 
 export const getAllPlans = async (): Promise<ISubscriptionPlan[]> => {
-  const result = await pool.query(`SELECT * FROM subscription_plans ORDER BY id ASC`);
+  const result = await pool.query(
+    `SELECT * FROM subscription_plans WHERE name != 'Free' ORDER BY id ASC`
+  );
   return result.rows;
 };
 
