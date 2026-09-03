@@ -83,7 +83,7 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
           </div>
 
           {/* ── 2. Quick Platform Links (No Academic / Finance clutter) ── */}
-          <nav className="sk-footer-nav" aria-label="Platform navigation">
+          <nav className="sk-footer-nav sk-footer-platform-links" aria-label="Platform navigation">
             <p className="sk-footer-nav-title">Platform &amp; Links</p>
             <ul>
               <li>

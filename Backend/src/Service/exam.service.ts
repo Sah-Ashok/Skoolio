@@ -11,7 +11,6 @@ import {
   ICreateExam, IUpdateExam, ICreateExamSchedule, IUpdateExamSchedule,
   ICreateExamResult, IUpdateExamResult, ICreateGradeScale, IUpdateGradeScale,
 } from '../types/exam.types';
-import { syncExamCalendarEventService } from './calendar.service';
 import {
   isTeacherAssignedToSubjectInClass, getSectionById, getSectionsByCoordinator,
 } from '../Repositories/class.repository';
@@ -24,11 +23,6 @@ export const createExamService = async (school_id: number, data: ICreateExam) =>
     throw new AppError('Start date cannot be after end date.', 400);
   }
   const exam = await createExam(school_id, data);
-
-  // Auto-sync to the school calendar so exam dates show up there without
-  // the admin having to re-enter them manually on the Calendar page.
-  await syncExamCalendarEventService(school_id, exam);
-
   return exam;
 };
 
@@ -46,10 +40,6 @@ export const getExamByIdService = async (id: number, school_id: number) => {
 export const updateExamService = async (id: number, school_id: number, data: IUpdateExam) => {
   const exam = await updateExam(id, school_id, data);
   if (!exam) throw new AppError('Exam not found.', 404);
-
-  // Keep the linked calendar entry in sync with any date/name changes
-  await syncExamCalendarEventService(school_id, exam);
-
   return exam;
 };
 

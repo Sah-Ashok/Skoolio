@@ -45,74 +45,11 @@ function Row({ icon, label, value, mono }: { icon: string; label: string; value?
   const empty = !value;
   return (
     <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f7fafb" }}>
-      <i className={`fa-solid ${icon}`} style={{ width:14, textAlign:"center", fontSize:11, color: empty ? "#dce5e9" : "#c6d0d7", flexShrink:0 }} />
+      <i className={`fa-solid ${icon}`} style={{ width:14, textAlign:"center", fontSize:11, color: empty ? "#cbd5e1" : "#c6d0d7", flexShrink:0 }} />
       <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", flex:"0 0 130px" }}>{label}</span>
-      <span style={{ fontSize:13, fontWeight:700, color: empty ? "#dce5e9" : "#1f2d36", fontFamily: mono ? "monospace" : "inherit", wordBreak:"break-all" }}>
-        {empty ? "â€”" : value}
+      <span style={{ fontSize:13, fontWeight:700, color: empty ? "#94a3b8" : "#1f2d36", fontFamily: mono ? "monospace" : "inherit", wordBreak:"break-all" }}>
+        {empty ? "—" : value}
       </span>
-    </div>
-  );
-}
-
-function DonutRing({ pct, color, size = 72, stroke = 9 }: { pct: number; color: string; size?: number; stroke?: number }) {
-  const r    = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const arc  = (pct / 100) * circ;
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ flexShrink:0 }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
-      {pct > 0 && (
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${arc} ${circ - arc}`} strokeDashoffset={0} strokeLinecap="butt"
-          style={{ transform:"rotate(-90deg)", transformOrigin:`${size/2}px ${size/2}px` }} />
-      )}
-    </svg>
-  );
-}
-
-function AttCard({ label, pct, present, absent, leave, color, working, elapsed }: {
-  label: string; pct: number; present: number; absent: number; leave: number; color: string; working?: number; elapsed?: number;
-}) {
-  return (
-    <div style={{ padding:"14px 16px", borderRadius:12, border:"1px solid #e2e8f0", borderLeft:`4px solid ${color}`, display:"flex", flexDirection:"column", gap:12 }}>
-      <p style={{ margin:0, fontSize:11, fontWeight:900, color:"#6a7882", textTransform:"uppercase", letterSpacing:"0.5px" }}>{label}</p>
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        <div style={{ position:"relative", flexShrink:0 }}>
-          <DonutRing pct={pct} color={color} size={72} stroke={9} />
-          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <span style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{pct}%</span>
-          </div>
-        </div>
-        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
-          {[
-            { short:"P",  label:"Present", val:present, color:"#12805c", bg:"#e2f6ee" },
-            { short:"A",  label:"Absent",  val:absent,  color:"#b42318", bg:"#fde7e7" },
-            { short:"Lv", label:"Leave",   val:leave,   color:"#7c3aed", bg:"#f3eeff" },
-          ].map(r => (
-            <div key={r.short} style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ fontSize:9, fontWeight:900, color:r.color, background:r.bg, padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>{r.short}</span>
-              <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>{r.label}</span>
-              <strong style={{ fontSize:13, fontWeight:900, color:r.val === 0 ? "#c6d0d7" : r.color }}>{r.val}</strong>
-            </div>
-          ))}
-          {working !== undefined && working > 0 && (
-            <div style={{ display:"flex", flexDirection:"column", gap:4, paddingTop:6, borderTop:"1px solid #f0f4f5", marginTop:2 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:9, fontWeight:900, color:"#6a7882", background:"#f1f5f9", padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>W</span>
-                <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>{elapsed !== undefined ? "Total Days" : "Working"}</span>
-                <strong style={{ fontSize:13, fontWeight:900, color:"#1f2d36" }}>{working}</strong>
-              </div>
-              {elapsed !== undefined && elapsed > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:9, fontWeight:900, color:"#1a73e8", background:"#e8f0fe", padding:"1px 5px", borderRadius:4, minWidth:16, textAlign:"center" }}>E</span>
-                  <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", flex:1 }}>Elapsed</span>
-                  <strong style={{ fontSize:13, fontWeight:900, color:"#1a73e8" }}>{elapsed}</strong>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -145,8 +82,8 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
   return (
     <>
       <style>{`
-        .tsd { min-height:100vh; background:#eef2f3; }
-        .tsd-wrap { padding:20px; max-width:1040px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+        .tsd { min-height:100vh; background:#eef2f3; font-family: 'Nunito', sans-serif; }
+        .tsd-wrap { padding:20px; max-width:1040px; margin:0 auto; display:flex; flex-direction:column; gap:16px; font-family: 'Nunito', sans-serif; }
         .tsd-cols { display:grid; grid-template-columns:1fr; gap:16px; }
         @media(min-width:760px){ .tsd-cols { grid-template-columns:300px 1fr; align-items:start; } }
         .att-2col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -173,7 +110,7 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
           ) : (
             <div className="tsd-cols">
 
-              {/* â•â• LEFT â•â• */}
+              {/* Left Column */}
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
                 {/* Hero */}
@@ -187,12 +124,12 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
                     <div style={{ flex:1, padding:"18px 16px" }}>
                       <h1 style={{ margin:"0 0 4px", fontSize:17, fontWeight:900, color:"#1f2d36", lineHeight:1.2 }}>{student.full_name}</h1>
                       <span style={{ display:"inline-block", padding:"2px 9px", borderRadius:99, fontSize:11, fontWeight:800, background:gs.bg, color:gs.color, border:`1px solid ${gs.border}` }}>
-                        {cap(student.gender) || "â€”"}
+                        {cap(student.gender) || "—"}
                       </span>
                       {enrollment && (
                         <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:700, color:"#6a7882" }}>
-                          {enrollment.class_name} Â· Sec {enrollment.section_name}
-                          {enrollment.roll_number && <> Â· <strong style={{ color:"#1f2d36" }}>Roll {enrollment.roll_number}</strong></>}
+                          {enrollment.class_name} · Sec {enrollment.section_name}
+                          {enrollment.roll_number && <> · <strong style={{ color:"#1f2d36" }}>Roll {enrollment.roll_number}</strong></>}
                         </p>
                       )}
                     </div>
@@ -220,31 +157,43 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
                   )}
                 </Card>
 
-                {/* Guardian */}
+                {/* Guardian & Primary Contact */}
                 <Card>
-                  <CardHead icon="fa-shield-halved" title="Guardian" />
+                  <CardHead icon="fa-shield-halved" title="Guardian & Primary Contact" />
                   <div style={{ padding:"4px 20px 12px" }}>
-                    <Row icon="fa-person-shelter" label="Name"     value={student.guardian_name} />
-                    <Row icon="fa-people-roof"    label="Relation" value={cap(student.guardian_relation)} />
-                    <Row icon="fa-phone-flip"     label="Phone"    value={student.guardian_phone} />
-                    <Row icon="fa-envelope"       label="Email"    value={student.guardian_email} />
+                    <Row icon="fa-person-shelter" label="Name"        value={student.guardian_name} />
+                    <Row icon="fa-people-roof"    label="Relation"    value={cap(student.guardian_relation)} />
+                    <Row icon="fa-phone-flip"     label="Phone"       value={student.guardian_phone} />
+                    {student.guardian_email && (
+                      <Row icon="fa-envelope"     label="Email"       value={student.guardian_email} />
+                    )}
+                    {student.guardian_occupation && (
+                      <Row icon="fa-briefcase"    label="Occupation"  value={student.guardian_occupation} />
+                    )}
                   </div>
                 </Card>
 
-                {/* Contact */}
+                {/* Residence & Contact */}
                 <Card>
-                  <CardHead icon="fa-address-book" title="Contact" />
+                  <CardHead icon="fa-address-book" title="Residence & Contact" />
                   <div style={{ padding:"4px 20px 12px" }}>
-                    <Row icon="fa-phone"      label="Student Phone" value={student.phone} />
-                    <Row icon="fa-envelope"   label="Email"         value={student.email} />
-                    <Row icon="fa-city"       label="City"          value={student.city} />
-                    <Row icon="fa-map"        label="State"         value={student.state} />
-                    <Row icon="fa-earth-asia" label="Country"       value={student.country} />
+                    <Row icon="fa-location-dot" label="Address" value={
+                      [student.guardian_address, student.city, student.state, student.country]
+                        .filter(Boolean)
+                        .filter((v, i, a) => a.indexOf(v) === i)
+                        .join(", ") || null
+                    } />
+                    {student.phone && (
+                      <Row icon="fa-phone"      label="Student Phone" value={student.phone} />
+                    )}
+                    {student.email && (
+                      <Row icon="fa-envelope"   label="Student Email" value={student.email} />
+                    )}
                   </div>
                 </Card>
               </div>
 
-              {/* â•â• RIGHT â•â• */}
+              {/* Right Column */}
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
                 {/* Attendance */}
@@ -268,8 +217,15 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
                     <Row icon="fa-school"        label="Class"            value={enrollment?.class_name} />
                     <Row icon="fa-table-cells"   label="Section"          value={enrollment?.section_name} />
                     <Row icon="fa-list-ol"       label="Roll Number"      value={enrollment?.roll_number?.toString() || "Not assigned"} />
-                    <Row icon="fa-file-lines"    label="Registration No." value={enrollment?.registration_number} mono />
-                    <Row icon="fa-hashtag"       label="Symbol Number"    value={enrollment?.symbol_number} mono />
+                    {enrollment?.registration_number && (
+                      <Row icon="fa-file-lines"  label="Registration No." value={enrollment.registration_number} mono />
+                    )}
+                    {enrollment?.symbol_number && (
+                      <Row icon="fa-hashtag"     label="Symbol Number"    value={enrollment.symbol_number} mono />
+                    )}
+                    {student.previous_school && (
+                      <Row icon="fa-school-flag" label="Previous School"  value={student.previous_school} />
+                    )}
                   </div>
                 </Card>
 
@@ -279,10 +235,21 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
                   <div style={{ padding:"4px 20px 12px" }}>
                     <Row icon="fa-cake-candles"  label="Date of Birth" value={formatDate(student.date_of_birth)} />
                     <Row icon="fa-venus-mars"    label="Gender"        value={cap(student.gender)} />
-                    <Row icon="fa-droplet"       label="Blood Group"   value={student.blood_group} />
-                    <Row icon="fa-pray"          label="Religion"      value={student.religion} />
-                    <Row icon="fa-people-group"  label="Ethnicity"     value={student.ethnicity} />
-                    <Row icon="fa-flag"          label="Nationality"   value={student.nationality} />
+                    {student.blood_group && (
+                      <Row icon="fa-droplet"     label="Blood Group"   value={student.blood_group} />
+                    )}
+                    {student.religion && (
+                      <Row icon="fa-pray"        label="Religion"      value={student.religion} />
+                    )}
+                    {student.ethnicity && (
+                      <Row icon="fa-people-group" label="Ethnicity"    value={student.ethnicity} />
+                    )}
+                    {student.nationality && (
+                      <Row icon="fa-flag"        label="Nationality"   value={student.nationality} />
+                    )}
+                    {student.disability && (
+                      <Row icon="fa-wheelchair"  label="Disability"    value={student.disability_description ? `Yes (${student.disability_description})` : "Yes"} />
+                    )}
                   </div>
                 </Card>
 

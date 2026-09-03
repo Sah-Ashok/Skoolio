@@ -445,6 +445,9 @@ tbody tr:hover { background:#f8fafc; }
   .sk-footer-social {
     justify-content: center;
   }
+  .sk-footer-platform-links {
+    display: none !important;
+  }
   .sk-footer-nav-title {
     text-align: center;
   }

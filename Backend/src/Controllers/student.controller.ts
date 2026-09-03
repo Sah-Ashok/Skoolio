@@ -61,6 +61,14 @@ export const getStudentById = catchAsync(async (req: Request, res: Response, nex
   }
 
   const student = await getStudentByIdService(student_id, school_id);
+
+  // Faculty: strictly hide financial and scholarship information
+  if (user.role === 'faculty' && student) {
+    delete (student as any).scholarship_type;
+    delete (student as any).scholarship_percent;
+    delete (student as any).scholarship_remarks;
+  }
+
   sendResponse(res, 200, true, 'Student fetched successfully', student);
 });
 
@@ -98,6 +106,15 @@ export const getEnrollments = catchAsync(async (req: Request, res: Response, nex
     Number(academic_year_id),
     section_id ? Number(section_id) : undefined
   );
+
+  // Faculty: strictly hide financial and scholarship information
+  if (user.role === 'faculty' && Array.isArray(enrollments)) {
+    enrollments.forEach((e: any) => {
+      delete e.scholarship_type;
+      delete e.scholarship_percent;
+    });
+  }
+
   sendResponse(res, 200, true, 'Enrollments fetched successfully', enrollments);
 });
 

@@ -3,6 +3,7 @@ import RequireRole from "@/components/shared/RequireRole";
 import AppFooter from "@/components/shared/AppFooter";
 import OfflineGuard from "@/components/shared/OfflineGuard";
 import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
+import FeedbackWidget from "@/components/shared/FeedbackWidget";
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <AppFooter role="teacher" />
         </div>
       </div>
+      <FeedbackWidget />
     </RequireRole>
   );
 }

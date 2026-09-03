@@ -463,19 +463,19 @@ export default function TeacherTimetablePage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "9px 16px",
+                  padding: "8px 16px",
                   borderRadius: 10,
-                  border: "none",
-                  background: "linear-gradient(135deg, #ff9148 0%, #ff7a22 100%)",
-                  color: "#ffffff",
+                  border: "1.5px solid #ff9148",
+                  background: "#fff7ed",
+                  color: "#ea580c",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(255,145,72,0.25)",
-                  transition: "all .15s",
+                  boxShadow: "0 1px 3px rgba(255,145,72,0.15)",
+                  transition: "all .15s ease",
                 }}
               >
-                <i className="fa-solid fa-bolt" />
+                <i className="fa-solid fa-bolt" style={{ color: "#ff9148" }} />
                 <span>Quick Shift Setup</span>
               </button>
 
@@ -486,16 +486,16 @@ export default function TeacherTimetablePage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "9px 16px",
+                  padding: "8px 16px",
                   borderRadius: 10,
-                  border: "1px solid #e2e8f0",
+                  border: "1.5px solid #e2e8f0",
                   background: "#ffffff",
-                  color: "#1e293b",
+                  color: "#475569",
                   fontWeight: 800,
                   fontSize: 13,
                   cursor: "pointer",
                   boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
-                  transition: "all .15s",
+                  transition: "all .15s ease",
                 }}
               >
                 <i className="fa-solid fa-copy" style={{ color: "#ff9148" }} />
@@ -509,12 +509,9 @@ export default function TeacherTimetablePage() {
       {/* ── Tabs Navigation ── */}
       <div style={{
         display: "inline-flex",
-        background: "#ffffff",
-        padding: 4,
-        borderRadius: 12,
-        border: "1px solid #e2e8f0",
-        boxShadow: "0 1px 3px rgba(15,23,42,0.05)",
-        gap: 4,
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
         marginBottom: 16,
       }}>
         <button
@@ -523,20 +520,23 @@ export default function TeacherTimetablePage() {
           style={{
             padding: "8px 18px",
             borderRadius: 9,
-            border: "none",
-            background: activeTab === "section" ? "#ff9148" : "transparent",
-            color: activeTab === "section" ? "#ffffff" : "#64748b",
+            border: activeTab === "section" ? "1.5px solid #ff9148" : "1.5px solid #e2e8f0",
+            background: activeTab === "section" ? "#fff7ed" : "#ffffff",
+            color: activeTab === "section" ? "#ea580c" : "#64748b",
             fontWeight: 800,
             fontSize: 13,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            boxShadow: activeTab === "section" ? "0 2px 8px rgba(255,145,72,0.25)" : "none",
-            transition: "all .15s",
+            boxShadow: activeTab === "section" ? "0 1px 4px rgba(255,145,72,0.15)" : "none",
+            transition: "all .15s ease",
           }}
         >
-          <i className="fa-solid fa-table-cells" />
+          <i
+            className="fa-solid fa-table-cells"
+            style={{ color: activeTab === "section" ? "#ff9148" : "#94a3b8" }}
+          />
           <span>Section Routine Maker</span>
         </button>
 
@@ -546,20 +546,23 @@ export default function TeacherTimetablePage() {
           style={{
             padding: "8px 18px",
             borderRadius: 9,
-            border: "none",
-            background: activeTab === "my_schedule" ? "#ff9148" : "transparent",
-            color: activeTab === "my_schedule" ? "#ffffff" : "#64748b",
+            border: activeTab === "my_schedule" ? "1.5px solid #ff9148" : "1.5px solid #e2e8f0",
+            background: activeTab === "my_schedule" ? "#fff7ed" : "#ffffff",
+            color: activeTab === "my_schedule" ? "#ea580c" : "#64748b",
             fontWeight: 800,
             fontSize: 13,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            boxShadow: activeTab === "my_schedule" ? "0 2px 8px rgba(255,145,72,0.25)" : "none",
-            transition: "all .15s",
+            boxShadow: activeTab === "my_schedule" ? "0 1px 4px rgba(255,145,72,0.15)" : "none",
+            transition: "all .15s ease",
           }}
         >
-          <i className="fa-solid fa-chalkboard-user" />
+          <i
+            className="fa-solid fa-chalkboard-user"
+            style={{ color: activeTab === "my_schedule" ? "#ff9148" : "#94a3b8" }}
+          />
           <span>My Teaching Schedule</span>
           {myScheduleData?.slots?.length ? (
             <span style={{
@@ -567,8 +570,8 @@ export default function TeacherTimetablePage() {
               borderRadius: 12,
               fontSize: 11,
               fontWeight: 900,
-              background: activeTab === "my_schedule" ? "rgba(255,255,255,0.25)" : "#f1f5f9",
-              color: activeTab === "my_schedule" ? "#ffffff" : "#0f172a",
+              background: activeTab === "my_schedule" ? "#fed7aa" : "#f1f5f9",
+              color: activeTab === "my_schedule" ? "#9a3412" : "#475569",
             }}>
               {myScheduleData.slots.length}
             </span>
