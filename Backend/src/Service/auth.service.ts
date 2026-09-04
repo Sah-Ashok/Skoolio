@@ -39,10 +39,21 @@ export const sendRegistrationOTPService = async (email: string): Promise<void> =
 
   const otp = generateOTPCode();
   await storeOTP(email, otp, 'registration');
+
+  // ── Debug: log SMTP config at send time ──────────────────────────────
+  console.log('[OTP Debug] Sending registration OTP to:', email);
+  console.log('[OTP Debug] SMTP_HOST:', process.env.SMTP_HOST);
+  console.log('[OTP Debug] SMTP_PORT:', process.env.SMTP_PORT);
+  console.log('[OTP Debug] SMTP_USER:', process.env.SMTP_USER);
+  console.log('[OTP Debug] SMTP_PASS:', process.env.SMTP_PASS ? `****${process.env.SMTP_PASS.slice(-4)}` : 'MISSING!');
+  // ─────────────────────────────────────────────────────────────────────
+
   try {
     await sendOTPEmail(email, otp, 'registration');
+    console.log('[OTP Debug] Email sent successfully to:', email);
   } catch (err: any) {
     console.error('[Registration OTP] Failed to send email:', err.message);
+    console.error('[Registration OTP] Full error:', err);
     throw new AppError('Could not send verification code. Please try again.', 503);
   }
 };
