@@ -309,14 +309,6 @@ export default function FacultySalaryPage() {
                         </td>
                         <td>
                           <div className={s("facultyCell")}>
-                            <span>
-                              {t.full_name
-                                .split(" ")
-                                .map((p: string) => p[0])
-                                .join("")
-                                .substring(0, 2)
-                                .toUpperCase()}
-                            </span>
                             <div>
                               <strong>{t.full_name}</strong>
                               <small>ID #{t.teacher_id}</small>

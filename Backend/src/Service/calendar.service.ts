@@ -2,7 +2,6 @@ import {
   createCalendar, getCalendarByAcademicYear, getCalendarById, updateCalendar,
   createCalendarEvent, getEventsByCalendar, getEventById,
   updateCalendarEvent, deleteCalendarEvent, getHolidayDates,
-  getEventByExamId, updateCalendarEventByExamId,
   getWeeklyOffsByCalendar, replaceWeeklyOffs,
 } from '../Repositories/calendar.repository';
 import {
@@ -101,35 +100,6 @@ export const deleteCalendarEventService = async (
 
   const deleted = await deleteCalendarEvent(id, school_id);
   if (!deleted) throw new AppError('Failed to delete calendar event.', 500);
-};
-
-// ── EXAM ↔ CALENDAR SYNC ──
-export const syncExamCalendarEventService = async (
-  school_id: number,
-  exam: { id: number; academic_year_id: number; name: string; start_date: Date | string; end_date: Date | string }
-) => {
-  const calendar = await getCalendarService(school_id, exam.academic_year_id);
-
-  const existing = await getEventByExamId(exam.id, school_id);
-
-  if (existing) {
-    return await updateCalendarEventByExamId(exam.id, school_id, {
-      title: exam.name,
-      event_date: exam.start_date,
-      end_date: exam.end_date,
-    });
-  }
-
-  return await createCalendarEvent(school_id, school_id, {
-    calendar_id: calendar.id,
-    academic_year_id: exam.academic_year_id,
-    title: exam.name,
-    event_date: exam.start_date as Date,
-    end_date: exam.end_date as Date,
-    event_type: 'exam',
-    affects_attendance: false,
-    exam_id: exam.id,
-  });
 };
 
 // ── CALENDAR WEEKLY OFF SERVICES ──

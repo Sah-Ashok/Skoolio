@@ -727,7 +727,6 @@ export function StaffSalaryPage() {
                       </td>
                       <td>
                         <div className={s("staffCell")}>
-                          <div className={s("avatar")}>{(p.full_name ?? "?").slice(0, 2).toUpperCase()}</div>
                           <div>
                             <strong>{p.full_name ?? "—"}</strong>
                             <small>{p.role_name ?? ""}</small>

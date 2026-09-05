@@ -252,6 +252,64 @@ export default function AdminTimetablePage() {
     }
   };
 
+  // ── Delete Day & All Schedule ──
+  const [confirmDeleteDay, setConfirmDeleteDay] = useState<any | null>(null);
+  const [deletingDay, setDeletingDay]           = useState(false);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll]           = useState(false);
+
+  const handleDeleteDay = async () => {
+    if (!confirmDeleteDay || !sectionId) return;
+    setDeletingDay(true);
+    try {
+      await apiRequest(
+        `/timetable/section/${sectionId}/day/${confirmDeleteDay.key}?academic_year_id=${activeYear?.id || ""}`,
+        { method: "DELETE" }
+      );
+      dispatch(showToast({
+        type: "success",
+        title: "Schedule Cleared",
+        message: `All periods for ${confirmDeleteDay.label} have been removed.`
+      }));
+      setConfirmDeleteDay(null);
+      refetchTT();
+    } catch (err: any) {
+      dispatch(showToast({
+        type: "error",
+        title: "Error",
+        message: err?.message || `Failed to clear ${confirmDeleteDay.label} schedule.`
+      }));
+    } finally {
+      setDeletingDay(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!sectionId) return;
+    setDeletingAll(true);
+    try {
+      await apiRequest(
+        `/timetable/section/${sectionId}/all?academic_year_id=${activeYear?.id || ""}`,
+        { method: "DELETE" }
+      );
+      dispatch(showToast({
+        type: "success",
+        title: "Timetable Cleared",
+        message: "Entire timetable schedule has been cleared for this section."
+      }));
+      setConfirmDeleteAll(false);
+      refetchTT();
+    } catch (err: any) {
+      dispatch(showToast({
+        type: "error",
+        title: "Error",
+        message: err?.message || "Failed to clear timetable."
+      }));
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   // ── Copy modal ──
   const [copyOpen, setCopyOpen]   = useState(false);
   const [copySrc, setCopySrc]     = useState("sunday");
@@ -377,6 +435,13 @@ export default function AdminTimetablePage() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Btn icon="fa-bolt" label="Quick Shift Setup" primary onClick={() => setShiftOpen(true)} />
               <Btn icon="fa-copy" label="Copy Day" onClick={() => setCopyOpen(true)} />
+              <Btn
+                icon="fa-trash-can"
+                label="Clear All"
+                danger
+                disabled={slots.length === 0}
+                onClick={() => setConfirmDeleteAll(true)}
+              />
             </div>
           )}
         </div>
@@ -475,10 +540,52 @@ export default function AdminTimetablePage() {
                 <tbody>
                   {displayDays.map((day, di) => (
                     <tr key={day.key} style={{ borderBottom: di < displayDays.length - 1 ? "1px solid #F1F5F9" : "none" }}>
-                      {/* Day label */}
-                      <td style={{ padding: "12px 16px", background: "#FAFAFA", borderRight: "2px solid #F1F5F9", verticalAlign: "middle" }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>{day.abbr}</span>
-                        <div style={{ fontSize: 10.5, color: "#94A3B8", fontWeight: 500, marginTop: 1 }}>{day.label}</div>
+                      {/* Day label & Clear Day action */}
+                      <td style={{ padding: "10px 14px", background: "#FAFAFA", borderRight: "2px solid #F1F5F9", verticalAlign: "middle" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                          <div>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>{day.abbr}</span>
+                            <div style={{ fontSize: 10.5, color: "#94A3B8", fontWeight: 500, marginTop: 1 }}>{day.label}</div>
+                          </div>
+                          {(() => {
+                            const daySlots = Object.values(slotMap[day.key] || {});
+                            if (daySlots.length === 0) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteDay(day)}
+                                title={`Clear all periods for ${day.label}`}
+                                style={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: 7,
+                                  border: "1px solid #FECACA",
+                                  background: "#FEF2F2",
+                                  color: "#DC2626",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 11,
+                                  transition: "all 0.15s ease",
+                                  flexShrink: 0,
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background = "#DC2626";
+                                  e.currentTarget.style.color = "#fff";
+                                  e.currentTarget.style.borderColor = "#DC2626";
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background = "#FEF2F2";
+                                  e.currentTarget.style.color = "#DC2626";
+                                  e.currentTarget.style.borderColor = "#FECACA";
+                                }}
+                              >
+                                <i className="fa-solid fa-trash-can" />
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </td>
 
                       {/* Period cells */}
@@ -841,6 +948,112 @@ export default function AdminTimetablePage() {
           </ModalCard>
         </ModalOverlay>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          MODAL: CONFIRM CLEAR DAY SCHEDULE
+      ══════════════════════════════════════════════════════════════════ */}
+      {confirmDeleteDay && (
+        <ModalOverlay onClose={() => !deletingDay && setConfirmDeleteDay(null)}>
+          <ModalCard maxW={430}>
+            <div style={{ padding: "24px 24px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: "#FEF2F2", border: "1px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center", color: "#DC2626", fontSize: 18, flexShrink: 0 }}>
+                  <i className="fa-solid fa-trash-can" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0F172A" }}>
+                    Clear {confirmDeleteDay.label} Schedule?
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748B" }}>
+                    {currSection ? `Class ${classes?.find((c: any) => String(c.id) === classId)?.name || ""} · Section ${currSection.name}` : "Selected Section"}
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.5, margin: "0 0 20px" }}>
+                Are you sure you want to delete all scheduled periods and breaks for <strong>{confirmDeleteDay.label}</strong>? This action cannot be undone.
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <GhostBtn label="Cancel" onClick={() => setConfirmDeleteDay(null)} />
+                <button
+                  type="button"
+                  onClick={handleDeleteDay}
+                  disabled={deletingDay}
+                  style={{
+                    padding: "9px 18px",
+                    borderRadius: 9,
+                    border: "none",
+                    background: "#DC2626",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: deletingDay ? "wait" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
+                  }}
+                >
+                  {deletingDay ? <Spinner size={14} color="#fff" /> : <i className="fa-solid fa-trash-can" />}
+                  Yes, Clear Day
+                </button>
+              </div>
+            </div>
+          </ModalCard>
+        </ModalOverlay>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          MODAL: CONFIRM CLEAR ALL SCHEDULE
+      ══════════════════════════════════════════════════════════════════ */}
+      {confirmDeleteAll && (
+        <ModalOverlay onClose={() => !deletingAll && setConfirmDeleteAll(false)}>
+          <ModalCard maxW={450}>
+            <div style={{ padding: "24px 24px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FEF2F2", border: "1.5px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center", color: "#DC2626", fontSize: 20, flexShrink: 0 }}>
+                  <i className="fa-solid fa-triangle-exclamation" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#0F172A" }}>
+                    Delete Entire Routine?
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748B" }}>
+                    {currSection ? `Class ${classes?.find((c: any) => String(c.id) === classId)?.name || ""} · Section ${currSection.name}` : "Selected Section"}
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.5, margin: "0 0 20px" }}>
+                Are you sure you want to delete the <strong>entire weekly timetable</strong> ({slots.length} period{slots.length !== 1 ? "s" : ""}) for this section? All days and periods will be cleared.
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <GhostBtn label="Cancel" onClick={() => setConfirmDeleteAll(false)} />
+                <button
+                  type="button"
+                  onClick={handleDeleteAll}
+                  disabled={deletingAll}
+                  style={{
+                    padding: "9px 18px",
+                    borderRadius: 9,
+                    border: "none",
+                    background: "#DC2626",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: deletingAll ? "wait" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
+                  }}
+                >
+                  {deletingAll ? <Spinner size={14} color="#fff" /> : <i className="fa-solid fa-trash-can" />}
+                  Yes, Delete All
+                </button>
+              </div>
+            </div>
+          </ModalCard>
+        </ModalOverlay>
+      )}
     </div>
   );
 }
@@ -876,20 +1089,28 @@ function FilterSelect({ label, value, onChange, children }: { label: string; val
   );
 }
 
-function Btn({ icon, label, primary, onClick }: { icon: string; label: string; primary?: boolean; onClick?: () => void }) {
+function Btn({ icon, label, primary, danger, disabled, onClick }: {
+  icon: string; label: string; primary?: boolean; danger?: boolean; disabled?: boolean; onClick?: () => void;
+}) {
   return (
-    <button onClick={onClick} style={{
-      display: "inline-flex", alignItems: "center", gap: 7,
-      padding: "8px 14px", borderRadius: 9,
-      border: primary ? "none" : "1.5px solid #E2E8F0",
-      background: primary ? "#FF9B51" : "#fff",
-      color: primary ? "#fff" : "#334155",
-      fontWeight: 700, fontSize: 12.5, cursor: "pointer",
-      boxShadow: primary ? "0 2px 8px rgba(99,102,241,0.3)" : "none",
-      transition: "opacity 0.15s",
-    }}
-      onMouseEnter={e => e.currentTarget.style.opacity = "0.88"}
-      onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 7,
+        padding: "8px 14px", borderRadius: 9,
+        border: primary ? "none" : danger ? "1.5px solid #FECACA" : "1.5px solid #E2E8F0",
+        background: primary ? "#FF9B51" : danger ? "#FEF2F2" : "#fff",
+        color: primary ? "#fff" : danger ? "#DC2626" : "#334155",
+        fontWeight: 700, fontSize: 12.5,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.45 : 1,
+        boxShadow: primary ? "0 2px 8px rgba(255,155,81,0.25)" : "none",
+        transition: "opacity 0.15s, background 0.15s, border-color 0.15s",
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.88"; }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.opacity = "1"; }}
     >
       <i className={`fa-solid ${icon}`} style={{ fontSize: 12 }} /> {label}
     </button>

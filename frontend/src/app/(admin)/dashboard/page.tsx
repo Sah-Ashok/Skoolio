@@ -3,7 +3,6 @@
 import DashboardCharts from "@/components/admin/dashboard/DashboardCharts";
 import DashboardStats from "@/components/admin/dashboard/DashboardStats";
 import DashboardTables from "@/components/admin/dashboard/DashboardTables";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./dashboard.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
@@ -19,15 +18,28 @@ export default function AdminDashboardPage() {
   const dateStr = now.toLocaleDateString("en-IN", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
-  const adminName = user?.school_name || "Admin";
+  const adminName = user?.school_name || "School Admin";
 
   return (
     <div className={s("main-wrapper")}>
-      <Topbar
-        title="Dashboard"
-        subtitle={`Welcome back, ${adminName} | ${dateStr}`}
-      />
       <main className={s("page-content")}>
+        {/* ── Executive In-Page Header Banner ── */}
+        <div className={s("header-banner")}>
+          <div>
+            <h1 className={s("greeting-title")}>Welcome back, {adminName}</h1>
+            <p className={s("greeting-subtitle")}>
+              <i className="fa-regular fa-calendar" style={{ marginRight: 4 }} />
+              {dateStr}
+            </p>
+          </div>
+          <div className={s("header-actions")}>
+            <div className={s("session-badge")}>
+              <span className={s("pulse-dot")} />
+              Academic Session Active
+            </div>
+          </div>
+        </div>
+
         {loading || !data ? (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 340 }}>
             <Spinner size={36} />

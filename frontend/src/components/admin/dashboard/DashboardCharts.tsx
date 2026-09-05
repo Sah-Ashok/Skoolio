@@ -5,21 +5,29 @@ import {
   Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
+import { useCurrency } from "@/lib/useCurrency";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (n: string) => styles[n];
 
-const fmtShort = (n: number) => {
-  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
-  if (n >= 1_000)   return `₹${(n / 1_000).toFixed(1)}K`;
-  return `₹${n}`;
-};
-
-const PIE_COLORS = ["#25343f","#ff9b51","#14b8a6","#f43f5e","#3b82f6","#a855f7"];
+const PIE_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#ec4899"];
+const NOTICE_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"];
 
 interface Props { data: any }
 
 export default function DashboardCharts({ data }: Props) {
+  const { symbol: currSymbol } = useCurrency();
+  const sym = data?.currencySymbol || currSymbol || "रू";
+
+  const fmtShort = (n: number) => {
+    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
+    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
+    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+  };
+
+  const fmtFull = (n: number) =>
+    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+
   const feeMonthly:        any[] = data.feeMonthly        ?? [];
   const admissionsMonthly: any[] = data.admissionsMonthly ?? [];
   const expenseBreakdown:  any[] = (data.expenseBreakdown ?? []).map(
@@ -45,8 +53,6 @@ export default function DashboardCharts({ data }: Props) {
   // Largest expense category
   const largestCat = expenseBreakdown[0] ?? null;
 
-  const noticeColors = ["#6366f1","#f97316","#22c55e","#ef4444","#14b8a6","#3b82f6"];
-
   return (
     <>
       {/* ── Fee + Expense row ── */}
@@ -62,16 +68,16 @@ export default function DashboardCharts({ data }: Props) {
           </div>
           <div className={s("chart-metrics")}>
             <div className={s("metric-card")}>
-              <span>Collected</span>
+              <span>COLLECTED</span>
               <strong>{fmtShort(totalCollected)}</strong>
             </div>
             <div className={s("metric-card")}>
-              <span>Pending</span>
-              <strong>{fmtShort(totalPending)}</strong>
+              <span>PENDING</span>
+              <strong style={{ color: "#d97706" }}>{fmtShort(totalPending)}</strong>
             </div>
             <div className={s("metric-card")}>
-              <span>Collection Rate</span>
-              <strong>{collectionRate}%</strong>
+              <span>COLLECTION RATE</span>
+              <strong style={{ color: "#059669" }}>{collectionRate}%</strong>
             </div>
           </div>
           <div className={s("chart-body")}>
@@ -80,30 +86,30 @@ export default function DashboardCharts({ data }: Props) {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={feeMonthly}
-                    barGap={7}
-                    barCategoryGap="26%"
-                    margin={{ top: 6, right: 12, left: -8, bottom: 0 }}
+                    barGap={6}
+                    barCategoryGap="28%"
+                    margin={{ top: 8, right: 12, left: -10, bottom: 0 }}
                   >
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6b7b86", fontSize: 11 }} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
                     <YAxis
                       axisLine={false} tickLine={false}
-                      tick={{ fill: "#6b7b86", fontSize: 11 }}
-                      tickFormatter={(v) => `₹${v}K`}
+                      tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }}
+                      tickFormatter={(v) => fmtShort(v)}
                     />
-                    <CartesianGrid vertical={false} stroke="#e6ecec" strokeDasharray="4 6" />
+                    <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
                     <Tooltip
-                      cursor={{ fill: "rgba(255,155,81,0.08)" }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #d7dfdf", boxShadow: "0 12px 30px rgba(37,52,63,0.12)" }}
-                      formatter={(v: any, n: any) => [`₹${v}K`, n]}
+                      cursor={{ fill: "rgba(37,99,235,0.04)" }}
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
+                      formatter={(v: any, n: any) => [fmtFull(Number(v)), n]}
                     />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                    <Bar dataKey="collected" name="Collected" fill="#ff9b51" radius={[8,8,3,3]} maxBarSize={24} />
-                    <Bar dataKey="pending"   name="Pending"   fill="#bfd0d7" radius={[8,8,3,3]} maxBarSize={24} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 10 }} />
+                    <Bar dataKey="collected" name="Collected" fill="#2563eb" radius={[6,6,0,0]} maxBarSize={22} />
+                    <Bar dataKey="pending"   name="Pending"   fill="#f59e0b" radius={[6,6,0,0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#bfd0d7", fontSize:13, fontWeight:700 }}>
-                  No fee data yet
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#94a3b8", fontSize:13, fontWeight:700 }}>
+                  No fee data available yet
                 </div>
               )}
             </div>
@@ -121,11 +127,11 @@ export default function DashboardCharts({ data }: Props) {
           <div className={cx(s("chart-body"), s("expense-breakdown"))}>
             <div className={s("chart-metrics")}>
               <div className={s("metric-card")}>
-                <span>Largest</span>
-                <strong>{largestCat ? `${largestCat.name} ${largestCat.value}%` : "—"}</strong>
+                <span>LARGEST</span>
+                <strong>{largestCat ? `${largestCat.name} (${largestCat.value}%)` : "None"}</strong>
               </div>
               <div className={s("metric-card")}>
-                <span>Total Spend</span>
+                <span>TOTAL SPEND</span>
                 <strong>{fmtShort(totalExpenses)}</strong>
               </div>
             </div>
@@ -138,17 +144,17 @@ export default function DashboardCharts({ data }: Props) {
                         data={expenseBreakdown}
                         dataKey="value"
                         nameKey="name"
-                        innerRadius={54}
-                        outerRadius={78}
+                        innerRadius={56}
+                        outerRadius={80}
                         paddingAngle={3}
-                        cornerRadius={6}
+                        cornerRadius={5}
                       >
                         {expenseBreakdown.map((e: any) => (
                           <Cell fill={e.color} key={e.name} />
                         ))}
                       </Pie>
                       <Tooltip
-                        contentStyle={{ borderRadius: 12, border: "1px solid #d7dfdf", boxShadow: "0 12px 30px rgba(37,52,63,0.12)" }}
+                        contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
                         formatter={(v: any, n: any) => [`${v}%`, n]}
                       />
                     </PieChart>
@@ -168,8 +174,9 @@ export default function DashboardCharts({ data }: Props) {
                 </div>
               </>
             ) : (
-              <div style={{ padding:"32px 0", textAlign:"center", color:"#bfd0d7", fontSize:13, fontWeight:700 }}>
-                No expense data this month
+              <div style={{ padding:"44px 0", textAlign:"center", color:"#94a3b8", fontSize:13, fontWeight:600 }}>
+                <i className="fa-solid fa-receipt" style={{ fontSize: 28, display: "block", marginBottom: 10, color: "#cbd5e1" }} />
+                No expenses recorded this month
               </div>
             )}
           </div>
@@ -189,15 +196,15 @@ export default function DashboardCharts({ data }: Props) {
           </div>
           <div className={s("chart-metrics")}>
             <div className={s("metric-card")}>
-              <span>New This Month</span>
+              <span>NEW THIS MONTH</span>
               <strong>{newThisMonth}</strong>
             </div>
             <div className={s("metric-card")}>
-              <span>Best Month</span>
-              <strong>{bestMonth?.month ?? "—"}</strong>
+              <span>BEST MONTH</span>
+              <strong style={{ color: "#2563eb" }}>{bestMonth?.month ?? "—"}</strong>
             </div>
             <div className={s("metric-card")}>
-              <span>Avg Monthly</span>
+              <span>AVG MONTHLY</span>
               <strong>{avgMonthly}</strong>
             </div>
           </div>
@@ -205,35 +212,35 @@ export default function DashboardCharts({ data }: Props) {
             <div className={s("chart-canvas")}>
               {admissionsMonthly.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={admissionsMonthly} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                  <AreaChart data={admissionsMonthly} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="admFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#14b8a6" stopOpacity={0.28} />
-                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.03} />
+                        <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.20} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6b7b86", fontSize: 11 }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#6b7b86", fontSize: 11 }} allowDecimals={false} />
-                    <CartesianGrid vertical={false} stroke="#e6ecec" strokeDasharray="4 6" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} allowDecimals={false} />
+                    <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
                     <Tooltip
-                      cursor={{ stroke: "#ff9b51", strokeWidth: 1, strokeDasharray: "4 4" }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #d7dfdf", boxShadow: "0 12px 30px rgba(37,52,63,0.12)" }}
-                      formatter={(v: any) => [v, "New admissions"]}
+                      cursor={{ stroke: "#2563eb", strokeWidth: 1, strokeDasharray: "3 3" }}
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
+                      formatter={(v: any) => [v, "New Admissions"]}
                     />
                     <Area
                       type="monotone"
                       dataKey="admissions"
-                      stroke="#14b8a6"
-                      strokeWidth={3}
-                      dot={{ r: 3, strokeWidth: 2, fill: "#ffffff" }}
-                      activeDot={{ r: 5, stroke: "#ffffff", strokeWidth: 2 }}
+                      stroke="#2563eb"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, strokeWidth: 2, fill: "#ffffff", stroke: "#2563eb" }}
+                      activeDot={{ r: 5, stroke: "#ffffff", strokeWidth: 2, fill: "#2563eb" }}
                       fill="url(#admFill)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#bfd0d7", fontSize:13, fontWeight:700 }}>
-                  No admission data yet
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#94a3b8", fontSize:13, fontWeight:700 }}>
+                  No admission data available yet
                 </div>
               )}
             </div>
@@ -256,7 +263,7 @@ export default function DashboardCharts({ data }: Props) {
             ) : notices.map((n: any, i: number) => (
               <div className={s("notice-item")} key={n.id}>
                 <div className={s("n-dot-wrap")}>
-                  <div className={s("n-dot")} style={{ background: noticeColors[i % noticeColors.length] }} />
+                  <div className={s("n-dot")} style={{ background: NOTICE_COLORS[i % NOTICE_COLORS.length] }} />
                 </div>
                 <div>
                   <h4>

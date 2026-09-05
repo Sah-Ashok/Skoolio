@@ -72,8 +72,16 @@ const blankDraft = (): WeeklyDraft => {
   return d;
 };
 
-const rowsToDraft = (rows: WeeklyOffRow[]): WeeklyDraft => {
+const rowsToDraft = (rows: WeeklyOffRow[], fallbackType?: WeekendType): WeeklyDraft => {
   const draft = blankDraft();
+  if (!rows.length && fallbackType) {
+    const days = weekendDayNums[fallbackType] || [0];
+    days.forEach(day => {
+      draft[day].off = true;
+      draft[day].weeks = ["all"];
+    });
+    return draft;
+  }
   rows.forEach(r => {
     draft[r.day_of_week].off = true;
     if (r.week_pattern === "all") {
@@ -114,9 +122,9 @@ function WeekendSettingsCard({ calendarId, rows, fallbackType, onSaved }: {
   const dispatch = useAppDispatch();
   const { execute: saveWeeklyOffs, loading: saving } = useMutation("/calendar", "PUT");
   const [editing, setEditing] = useState(false);
-  const [draft,   setDraft]   = useState<WeeklyDraft>(() => rowsToDraft(rows));
+  const [draft,   setDraft]   = useState<WeeklyDraft>(() => rowsToDraft(rows, fallbackType));
 
-  useEffect(() => { if (!editing) setDraft(rowsToDraft(rows)); }, [rows, editing]);
+  useEffect(() => { if (!editing) setDraft(rowsToDraft(rows, fallbackType)); }, [rows, fallbackType, editing]);
 
   const toggleDayOff      = (day: number) => setDraft(p => ({ ...p, [day]: { ...p[day], off: !p[day].off, weeks: p[day].off ? p[day].weeks : ["all"] } }));
   const setAllWeeks       = (day: number) => setDraft(p => ({ ...p, [day]: { ...p[day], weeks: ["all"] } }));
@@ -239,7 +247,7 @@ export default function CalendarPage() {
   const { data: activeYear } = useApi<any>("/academic-years/active");
   const { data: calendarData, loading: calendarLoading } = useApi<any>(activeYear ? `/calendar?academic_year_id=${activeYear.id}` : "");
 
-  const weekendType: WeekendType   = calendarData?.weekend_type ?? "sunday_only";
+  const weekendType: WeekendType   = calendarData?.weekend_type ?? (isBS ? "saturday_only" : "sunday_only");
   const calendarId: number | null  = calendarData?.id ?? null;
 
   const { data: eventsData,     refetch: refetchEvents     } = useApi<any[]>(calendarId ? `/calendar/${calendarId}/events`      : "");

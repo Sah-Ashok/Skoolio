@@ -8,6 +8,8 @@ import {
   saveBulkSectionTimetableService,
   saveSingleSlotService,
   deleteSlotService,
+  deleteSectionDayScheduleService,
+  deleteSectionAllScheduleService,
   getTeacherScheduleService,
   getStudentScheduleService,
   checkConflictService,
@@ -65,6 +67,56 @@ export const deleteSlot = catchAsync(
 
     await deleteSlotService(school_id, slot_id);
     sendResponse(res, 200, true, 'Timetable slot deleted successfully', null);
+  }
+);
+
+export const deleteSectionDaySchedule = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+    const school_id = 'school_id' in user ? user.school_id : user.id;
+    const section_id = parseInt(String(req.params.sectionId), 10);
+    const day = String(req.params.day).toLowerCase();
+    const academic_year_id = req.query.academic_year_id
+      ? parseInt(String(req.query.academic_year_id), 10)
+      : undefined;
+
+    const result = await deleteSectionDayScheduleService(
+      school_id,
+      section_id,
+      day,
+      academic_year_id
+    );
+    sendResponse(
+      res,
+      200,
+      true,
+      `Successfully deleted ${day} schedule (${result.deleted_count} slots removed)`,
+      result
+    );
+  }
+);
+
+export const deleteSectionAllSchedule = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+    const school_id = 'school_id' in user ? user.school_id : user.id;
+    const section_id = parseInt(String(req.params.sectionId), 10);
+    const academic_year_id = req.query.academic_year_id
+      ? parseInt(String(req.query.academic_year_id), 10)
+      : undefined;
+
+    const result = await deleteSectionAllScheduleService(
+      school_id,
+      section_id,
+      academic_year_id
+    );
+    sendResponse(
+      res,
+      200,
+      true,
+      `Successfully deleted all timetable slots (${result.deleted_count} slots removed)`,
+      result
+    );
   }
 );
 

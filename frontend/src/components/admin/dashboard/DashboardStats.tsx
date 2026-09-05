@@ -1,24 +1,26 @@
 "use client";
 
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
+import { useCurrency } from "@/lib/useCurrency";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (className: string) => styles[className];
 
-const fmtINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency", currency: "INR", maximumFractionDigits: 0,
-  }).format(n);
-
-const fmtShort = (n: number) => {
-  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
-  if (n >= 1_000)   return `₹${(n / 1_000).toFixed(1)}K`;
-  return `₹${n}`;
-};
-
 interface Props { data: any }
 
 export default function DashboardStats({ data }: Props) {
+  const { symbol: currSymbol } = useCurrency();
+  const sym = data?.currencySymbol || currSymbol || "रू";
+
+  const fmtShort = (n: number) => {
+    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
+    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
+    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+  };
+
+  const fmtFull = (n: number) =>
+    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+
   const collectionRate = data.collectionRate ?? 0;
   const netBalanceSign = data.netBalance >= 0 ? "+" : "";
 
@@ -27,35 +29,39 @@ export default function DashboardStats({ data }: Props) {
       icon: "fa-user-graduate",
       label: "Total Students",
       value: (data.totalStudents ?? 0).toLocaleString("en-IN"),
-      helper: `+${data.newThisMonth ?? 0} new this month`,
-      tone: "c1",
+      helper: `+${data.newThisMonth ?? 0} this month`,
+      tone: "blue",
+      tag: "Enrolled",
     },
     {
       icon: "fa-chalkboard-user",
       label: "Teachers / Faculty",
       value: data.totalTeachers ?? 0,
       helper: `${data.activeTeachers ?? 0} active`,
-      tone: "c2",
+      tone: "emerald",
+      tag: "Faculty",
     },
     {
       icon: "fa-circle-dollar-to-slot",
       label: "Fee Collected",
       value: fmtShort(data.totalCollected ?? 0),
-      helper: `${collectionRate}% collection rate`,
-      tone: "c3",
+      helper: `${collectionRate}% collected`,
+      tone: "amber",
+      tag: `${collectionRate}% rate`,
     },
     {
       icon: "fa-scale-balanced",
       label: "Net Balance",
       value: fmtShort(Math.abs(data.netBalance ?? 0)),
-      helper: `${netBalanceSign}${fmtINR(data.netBalance ?? 0)} after expenses`,
-      tone: "c4",
+      helper: `${netBalanceSign}${fmtFull(data.netBalance ?? 0)}`,
+      tone: "indigo",
+      tag: data.netBalance >= 0 ? "Surplus" : "Deficit",
     },
   ];
 
   const secondaryCards = [
     {
-      tone: "red",
+      tone: "rose",
       icon: "fa-clock-rotate-left",
       label: "Pending Fees",
       value: fmtShort(data.totalPending ?? 0),
@@ -63,12 +69,12 @@ export default function DashboardStats({ data }: Props) {
       trend: "trend-down",
     },
     {
-      tone: "purple",
+      tone: "violet",
       icon: "fa-receipt",
       label: "Monthly Expenses",
       value: fmtShort(data.totalExpenses ?? 0),
       helper: `${data.expenseCount ?? 0} transactions`,
-      trend: "trend-down",
+      trend: undefined,
     },
     {
       tone: "teal",
@@ -81,37 +87,44 @@ export default function DashboardStats({ data }: Props) {
     {
       tone: "slate",
       icon: "fa-school",
-      label: "Classes / Sections",
+      label: "Classes & Sections",
       value: data.totalClasses ?? 0,
-      helper: `${data.totalSections ?? 0} sections total`,
+      helper: `${data.totalSections ?? 0} active sections`,
       trend: undefined,
     },
   ];
 
   const quickActions = [
-    ["/students", "fa-user-plus",          "Add Student",  "Enroll new student"    ],
-    ["/teachers", "fa-user-tie",           "Add Teacher",  "Register faculty"      ],
-    ["/fees",     "fa-hand-holding-dollar","Collect Fee",  "Record payment"        ],
-    ["/expenses", "fa-file-invoice",       "Add Expense",  "Log campus expense"    ],
+    ["/students", "fa-user-plus",           "Add Student",  "Enroll new student"    ],
+    ["/teachers", "fa-user-tie",            "Add Teacher",  "Register faculty"      ],
+    ["/fees",     "fa-hand-holding-dollar", "Collect Fee",  "Record payment"        ],
+    ["/expenses", "fa-file-invoice",        "Add Expense",  "Log campus expense"    ],
   ] as const;
 
   return (
     <>
-      {/* ── Hero stat cards ── */}
+      {/* ── Executive Hero Metric Cards ── */}
       <section className={s("hero-cards")}>
         {heroCards.map((card) => (
-          <article className={cx(s("hero-card"), s(card.tone))} key={card.label}>
-            <div className={s("hc-icon")}>
-              <i className={`fa-solid ${card.icon}`} />
+          <article className={s("hero-card")} key={card.label}>
+            <div className={s("hc-top")}>
+              <span className={s("hc-label")}>{card.label}</span>
+              <span className={cx(s("hc-icon"), s(card.tone))}>
+                <i className={`fa-solid ${card.icon}`} />
+              </span>
             </div>
-            <div className={s("hc-label")}>{card.label}</div>
             <div className={s("hc-value")}>{card.value}</div>
-            <div className={s("hc-sub")}>{card.helper}</div>
+            <div className={s("hc-sub")}>
+              <span className={cx(s("pill-tag"), s(`pill-${card.tone}`))}>
+                {card.tag}
+              </span>
+              <span className={s("hc-helper")}>{card.helper}</span>
+            </div>
           </article>
         ))}
       </section>
 
-      {/* ── Secondary cards ── */}
+      {/* ── Secondary Metric Cards ── */}
       <section className={s("sec-cards")}>
         {secondaryCards.map((card) => (
           <article className={s("sec-card")} key={card.label}>
@@ -129,7 +142,7 @@ export default function DashboardStats({ data }: Props) {
         ))}
       </section>
 
-      {/* ── Quick actions ── */}
+      {/* ── Quick Actions ── */}
       <section className={s("quick-row")}>
         {quickActions.map(([href, icon, title, subtitle]) => (
           <a className={s("qa-btn")} href={href} key={title}>
@@ -140,6 +153,7 @@ export default function DashboardStats({ data }: Props) {
               <p>{title}</p>
               <span>{subtitle}</span>
             </div>
+            <i className={`fa-solid fa-chevron-right ${s("qa-arrow")}`} />
           </a>
         ))}
       </section>

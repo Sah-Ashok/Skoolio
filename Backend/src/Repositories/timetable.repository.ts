@@ -268,3 +268,30 @@ export const deleteTimetableSlot = async (
   );
   return (result.rowCount ?? 0) > 0;
 };
+
+export const deleteSectionDayTimetable = async (
+  school_id: number,
+  academic_year_id: number,
+  section_id: number,
+  day_of_week: string
+): Promise<number> => {
+  const result = await pool.query(
+    `DELETE FROM section_timetables
+     WHERE school_id = $1 AND academic_year_id = $2 AND section_id = $3 AND LOWER(day_of_week) = LOWER($4)`,
+    [school_id, academic_year_id, section_id, day_of_week]
+  );
+  return result.rowCount ?? 0;
+};
+
+export const deleteSectionAllTimetable = async (
+  school_id: number,
+  academic_year_id: number,
+  section_id: number
+): Promise<number> => {
+  const result = await pool.query(
+    `DELETE FROM section_timetables
+     WHERE school_id = $1 AND academic_year_id = $2 AND section_id = $3`,
+    [school_id, academic_year_id, section_id]
+  );
+  return result.rowCount ?? 0;
+};

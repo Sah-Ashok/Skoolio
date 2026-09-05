@@ -17,6 +17,8 @@ import {
   saveBulkSectionTimetable,
   createOrUpdateSlot,
   deleteTimetableSlot,
+  deleteSectionDayTimetable,
+  deleteSectionAllTimetable,
 } from '../Repositories/timetable.repository';
 
 export const getSectionTimetableService = async (
@@ -192,6 +194,62 @@ export const deleteSlotService = async (
   if (!deleted) {
     throw new AppError('Timetable slot not found.', 404);
   }
+};
+
+export const deleteSectionDayScheduleService = async (
+  school_id: number,
+  section_id: number,
+  day_of_week: string,
+  academic_year_id?: number
+): Promise<{ deleted_count: number }> => {
+  const section = await getSectionById(section_id, school_id);
+  if (!section) {
+    throw new AppError('Section not found.', 404);
+  }
+
+  let yearId = academic_year_id;
+  if (!yearId) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (!activeYear) {
+      throw new AppError('No active academic year found.', 400);
+    }
+    yearId = activeYear.id;
+  }
+
+  const deleted_count = await deleteSectionDayTimetable(
+    school_id,
+    yearId,
+    section_id,
+    day_of_week
+  );
+  return { deleted_count };
+};
+
+export const deleteSectionAllScheduleService = async (
+  school_id: number,
+  section_id: number,
+  academic_year_id?: number
+): Promise<{ deleted_count: number }> => {
+  const section = await getSectionById(section_id, school_id);
+  if (!section) {
+    throw new AppError('Section not found.', 404);
+  }
+
+  let yearId = academic_year_id;
+  if (!yearId) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (!activeYear) {
+      throw new AppError('No active academic year found.', 400);
+    }
+    yearId = activeYear.id;
+  }
+
+  const deleted_count = await deleteSectionAllTimetable(
+    school_id,
+    yearId,
+    section_id
+  );
+  return { deleted_count };
 };
 
 export const getTeacherScheduleService = async (

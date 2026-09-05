@@ -1,11 +1,13 @@
 "use client";
 
-import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { useState } from "react";
 import { getPlanPrice } from "@/lib/currency";
 import { computeSavingText } from "@/components/super-admin/OfferModal";
+import styles from "./subscription.module.css";
+
+const s = (n: string) => styles[n];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan order for upgrade/downgrade logic (index = tier level)
@@ -92,36 +94,36 @@ function CycleToggle({
   onChange: (c: "monthly" | "yearly") => void;
   yearlySavingPct: number;
 }) {
-  const btn = (c: "monthly" | "yearly", label: React.ReactNode) => (
-    <button
-      onClick={() => onChange(c)}
-      style={{
-        padding: "8px 22px", borderRadius: 8, border: "none", cursor: "pointer",
-        fontWeight: 800, fontSize: 13, fontFamily: "inherit",
-        background: cycle === c ? "#fff" : "transparent",
-        color:      cycle === c ? "#1e293b" : "#64748b",
-        boxShadow:  cycle === c ? "0 1px 4px rgba(0,0,0,.1)" : "none",
-        transition: "all .15s",
-      }}
-    >
-      {label}
-    </button>
-  );
-
   return (
-    <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
-      <div style={{ display: "inline-flex", background: "#f1f5f9", borderRadius: 10, padding: 4, gap: 2 }}>
-        {btn("monthly", "Monthly")}
-        {btn("yearly", (
-          <span>
-            Yearly{" "}
-            {yearlySavingPct > 0 && (
-              <span style={{ color: "#16a34a", fontWeight: 900, marginLeft: 4, fontSize: 11 }}>
-                SAVE {yearlySavingPct}%
-              </span>
-            )}
-          </span>
-        ))}
+    <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
+      <div className={s("motionToggleWrap")} role="tablist" aria-label="Billing cycle">
+        {/* Animated sliding dark capsule indicator */}
+        <div
+          className={`${s("motionTogglePill")} ${cycle === "yearly" ? s("motionTogglePillYearly") : ""}`}
+        />
+        <button
+          type="button"
+          role="tab"
+          aria-selected={cycle === "monthly"}
+          onClick={() => onChange("monthly")}
+          className={`${s("motionToggleBtn")} ${cycle === "monthly" ? s("motionToggleBtnActive") : ""}`}
+        >
+          Monthly
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={cycle === "yearly"}
+          onClick={() => onChange("yearly")}
+          className={`${s("motionToggleBtn")} ${cycle === "yearly" ? s("motionToggleBtnActive") : ""}`}
+        >
+          <span>Yearly</span>
+          {yearlySavingPct > 0 && (
+            <span className={s("motionSavingBadge")}>
+              SAVE {yearlySavingPct}%
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -200,10 +202,8 @@ export default function UpgradePlanPage() {
     : 0;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#eef2f3" }}>
-      <Topbar title="Upgrade Plan" subtitle="Choose the plan that fits your school" />
-
-      <main style={{ padding: "20px", maxWidth: 1040, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
+      <main style={{ padding: "40px 24px 60px", maxWidth: 1060, margin: "0 auto" }}>
         {loading ? (
           <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
         ) : (
@@ -213,53 +213,37 @@ export default function UpgradePlanPage() {
               <OfferBanner key={offer.id} offer={offer} plans={plans ?? []} />
             ))}
 
-            {/* ── Current plan status bar ── */}
-            {status && (
-              <section style={{
-                background: "#fff", borderRadius: 14, border: "1px solid #dce5e9",
-                padding: "16px 22px", marginBottom: 24,
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                flexWrap: "wrap", gap: 14,
-              }}>
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 900, color: "#94a3b8", letterSpacing: ".5px", marginBottom: 4 }}>YOUR CURRENT PLAN</p>
-                  <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1e293b", margin: 0 }}>{currentPlanName}</h2>
-                </div>
-                <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-                  {[
-                    { label: "Students",   val: `${status.student_count} / ${status.plan.max_students ?? "∞"}` },
-                    { label: "Teachers",   val: `${status.teacher_count} / ${status.plan.max_teachers ?? "∞"}` },
-                    { label: "Fee Mgmt",   val: status.plan.fee_management_enabled ? "✓ On" : "✗ Off" },
-                    { label: "Online Pay", val: status.plan.online_payment_enabled  ? "✓ On" : "✗ Off" },
-                  ].map(({ label, val }) => (
-                    <div key={label}>
-                      <p style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700 }}>{label.toUpperCase()}</p>
-                      <strong style={{ fontSize: 13 }}>{val}</strong>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            {/* ── Page Centered Header (motion.dev style) ── */}
+            <div style={{ textAlign: "center", marginBottom: 32 }}>
+              <h1 style={{ fontSize: 32, fontWeight: 900, color: "#0f172a", margin: "0 0 10px", letterSpacing: "-0.6px" }}>
+                Choose the right plan for your school
+              </h1>
+              <p style={{ fontSize: 14, color: "#64748b", margin: 0, fontWeight: 600 }}>
+                Transparent pricing with no hidden fees. Upgrade or switch cycles anytime.
+              </p>
+            </div>
 
             {/* ── Billing toggle ── */}
             <CycleToggle cycle={cycle} onChange={setCycle} yearlySavingPct={repYearlySavingPct} />
 
             {/* ── Plan cards ── */}
-            <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
+            <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 24, marginBottom: 36 }}>
               {(plans ?? []).filter((plan: any) => plan.name !== "Free").map((plan: any) => {
-                const isCurrent  = plan.name === currentPlanName;
-                const planTier   = getPlanTier(plan.name);
-                const isUpgrade  = planTier > currentTier;
-                const isDowngrade= planTier < currentTier;
-                const isPro      = plan.name === "Pro";
-                const isFree     = plan.name === "Free";
-                const pricing    = getPlanPrice(plan, cycle);
-                const rp         = plan.resolved_pricing;
+                const isCurrent   = plan.name === currentPlanName;
+                const planTier    = getPlanTier(plan.name);
+                const isUpgrade   = planTier > currentTier;
+                const isDowngrade = planTier < currentTier;
+                const isPro       = plan.name === "Pro";
+                const isPlus      = plan.name === "Plus";
+                const isUltra     = plan.name === "Ultra";
+                const isFree      = plan.name === "Free";
+                const pricing     = getPlanPrice(plan, cycle);
+                const rp          = plan.resolved_pricing;
 
                 // Dynamic features — always from DB, never hardcoded
                 const features = buildFeatures(plan);
 
-                // Yearly saving for this plan
+                // Yearly saving calculation
                 const monthlyPrice    = rp?.price_monthly ?? 0;
                 const yearlyPrice     = rp?.price_yearly  ?? 0;
                 const yearlyVsMonthly = monthlyPrice > 0 && yearlyPrice > 0
@@ -268,7 +252,14 @@ export default function UpgradePlanPage() {
                   ? Math.round((yearlyVsMonthly / (monthlyPrice * 12)) * 100) : 0;
                 const currSym = rp?.symbol ?? "Rs.";
 
-                // Check for a free_months offer on this plan — to show strikethrough price
+                // Monthly-equivalent price when yearly is selected (motion.dev pattern)
+                const displayPrice = isFree
+                  ? "Free"
+                  : cycle === "yearly" && yearlyPrice > 0
+                    ? `${currSym}${Math.round(yearlyPrice / 12).toLocaleString("en-IN")}`
+                    : pricing.display;
+
+                // Check for a free_months offer on this plan
                 const planOffer = activeOffers.find((o: any) =>
                   o.discount_type === "free_months" &&
                   (!o.plan_name || o.plan_name === plan.name) &&
@@ -277,141 +268,138 @@ export default function UpgradePlanPage() {
                 const hasFreeOffer = !isFree && !!planOffer;
                 const freeMonths   = hasFreeOffer ? planOffer.discount_value : 0;
 
+                const cardTintClass = isPro
+                  ? s("motionPricingCardPro")
+                  : isPlus
+                    ? s("motionPricingCardPlus")
+                    : s("motionPricingCardUltra");
+
                 return (
                   <article
                     key={plan.id}
+                    className={`${s("motionPricingCard")} ${cardTintClass} ${isCurrent ? s("motionPricingCardCurrent") : ""}`}
                     style={{
-                      borderRadius: 16, padding: "28px 24px",
-                      border: isCurrent
-                        ? "2px solid #FF9B51"
-                        : isPro && isUpgrade
-                          ? "2px solid #FF9B51"
-                          : "1px solid #e2e8f0",
-                      background: isPro && !isCurrent
-                        ? "linear-gradient(160deg, #25343F 0%, #1a2630 100%)"
-                        : "#fff",
-                      color: isPro && !isCurrent ? "#e2e8f0" : "#1e293b",
-                      boxShadow: isPro && !isCurrent
-                        ? "0 12px 40px rgba(37,52,63,.25)"
-                        : "0 2px 12px rgba(37,52,63,.06)",
-                      position: "relative",
-                      display: "flex",
-                      flexDirection: "column",
-                      // Dim lower-tier plans when user is already above them
                       opacity: isDowngrade ? 0.72 : 1,
                     }}
                   >
-                    {/* ── Top badges ── */}
-                    {isPro && isUpgrade && (
-                      <span style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: "#FF9B51", color: "#25343F", fontSize: 10, fontWeight: 900, padding: "4px 14px", borderRadius: 999, letterSpacing: ".6px", whiteSpace: "nowrap" }}>
-                        MOST POPULAR
-                      </span>
-                    )}
-                    {isCurrent && (
-                      <span style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: "#FF9B51", color: "#fff", fontSize: 10, fontWeight: 900, padding: "4px 14px", borderRadius: 999, letterSpacing: ".6px", whiteSpace: "nowrap" }}>
-                        YOUR PLAN
-                      </span>
-                    )}
-                    {isDowngrade && (
-                      <span style={{ position: "absolute", top: -12, right: 16, background: "#f1f5f9", color: "#64748b", fontSize: 10, fontWeight: 900, padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>
-                        LOWER TIER
-                      </span>
-                    )}
+                    {/* ── 1. Header: Plan Name + Badge ── */}
+                    <div className={s("motionCardHeader")}>
+                      <h3 className={s("motionPlanName")}>{plan.name}</h3>
+                      {isCurrent ? (
+                        <span className={s("motionBadgeDark")}>Your Plan</span>
+                      ) : isPlus && isUpgrade ? (
+                        <span className={s("motionBadgeDark")}>Recommended</span>
+                      ) : isDowngrade ? (
+                        <span className={s("motionBadgeLight")}>Lower Tier</span>
+                      ) : null}
+                    </div>
 
-                    {/* ── Plan name ── */}
-                    <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: "1.2px", marginBottom: 10, color: isPro && !isCurrent ? "#FF9B51" : "#94a3b8" }}>
-                      {plan.name.toUpperCase()}
+                    {/* ── 2. Plan Subtitle / Description ── */}
+                    <p className={s("motionPlanDesc")}>
+                      {plan.name === "Ultra"
+                        ? "For large multi-branch institutions needing enterprise capacity & priority support."
+                        : plan.name === "Plus"
+                          ? "For scaling schools adding transport, hostel, and digital payment modules."
+                          : "Core school management tier with attendance, exams, and notice board."}
                     </p>
 
-                    {/* ── Price — strikethrough + Rs. 0 when free_months offer applies ── */}
-                    <div style={{ marginBottom: isFree ? 6 : 2 }}>
+                    {/* ── 3. Price Block with Vertical Number Roll ── */}
+                    <div key={cycle} className={s("motionPriceWrap")}>
                       {hasFreeOffer ? (
                         <div>
-                          {/* Strikethrough original price */}
                           <span style={{ fontSize: 20, fontWeight: 700, color: "#94a3b8", textDecoration: "line-through", marginRight: 8 }}>
                             {pricing.display}
                           </span>
-                          {/* Free for N months */}
-                          <span style={{ fontSize: 32, fontWeight: 900, lineHeight: 1, color: isPro && !isCurrent ? "#fff" : "#1e293b" }}>
-                            Free
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", marginLeft: 6 }}>
-                            for {freeMonths} month{freeMonths !== 1 ? "s" : ""}
+                          <span className={s("motionPriceNumber")}>Free</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#15803d", marginLeft: 6 }}>
+                            for {freeMonths} mo
                           </span>
                         </div>
                       ) : (
-                        <span style={{ fontSize: 36, fontWeight: 900, lineHeight: 1 }}>
-                          {isFree ? "Free" : pricing.display}
-                        </span>
-                      )}
-                      {!isFree && !hasFreeOffer && (
-                        <span style={{ fontSize: 13, fontWeight: 500, opacity: .6, marginLeft: 5 }}>
-                          /{cycle === "monthly" ? "mo" : "yr"}
-                        </span>
+                        <>
+                          <span className={s("motionPriceNumber")}>
+                            {displayPrice}
+                          </span>
+                          {!isFree && (
+                            <span className={s("motionPricePeriod")}>
+                              /mo
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
 
-                    {/* ── Currency & billing label ── */}
-                    {!isFree && rp && (
-                      <p style={{
-                        fontSize: 11, fontWeight: 600, marginBottom: cycle === "yearly" && yearlySavingPct > 0 ? 6 : 20,
-                        color: isPro && !isCurrent ? "rgba(255,255,255,.4)" : "#94a3b8",
-                      }}>
-                        {rp.currency} · billed {cycle}
-                      </p>
-                    )}
-
-                    {/* ── Yearly saving chip ── */}
-                    {!isFree && cycle === "yearly" && yearlySavingPct > 0 && (
-                      <div style={{ marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 5, background: isPro && !isCurrent ? "rgba(22,163,74,.15)" : "#f0fdf4", borderRadius: 999, padding: "4px 10px", alignSelf: "flex-start" }}>
-                        <i className="fa-solid fa-piggy-bank" style={{ fontSize: 10, color: isPro && !isCurrent ? "#86efac" : "#15803d" }} />
-                        <span style={{ fontSize: 11, fontWeight: 800, color: isPro && !isCurrent ? "#86efac" : "#15803d" }}>
-                          Save {yearlySavingPct}% · {currSym}{yearlyVsMonthly.toLocaleString()} off vs monthly
+                    {/* ── 4. Billed Annually Subtitle (motion.dev signature line) ── */}
+                    <div className={s("motionBilledLine")}>
+                      {!isFree && rp && cycle === "yearly" && yearlyPrice > 0 ? (
+                        <span>
+                          Billed annually at {currSym}{yearlyPrice.toLocaleString("en-IN")}
+                          {yearlySavingPct > 0 && (
+                            <span style={{ color: "#16a34a", fontWeight: 800, marginLeft: 6 }}>
+                              (Save {yearlySavingPct}%)
+                            </span>
+                          )}
                         </span>
+                      ) : !isFree && rp ? (
+                        <span>Billed monthly</span>
+                      ) : (
+                        <span>No credit card required</span>
+                      )}
+                    </div>
+
+                    {/* ── 5. Full-width Pill CTA Button (Directly below price) ── */}
+                    {isCurrent ? (
+                      <div className={s("motionCtaBtnCurrent")}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 8, color: "#16a34a" }} />
+                        Current Plan
                       </div>
+                    ) : isDowngrade ? (
+                      <div className={s("motionCtaBtnMuted")}>
+                        <i className="fa-solid fa-arrow-down" style={{ marginRight: 6, fontSize: 11 }} />
+                        Lower than current plan
+                      </div>
+                    ) : (
+                      <a
+                        href={`mailto:support@skoolio.com?subject=Upgrade%20to%20${plan.name}%20Plan`}
+                        className={s("motionCtaBtnPrimary")}
+                      >
+                        {plan.name === "Ultra" ? "Talk to sales" : `Start with ${plan.name}`}
+                      </a>
                     )}
 
-                    {isFree && <p style={{ fontSize: 12, opacity: .45, marginBottom: 20 }}>No credit card required</p>}
+                    {/* ── 6. Soft Divider ── */}
+                    <div className={s("motionDivider")} />
 
-                    {/* ── Dynamic features from DB ── */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28, flex: 1 }}>
-                      {features.map(f => (
-                        <Feature
-                          key={f.text}
-                          text={f.text}
-                          included={f.included}
-                          dark={isPro && !isCurrent}
-                        />
+                    {/* ── 7. Feature Checklist ── */}
+                    <div className={s("motionFeatureList")}>
+                      {features.map((f: any) => (
+                        <div key={f.text} className={s("motionFeatureItem")}>
+                          <i
+                            className={`fa-solid ${f.included ? "fa-check" : "fa-xmark"}`}
+                            style={{
+                              fontSize: 11,
+                              color: f.included ? "#0f172a" : "#cbd5e1",
+                              width: 16,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{
+                            fontWeight: f.included ? 600 : 400,
+                            color: f.included ? "#1e293b" : "#94a3b8",
+                          }}>
+                            {f.text}
+                          </span>
+                        </div>
                       ))}
                     </div>
 
-                    {/* ── Offer tag on card ── */}
+                    {/* Offer chip if active */}
                     {!isFree && planOffer && (
-                      <div style={{ marginBottom: 10, padding: "6px 12px", borderRadius: 8, background: isPro && !isCurrent ? "rgba(255,155,81,.1)" : "#fff7ed", border: isPro && !isCurrent ? "1px solid rgba(255,155,81,.3)" : "1px solid #ffedd5", display: "flex", alignItems: "center", gap: 6 }}>
-                        <i className="fa-solid fa-gift" style={{ fontSize: 11, color: "#FF9B51" }} />
-                        <span style={{ fontSize: 11, fontWeight: 800, color: isPro && !isCurrent ? "#FF9B51" : "#c2410c" }}>
+                      <div style={{ marginTop: 14, padding: "6px 12px", borderRadius: 8, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="fa-solid fa-gift" style={{ fontSize: 11, color: "#ea580c" }} />
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#c2410c" }}>
                           {planOffer.saving_text || computeSavingText(planOffer.discount_type, planOffer.discount_value, plans ?? [], planOffer.plan_name ?? null, planOffer.applies_to_billing ?? null, planOffer.currency_applies_to ?? null)}
                         </span>
-                      </div>
-                    )}
-
-                    {/* ── CTA — depends on tier relationship ── */}
-                    {isCurrent ? (
-                      // Current plan
-                      <div style={{ textAlign: "center", padding: "11px", borderRadius: 10, fontWeight: 800, fontSize: 13, background: "#fff7ed", color: "#FF9B51", border: "2px solid #FF9B51" }}>
-                        <i className="fa-solid fa-circle-check" style={{ marginRight: 6 }} /> Your Current Plan
-                      </div>
-                    ) : isDowngrade ? (
-                      // Lower-tier plan — don't show an action button, just a muted label
-                      <div style={{ textAlign: "center", padding: "11px", borderRadius: 10, fontWeight: 700, fontSize: 12, background: "#f8fafc", color: "#94a3b8", border: "1px solid #e2e8f0" }}>
-                        <i className="fa-solid fa-arrow-down" style={{ marginRight: 6, fontSize: 11 }} />
-                        Lower than your current plan
-                      </div>
-                    ) : (
-                      // Upgrade path
-                      <div style={{ textAlign: "center", padding: "11px", borderRadius: 10, fontWeight: 800, fontSize: 13, background: isPro ? "#FF9B51" : "#1e293b", color: isPro ? "#25343F" : "#FF9B51", cursor: "default", letterSpacing: ".2px" }}>
-                        <i className="fa-solid fa-envelope" style={{ marginRight: 6 }} />
-                        Contact us to upgrade
                       </div>
                     )}
                   </article>

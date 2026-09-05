@@ -101,7 +101,7 @@ export default function MySubscriptionPage() {
                 <div className={s("heroRight")}>
                   {daysLeft !== null && daysLeft > 0 && (
                     <div className={s("daysBadge")}>
-                      <i className="fa-solid fa-clock" style={{ color: "#ff9b51" }} />
+                      <i className="fa-solid fa-clock" style={{ color: "#f59e0b" }} />
                       <span><strong>{daysLeft} days</strong> remaining</span>
                     </div>
                   )}

@@ -6,6 +6,8 @@ import {
   saveBulkSectionTimetable,
   saveSlot,
   deleteSlot,
+  deleteSectionDaySchedule,
+  deleteSectionAllSchedule,
   getMyTeacherSchedule,
   getTeacherScheduleById,
   getMyStudentSchedule,
@@ -29,6 +31,8 @@ router.get('/check-conflict', restrictTo('admin', 'super_admin', 'faculty'), che
 // Section Timetable (Read: admin, faculty, student; Write: admin, faculty)
 router.get('/section/:sectionId', restrictTo('admin', 'super_admin', 'faculty', 'student'), getSectionTimetable);
 router.post('/section/:sectionId/bulk', restrictTo('admin', 'super_admin', 'faculty'), saveBulkSectionTimetable);
+router.delete('/section/:sectionId/day/:day', restrictTo('admin', 'super_admin', 'faculty'), deleteSectionDaySchedule);
+router.delete('/section/:sectionId/all', restrictTo('admin', 'super_admin', 'faculty'), deleteSectionAllSchedule);
 router.post('/slot', restrictTo('admin', 'super_admin', 'faculty'), saveSlot);
 router.delete('/slot/:id', restrictTo('admin', 'super_admin', 'faculty'), deleteSlot);
 

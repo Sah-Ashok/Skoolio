@@ -1,20 +1,10 @@
 "use client";
 
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
+import { useCurrency } from "@/lib/useCurrency";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (n: string) => styles[n];
-
-const fmtINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency", currency: "INR", maximumFractionDigits: 0,
-  }).format(n);
-
-const fmtShort = (n: number) => {
-  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
-  if (n >= 1_000)   return `₹${(n / 1_000).toFixed(1)}K`;
-  return `₹${n}`;
-};
 
 const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
@@ -25,6 +15,18 @@ const fmtDate = (d: string) =>
 interface Props { data: any }
 
 export default function DashboardTables({ data }: Props) {
+  const { symbol: currSymbol } = useCurrency();
+  const sym = data?.currencySymbol || currSymbol || "रू";
+
+  const fmtCurrency = (n: number) =>
+    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+
+  const fmtShort = (n: number) => {
+    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
+    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
+    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+  };
+
   const recentStudents: any[] = data.recentStudents ?? [];
   const recentExpenses: any[] = data.recentExpenses ?? [];
   const recentSalaries: any[] = data.recentSalaries ?? [];
@@ -116,10 +118,10 @@ export default function DashboardTables({ data }: Props) {
           </div>
           <div className={s("fee-body")}>
             {[
-              ["Total Assigned", fmtINR(totalAssigned),  undefined],
-              ["Collected",      fmtINR(totalCollected), "text-success"],
-              ["Pending",        fmtINR(totalPending),   "text-danger"],
-              ["Overdue (>30d)", fmtINR(overdueAmount),  "text-warning"],
+              ["Total Assigned", fmtCurrency(totalAssigned),  undefined],
+              ["Collected",      fmtCurrency(totalCollected), "text-success"],
+              ["Pending",        fmtCurrency(totalPending),   "text-danger"],
+              ["Overdue (>30d)", fmtCurrency(overdueAmount),  "text-warning"],
             ].map(([label, value, tone]) => (
               <div className={s("fee-item")} key={label}>
                 <div className={s("fee-lbl")}>{label}</div>
@@ -186,7 +188,7 @@ export default function DashboardTables({ data }: Props) {
                         {ex.category_name || "Other"}
                       </span>
                     </td>
-                    <td className={s("strong-cell")}>{fmtINR(Number(ex.amount))}</td>
+                    <td className={s("strong-cell")}>{fmtCurrency(Number(ex.amount))}</td>
                     <td className={s("muted-cell")}>{fmtDate(ex.expense_date)}</td>
                   </tr>
                 ))}
@@ -216,7 +218,7 @@ export default function DashboardTables({ data }: Props) {
                       <div className={s("av")}>{initials(sal.full_name)}</div>
                       <div>
                         <div className={s("name")}>{sal.full_name}</div>
-                        <div className={s("sub")}>{fmtINR(Number(sal.net_salary))}</div>
+                        <div className={s("sub")}>{fmtCurrency(Number(sal.net_salary))}</div>
                       </div>
                     </div>
                     <span className={cx(s("badge"), sal.status === "paid" ? s("b-green") : s("b-red"))}>

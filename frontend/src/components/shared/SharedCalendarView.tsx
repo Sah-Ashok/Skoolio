@@ -79,7 +79,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
   );
 
   const calendarId: number | null = calendarData?.id ?? null;
-  const fallback: WeekendType     = calendarData?.weekend_type ?? "sunday_only";
+  const fallback: WeekendType     = calendarData?.weekend_type ?? (isBS ? "saturday_only" : "sunday_only");
 
   const { data: eventsRaw  } = useApi<any[]>(calendarId ? `/calendar/${calendarId}/events` : null);
   const { data: weeklyOffs } = useApi<WeeklyOffRow[]>(calendarId ? `/calendar/${calendarId}/weekly-offs` : null);
@@ -166,7 +166,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
   // ── Event map: AD ISO date → event ────────────────────────────────────────
   const eventMap = useMemo(() => {
     const map: Record<string, { type: EventType; label: string }> = {};
-    (eventsRaw ?? []).forEach((ev) => {
+    (eventsRaw ?? []).filter((ev) => ev.event_type !== "exam").forEach((ev) => {
       const start = new Date(ev.event_date + "T00:00:00");
       const end   = ev.end_date ? new Date(ev.end_date + "T00:00:00") : new Date(ev.event_date + "T00:00:00");
       const d     = new Date(start);
@@ -382,10 +382,6 @@ export default function SharedCalendarView({ role: _role }: Props) {
                   <span className={s("legendItem")}>
                     <span style={{ background: "#7c3aed" }} />
                     Early Closing
-                  </span>
-                  <span className={s("legendItem")}>
-                    <span style={{ background: "#c46a14" }} />
-                    Exam
                   </span>
                 </div>
               </div>

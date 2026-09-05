@@ -56,7 +56,7 @@ export default function AddCalendarEventPage() {
 
   return (
     <div className={s("page")}>
-      <Topbar title="Add Calendar Entry" subtitle="Create holiday, event, exam, vacation, or working day entry" />
+      <Topbar title="Add Calendar Entry" subtitle="Create holiday, event, vacation, or working day entry" />
 
       <main className={s("content")}>
         <section className={s("head")}>
@@ -86,7 +86,6 @@ export default function AddCalendarEventPage() {
                   <select value={eventType} onChange={(e) => setEventType(e.target.value)} required>
                     <option value="holiday">Holiday</option>
                     <option value="event">Event</option>
-                    <option value="exam">Exam</option>
                     <option value="early_closing">Early Closing</option>
                   </select>
                 </label>

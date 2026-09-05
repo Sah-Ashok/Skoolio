@@ -6,6 +6,17 @@ import pool from '../config/db';
  */
 export const getDashboardSummary = async (school_id: number) => {
 
+  // ── 0. School Settings (Country, Calendar System, Currency) ─
+  const schoolRes = await pool.query(
+    `SELECT country, calendar_system FROM schools WHERE id = $1`,
+    [school_id]
+  );
+  const school = schoolRes.rows[0];
+  const isIndia = school?.country?.toLowerCase() === 'india';
+  const isBS = school?.calendar_system === 'BS';
+  const currency = isIndia ? 'INR' : 'NPR';
+  const currencySymbol = isIndia ? '₹' : (isBS ? 'रू' : 'Rs.');
+
   // ── 1. Students ────────────────────────────────────────────
   const studentsRes = await pool.query(
     `SELECT
@@ -247,19 +258,50 @@ export const getDashboardSummary = async (school_id: number) => {
     salaryTotal:     salary.total_records,
     salaryPaidAmt:   salaryPaid,
 
+    // Currency configuration
+    currency,
+    currencySymbol,
+
     // Net balance
     netBalance,
 
-    // Charts
-    feeMonthly: feeMonthlyRes.rows.map(r => ({
-      month:     r.month,
-      collected: Math.round(Number(r.collected) / 1000),
-      pending:   Math.round(Number(r.pending)   / 1000),
-    })),
-    admissionsMonthly: admissionsRes.rows.map(r => ({
-      month:      r.month,
-      admissions: r.admissions,
-    })),
+    // Charts — Continuous 6-month timeline
+    feeMonthly: (() => {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const now = new Date();
+      const timelineMonths: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        timelineMonths.push(monthNames[d.getMonth()]);
+      }
+      const feeMap = new Map(feeMonthlyRes.rows.map((r: any) => [r.month, r]));
+      return timelineMonths.map(m => {
+        const r = feeMap.get(m);
+        return {
+          month:     m,
+          collected: r ? Math.round(Number(r.collected) / 1000) : 0,
+          pending:   r ? Math.round(Number(r.pending)   / 1000) : 0,
+        };
+      });
+    })(),
+
+    admissionsMonthly: (() => {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const now = new Date();
+      const timelineMonths: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        timelineMonths.push(monthNames[d.getMonth()]);
+      }
+      const admMap = new Map(admissionsRes.rows.map((r: any) => [r.month, r]));
+      return timelineMonths.map(m => {
+        const r = admMap.get(m);
+        return {
+          month:      m,
+          admissions: r ? Number(r.admissions) : 0,
+        };
+      });
+    })(),
 
     // Tables
     recentStudents: recentStudentsRes.rows,

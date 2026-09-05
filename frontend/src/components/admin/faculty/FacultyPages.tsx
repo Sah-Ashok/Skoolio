@@ -35,7 +35,6 @@ function FacultyShell({
 }) {
   return (
     <div className={s("faculty-page")}>
-      <Topbar title={title} subtitle={subtitle} />
       <main className={s("page-content")}>
         {!hideHeader && (
           <div className={s("page-head")}>
@@ -58,6 +57,8 @@ export function FacultyPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const filtered = (faculty || []).filter((f) => {
     const matchSearch =
@@ -76,6 +77,9 @@ export function FacultyPage() {
     ? Math.round(faculty.reduce((acc, f) => acc + (Number(f.experience_years) || 0), 0) / faculty.length)
     : 0;
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <FacultyShell
       title="Teachers & Faculty"
@@ -88,25 +92,44 @@ export function FacultyPage() {
     >
       {/* ── Stats ── */}
       <section className={s("stats-row")}>
-        <article>
-          <i className="fa-solid fa-chalkboard-user" />
-          <span>Total Faculty</span>
-          <strong>{total}</strong>
+        <article className={s("stat-card")}>
+          <div className={cx(s("stat-icon"), s("orange"))}>
+            <i className="fa-solid fa-chalkboard-user" />
+          </div>
+          <div className={s("stat-info")}>
+            <span>Total Faculty</span>
+            <strong>{total}</strong>
+          </div>
         </article>
-        <article>
-          <i className="fa-solid fa-circle-check" style={{ color: "#15803d" }} />
-          <span>Active</span>
-          <strong>{active}</strong>
+
+        <article className={s("stat-card")}>
+          <div className={cx(s("stat-icon"), s("green"))}>
+            <i className="fa-solid fa-circle-check" />
+          </div>
+          <div className={s("stat-info")}>
+            <span>Active</span>
+            <strong>{active}</strong>
+          </div>
         </article>
-        <article>
-          <i className="fa-solid fa-circle-pause" style={{ color: "#b45309" }} />
-          <span>Inactive</span>
-          <strong>{inactive}</strong>
+
+        <article className={s("stat-card")}>
+          <div className={cx(s("stat-icon"), s("amber"))}>
+            <i className="fa-solid fa-circle-pause" />
+          </div>
+          <div className={s("stat-info")}>
+            <span>Inactive</span>
+            <strong>{inactive}</strong>
+          </div>
         </article>
-        <article>
-          <i className="fa-solid fa-briefcase" style={{ color: "#1d4ed8" }} />
-          <span>Avg Experience</span>
-          <strong>{avgExp} yrs</strong>
+
+        <article className={s("stat-card")}>
+          <div className={cx(s("stat-icon"), s("blue"))}>
+            <i className="fa-solid fa-briefcase" />
+          </div>
+          <div className={s("stat-info")}>
+            <span>Avg Experience</span>
+            <strong>{avgExp} yrs</strong>
+          </div>
         </article>
       </section>
 
@@ -118,15 +141,30 @@ export function FacultyPage() {
             type="text"
             placeholder="Search by name, email or phone…"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+        >
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
-        <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}>
+        <select
+          value={genderFilter}
+          onChange={(e) => {
+            setGenderFilter(e.target.value);
+            setPage(1);
+          }}
+        >
           <option value="all">All Genders</option>
           <option value="male">Male</option>
           <option value="female">Female</option>
@@ -167,6 +205,7 @@ export function FacultyPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 48, textAlign: "center" }}>#</th>
                   <th>Teacher</th>
                   <th>Contact</th>
                   <th>Qualification</th>
@@ -177,10 +216,10 @@ export function FacultyPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {paginated.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style={{ textAlign: "center", padding: "3rem", color: "#6b7b86" }}
                     >
                       <i className="fa-solid fa-inbox" style={{ fontSize: 24, display: "block", marginBottom: 8 }} />
@@ -188,58 +227,119 @@ export function FacultyPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((person) => (
-                    <tr key={person.id}>
-                      <td>
-                        <div className={s("faculty-cell")}>
-                          <span>{getInitials(person.full_name)}</span>
-                          <div>
-                            <strong>{person.full_name}</strong>
-                            <small style={{ textTransform: "capitalize" }}>{person.gender || "—"}</small>
+                  paginated.map((person, index) => {
+                    const serialNum = (page - 1) * PAGE_SIZE + index + 1;
+                    return (
+                      <tr key={person.id}>
+                        <td style={{ width: 48, textAlign: "center", fontWeight: 700, color: "#94a3b8", fontSize: 12 }}>
+                          {serialNum}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <strong style={{ fontSize: 13.5, fontWeight: 800, color: "#0f172a" }}>
+                              {person.full_name}
+                            </strong>
+                            <small style={{ color: "#64748b", fontWeight: 600, fontSize: 11.5, textTransform: "capitalize" }}>
+                              {person.gender || "—"}
+                            </small>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "grid", gap: 3 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700 }}>{person.phone || "—"}</span>
-                          <span style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600 }}>{person.email || "—"}</span>
-                        </div>
-                      </td>
-                      <td style={{ fontWeight: 700, fontSize: 13 }}>{person.qualification || "—"}</td>
-                      <td style={{ fontWeight: 700, fontSize: 13 }}>
-                        {person.experience_years ? `${person.experience_years} yrs` : "—"}
-                      </td>
-                      <td style={{ color: "#6b7b86", fontSize: 13 }}>
-                        {person.join_date
-                          ? new Date(person.join_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                          : "—"}
-                      </td>
-                      <td>
-                        <span
-                          className={cx(
-                            s("badge"),
-                            s(person.status === "active" ? "green" : "yellow")
-                          )}
-                          style={{ textTransform: "capitalize" }}
-                        >
-                          {person.status}
-                        </span>
-                      </td>
-                      <td>
-                        <Link
-                          className={cx(s("btn"), s("btn-sm"), s("btn-soft"))}
-                          href={`/teachers/${person.id}`}
-                        >
-                          <i className="fa-solid fa-eye" /> View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td>
+                          <div style={{ display: "grid", gap: 3 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700 }}>{person.phone || "—"}</span>
+                            <span style={{ fontSize: 11, color: "#6b7b86", fontWeight: 600 }}>{person.email || "—"}</span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 700, fontSize: 13 }}>{person.qualification || "—"}</td>
+                        <td style={{ fontWeight: 700, fontSize: 13 }}>
+                          {person.experience_years ? `${person.experience_years} yrs` : "—"}
+                        </td>
+                        <td style={{ color: "#6b7b86", fontSize: 13 }}>
+                          {person.join_date
+                            ? new Date(person.join_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                            : "—"}
+                        </td>
+                        <td>
+                          <span
+                            className={cx(
+                              s("badge"),
+                              s(person.status === "active" ? "green" : "yellow")
+                            )}
+                            style={{ textTransform: "capitalize" }}
+                          >
+                            {person.status}
+                          </span>
+                        </td>
+                        <td>
+                          <Link
+                            className={cx(s("btn"), s("btn-sm"), s("btn-soft"))}
+                            href={`/teachers/${person.id}`}
+                          >
+                            <i className="fa-solid fa-eye" /> View
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* ── Pagination Footer ── */}
+        {filtered.length > 0 && (
+          <div className={s("pagination-wrap")}>
+            <span className={s("pagination-info")}>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} teachers
+            </span>
+            {totalPages > 1 && (
+              <div className={s("pagination-controls")}>
+                <button
+                  type="button"
+                  className={s("pg-btn")}
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  title="Previous Page"
+                >
+                  <i className="fa-solid fa-chevron-left" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                    if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push("…");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "…" ? (
+                      <span key={`e${i}`} style={{ width: 28, textAlign: "center", fontSize: 12, color: "#94a3b8" }}>
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        key={p}
+                        className={cx(s("pg-btn"), p === page && s("pg-btn-active"))}
+                        onClick={() => setPage(p as number)}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                <button
+                  type="button"
+                  className={s("pg-btn")}
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  title="Next Page"
+                >
+                  <i className="fa-solid fa-chevron-right" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </FacultyShell>
   );
