@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import styles from "@/components/admin/calendar/calendar.module.css";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -413,8 +413,8 @@ export default function SharedCalendarView({ role: _role }: Props) {
             </div>
 
             {calLoading ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}>
-                <Spinner size={32} color="#ff9b51" />
+              <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+                <Loader fullScreen={false} size="md" text="Loading calendar…" />
               </div>
             ) : (
               <div className={s("calendarGrid")}>

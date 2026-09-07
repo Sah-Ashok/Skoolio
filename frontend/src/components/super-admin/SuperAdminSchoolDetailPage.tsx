@@ -7,7 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -43,11 +43,8 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     return (
       <div className={s("sa-page")}>
         <Topbar title="School Details" subtitle="Loading tenant information…" />
-        <div style={{ padding: "5rem", textAlign: "center" }}>
-          <Spinner size={36} color="#FF9B51" />
-          <p style={{ marginTop: 14, fontSize: 13.5, color: "#64748b", fontWeight: 700 }}>
-            Fetching tenant metrics, storage usage, and subscription history…
-          </p>
+        <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+          <Loader fullScreen={false} size="md" text="Fetching tenant metrics, storage usage, and subscription history…" />
         </div>
       </div>
     );

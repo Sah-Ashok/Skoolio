@@ -3,15 +3,9 @@
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
-import { Spinner } from "@/components/shared/Loader";
-
-const relDate = (iso: string) => {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Yesterday";
-  if (diff < 7)  return `${diff}d ago`;
-  return new Date(iso).toLocaleDateString("en-IN", { day:"2-digit", month:"short" });
-};
+import Loader, { Spinner } from "@/components/shared/Loader";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -36,10 +30,19 @@ const PRIORITY: Record<string, { dot:string; label:string }> = {
 };
 
 export default function TeacherDashboardPage() {
+  const { formatDateShort } = useDateFormat();
+  const relDate = (iso: string) => {
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    if (diff < 7)  return `${diff}d ago`;
+    return formatDateShort(iso);
+  };
+
   const { user } = useAppSelector(s => s.auth);
   const { data: me, loading } = useApi<any>("/auth/me");
   const { data: noticesRaw }  = useApi<any>("/notices/teacher");
-  const { data: activeYear }  = useApi<any>("/academic-years/active");
+  const { activeYear }        = useAcademicYear();
   const { data: attSummary }  = useApi<any>(
     activeYear?.id ? `/teachers/me/attendance/yearly?academic_year_id=${activeYear.id}` : ""
   );
@@ -133,10 +136,7 @@ export default function TeacherDashboardPage() {
       <div className="td2">
         <div className="td2-wrap">
           {loading ? (
-            <div style={{ padding:"6rem 0", textAlign:"center" }}>
-              <Spinner size={28} color="#FF9B51" />
-              <p style={{ marginTop:12, fontSize:12, fontWeight:700, color:"#94a3b8" }}>Loading…</p>
-            </div>
+            <Loader fullScreen={false} size="md" text="Loading dashboard…" />
           ) : (<>
 
             {/* Hero */}

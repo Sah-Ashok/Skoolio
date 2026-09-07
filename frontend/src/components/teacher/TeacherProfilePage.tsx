@@ -3,11 +3,10 @@
 import { useState } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
+import { useDateFormat } from "@/lib/useDateFormat";
 
-const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const cap = (s?: string | null) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
 
@@ -76,6 +75,8 @@ function PwdInput({ label, value, onChange, placeholder }: {
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function TeacherProfilePage() {
+  const { formatDate } = useDateFormat();
+  const fmtDate = (d?: string | null) => (d ? formatDate(d) : "—");
   const { data: me, loading } = useApi<any>("/auth/me");
 
   const [currentPwd, setCurrentPwd] = useState("");
@@ -128,7 +129,7 @@ export default function TeacherProfilePage() {
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
         {loading ? (
-          <div style={{ padding: "5rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          <Loader fullScreen={false} size="md" text="Loading profile…" />
         ) : (
           <>
             {/* ══ HERO ══ */}

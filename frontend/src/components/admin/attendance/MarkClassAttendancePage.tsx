@@ -7,7 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./attendance.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -398,7 +398,7 @@ export default function MarkClassAttendancePage() {
 
           <div className={s("attendanceTableWrap")}>
             {(isLoading || loadingStudents) ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading students…" /></div>
             ) : (
               <table>
                 <thead>

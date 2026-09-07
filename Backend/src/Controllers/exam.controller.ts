@@ -5,7 +5,7 @@ import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 import {
   createExamService, getExamsService, getExamByIdService, updateExamService, deleteExamService,
   createExamScheduleService, getExamSchedulesService, updateExamScheduleService, deleteExamScheduleService,
-  createExamResultService, getClassResultsService, getStudentExamResultsService,
+  createExamResultService, bulkUpsertExamResultsService, getClassResultsService, getStudentExamResultsService,
   getStudentAllResultsService, updateExamResultService, publishExamResultsService, unpublishExamResultsService,
   createGradeScaleService, getGradeScalesService, updateGradeScaleService, deleteGradeScaleService,
   getStudentExamSchedulesService, publishExamScheduleService, getClassExamRegisterService,
@@ -93,6 +93,21 @@ export const createExamResult = catchAsync(async (req: Request, res: Response, n
     requester_teacher_id
   );
   sendResponse(res, 201, true, 'Result entered successfully', result);
+});
+
+export const bulkUpsertExamResults = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req);
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const isFaculty = 'school_id' in user;
+  const entered_by = isFaculty ? user.id : undefined;
+  const requester_teacher_id = isFaculty ? user.id : undefined;
+
+  const result = await bulkUpsertExamResultsService(
+    school_id,
+    { ...req.body, entered_by: req.body.entered_by ?? entered_by },
+    requester_teacher_id
+  );
+  sendResponse(res, 200, true, 'Results saved successfully', result);
 });
 
 export const getClassResults = catchAsync(async (req: Request, res: Response, next: NextFunction) => {

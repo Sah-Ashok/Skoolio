@@ -7,7 +7,7 @@ import { apiRequest } from '@/lib/api';
 import { useAppDispatch } from '@/store/hooks';
 import { showToast } from '@/store/toastSlice';
 import { setUser } from '@/store/authSlice';
-import { Spinner } from '@/components/shared/Loader';
+import { Loader, Spinner } from '@/components/shared/Loader';
 import styles from './settings.module.css';
 import PayrollPolicyTab from '@/components/admin/settings/PayrollPolicyTab';
 import FeeBillingPolicyTab from '@/components/admin/settings/FeeBillingPolicyTab';
@@ -174,7 +174,7 @@ export default function AdminSettingsPage() {
 
   // Bank accounts — fetched on-demand only when Payment Setup tab is selected
   const { data: bankAccounts, loading: bankLoading, refetch: refetchBanks } = useApi<any[]>(
-    tab === 'payment' ? '/school/bank-accounts' : null,
+    tab === 'payment' ? '/school/bank-accounts' : "",
     [tab]
   );
   const [showBankForm, setShowBankForm] = useState(false);
@@ -426,9 +426,8 @@ export default function AdminSettingsPage() {
         </div>
 
         {loading && (
-          <div style={{ padding: '3rem', textAlign: 'center' }}>
-            <Spinner size={32} color="#FF9B51" />
-            <p style={{ marginTop: 10, color: '#64748b', fontSize: 13, fontWeight: 600 }}>Loading settings…</p>
+          <div style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+            <Loader fullScreen={false} size="md" text="Loading settings…" />
           </div>
         )}
 
@@ -633,8 +632,8 @@ export default function AdminSettingsPage() {
 
               <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {bankLoading && (
-                  <div style={{ padding: '2rem', textAlign: 'center' }}>
-                    <Spinner size={28} color="#FF9B51" />
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center' }}>
+                    <Loader fullScreen={false} size="sm" text="Loading bank accounts…" />
                   </div>
                 )}
                 {!bankLoading && (!bankAccounts || bankAccounts.length === 0) && (

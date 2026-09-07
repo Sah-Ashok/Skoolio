@@ -6,7 +6,7 @@ import Link from "next/link";
 import styles from "./students.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency }  from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -162,7 +162,7 @@ export default function StudentProfilePage() {
 
   /* ── Guards ── */
   if (!id)      return <div className={s("sp-empty")}>No student selected.</div>;
-  if (loading)  return <div className={s("sp-loading")}><Spinner size={32} color="#ff9b51" /></div>;
+  if (loading)  return <div className={s("sp-loading")} style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading student profile…" /></div>;
   if (!student) return <div className={s("sp-empty")}>Student not found.</div>;
 
   /* ── Fee compute ── */

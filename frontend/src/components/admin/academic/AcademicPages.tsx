@@ -8,8 +8,9 @@ import styles from "./academic.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 
 const s = (className: string) => styles[className];
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -50,8 +51,8 @@ function AcademicShell({
 
 function AcademicStats() {
   const { data: years } = useApi('/academic-years');
-  const { data: activeYear } = useApi<{id: number}>('/academic-years/active');
-  const { data: classes } = useApi(activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : '', [activeYear?.id]);
+  const { academicYearId } = useAcademicYear();
+  const { data: classes } = useApi(academicYearId ? `/classes?academic_year_id=${academicYearId}` : '', [academicYearId]);
   const { data: subjects } = useApi('/classes/subjects');
 
   const stats = [
@@ -89,7 +90,7 @@ function ProgramCards() {
   const [editForm, setEditForm] = useState({ name: '', room_no: '', status: 'active', description: '' });
 
   if (!activeYear?.id) return <div style={{ padding: "2rem", color: "#64748b" }}>No active academic year found. Please create and activate an academic year first.</div>;
-  if (loading) return <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>;
+  if (loading) return <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading subjects…" /></div>;
   if (error) return <div style={{ color: "red", padding: "1rem" }}>{error}</div>;
 
   const startEdit = (program: any) => {
@@ -287,7 +288,7 @@ export function AcademicManagePage() {
         )}
 
         <div className={s("table-wrap")} style={{ padding: '0 1.5rem 1.5rem' }}>
-          {loading ? <div style={{ padding: '2rem', textAlign: 'center' }}><Spinner size={32} color="#FF9B51" /></div> : (
+          {loading ? <div style={{ padding: '3rem 1rem', textAlign: 'center' }}><Loader fullScreen={false} size="md" text="Loading classrooms…" /></div> : (
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem', textAlign: 'left', fontSize: '14px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #e2e8f0', color: '#64748b' }}>

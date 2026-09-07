@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApi } from '@/lib/useApi';
 import { useAppSelector } from '@/store/hooks';
-import { Spinner } from '@/components/shared/Loader';
+import Loader from '@/components/shared/Loader';
 import styles from './no-active-year.module.css';
 
 const ADMIN_SUBSCRIPTION_BYPASS_PATHS = ['/upgrade', '/subscription', '/settings'];
@@ -27,11 +27,7 @@ export default function SubscriptionLockGuard({
 
   // While loading or not yet bootstrapped, render a neutral placeholder to avoid content flash
   if (!authBootstrapped || (loading && !status)) {
-    return (
-      <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spinner size={32} color="#FF9B51" />
-      </div>
-    );
+    return <Loader fullScreen={false} size="md" text="Checking subscription..." />;
   }
 
   // If no status or active or in grace period, render children normally

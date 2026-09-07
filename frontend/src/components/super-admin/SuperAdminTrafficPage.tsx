@@ -6,7 +6,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -459,7 +459,7 @@ export default function SuperAdminTrafficPage() {
 
               {/* Members Table */}
               {statsLoading ? (
-                <div style={{ padding: "40px", textAlign: "center" }}><Spinner size={28} color="#ff9148" /></div>
+                <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading active members…" /></div>
               ) : filteredMembers.length === 0 ? (
                 <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13.5 }}>
                   <i className="fa-solid fa-user-slash" style={{ fontSize: 24, marginBottom: 8, color: "#cbd5e1" }} /><br />
@@ -672,7 +672,7 @@ export default function SuperAdminTrafficPage() {
             </div>
 
             {eventsLoading ? (
-              <div style={{ padding: 40, textAlign: "center" }}><Spinner size={28} color="#ff9148" /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading security events…" /></div>
             ) : (!events || events.length === 0) ? (
               <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                 <i className="fa-solid fa-shield-check" style={{ fontSize: 24, marginBottom: 8, color: "#10b981" }} /><br />
@@ -744,7 +744,7 @@ export default function SuperAdminTrafficPage() {
             </div>
 
             {ipsLoading ? (
-              <div style={{ padding: 40, textAlign: "center" }}><Spinner size={28} color="#ff9148" /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading banned IPs…" /></div>
             ) : (!bannedIps || bannedIps.length === 0) ? (
               <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                 <i className="fa-solid fa-shield" style={{ fontSize: 24, marginBottom: 8, color: "#cbd5e1" }} /><br />

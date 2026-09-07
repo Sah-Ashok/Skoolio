@@ -5,7 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -188,7 +188,7 @@ export default function SuperAdminFeedbackPage() {
 
         {/* ── FEEDBACK CARDS LIST ── */}
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center" }}><Spinner size={32} color="#ff9148" /></div>
+          <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading feedback…" /></div>
         ) : (!feedbackList || feedbackList.length === 0) ? (
           <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", padding: "50px 20px", textAlign: "center", color: "#94a3b8" }}>
             <i className="fa-regular fa-comment-dots" style={{ fontSize: 32, marginBottom: 10, color: "#cbd5e1" }} /><br />

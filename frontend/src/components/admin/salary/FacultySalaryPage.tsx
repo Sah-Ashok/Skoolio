@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import styles from "./salary.module.css";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -274,9 +274,7 @@ export default function FacultySalaryPage() {
 
           <div className={s("tableWrap")}>
             {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
-              </div>
+              <Loader fullScreen={false} size="md" text="Loading faculty salary status…" />
             ) : (
               <table>
                 <thead>

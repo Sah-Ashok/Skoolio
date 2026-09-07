@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
@@ -286,9 +286,7 @@ export default function StudentFeesPage() {
           </section>
 
           {loading ? (
-            <div style={{ padding: "4rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9b51" />
-            </div>
+            <Loader fullScreen={false} size="md" text="Loading fees & dues…" />
           ) : (
             <>
               {/* ── Hero summary card ── */}

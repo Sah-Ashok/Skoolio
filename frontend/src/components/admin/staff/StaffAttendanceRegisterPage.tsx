@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -541,10 +541,7 @@ export function StaffAttendanceRegisterPage() {
           overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.03)",
         }}>
           {regLoading ? (
-            <div style={{ padding: "5rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9b51" />
-              <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>Loading staff attendance register…</p>
-            </div>
+            <Loader fullScreen={false} size="md" text="Loading staff attendance register…" />
           ) : regError ? (
             <div style={{ padding: "3rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{regError}</div>
           ) : displayedPeople.length === 0 ? (

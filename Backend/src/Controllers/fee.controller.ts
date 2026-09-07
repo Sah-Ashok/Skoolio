@@ -80,7 +80,7 @@ export const createFeeCollection = catchAsync(async (req: Request, res: Response
 
 export const createMiscFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { student_id, enrollment_id, academic_year_id, fee_name, due_date, total_amount, discount_amount, discount_reason } = req.body;
+  const { student_id, enrollment_id, academic_year_id, fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason } = req.body;
   if (!student_id || !academic_year_id || !fee_name || !due_date || !total_amount) {
     return sendResponse(res, 400, false, 'student_id, academic_year_id, fee_name, due_date and total_amount are required', null);
   }
@@ -88,7 +88,9 @@ export const createMiscFeeCollection = catchAsync(async (req: Request, res: Resp
     student_id:       Number(student_id),
     enrollment_id:    enrollment_id ? Number(enrollment_id) : null,
     academic_year_id: Number(academic_year_id),
-    fee_name, due_date,
+    fee_name,
+    fee_type:         (fee_type as any) || 'academic',
+    due_date,
     total_amount:     Number(total_amount),
     discount_amount:  discount_amount ? Number(discount_amount) : undefined,
     discount_reason:  discount_reason || undefined,

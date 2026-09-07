@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -162,7 +162,7 @@ export default function ExamSchedulePage() {
     }
   };
 
-  if (examLoading) return <div className={s("loadingWrap")}><Spinner size={36} color="#FF9B51" /></div>;
+  if (examLoading) return <div className={s("loadingWrap")}><Loader fullScreen={false} size="md" text="Loading exam schedule…" /></div>;
 
   return (
     <div className={s("page")}>

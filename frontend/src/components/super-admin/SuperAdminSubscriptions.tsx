@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./sa.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { apiRequest } from "@/lib/api";
@@ -284,7 +284,7 @@ export default function SuperAdminSubscriptions() {
               </div>
               <div className={s("table-wrap")}>
                 {schoolsL ? (
-                  <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
+                  <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading schools…" /></div>
                 ) : (
                   <table className={s("table")}>
                     <thead>
@@ -514,7 +514,7 @@ export default function SuperAdminSubscriptions() {
         {/* ══ PLANS TAB ══ */}
         {tab === "plans" && (
           plansL
-            ? <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
+            ? <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading plans…" /></div>
             : <section className={s("three-col")}>
                 {(plans ?? [])
                   .filter((plan: any) => plan.name !== "Free")
@@ -585,7 +585,7 @@ function OffersTab({ offers, loading, plans, onEdit, onRefresh, dispatch }: {
     }
   };
 
-  if (loading) return <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>;
+  if (loading) return <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading offers…" /></div>;
 
   if (offers.length === 0) {
     return (

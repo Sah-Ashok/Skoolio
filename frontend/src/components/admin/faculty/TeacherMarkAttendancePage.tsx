@@ -6,7 +6,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import DateInput from "@/components/shared/DateInput";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -105,12 +105,10 @@ export default function TeacherMarkAttendancePage() {
 
     try {
       const sectionRecords = await apiRequest<{ data: any[] }>(
-        `/attendance/section/${sectionId}?academic_year_id=${academicYearId}`
+        `/attendance/section/${sectionId}?academic_year_id=${academicYearId}&date=${date}`
       );
       const records  = sectionRecords.data ?? sectionRecords;
-      const existing = Array.isArray(records)
-        ? records.find((r: any) => (r.date ?? "").split("T")[0] === date)
-        : null;
+      const existing = Array.isArray(records) && records.length > 0 ? records[0] : null;
 
       if (existing) {
         const detailRes = await apiRequest<{ data: any }>(`/attendance/${existing.id}`);
@@ -218,22 +216,18 @@ export default function TeacherMarkAttendancePage() {
     setSubmitting(true);
     try {
       if (existingRec && existingRec.status === "draft") {
-        // Draft exists → patch details then submit
-        for (const student of students) {
-          const detail = (existingRec.details ?? []).find(
-            (d: any) => String(d.student_id) === String(student.id)
-          );
-          if (!detail) continue;
-          await apiRequest(`/attendance/details/${detail.id}`, {
-            method: "PATCH",
-            body: JSON.stringify({
-              attendance_id: existingRec.id,
-              status:        statuses[student.id] ?? "present",
-              remarks:       remarks[student.id] || null,
-            }),
-          });
-        }
-        await apiRequest(`/attendance/${existingRec.id}/submit`, { method: "PATCH" });
+        // Draft exists → bulk update details and submit atomically in 1 request
+        await apiRequest(`/attendance/${existingRec.id}/details/bulk`, {
+          method: "PUT",
+          body: JSON.stringify({
+            students: students.map(s => ({
+              student_id: s.id,
+              status:     statuses[s.id] ?? "present",
+              remarks:    remarks[s.id] || null,
+            })),
+            submit: true,
+          }),
+        });
         dispatch(showToast({ type: "success", title: "Attendance Submitted", message: buildSummary() }));
 
       } else {
@@ -499,7 +493,7 @@ export default function TeacherMarkAttendancePage() {
                 <p style={{ fontWeight: 800, fontSize: 14 }}>Class suspended — no student attendance is recorded today.</p>
               </div>
             ) : loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading students…" /></div>
             ) : students.length === 0 ? (
               <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
                 <i className="fa-solid fa-users" style={{ fontSize: 32, display: "block", marginBottom: 12, opacity: 0.4 }} />

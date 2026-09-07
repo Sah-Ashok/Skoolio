@@ -1,7 +1,7 @@
 "use client";
 
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useState } from "react";
 import { getPlanPrice } from "@/lib/currency";
 import { computeSavingText } from "@/components/super-admin/OfferModal";
@@ -205,7 +205,7 @@ export default function UpgradePlanPage() {
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
       <main style={{ padding: "40px 24px 60px", maxWidth: 1060, margin: "0 auto" }}>
         {loading ? (
-          <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading plans…" /></div>
         ) : (
           <>
             {/* ── Active offer banners ── */}

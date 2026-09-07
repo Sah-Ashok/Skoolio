@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import s from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -161,7 +161,7 @@ export default function ExamsPage() {
           </div>
 
           {loading ? (
-            <div className={s.centerWrap}><Spinner size={28} color="#FF9B51" /></div>
+            <div className={s.centerWrap}><Loader fullScreen={false} size="md" text="Loading exams…" /></div>
           ) : filtered.length === 0 ? (
             <div className={s.emptyState}>
               <div className={s.emptyIcon}>

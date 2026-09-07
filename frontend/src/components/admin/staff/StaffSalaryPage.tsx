@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
@@ -703,7 +703,7 @@ export function StaffSalaryPage() {
         <div className={s("card")}>
           <div className={s("tableWrap")}>
             {loading ? (
-              <div className={s("empty")}><Spinner size={28} color="#FF9B51" /></div>
+              <Loader fullScreen={false} size="md" text="Loading staff salaries…" />
             ) : filtered.length === 0 ? (
               <div className={s("empty")}>
                 <i className="fa-solid fa-file-invoice-dollar" />

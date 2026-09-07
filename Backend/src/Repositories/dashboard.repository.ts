@@ -223,27 +223,30 @@ export const getDashboardSummary = async (school_id: number) => {
       [school_id, salaryMonth, salaryYear]
     ),
 
-    // 8. Fee collection per month (last 6 months)
+    // 8. Fee collection per day (last 6 months) — aggregated by day
     pool.query(
       `SELECT
-         COALESCE(fc.due_date::text, fc.created_at::text) AS fee_date,
-         COALESCE(fc.paid_amount,      0)::numeric AS collected,
-         COALESCE(fc.remaining_amount, 0)::numeric AS pending
+         to_char(COALESCE(fc.due_date::timestamp, fc.created_at), 'YYYY-MM-DD') AS fee_date,
+         COALESCE(SUM(fc.paid_amount),      0)::numeric AS collected,
+         COALESCE(SUM(fc.remaining_amount), 0)::numeric AS pending
        FROM fee_collections fc
        WHERE fc.school_id  = $1
          AND COALESCE(fc.due_date::timestamp, fc.created_at) >= $2
-       ORDER BY COALESCE(fc.due_date::timestamp, fc.created_at) ASC`,
+       GROUP BY 1
+       ORDER BY fee_date ASC`,
       [school_id, timelineStartDate]
     ),
 
-    // 9. New student admissions per month (last 6 months)
+    // 9. New student admissions per day (last 6 months) — aggregated by day
     pool.query(
       `SELECT
-         COALESCE(s.admission_date::text, s.created_at::text) AS admission_date
+         to_char(COALESCE(s.admission_date::timestamp, s.created_at), 'YYYY-MM-DD') AS admission_date,
+         COUNT(*)::int AS count
        FROM students s
        WHERE s.school_id  = $1
          AND COALESCE(s.admission_date::timestamp, s.created_at) >= $2
-       ORDER BY COALESCE(s.admission_date::timestamp, s.created_at) ASC`,
+       GROUP BY 1
+       ORDER BY admission_date ASC`,
       [school_id, timelineStartDate]
     ),
 
@@ -375,7 +378,7 @@ export const getDashboardSummary = async (school_id: number) => {
     } else {
       key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
-    admAggMap.set(key, (admAggMap.get(key) || 0) + 1);
+    admAggMap.set(key, (admAggMap.get(key) || 0) + Number(row.count || 1));
   }
 
   const summary = {
@@ -438,7 +441,7 @@ export const getDashboardSummary = async (school_id: number) => {
     notices:        noticesRes.rows,
   };
 
-  // Cache summary for 30s
+  // Cache summary for 3 minutes
   dashboardCache.set(school_id, { data: summary, cachedAt: Date.now() });
 
   return summary;

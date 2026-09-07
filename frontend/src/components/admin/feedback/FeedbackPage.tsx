@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -230,7 +230,7 @@ export default function FeedbackPage() {
 
           {/* List */}
           <div className={s("list")}>
-            {loading && <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={28} /></div>}
+            {loading && <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading feedback…" /></div>}
             {!loading && filtered.length === 0 && (
               <div className={s("empty")}>
                 <i className="fa-solid fa-comment-slash" />

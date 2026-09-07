@@ -6,7 +6,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { Skeleton, SkeletonStatRow } from "@/components/shared/Skeleton";
 import { apiRequest } from "@/lib/api";
 
@@ -498,8 +498,8 @@ function ClassCard({
         {/* ── Sections area ── */}
         <div style={{ padding: "16px 20px 18px" }}>
           {loading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
-              <Spinner size={26} color={color.accent} />
+            <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
+              <Loader fullScreen={false} size="sm" text="Loading sections…" />
             </div>
           ) : !sections || sections.length === 0 ? (
             <div style={{

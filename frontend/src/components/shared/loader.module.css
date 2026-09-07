@@ -1,20 +1,50 @@
 /* ── Keyframes ── */
 @keyframes spinRing {
-  to { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1);    opacity: 1; }
-  50%       { transform: scale(1.08); opacity: 0.85; }
+@keyframes gentlePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 2px 8px rgba(255, 155, 81, 0.28));
+  }
+  50% {
+    transform: scale(1.07);
+    filter: drop-shadow(0 4px 14px rgba(255, 155, 81, 0.45));
+  }
 }
 
-@keyframes bounce {
-  0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
-  40%           { transform: translateY(-8px); opacity: 1; }
+@keyframes bounceDot {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
 }
 
 @keyframes spinSvg {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ── Full-screen overlay ── */
@@ -22,88 +52,180 @@
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(234, 239, 239, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(248, 250, 252, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.15s ease-out;
 }
 
-/* ── Card ── */
+/* ── In-page inline container ── */
+.inlineWrap {
+  width: 100%;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ── Content Container (Clean, seamless, no boxed card) ── */
 .card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding: 40px 48px;
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 24px;
-  box-shadow:
-    0 8px 32px rgba(37, 52, 63, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+  gap: 16px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
-/* ── Logo wrap with spinning ring ── */
+.inlineCard {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* ── Sizes ── */
+.sm {
+  gap: 10px;
+}
+
+.md {
+  gap: 14px;
+}
+
+.lg {
+  gap: 18px;
+}
+
+/* ── Logo wrap with spinning circle ── */
 .logoWrap {
   position: relative;
-  width: 72px;
-  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.wrap_lg {
+  width: 86px;
+  height: 86px;
+}
+
+.wrap_md {
+  width: 68px;
+  height: 68px;
+}
+
+.wrap_sm {
+  width: 48px;
+  height: 48px;
+}
+
+/* ── Circular Track & Spinning Ring ── */
+.ringTrack {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3.5px solid rgba(255, 155, 81, 0.14);
+}
+
+.wrap_sm .ringTrack {
+  border-width: 2.5px;
 }
 
 .ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 3px solid transparent;
+  border: 3.5px solid transparent;
   border-top-color: #FF9B51;
-  border-right-color: #FF9B51;
-  animation: spinRing 0.9s linear infinite;
+  border-right-color: #ff781f;
+  animation: spinRing 0.85s cubic-bezier(0.4, 0.1, 0.2, 1) infinite;
 }
 
-.logo {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: #25343F;
-  color: #FF9B51;
+.wrap_sm .ring {
+  border-width: 2.5px;
+}
+
+/* ── Smile Icon in Center ── */
+.smileWrap {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  animation: pulse 1.8s ease-in-out infinite;
+  pointer-events: none;
 }
 
-/* ── Label ── */
+.smileImg {
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  animation: gentlePulse 2.4s ease-in-out infinite;
+}
+
+.wrap_lg .smileImg {
+  width: 48px;
+  height: 48px;
+}
+
+.wrap_md .smileImg {
+  width: 38px;
+  height: 38px;
+}
+
+.wrap_sm .smileImg {
+  width: 26px;
+  height: 26px;
+}
+
+/* ── Text & Bouncing Dots ── */
+.labelWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 .label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #64748b;
-  letter-spacing: 0.3px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.2px;
+  margin: 0;
 }
 
-/* ── Bouncing dots ── */
+.sm .label {
+  font-size: 12px;
+}
+
 .dots {
   display: flex;
-  gap: 6px;
+  gap: 5px;
+  align-items: center;
 }
 
 .dots span {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #FF9B51;
-  animation: bounce 1.2s ease-in-out infinite;
+  animation: bounceDot 1.2s ease-in-out infinite;
 }
 
 .dots span:nth-child(1) { animation-delay: 0s; }
 .dots span:nth-child(2) { animation-delay: 0.2s; }
 .dots span:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── Inline SVG spinner ── */
+/* ── Compact Inline SVG spinner ── */
 .spinner {
   animation: spinSvg 0.75s linear infinite;
   flex-shrink: 0;

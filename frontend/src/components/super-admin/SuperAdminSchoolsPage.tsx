@@ -6,7 +6,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useRouter } from "next/navigation";
@@ -282,8 +282,8 @@ export default function SuperAdminSchoolsPage() {
 
           <div className={s("table-wrap")}>
             {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
+                <Loader fullScreen={false} size="md" text="Loading schools…" />
               </div>
             ) : (
               <table className={s("table")}>

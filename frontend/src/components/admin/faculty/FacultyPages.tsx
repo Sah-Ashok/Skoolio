@@ -8,7 +8,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./faculty.module.css";
 import AddFacultyForm from "./AddFacultyForm";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
@@ -361,8 +361,8 @@ export function ViewFacultyPage() {
   if (loading) {
     return (
       <FacultyShell title="Loading…" subtitle="">
-        <div style={{ padding: "4rem", textAlign: "center" }}>
-          <Spinner size={36} color="#FF9B51" />
+        <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+          <Loader fullScreen={false} size="md" text="Loading teacher profile…" />
         </div>
       </FacultyShell>
     );
@@ -560,8 +560,8 @@ export function ViewFacultyPage() {
           </div>
 
           {salaryLoading ? (
-            <div style={{ padding: "2rem", textAlign: "center" }}>
-              <Spinner size={24} color="#FF9B51" />
+            <div style={{ padding: "2rem 1rem", textAlign: "center" }}>
+              <Loader fullScreen={false} size="sm" text="Loading salary history…" />
             </div>
           ) : !salaryHistory?.length ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "#6b7b86", fontSize: 13 }}>

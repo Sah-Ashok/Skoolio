@@ -8,7 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -270,8 +270,8 @@ export default function ClassEditPage() {
         </section>
 
         {loading ? (
-          <div style={{ padding: "4rem", textAlign: "center" }}>
-            <Spinner size={32} color="#FF9B51" />
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+            <Loader fullScreen={false} size="md" text="Loading class details…" />
           </div>
         ) : (
           <>

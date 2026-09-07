@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -215,7 +215,7 @@ export default function PaymentSettingsTab() {
 
       {/* Account list */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
+        <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="sm" text="Loading bank accounts…" /></div>
       ) : !accounts || accounts.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "#6a7882", border: "2px dashed #d4dde2", borderRadius: 12 }}>
           <i className="fa-solid fa-building-columns" style={{ fontSize: 28, display: "block", marginBottom: 10, opacity: 0.3 }} />

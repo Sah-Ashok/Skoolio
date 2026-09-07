@@ -11,6 +11,7 @@ import s from "./landing.module.css";
 export default function HomePage() {
   const { user, isAuthenticated, bootstrapped } = useAppSelector((st) => st.auth);
   const dashboardHref = user ? getRoleRedirect(user.role) : "/dashboard";
+  const [scrolled, setScrolled] = useState(false);
   const [activeCard, setActiveCard] = useState(2);
 
   const schools = [
@@ -86,6 +87,13 @@ export default function HomePage() {
       desc: "Real-time decision dashboards"
     },
   ];
+
+  /* Sticky Navbar scroll state */
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   /* Auto-advance school cards every 5 seconds, resets timer on user click */
   useEffect(() => {
@@ -686,7 +694,7 @@ export default function HomePage() {
   return (
     <div className={s.page}>
       {/* ═══════════════════════════════ NAVBAR ═══════════════════════════════ */}
-      <nav className={s.nav} role="navigation" aria-label="Main Navigation">
+      <nav className={`${s.nav}${scrolled ? ` ${s.navScrolled}` : ""}`} role="navigation" aria-label="Main Navigation">
         {/* Logo */}
         <Link href="/" className={s.navLogo} aria-label="Skoolio — Home">
           <Image
@@ -767,29 +775,16 @@ export default function HomePage() {
                 <span>Get Started Free</span>
                 <i className={`fa-solid fa-arrow-right ${s.heroBtnIcon}`} />
               </Link>
-              <Link href="/contact" className={s.heroBtnSecondary}>
-                <span className={s.heroPlayIconWrap}>
-                  <i className="fa-solid fa-play" />
-                </span>
-                <span>Book a Demo</span>
-              </Link>
             </div>
 
             {/* Micro-Trust Strip */}
             <div className={s.heroTrustRow}>
-              <div className={s.heroTrustItem}>
-                <i className="fa-solid fa-check" />
-                <span>No credit card required</span>
-              </div>
-              <span className={s.heroTrustDot}>•</span>
-              <div className={s.heroTrustItem}>
-                <i className="fa-solid fa-check" />
-                <span>14-day free trial</span>
-              </div>
-              <span className={s.heroTrustDot}>•</span>
-              <div className={s.heroTrustItem}>
-                <i className="fa-solid fa-check" />
-                <span>5-minute setup</span>
+              <div className={s.heroTrustBadge}>
+                <span className={s.heroTrustIconWrap}>
+                  <i className="fa-solid fa-shield-check" />
+                </span>
+                <span className={s.heroTrustBadgeText}>14-day free trial period</span>
+                <span className={s.heroTrustBadgeTag}>No credit card</span>
               </div>
             </div>
           </div>

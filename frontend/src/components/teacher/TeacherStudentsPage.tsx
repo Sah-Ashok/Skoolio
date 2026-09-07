@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
@@ -130,7 +130,7 @@ export default function TeacherStudentsPage() {
         <div className="tsp-main">
 
           {sectionsLoading ? (
-            <div style={{ padding:"3rem", textAlign:"center" }}><Spinner size={28} color="#FF9B51" /></div>
+            <Loader fullScreen={false} size="md" text="Loading sections…" />
           ) : sections.length === 0 ? (
             <div className="tsp-card" style={{ padding:"3rem", textAlign:"center" }}>
               <i className="fa-solid fa-chalkboard-user" style={{ fontSize:36, color:"#d4dde2", display:"block", marginBottom:14 }} />
@@ -200,7 +200,7 @@ export default function TeacherStudentsPage() {
               </div>
 
               {studentsLoading ? (
-                <div style={{ padding:"3rem", textAlign:"center" }}><Spinner size={26} color="#FF9B51" /></div>
+                <Loader fullScreen={false} size="md" text="Loading student roster…" />
               ) : filtered.length === 0 ? (
                 <div style={{ padding:"3rem", textAlign:"center" }}>
                   <i className="fa-solid fa-user-slash" style={{ fontSize:30, color:"#d4dde2", display:"block", marginBottom:10 }} />

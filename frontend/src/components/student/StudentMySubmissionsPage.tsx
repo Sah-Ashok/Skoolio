@@ -2,7 +2,7 @@
 
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import Link from "next/link";
 
 const fmt = (n: number | string) =>
@@ -63,7 +63,7 @@ export default function StudentMySubmissionsPage() {
             </div>
             <div className="smsp-card-body">
               {loading ? (
-                <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
+                <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading submissions…" /></div>
               ) : !(myRequests ?? []).length ? (
                 <div style={{ padding: "2.5rem", textAlign: "center", color: "#94a3b8" }}>
                   <i className="fa-solid fa-inbox" style={{ fontSize: 28, display: "block", marginBottom: 10, opacity: 0.2 }} />

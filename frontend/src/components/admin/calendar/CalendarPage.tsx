@@ -7,7 +7,7 @@ import styles from "./calendar.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES, BSDate, todayLocalISO } from "@/lib/bs-ad";
@@ -483,7 +483,7 @@ export default function CalendarPage() {
 
           <aside className={s("sideStack")}>
             {calendarLoading && !calendarData ? (
-              <article className={s("card")}><div className={s("cardHead")}><div><h2>Weekly Off Days</h2><p>Loading…</p></div></div><div style={{ padding: 20, display: "flex", justifyContent: "center" }}><Spinner size={24} color="#ff9b51" /></div></article>
+              <article className={s("card")}><div style={{ padding: 24 }}><Loader fullScreen={false} size="sm" text="Loading off days…" /></div></article>
             ) : (
               <WeekendSettingsCard calendarId={calendarData?.id ?? 0} rows={weeklyOffsData ?? []} fallbackType={weekendType} onSaved={refetchWeeklyOffs} />
             )}

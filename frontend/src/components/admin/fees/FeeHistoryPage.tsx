@@ -6,7 +6,7 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -210,7 +210,7 @@ export default function FeeHistoryPage() {
             </p>
           </div>
         ) : loading ? (
-          <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
+          <Loader fullScreen={false} size="md" text="Loading fee history…" />
         ) : (
           <>
             {/* ── Student hero ── */}

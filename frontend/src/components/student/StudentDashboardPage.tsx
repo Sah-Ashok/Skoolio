@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
@@ -360,9 +360,7 @@ export default function StudentDashboardPage() {
 
       <div className="sdb">
         {meLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
-            <Spinner size={30} color="#f97316" />
-          </div>
+          <Loader fullScreen={false} size="md" text="Loading dashboard…" />
         ) : (
           <div className="sdb-content">
 

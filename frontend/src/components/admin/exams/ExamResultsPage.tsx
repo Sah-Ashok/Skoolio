@@ -7,7 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -197,7 +197,7 @@ export default function ExamResultsPage() {
     }
   };
 
-  if (examLoading) return <div className={s("loadingWrap")}><Spinner size={36} color="#FF9B51" /></div>;
+  if (examLoading) return <div className={s("loadingWrap")}><Loader fullScreen={false} size="md" text="Loading exam results…" /></div>;
 
   return (
     <div className={s("page")}>
@@ -319,7 +319,7 @@ export default function ExamResultsPage() {
 
                 <div className={s("tableWrap")}>
                   {(resultsLoading || enrollmentsLoading) ? (
-                    <div className={s("loadingWrap")}><Spinner size={32} color="#FF9B51" /></div>
+                    <div className={s("loadingWrap")}><Loader fullScreen={false} size="md" text="Loading marks data…" /></div>
                   ) : enrollments.length === 0 ? (
                     <div className={s("emptyState")}>
                       <div className={s("emptyIcon")}><i className="fa-solid fa-user-xmark" /></div>

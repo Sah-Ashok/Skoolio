@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useApi } from "@/lib/useApi";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ export default function BankDetailsPage() {
           {/* Bank account cards */}
           {bankLoading ? (
             <div style={{ textAlign: "center", padding: "48px 0" }}>
-              <Spinner size={28} color="#6366f1" />
+              <Loader fullScreen={false} size="md" text="Loading bank accounts…" />
             </div>
           ) : accounts.length === 0 ? (
             <div style={{

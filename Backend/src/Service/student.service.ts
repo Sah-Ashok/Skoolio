@@ -36,8 +36,26 @@ export const createStudentService = async (school_id: number, data: ICreateStude
   return student;
 };
 
-export const getStudentsService = async (school_id: number, academic_year_id?: number) => {
-  const students = await getStudentsBySchool(school_id, academic_year_id);
+export const getStudentsService = async (
+  school_id: number,
+  academic_year_id?: number,
+  page?: number,
+  limit?: number,
+  search?: string,
+  class_id?: number,
+  section_id?: number,
+  status?: string,
+) => {
+  const students = await getStudentsBySchool(
+    school_id,
+    academic_year_id,
+    page,
+    limit,
+    search,
+    class_id,
+    section_id,
+    status
+  );
   return students;
 };
 
@@ -125,9 +143,11 @@ export const createEnrollmentService = async (
 export const getEnrollmentsService = async (
   school_id: number,
   academic_year_id: number,
-  section_id?: number
+  section_id?: number,
+  class_id?: number,
+  student_id?: number
 ) => {
-  return getEnrollmentsBySchool(school_id, academic_year_id, section_id);
+  return getEnrollmentsBySchool(school_id, academic_year_id, section_id, class_id, student_id);
 };
 
 export const getStudentEnrollmentsService = async (

@@ -8,7 +8,7 @@ import styles from "./attendance.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -506,7 +506,7 @@ export default function TeacherMarkAttendancePage() {
                   <strong style={{ fontSize: 14 }}>Class suspended — no attendance required today.</strong>
                 </div>
               ) : (sectionsLoading || dataLoading) ? (
-                <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={32} /></div>
+                <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading students…" /></div>
               ) : (
                 <table>
                   <thead>

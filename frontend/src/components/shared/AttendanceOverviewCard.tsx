@@ -16,7 +16,7 @@
 
 import { useMemo } from "react";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, bsToAD, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -296,8 +296,8 @@ export default function AttendanceOverviewCard({
   // ─────────────────────────────────────────────────────────────────────────
   if (sumLoad && !yearlySummary) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-        <Spinner size={24} color="#FF9B51" />
+      <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
+        <Loader fullScreen={false} size="sm" text="Loading attendance stats…" />
       </div>
     );
   }

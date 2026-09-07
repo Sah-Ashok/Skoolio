@@ -19,6 +19,7 @@ import {
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
   ICreateFeeCollection, IUpdateFeeCollection, ICreateFeePayment,
+  FeeType,
 } from '../types/fee.types';
 import { getStudentById, getEnrollmentsBySchool } from '../Repositories/student.repository';
 import { IStudentEnrollmentWithStudent } from '../types/student.types';
@@ -242,6 +243,7 @@ export const createMiscFeeCollectionService = async (
     enrollment_id:    number | null;
     academic_year_id: number;
     fee_name:         string;
+    fee_type?:        FeeType;
     due_date:         string;
     total_amount:     number;
     discount_amount?: number;
@@ -272,7 +274,7 @@ export const createMiscFeeCollectionService = async (
       discount_amount: discount > 0 ? discount : undefined,
       discount_reason: discount > 0 ? data.discount_reason : undefined,
     },
-    data.fee_name, net_amount, net_amount, 'academic'
+    data.fee_name, net_amount, net_amount, data.fee_type || 'academic'
   );
 };
 
@@ -966,6 +968,8 @@ export const generateTransportBillsService = async (
   let created = 0, skipped = 0;
   const errors: string[] = [];
 
+  const toInsert: any[] = [];
+
   for (const route of routes) {
     const assignments = await getAssignmentsByRoute(route.id, school_id, academic_year_id);
     for (const assignment of assignments) {
@@ -1018,31 +1022,86 @@ export const generateTransportBillsService = async (
         }
 
         const periodLabel = formatPeriodLabel(fromMonth, toMonth, monthsCount, true);
-
         const fee_name = `Transport — ${route.name} · ${assignment.stop_name} (${periodLabel})`;
-        await createFeeCollection(
-          school_id, created_by,
-          {
-            student_id: assignment.student_id,
-            enrollment_id,
-            fee_structure_id: null,
-            academic_year_id,
-            due_date,
-            total_amount,
-            billing_from_month: fromMonth,
-            billing_to_month: toMonth,
-            months_count: monthsCount,
-          },
-          fee_name, total_amount, total_amount, 'transport'
-        );
-        created++;
+
+        toInsert.push({
+          student_id: assignment.student_id,
+          enrollment_id,
+          fee_name,
+          due_date,
+          total_amount,
+          billing_from_month: fromMonth,
+          billing_to_month: toMonth,
+          months_count: monthsCount,
+        });
 
         for (const mStr of eligibleMonths) {
           alreadyBilled.add(`${assignment.student_id}-${mStr}`);
         }
       } catch (err: any) {
-        if (err?.code === '23505') skipped++;
-        else errors.push(`Student ${assignment.student_id}: ${err.message}`);
+        errors.push(`Student ${assignment.student_id}: ${err.message}`);
+      }
+    }
+  }
+
+  const CHUNK = 500;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK);
+    const flatValues: any[] = [];
+    const flatPlaceholders = chunk.map((row, rIdx) => {
+      const base = rIdx * 11;
+      flatValues.push(
+        school_id,
+        row.student_id,
+        row.enrollment_id,
+        academic_year_id,
+        row.fee_name,
+        row.due_date,
+        row.total_amount,
+        created_by,
+        row.billing_from_month,
+        row.billing_to_month,
+        row.months_count
+      );
+      const p = (offset: number) => `$${base + offset + 1}`;
+      return `(${p(0)},${p(1)},${p(2)},NULL,${p(3)},${p(4)},'transport',${p(5)},${p(6)},0,NULL,0,NULL,${p(6)},0,${p(6)},'unpaid',${p(7)},${p(8)},${p(9)},${p(10)})`;
+    });
+
+    try {
+      await pool.query(
+        `INSERT INTO fee_collections
+          (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
+           fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason,
+           fine_amount, fine_reason, net_amount, paid_amount, remaining_amount,
+           status, created_by, billing_from_month, billing_to_month, months_count)
+         VALUES ${flatPlaceholders.join(',')}
+         ON CONFLICT DO NOTHING`,
+        flatValues
+      );
+      created += chunk.length;
+    } catch (err: any) {
+      for (const row of chunk) {
+        try {
+          await createFeeCollection(
+            school_id, created_by,
+            {
+              student_id: row.student_id,
+              enrollment_id: row.enrollment_id,
+              fee_structure_id: null,
+              academic_year_id,
+              due_date: row.due_date,
+              total_amount: row.total_amount,
+              billing_from_month: row.billing_from_month,
+              billing_to_month: row.billing_to_month,
+              months_count: row.months_count,
+            },
+            row.fee_name, row.total_amount, row.total_amount, 'transport'
+          );
+          created++;
+        } catch (rowErr: any) {
+          if (rowErr?.code === '23505') skipped++;
+          else errors.push(`Student ${row.student_id}: ${rowErr.message}`);
+        }
       }
     }
   }
@@ -1178,6 +1237,8 @@ export const generateHostelBillsService = async (
   let created = 0, skipped = 0;
   const errors: string[] = [];
 
+  const toInsert: any[] = [];
+
   for (const hostel of hostels) {
     const assignments = await getAssignmentsByHostel(hostel.id, school_id, academic_year_id);
     for (const assignment of assignments) {
@@ -1230,31 +1291,86 @@ export const generateHostelBillsService = async (
         }
 
         const periodLabel = formatPeriodLabel(fromMonth, toMonth, monthsCount, true);
-
         const fee_name = `Hostel — ${hostel.name} · Room ${assignment.room_number} (${periodLabel})`;
-        await createFeeCollection(
-          school_id, created_by,
-          {
-            student_id: assignment.student_id,
-            enrollment_id,
-            fee_structure_id: null,
-            academic_year_id,
-            due_date,
-            total_amount,
-            billing_from_month: fromMonth,
-            billing_to_month: toMonth,
-            months_count: monthsCount,
-          },
-          fee_name, total_amount, total_amount, 'hostel'
-        );
-        created++;
+
+        toInsert.push({
+          student_id: assignment.student_id,
+          enrollment_id,
+          fee_name,
+          due_date,
+          total_amount,
+          billing_from_month: fromMonth,
+          billing_to_month: toMonth,
+          months_count: monthsCount,
+        });
 
         for (const mStr of eligibleMonths) {
           alreadyBilled.add(`${assignment.student_id}-${mStr}`);
         }
       } catch (err: any) {
-        if (err?.code === '23505') skipped++;
-        else errors.push(`Student ${assignment.student_id}: ${err.message}`);
+        errors.push(`Student ${assignment.student_id}: ${err.message}`);
+      }
+    }
+  }
+
+  const CHUNK = 500;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK);
+    const flatValues: any[] = [];
+    const flatPlaceholders = chunk.map((row, rIdx) => {
+      const base = rIdx * 11;
+      flatValues.push(
+        school_id,
+        row.student_id,
+        row.enrollment_id,
+        academic_year_id,
+        row.fee_name,
+        row.due_date,
+        row.total_amount,
+        created_by,
+        row.billing_from_month,
+        row.billing_to_month,
+        row.months_count
+      );
+      const p = (offset: number) => `$${base + offset + 1}`;
+      return `(${p(0)},${p(1)},${p(2)},NULL,${p(3)},${p(4)},'hostel',${p(5)},${p(6)},0,NULL,0,NULL,${p(6)},0,${p(6)},'unpaid',${p(7)},${p(8)},${p(9)},${p(10)})`;
+    });
+
+    try {
+      await pool.query(
+        `INSERT INTO fee_collections
+          (school_id, student_id, enrollment_id, fee_structure_id, academic_year_id,
+           fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason,
+           fine_amount, fine_reason, net_amount, paid_amount, remaining_amount,
+           status, created_by, billing_from_month, billing_to_month, months_count)
+         VALUES ${flatPlaceholders.join(',')}
+         ON CONFLICT DO NOTHING`,
+        flatValues
+      );
+      created += chunk.length;
+    } catch (err: any) {
+      for (const row of chunk) {
+        try {
+          await createFeeCollection(
+            school_id, created_by,
+            {
+              student_id: row.student_id,
+              enrollment_id: row.enrollment_id,
+              fee_structure_id: null,
+              academic_year_id,
+              due_date: row.due_date,
+              total_amount: row.total_amount,
+              billing_from_month: row.billing_from_month,
+              billing_to_month: row.billing_to_month,
+              months_count: row.months_count,
+            },
+            row.fee_name, row.total_amount, row.total_amount, 'hostel'
+          );
+          created++;
+        } catch (rowErr: any) {
+          if (rowErr?.code === '23505') skipped++;
+          else errors.push(`Student ${row.student_id}: ${rowErr.message}`);
+        }
       }
     }
   }
@@ -1365,8 +1481,49 @@ export const getStudentBillingTimelineService = async (
   const enrollments = await getEnrollmentsBySchool(school_id, academic_year_id);
   const results: any[] = [];
 
+  const allStructures = await getFeeStructuresByYear(school_id, academic_year_id);
+  const structuresByClass = new Map<number, typeof allStructures>();
+  for (const st of allStructures) {
+    if (!structuresByClass.has(st.class_id)) {
+      structuresByClass.set(st.class_id, []);
+    }
+    structuresByClass.get(st.class_id)!.push(st);
+  }
+
+  const allBilledRes = await pool.query(
+    `SELECT student_id,
+            to_char(due_date, 'YYYY-MM') AS billing_month,
+            billing_from_month, billing_to_month
+     FROM fee_collections
+     WHERE school_id        = $1
+       AND academic_year_id = $2
+       AND fee_type         = 'academic'
+       AND fee_structure_id IS NOT NULL
+     ORDER BY due_date ASC`,
+    [school_id, academic_year_id]
+  );
+  const billedByStudent = new Map<number, Set<string>>();
+  for (const r of allBilledRes.rows) {
+    if (!billedByStudent.has(r.student_id)) {
+      billedByStudent.set(r.student_id, new Set<string>());
+    }
+    const set = billedByStudent.get(r.student_id)!;
+    if (r.billing_from_month && r.billing_to_month) {
+      const [fYStr, fMStr] = r.billing_from_month.split('-');
+      const [tYStr, tMStr] = r.billing_to_month.split('-');
+      let y = parseInt(fYStr, 10), m = parseInt(fMStr, 10) - 1;
+      const endY = parseInt(tYStr, 10), endM = parseInt(tMStr, 10) - 1;
+      while (y < endY || (y === endY && m <= endM)) {
+        set.add(`${y}-${String(m + 1).padStart(2, '0')}`);
+        m++; if (m > 11) { m = 0; y++; }
+      }
+    } else if (r.billing_month) {
+      set.add(r.billing_month);
+    }
+  }
+
   for (const en of enrollments) {
-    const structures = await getFeeStructuresByClass(en.class_id, school_id, academic_year_id);
+    const structures = structuresByClass.get(en.class_id) || [];
     const monthlyStructures = structures.filter(s => s.is_active && s.frequency === 'monthly');
     if (!monthlyStructures.length) continue;
 
@@ -1418,36 +1575,7 @@ export const getStudentBillingTimelineService = async (
     }
 
     const expectedMonths = buildRange(startYear, startMonth);
-
-    // Get all academic bills for this student in this AY
-    const billedRes = await pool.query(
-      `SELECT to_char(due_date, 'YYYY-MM') AS billing_month,
-              billing_from_month, billing_to_month, status, remaining_amount
-       FROM fee_collections
-       WHERE school_id        = $1
-         AND student_id       = $2
-         AND academic_year_id = $3
-         AND fee_type         = 'academic'
-         AND fee_structure_id IS NOT NULL
-       ORDER BY due_date ASC`,
-      [school_id, en.student_id, academic_year_id]
-    );
-
-    const billedSet = new Set<string>();
-    for (const r of billedRes.rows) {
-      if (r.billing_from_month && r.billing_to_month) {
-        const [fYStr, fMStr] = r.billing_from_month.split('-');
-        const [tYStr, tMStr] = r.billing_to_month.split('-');
-        let y = parseInt(fYStr, 10), m = parseInt(fMStr, 10) - 1;
-        const endY = parseInt(tYStr, 10), endM = parseInt(tMStr, 10) - 1;
-        while (y < endY || (y === endY && m <= endM)) {
-          billedSet.add(`${y}-${String(m + 1).padStart(2, '0')}`);
-          m++; if (m > 11) { m = 0; y++; }
-        }
-      } else if (r.billing_month) {
-        billedSet.add(r.billing_month);
-      }
-    }
+    const billedSet = billedByStudent.get(en.student_id) || new Set<string>();
     const missingMonths = expectedMonths.filter(m => !billedSet.has(m));
 
     if (missingMonths.length === 0) continue;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import Link from "next/link";
@@ -163,7 +163,7 @@ export default function StudentSubmitPaymentPage() {
                   </div>
                 </div>
                 {bankLoading ? (
-                  <div style={{ padding: "1rem", textAlign: "center" }}><Spinner size={20} color="#FF9B51" /></div>
+                  <div style={{ padding: "1rem", textAlign: "center" }}><Loader fullScreen={false} size="sm" text="Loading bank accounts…" /></div>
                 ) : !hasBankAccounts ? (
                   <div style={{ padding: "1rem", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
                     No bank accounts are currently available for payment submission.
@@ -189,7 +189,7 @@ export default function StudentSubmitPaymentPage() {
             </div>
             <div className="ssp-card-body">
               {colLoading ? (
-                <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
+                <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading fee data…" /></div>
               ) : !hasBankAccounts ? (
                 <div style={{ padding: "1rem", textAlign: "center", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
                   Online payments are not yet configured by your school admin.

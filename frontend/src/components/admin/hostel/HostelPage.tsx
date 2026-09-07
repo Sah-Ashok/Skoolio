@@ -6,7 +6,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -738,7 +738,7 @@ export default function HostelPage() {
         {tab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {hLoading ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color={col.orange} /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading hostels…" /></div>
             ) : !(hostels?.length) ? (
               <div style={{ background: "#fff", border: `1.5px solid ${col.border}`, borderRadius: 14, padding: "4rem 2rem", textAlign: "center", color: col.muted }}>
                 <i className="fa-solid fa-hotel" style={{ fontSize: 40, opacity: 0.35, marginBottom: 12, display: "block" }} />
@@ -894,7 +894,7 @@ export default function HostelPage() {
                   </thead>
                   <tbody>
                     {hLoading ? (
-                      <tr><td colSpan={9} style={{ textAlign: "center", padding: "3rem" }}><Spinner size={28} /></td></tr>
+                      <tr><td colSpan={9} style={{ textAlign: "center", padding: "2rem" }}><Loader fullScreen={false} size="md" text="Loading hostels…" /></td></tr>
                     ) : !(hostels?.length) ? (
                       <tr><td colSpan={9} style={{ textAlign: "center", padding: "2rem", color: col.muted, fontWeight: 700 }}>No hostels created yet.</td></tr>
                     ) : (
@@ -991,7 +991,7 @@ export default function HostelPage() {
 
             {/* Room Cards Grid */}
             {roomsLoading ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color={col.orange} /></div>
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading rooms…" /></div>
             ) : !rooms.length ? (
               <div style={{ background: "#fff", border: `1.5px solid ${col.border}`, borderRadius: 14, padding: "3rem", textAlign: "center", color: col.muted }}>
                 <i className="fa-solid fa-door-open" style={{ fontSize: 36, opacity: 0.35, marginBottom: 10, display: "block" }} />
@@ -1191,7 +1191,7 @@ export default function HostelPage() {
                   </thead>
                   <tbody>
                     {assignmentsLoading || feeLoading ? (
-                      <tr><td colSpan={9} style={{ textAlign: "center", padding: "3rem" }}><Spinner size={28} /></td></tr>
+                      <tr><td colSpan={9} style={{ textAlign: "center", padding: "2rem" }}><Loader fullScreen={false} size="md" text="Loading assignments…" /></td></tr>
                     ) : !(displayedAssignments.length) ? (
                       <tr>
                         <td colSpan={9} style={{ textAlign: "center", padding: "3rem", color: col.muted, fontWeight: 700 }}>

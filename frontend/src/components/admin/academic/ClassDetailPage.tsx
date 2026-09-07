@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import styles from "@/components/admin/academic/academic.module.css";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -28,7 +28,7 @@ export default function ClassDetailPage() {
   if (loading) return (
     <div className={s("academic-page")}>
       <main className={s("content")}>
-        <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={36} color="#FF9B51" /></div>
+        <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading class details…" /></div>
       </main>
     </div>
   );

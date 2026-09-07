@@ -13,7 +13,8 @@ function resolveSymbol(country: string | undefined | null, calendarSystem?: stri
 
 export function useCurrency() {
   const user = useAppSelector(s => s.auth.user);
-  const { data: settings } = useApi<any>('/school/settings');
+  const needsSettings = !user?.country && !user?.calendar_system;
+  const { data: settings } = useApi<any>(needsSettings ? '/school/settings' : '');
   const country = user?.country || settings?.country;
   const calendarSystem = user?.calendar_system || settings?.calendar_system;
   const symbol = resolveSymbol(country, calendarSystem);

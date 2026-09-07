@@ -4,6 +4,7 @@ import restrictTo from '../middlewares/role.middleware';
 import {
   createAttendance, getAttendanceBySection, getAttendanceById,
   updateAttendance, submitAttendance, deleteAttendance, updateAttendanceDetail,
+  bulkUpdateAttendanceDetails,
   getStudentAttendanceSummary, getStudentMonthlyAttendance,
   assignSectionTeacher, getSectionTeacherHistory,
   getMyAttendanceSummary, getMyMonthlyAttendance,
@@ -44,6 +45,8 @@ router.get('/section/:sectionId/register', restrictTo('admin', 'super_admin', 'f
 router.get('/section/:sectionId', restrictTo('admin', 'super_admin', 'faculty'), getAttendanceBySection);
 
 // ── ATTENDANCE DETAIL UPDATE — FACULTY ONLY (coordinator + date-lock enforced in service) ──
+router.put ('/:id/details/bulk', restrictTo('faculty'), bulkUpdateAttendanceDetails);
+router.patch('/:id/details/bulk', restrictTo('faculty'), bulkUpdateAttendanceDetails);
 router.patch('/details/:id', restrictTo('faculty'), updateAttendanceDetail);
 
 // ── MAIN ATTENDANCE CRUD — FACULTY ONLY (coordinator check enforced in service) ──

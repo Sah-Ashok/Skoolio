@@ -17,6 +17,8 @@ router.get('/me/sections',            protect, restrictTo('faculty'), getMyCoord
 router.get('/me/salary',              protect, restrictTo('faculty'), getMySalaries);
 router.get('/me/attendance/yearly',   protect, restrictTo('faculty'), getMyAttendanceYearly);  // ?academic_year_id=
 router.get('/me/attendance',          protect, restrictTo('faculty'), getMyAttendanceMonthly); // ?year=&month=
+router.get('/list',                   protect, restrictTo('admin', 'super_admin', 'faculty'), getTeachers);
+router.get('/',                       protect, restrictTo('admin', 'super_admin', 'faculty'), getTeachers);
 
 router.use(protect, restrictTo('admin', 'super_admin'));
 
@@ -30,7 +32,6 @@ router.get('/salary/:id/attendance',    getAttendanceSummaryForSalary);
 
 // ── TEACHER ROUTES ──
 router.post('/', createTeacher);
-router.get('/', getTeachers);
 router.get('/:id', getTeacherById);
 router.patch('/:id', updateTeacher);
 router.delete('/:id', deleteTeacher);

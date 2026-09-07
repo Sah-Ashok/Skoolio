@@ -7,7 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./attendance.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -122,7 +122,7 @@ export default function StudentAttendancePage() {
         </section>
 
         {isLoading ? (
-          <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} /></div>
+          <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading student attendance…" /></div>
         ) : (
           <>
             {/* ── Profile hero ── */}
@@ -188,7 +188,7 @@ export default function StudentAttendancePage() {
                 </div>
 
                 {monthlyLoading ? (
-                  <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} /></div>
+                  <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="sm" text="Loading breakdown…" /></div>
                 ) : (
                   <div className={s("studentCalendar")}>
                     {monthDays.map(({ day, status }) => (

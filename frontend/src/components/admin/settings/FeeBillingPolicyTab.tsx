@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import styles from "./settings.module.css";
 
 const s  = (c: string) => styles[c] || c;
@@ -195,8 +195,7 @@ export default function FeeBillingPolicyTab() {
   if (loading) {
     return (
       <div className={s("loading")}>
-        <Spinner size={28} color="#FF9B51" />
-        <p>Loading fee billing policy…</p>
+        <Loader fullScreen={false} size="md" text="Loading fee billing policy…" />
       </div>
     );
   }

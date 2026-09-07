@@ -21,7 +21,7 @@ export default function FeesPage() {
   const { fmt: formatCurrency } = useCurrency();
   const { academicYearId } = useAcademicYear();
   const { data: rawCollections, loading } = useApi<any>(
-    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
+    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}&limit=2000` : "",
     [academicYearId]
   );
   const { data: paymentRequests } = useApi<any[]>("/online-payments/pending");
@@ -119,8 +119,8 @@ export default function FeesPage() {
       });
 
     return {
-      totalCollected: collected,
-      totalPending: pending,
+      totalCollected: rawCollections?.total_collected ?? collected,
+      totalPending: rawCollections?.total_pending ?? pending,
       totalWaived: waived,
       pendingStudentsCount: pendingStudentsSet.size,
       thisMonthCollected: thisMonth,
@@ -133,9 +133,9 @@ export default function FeesPage() {
         { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
       ],
     };
-  }, [collections, formatCurrency]);
+  }, [collections, rawCollections, formatCurrency]);
 
-  const totalFeeRecords = collections.length;
+  const totalFeeRecords = rawCollections?.total ?? collections.length;
   const totalBilled = totalCollected + totalPending;
   const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 

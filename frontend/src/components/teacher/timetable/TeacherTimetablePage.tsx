@@ -4,9 +4,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
 import ConfirmModal from "@/components/shared/ConfirmModal";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 
 const DAYS_OF_WEEK = [
   { key: "sunday",    label: "Sunday",    short: "Sun" },
@@ -54,7 +55,7 @@ export default function TeacherTimetablePage() {
   const [includeSaturday, setIncludeSaturday] = useState(false);
 
   // Active Year & Current User / Sections
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear } = useAcademicYear();
   const { data: me } = useApi<any>("/auth/me");
   const { data: teachers } = useApi<any[]>("/teachers");
 
@@ -666,8 +667,8 @@ export default function TeacherTimetablePage() {
             overflowX: "auto",
           }}>
             {loadingTimetable ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}>
-                <Spinner size={36} color="#ff9148" />
+              <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
+                <Loader fullScreen={false} size="md" text="Loading timetable…" />
               </div>
             ) : !selectedSectionId ? (
               <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
@@ -963,8 +964,8 @@ export default function TeacherTimetablePage() {
           </div>
 
           {loadingMySchedule ? (
-            <div style={{ padding: "3rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9148" />
+            <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
+              <Loader fullScreen={false} size="md" text="Loading your schedule…" />
             </div>
           ) : (myScheduleData?.slots?.length ?? 0) === 0 ? (
             <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>

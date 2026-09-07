@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 
 /* ─────────────────────────────── types ─── */
 interface Notice {
@@ -875,9 +875,8 @@ export default function StudentNoticeBoardPage() {
         {/* ── Content ── */}
         <main className="snb-content">
           {loading ? (
-            <div className="snb-loading">
-              <Spinner size={32} color="#4b8ff7" />
-              <p>Loading notices...</p>
+            <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
+              <Loader fullScreen={false} size="md" text="Loading notices…" />
             </div>
           ) : (
             <>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 
 // ─── Constants & Subject Palette ──────────────────────────────────────────────
 
@@ -74,9 +74,8 @@ export default function StudentTimetablePage() {
   // ─── Loading State ───
   if (loading) {
     return (
-      <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-        <Spinner size={36} color="#FF9B51" />
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B", fontWeight: 600 }}>Loading your timetable…</p>
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Loader fullScreen={false} size="md" text="Loading your timetable…" />
       </div>
     );
   }

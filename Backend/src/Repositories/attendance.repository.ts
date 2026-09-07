@@ -637,3 +637,75 @@ export const getAdminSectionSummary = async (
   );
   return result.rows;
 };
+
+export const bulkUpdateAttendanceDetails = async (
+  school_id: number,
+  attendance_id: number,
+  students: Array<{ student_id: number; status: string; remarks?: string | null }>
+): Promise<void> => {
+  if (students.length === 0) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Build parameterized VALUES ($1::int, $2::text, $3::text), ($4, ...), ...
+    const valueTuples = students.map((_, i) => {
+      const offset = i * 3;
+      return `($${offset + 1}::int, $${offset + 2}::text, $${offset + 3}::text)`;
+    }).join(', ');
+
+    const params: any[] = [];
+    students.forEach(st => {
+      params.push(st.student_id, st.status, st.remarks ?? null);
+    });
+
+    // 2. Append attendance_id and school_id parameters
+    params.push(attendance_id, school_id);
+    const attendanceIdParam = `$${params.length - 1}`;
+    const schoolIdParam     = `$${params.length}`;
+
+    // 3. Single atomic multi-row UPDATE
+    await client.query(
+      `UPDATE attendance_details AS ad
+       SET
+         status     = v.status,
+         remarks    = COALESCE(v.remarks, ad.remarks),
+         updated_at = NOW()
+       FROM (VALUES ${valueTuples}) AS v(student_id, status, remarks)
+       WHERE ad.attendance_id = ${attendanceIdParam}
+         AND ad.school_id     = ${schoolIdParam}
+         AND ad.student_id    = v.student_id`,
+      params
+    );
+
+    // 4. Recalculate totals in header table
+    const countRes = await client.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE status = 'present') as total_present,
+        COUNT(*) FILTER (WHERE status = 'absent')  as total_absent,
+        COUNT(*) FILTER (WHERE status = 'leave')   as total_leave
+       FROM attendance_details
+       WHERE attendance_id = $1 AND school_id = $2`,
+      [attendance_id, school_id]
+    );
+    const { total_present, total_absent, total_leave } = countRes.rows[0];
+
+    await client.query(
+      `UPDATE attendance SET
+        total_present = $1,
+        total_absent  = $2,
+        total_leave   = $3,
+        updated_at    = NOW()
+       WHERE id = $4 AND school_id = $5`,
+      [Number(total_present || 0), Number(total_absent || 0), Number(total_leave || 0), attendance_id, school_id]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};

@@ -5,7 +5,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
@@ -662,7 +662,7 @@ export default function TransportPage() {
                   </div>
                 </div>
               )}
-              {rLoading ? <div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div> : (
+              {rLoading ? <div style={{padding:"2rem 1rem",textAlign:"center"}}><Loader fullScreen={false} size="sm" text="Loading routes…" /></div> : (
                 <div style={{padding:"12px 14px",display:"grid",gap:8}}>
                   {(routes||[]).length===0 ? <div className={s("empty")}><i className="fa-solid fa-route"/><p>No routes yet.</p></div>
                   : (routes||[]).map((r:any) => (
@@ -698,7 +698,7 @@ export default function TransportPage() {
                   <div className={s("empty")} style={{padding:"3rem"}}><i className="fa-solid fa-map-location-dot"/><p>Select a route to view its stops</p></div>
                 </div>
               ) : rDetailLoading ? (
-                <div className={s("panel")}><div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div></div>
+                <div className={s("panel")}><div style={{padding:"2rem 1rem",textAlign:"center"}}><Loader fullScreen={false} size="sm" text="Loading route details…" /></div></div>
               ) : routeDetail && (
                 <div className={s("panel")}>
                   <div className={s("panel-head")}>
@@ -890,7 +890,7 @@ export default function TransportPage() {
               <div className={s("panel")}>
                 <div className={s("panel-head")}><div><h2><i className="fa-solid fa-list" style={{color:"#ff9b51",marginRight:8}}/>Current Assignments</h2><p>{assignments.length} active assignments</p></div></div>
                 <div className={s("table-wrap")}>
-                  {aLoading ? <div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div> : (
+                  {aLoading ? <div style={{padding:"2rem 1rem",textAlign:"center"}}><Loader fullScreen={false} size="sm" text="Loading assignments…" /></div> : (
                     <table>
                       <thead><tr><th>Student</th><th>Route</th><th>Stop</th><th>Fee</th><th></th></tr></thead>
                       <tbody>

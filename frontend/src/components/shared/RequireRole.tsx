@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/store/hooks';
 import { AllRoles } from '@/store/authSlice';
-import { Spinner } from '@/components/shared/Loader';
+import Loader from '@/components/shared/Loader';
 
 interface RequireRoleProps {
   allow: AllRoles[];
@@ -40,11 +40,7 @@ export default function RequireRole({ allow, children }: RequireRoleProps) {
   }, [bootstrapped, user]);
 
   if (!bootstrapped || !user || !allow.includes(user.role)) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#EAEFEF' }}>
-        <Spinner size={36} color="#FF9B51" />
-      </div>
-    );
+    return <Loader text="Verifying session..." />;
   }
 
   return <>{children}</>;

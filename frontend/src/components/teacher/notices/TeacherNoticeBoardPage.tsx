@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
-import { useAppDispatch } from "@/store/hooks";
+import { Loader, Spinner } from "@/components/shared/Loader";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import styles from "@/components/admin/notices/notices.module.css";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -16,6 +16,7 @@ interface Notice {
   title: string;
   content: string;
   created_by_role: "admin" | "faculty";
+  created_by_id?: number | null;
   created_by_name: string;
   target_type: "section" | null;
   target_section_id: number | null;
@@ -42,6 +43,7 @@ const isExpired = (expires_at: string | null) =>
 
 export default function TeacherNoticeBoardPage() {
   const dispatch = useAppDispatch();
+  const { user } = useAppSelector(s => s.auth);
 
   const { data: notices, loading, refetch } = useApi<Notice[]>("/notices/teacher");
   // Teacher's coordinator sections — for posting notices
@@ -62,23 +64,21 @@ export default function TeacherNoticeBoardPage() {
     target_section_id: "",
   });
 
-  // Store teacher id from notices (notices posted by me have created_by_role = 'faculty')
-  // We infer "my" notices by looking at who created them
   const filtered = useMemo(() => {
     if (!notices) return [];
     return notices.filter((n) => {
       if (filterType === "school"  && n.target_type !== null)         return false;
       if (filterType === "section" && n.target_type !== "section")    return false;
-      if (filterType === "mine"    && n.created_by_role !== "faculty") return false;
+      if (filterType === "mine"    && (n.created_by_role !== "faculty" || n.created_by_id !== user?.id)) return false;
       if (search && !n.title.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [notices, filterType, search]);
+  }, [notices, filterType, search, user?.id]);
 
   const totalSchool  = notices?.filter(n => !n.target_type).length         ?? 0;
   const totalSection = notices?.filter(n => n.target_type === "section").length ?? 0;
   const totalPinned  = notices?.filter(n => n.is_pinned).length             ?? 0;
-  const totalMine    = notices?.filter(n => n.created_by_role === "faculty").length ?? 0;
+  const totalMine    = notices?.filter(n => n.created_by_role === "faculty" && n.created_by_id === user?.id).length ?? 0;
 
   const openCreate = () => {
     setEditNotice(null);
@@ -154,7 +154,7 @@ export default function TeacherNoticeBoardPage() {
     }
   };
 
-  const canEdit = (notice: Notice) => notice.created_by_role === "faculty";
+  const canEdit = (notice: Notice) => notice.created_by_role === "faculty" && notice.created_by_id === user?.id;
 
   return (
     <div className={s("page")}>
@@ -295,7 +295,7 @@ export default function TeacherNoticeBoardPage() {
               </div>
             </div>
             <div className={s("noticeList")}>
-              {loading && <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={28} color="#ff9148" /></div>}
+              {loading && <Loader fullScreen={false} size="md" text="Loading notices…" />}
               {!loading && filtered.length === 0 && (
                 <div style={{ padding: "3rem 1.5rem", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 50, height: 50, borderRadius: 14, background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: "1px solid #fed7aa" }}>

@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useApi, useMutation } from "@/lib/useApi";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 
@@ -13,7 +14,7 @@ export default function TeacherResultsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear } = useAcademicYear();
   const { data: exams }      = useApi<any[]>(
     activeYear?.id ? `/exams?academic_year_id=${activeYear.id}` : "",
     [activeYear?.id]
@@ -71,8 +72,7 @@ export default function TeacherResultsPage() {
   // ── Tab 1: Entry Filter ──
   const [entrySearch,           setEntrySearch          ] = useState("");
 
-  const { execute: saveResult,   loading: saving } = useMutation("/exams/results", "POST");
-  const { execute: updateResult                  } = useMutation("/exams/results", "PATCH");
+  const { execute: bulkSaveResults, loading: saving } = useMutation("/exams/results/bulk", "POST");
 
   // Auto-select exam
   useEffect(() => {
@@ -115,12 +115,10 @@ export default function TeacherResultsPage() {
       setEnrollmentsLoading(true);
       try {
         const [enrollRes, resultsRes] = await Promise.all([
-          apiRequest<{ data: any[] }>(`/students/enrollments?academic_year_id=${activeYear.id}`),
+          apiRequest<{ data: any[] }>(`/students/enrollments?academic_year_id=${activeYear.id}&class_id=${selectedSchedule.class_id}`),
           apiRequest<{ data: any[] }>(`/exams/${examId}/class/${selectedSchedule.class_id}/results`),
         ]);
-        setEnrollments((enrollRes.data || []).filter(
-          (en: any) => en.class_id?.toString() === selectedSchedule.class_id.toString()
-        ));
+        setEnrollments(enrollRes.data || []);
         setResults(resultsRes.data || []);
       } catch { setEnrollments([]); setResults([]); }
       finally  { setEnrollmentsLoading(false); }
@@ -160,33 +158,35 @@ export default function TeacherResultsPage() {
   const handleSave = async () => {
     if (!selectedSchedule) return;
     try {
-      const tasks = enrollments.map(en => {
+      const resultsToSave = enrollments.map(en => {
         const entry = marksMap[en.student_id];
         if (!entry || (!entry.is_absent && entry.marks_obtained === "")) return null;
-        const existing = existingByStudent.get(en.student_id);
-        const payload  = {
-          exam_id:        parseInt(examId),
-          schedule_id:    selectedSchedule.id,
+        return {
           student_id:     en.student_id,
           enrollment_id:  en.id,
-          subject_id:     selectedSchedule.subject_id,
-          max_marks:      selectedSchedule.max_marks,
-          pass_marks:     selectedSchedule.pass_marks,
-          marks_obtained: entry.is_absent ? undefined : parseFloat(entry.marks_obtained),
+          marks_obtained: entry.is_absent ? null : parseFloat(entry.marks_obtained),
           is_absent:      entry.is_absent,
-          remarks:        entry.remarks || undefined,
+          remarks:        entry.remarks || null,
         };
-        return existing
-          ? updateResult(payload, `/exams/results/${existing.id}`)
-          : saveResult(payload);
       }).filter(Boolean);
 
-      if (!tasks.length) {
+      if (!resultsToSave.length) {
         dispatch(showToast({ type: "warning", title: "No Data", message: "No marks entered to save." }));
         return;
       }
-      await Promise.all(tasks);
+
+      await bulkSaveResults({
+        exam_id:     parseInt(examId),
+        schedule_id: selectedSchedule.id,
+        subject_id:  selectedSchedule.subject_id,
+        results:     resultsToSave,
+      });
+
       dispatch(showToast({ type: "success", title: "Saved", message: "Marks saved successfully." }));
+
+      // Refresh results list so status reflects saved marks
+      const resultsRes = await apiRequest<{ data: any[] }>(`/exams/${examId}/class/${selectedSchedule.class_id}/results`);
+      setResults(resultsRes.data || []);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to save marks" }));
     }
@@ -912,7 +912,7 @@ export default function TeacherResultsPage() {
                     </thead>
                     <tbody>
                       {enrollmentsLoading ? (
-                        <tr><td colSpan={6} style={{ textAlign: "center", padding: 40 }}><Spinner size={28} color="#ff9148" /></td></tr>
+                        <tr><td colSpan={6} style={{ textAlign: "center", padding: 24 }}><Loader fullScreen={false} size="md" text="Loading students…" /></td></tr>
                       ) : filteredEnrollments.length === 0 ? (
                         <tr><td colSpan={6} style={{ textAlign: "center", padding: 36, color: "#94a3b8", fontWeight: 700 }}>
                           {entrySearch ? "No students matching your search." : "No students enrolled in this class."}
@@ -1197,7 +1197,7 @@ export default function TeacherResultsPage() {
               </div>
 
               {registerLoading ? (
-                <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#ff9148" /></div>
+                <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading mark register…" /></div>
               ) : !registerData ? (
                 <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontWeight: 700 }}>No register data available.</div>
               ) : (

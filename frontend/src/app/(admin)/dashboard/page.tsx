@@ -7,7 +7,7 @@ import styles from "./dashboard.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { Spinner } from "@/components/shared/Loader";
+import Loader from "@/components/shared/Loader";
 import type { DashboardData } from "@/types/dashboard.types";
 
 const s = (className: string) => styles[className];
@@ -46,9 +46,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {!data ? (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 340 }}>
-            <Spinner size={36} />
-          </div>
+          <Loader fullScreen={false} size="md" text="Loading dashboard insights..." />
         ) : (
           <>
             <DashboardStats data={data} />

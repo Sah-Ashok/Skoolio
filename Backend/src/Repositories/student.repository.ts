@@ -67,8 +67,14 @@ export const searchStudentsBySchool = async (
 
 export const getStudentsBySchool = async (
   school_id: number,
-  academic_year_id?: number
-): Promise<IStudent[]> => {
+  academic_year_id?: number,
+  page?: number,
+  limit?: number,
+  search?: string,
+  class_id?: number,
+  section_id?: number,
+  status?: string,
+): Promise<{ data: IStudent[]; total: number; active_count: number; new_count: number } | IStudent[]> => {
   const params: any[] = [school_id];
 
   let lateralCondition = `student_id = s.id AND school_id = s.school_id`;
@@ -83,6 +89,89 @@ export const getStudentsBySchool = async (
     )`;
   }
 
+  if (search && search.trim()) {
+    const sParam = `$${params.push(`%${search.trim().toLowerCase()}%`)}`;
+    whereClause += ` AND (
+      LOWER(s.full_name) ILIKE ${sParam}
+      OR LOWER(s.admission_number) ILIKE ${sParam}
+      OR LOWER(COALESCE(s.guardian_name, '')) ILIKE ${sParam}
+      OR LOWER(COALESCE(s.phone, '')) ILIKE ${sParam}
+      OR LOWER(COALESCE(cl.name, '')) ILIKE ${sParam}
+    )`;
+  }
+
+  if (class_id) {
+    const cParam = `$${params.push(class_id)}`;
+    whereClause += ` AND se.class_id = ${cParam}`;
+  }
+
+  if (section_id) {
+    const secParam = `$${params.push(section_id)}`;
+    whereClause += ` AND se.section_id = ${secParam}`;
+  }
+
+  if (status && status !== 'all') {
+    const stParam = `$${params.push(status)}`;
+    whereClause += ` AND s.status = ${stParam}`;
+  }
+
+  const fromAndJoin = `
+    FROM students s
+    LEFT JOIN LATERAL (
+      SELECT class_id, section_id, roll_number
+      FROM student_enrollments
+      WHERE ${lateralCondition}
+      ORDER BY (status = 'active') DESC, created_at DESC
+      LIMIT 1
+    ) se ON true
+    LEFT JOIN classes cl ON cl.id = se.class_id
+    LEFT JOIN sections sec ON sec.id = se.section_id
+    ${whereClause}
+  `;
+
+  if (page !== undefined || limit !== undefined) {
+    const countRes = await pool.query(
+      `SELECT 
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE s.status = 'active')::int AS active_count,
+         COUNT(*) FILTER (WHERE s.admission_date >= CURRENT_DATE - INTERVAL '30 days')::int AS new_count
+       ${fromAndJoin}`,
+      params
+    );
+    const total = Number(countRes.rows[0]?.total ?? 0);
+    const active_count = Number(countRes.rows[0]?.active_count ?? 0);
+    const new_count = Number(countRes.rows[0]?.new_count ?? 0);
+
+    const pageNum = Math.max(1, page || 1);
+    const pageSize = Math.min(100, Math.max(1, limit || 15));
+    const limitIdx = params.push(pageSize);
+    const offsetIdx = params.push((pageNum - 1) * pageSize);
+
+    const dataRes = await pool.query(
+      `SELECT s.id, s.school_id, s.admission_number, s.full_name, s.email, s.phone, s.gender,
+         s.date_of_birth::text, s.blood_group, s.photo, s.nationality, s.religion, s.ethnicity,
+         s.city, s.state, s.country, s.previous_school, s.admission_date::text, s.disability,
+         s.disability_description, s.scholarship_type, s.scholarship_percent, s.scholarship_remarks,
+         s.guardian_name, s.guardian_phone, s.guardian_email,
+         s.guardian_relation, s.guardian_occupation, s.guardian_address, s.status,
+         s.created_at, s.updated_at,
+         se.class_id, se.section_id, se.roll_number,
+         cl.name AS class_name,
+         sec.name AS section_name
+       ${fromAndJoin}
+       ORDER BY s.full_name ASC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      params
+    );
+
+    return {
+      data: dataRes.rows,
+      total,
+      active_count,
+      new_count,
+    };
+  }
+
   const result = await pool.query(
     `SELECT s.id, s.school_id, s.admission_number, s.full_name, s.email, s.phone, s.gender,
        s.date_of_birth::text, s.blood_group, s.photo, s.nationality, s.religion, s.ethnicity,
@@ -94,17 +183,7 @@ export const getStudentsBySchool = async (
        se.class_id, se.section_id, se.roll_number,
        cl.name AS class_name,
        sec.name AS section_name
-     FROM students s
-     LEFT JOIN LATERAL (
-       SELECT class_id, section_id, roll_number
-       FROM student_enrollments
-       WHERE ${lateralCondition}
-       ORDER BY (status = 'active') DESC, created_at DESC
-       LIMIT 1
-     ) se ON true
-     LEFT JOIN classes cl ON cl.id = se.class_id
-     LEFT JOIN sections sec ON sec.id = se.section_id
-     ${whereClause}
+     ${fromAndJoin}
      ORDER BY s.full_name ASC`,
     params
   );
@@ -251,10 +330,28 @@ export const createEnrollment = async (school_id: number, data: ICreateEnrollmen
   return result.rows[0];
 };
 
-export const getEnrollmentsBySchool = async (school_id: number, academic_year_id: number, section_id?: number): Promise<IStudentEnrollmentWithStudent[]> => {
+export const getEnrollmentsBySchool = async (
+  school_id: number,
+  academic_year_id: number,
+  section_id?: number,
+  class_id?: number,
+  student_id?: number
+): Promise<IStudentEnrollmentWithStudent[]> => {
   const params: any[] = [school_id, academic_year_id];
-  const sectionFilter = section_id ? `AND se.section_id = $3` : '';
-  if (section_id) params.push(section_id);
+  let extraFilters = '';
+
+  if (section_id) {
+    params.push(section_id);
+    extraFilters += ` AND se.section_id = $${params.length}`;
+  }
+  if (class_id) {
+    params.push(class_id);
+    extraFilters += ` AND se.class_id = $${params.length}`;
+  }
+  if (student_id) {
+    params.push(student_id);
+    extraFilters += ` AND se.student_id = $${params.length}`;
+  }
 
   const result = await pool.query(
     `SELECT se.*, s.full_name, s.admission_number, s.photo, s.gender,
@@ -266,7 +363,7 @@ export const getEnrollmentsBySchool = async (school_id: number, academic_year_id
      INNER JOIN classes   c   ON c.id   = se.class_id
      INNER JOIN sections  sec ON sec.id = se.section_id
      WHERE se.school_id = $1 AND se.academic_year_id = $2 AND se.status = 'active'
-       ${sectionFilter}
+       ${extraFilters}
      ORDER BY c.name ASC, sec.name ASC, se.roll_number ASC NULLS LAST, s.full_name ASC`,
     params
   );

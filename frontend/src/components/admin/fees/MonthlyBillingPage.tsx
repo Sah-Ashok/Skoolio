@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
@@ -238,7 +238,7 @@ export default function MonthlyBillingPage() {
     if (isFirst) setIsInitialLoad(true); else setIsRefreshing(true);
     try {
       const res = await apiRequest<any>(
-        `/fees/collections?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthRangeKey)}`
+        `/fees/collections?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthRangeKey)}&limit=2000`
       );
       const rows: any[] = Array.isArray(res) ? res : (res?.data ?? []);
       const deduped = new Map<number, any>();
@@ -864,7 +864,7 @@ export default function MonthlyBillingPage() {
 
           {/* Table body */}
           {(isInitialLoad || unbilledLoading) ? (
-            <div style={{ padding: 56, textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+            <Loader fullScreen={false} size="md" text="Loading monthly billing records…" />
           ) : filtered.length === 0 ? (
             <div style={{ padding: "44px 24px", textAlign: "center", color: "#94a3b8" }}>
               <i className={`fa-solid ${viewMode === "unbilled" ? "fa-circle-check" : "fa-inbox"}`} style={{ fontSize: 30, display: "block", marginBottom: 10, opacity: 0.25, color: viewMode === "unbilled" ? "#16a34a" : undefined }} />

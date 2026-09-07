@@ -9,8 +9,9 @@ import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
 
 // ── Color & Style Tokens ────────────────────────────────────────────────────────
 const col = {
@@ -169,8 +170,7 @@ export default function CollectFeePage() {
   const { academicYearId } = useAcademicYear();
   const { formatDate, formatFeeName, isBS } = useDateFormat();
 
-  const currencySymbol = isBS ? "रू" : "₹";
-  const fmt = useCallback((n: number | string) => `${currencySymbol} ${Number(n || 0).toLocaleString()}`, [currencySymbol]);
+  const { fmt, symbol: currencySymbol } = useCurrency();
 
   // Search state
   const [query, setSearchQuery]               = useState("");
@@ -248,18 +248,26 @@ export default function CollectFeePage() {
       setTransportInfo(null);
       return;
     }
-    apiRequest<{ data: any }>(`/hostel/students/${selectedStudent.id}`)
+    const ayParam = academicYearId ? `?academic_year_id=${academicYearId}` : "";
+    apiRequest<{ data: any }>(`/hostel/students/${selectedStudent.id}${ayParam}`)
       .then(res => setHostelInfo(res.data || null))
       .catch(() => setHostelInfo(null));
 
-    apiRequest<{ data: any }>(`/transport/students/${selectedStudent.id}`)
+    apiRequest<{ data: any }>(`/transport/students/${selectedStudent.id}${ayParam}`)
       .then(res => setTransportInfo(res.data || null))
       .catch(() => setTransportInfo(null));
-  }, [selectedStudent]);
+  }, [selectedStudent, academicYearId]);
 
   // Fee Collections for Student
+  const studentCollectionsUrl = useMemo(() => {
+    if (!selectedStudent?.id) return "";
+    const ay = academicYearId ? `?academic_year_id=${academicYearId}` : "";
+    return `/fees/collections/student/${selectedStudent.id}${ay}`;
+  }, [selectedStudent?.id, academicYearId]);
+
   const { data: rawCollections, refetch: refetchCollections, loading: loadingFees } = useApi<any[]>(
-    selectedStudent?.id ? `/fees/collections/student/${selectedStudent.id}` : ""
+    studentCollectionsUrl,
+    [studentCollectionsUrl]
   );
   const allCollections = useMemo(() => rawCollections || [], [rawCollections]);
 
@@ -1008,7 +1016,7 @@ export default function CollectFeePage() {
                     </thead>
                     <tbody>
                       {loadingFees ? (
-                        <tr><td colSpan={7} style={{ textAlign: "center", padding: "2.5rem" }}><Spinner size={24} color={col.orange} /></td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: "center", padding: "2rem" }}><Loader fullScreen={false} size="md" text="Loading dues…" /></td></tr>
                       ) : groupedPending.length === 0 ? (
                         <tr>
                           <td colSpan={7} style={{ textAlign: "center", padding: "2.5rem", color: col.green, fontWeight: 700 }}>

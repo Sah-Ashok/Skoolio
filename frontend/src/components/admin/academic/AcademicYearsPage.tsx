@@ -7,7 +7,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { fetchActiveAcademicYear } from "@/store/academicYearSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -338,8 +338,8 @@ export default function AcademicYearsPage() {
 
           <div className={s("panel-body")}>
             {loading ? (
-              <div style={{ padding: "2rem", textAlign: "center" }}>
-                <Spinner size={28} color="#FF9B51" />
+              <div style={{ padding: "2rem 1rem", textAlign: "center" }}>
+                <Loader fullScreen={false} size="md" text="Loading academic years…" />
               </div>
             ) : loadError ? (
               <p style={{ color: "#dc2626", padding: "1rem 0" }}>{loadError}</p>

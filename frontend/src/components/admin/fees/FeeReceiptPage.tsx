@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { amountToWords } from "@/lib/amountToWords";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
@@ -121,7 +121,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
 
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-      <Spinner size={36} color="#ea580c" />
+      <Loader fullScreen={false} size="md" text="Loading receipt…" />
     </div>
   );
 

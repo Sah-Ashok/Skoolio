@@ -6,7 +6,7 @@ import {
   getSectionAttendanceSummary, getSectionRegister,
   getClassAttendanceOverview, getAllClassesAttendanceOverview,
   createSectionTeacherHistory, getSectionTeacherHistory, updateSectionTeacherHistory,
-  getAdminSectionSummary, deleteAttendanceById,
+  getAdminSectionSummary, deleteAttendanceById, bulkUpdateAttendanceDetails,
 } from '../Repositories/attendance.repository';
 import { calculateWorkingDays, isWorkingDayService } from './calendar.service';
 import {
@@ -118,9 +118,14 @@ export const getAttendanceBySectionService = async (
   section_id: number,
   school_id: number,
   academic_year_id: number,
-  teacherId?: number
+  teacherId?: number,
+  date?: string
 ) => {
   await assertCoordinator(section_id, school_id, teacherId);
+  if (date) {
+    const single = await getAttendanceByDate(section_id, school_id, date);
+    return single ? [single] : [];
+  }
   return getAttendanceBySection(section_id, school_id, academic_year_id);
 };
 
@@ -205,6 +210,40 @@ export const updateAttendanceDetailService = async (
   await updateAttendanceCounts(attendance_id, school_id, total_present, total_absent, total_leave);
 
   return detail;
+};
+
+export const bulkUpdateAttendanceDetailsService = async (
+  attendance_id: number,
+  school_id: number,
+  students: Array<{ student_id: number; status: string; remarks?: string | null }>,
+  submitImmediately?: boolean,
+  teacherId?: number
+) => {
+  const attendance = await getAttendanceById(attendance_id, school_id);
+  if (!attendance) throw new AppError('Attendance record not found.', 404);
+  if (attendance.status === 'submitted') throw new AppError('Cannot edit a submitted attendance record.', 400);
+  if (attendance.is_holiday) throw new AppError('Cannot edit individual student details on a suspended class day.', 400);
+
+  await assertCoordinator(attendance.section_id, school_id, teacherId);
+
+  const recordDate = new Date(attendance.date);
+  const now        = new Date();
+  const prevMonth1 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  prevMonth1.setHours(0, 0, 0, 0);
+  if (recordDate < prevMonth1) {
+    throw new AppError(
+      `Cannot edit attendance older than ${prevMonth1.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} 1st.`,
+      403
+    );
+  }
+
+  await bulkUpdateAttendanceDetails(school_id, attendance_id, students);
+
+  if (submitImmediately) {
+    await updateAttendance(attendance_id, school_id, { status: 'submitted' });
+  }
+
+  return { success: true };
 };
 
 // ── STUDENT ATTENDANCE SUMMARY ────────────────────────────────────────────────

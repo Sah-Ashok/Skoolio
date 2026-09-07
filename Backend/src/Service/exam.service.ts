@@ -5,8 +5,9 @@ import {
   getResultById, updateExamResult, publishExamResults,
   createGradeScale, getGradeScalesBySchool, getGradeByPercentage, updateGradeScale, deleteGradeScale,
   getStudentExamSchedules, publishExamSchedule, unpublishExamResults, hasPublishedResultsForExam,
-  getExamClassRegisterData,
+  getExamClassRegisterData, upsertSingleExamResult,
 } from '../Repositories/exam.repository';
+import pool from '../config/db';
 import {
   ICreateExam, IUpdateExam, ICreateExamSchedule, IUpdateExamSchedule,
   ICreateExamResult, IUpdateExamResult, ICreateGradeScale, IUpdateGradeScale,
@@ -177,6 +178,106 @@ export const createExamResultService = async (
 
   const result = await createExamResult(school_id, data, percentage, grade, gpa, is_passed);
   return result;
+};
+
+export const bulkUpsertExamResultsService = async (
+  school_id: number,
+  data: {
+    exam_id: number;
+    schedule_id: number;
+    subject_id: number;
+    entered_by?: number;
+    results: Array<{
+      student_id: number;
+      enrollment_id: number;
+      marks_obtained?: number | null;
+      is_absent?: boolean;
+      remarks?: string | null;
+    }>;
+  },
+  requester_teacher_id?: number
+) => {
+  const schedule = await getScheduleById(data.schedule_id, school_id);
+  if (!schedule) throw new AppError('Exam schedule not found.', 404);
+
+  // If faculty, verify teacher is assigned to teach this subject in this class
+  if (requester_teacher_id !== undefined) {
+    const assigned = await isTeacherAssignedToSubjectInClass(
+      requester_teacher_id,
+      schedule.class_id,
+      schedule.subject_id,
+      school_id
+    );
+    if (!assigned) {
+      throw new AppError(
+        'You are not assigned to teach this subject in this class and cannot enter results for it.',
+        403
+      );
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const saved: any[] = [];
+    for (const item of data.results) {
+      const is_absent = Boolean(item.is_absent);
+      const marks_obtained = is_absent || item.marks_obtained == null || isNaN(Number(item.marks_obtained))
+        ? undefined
+        : Number(item.marks_obtained);
+
+      if (!is_absent && marks_obtained !== undefined) {
+        if (marks_obtained > schedule.max_marks) {
+          throw new AppError(`Marks obtained cannot exceed max marks of ${schedule.max_marks}.`, 400);
+        }
+        if (marks_obtained < 0) {
+          throw new AppError('Marks obtained cannot be negative.', 400);
+        }
+      }
+
+      const { percentage, grade, gpa, is_passed } = await calculateGradeDetails(
+        school_id,
+        marks_obtained,
+        schedule.max_marks,
+        schedule.pass_marks,
+        is_absent
+      );
+
+      const entryPayload: ICreateExamResult = {
+        exam_id: data.exam_id,
+        schedule_id: data.schedule_id,
+        student_id: item.student_id,
+        enrollment_id: item.enrollment_id,
+        subject_id: data.subject_id,
+        max_marks: schedule.max_marks,
+        pass_marks: schedule.pass_marks,
+        marks_obtained,
+        is_absent,
+        remarks: item.remarks || undefined,
+        entered_by: data.entered_by,
+      };
+
+      const result = await upsertSingleExamResult(
+        client,
+        school_id,
+        entryPayload,
+        percentage,
+        grade,
+        gpa,
+        is_passed
+      );
+      saved.push(result);
+    }
+
+    await client.query('COMMIT');
+    return saved;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export const getClassResultsService = async (

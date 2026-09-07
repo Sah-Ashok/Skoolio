@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 
 export default function SuperAdminSettings() {
   const { data: settings, loading } = useApi<any>('/platform');
@@ -98,7 +98,7 @@ export default function SuperAdminSettings() {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8faff" }}>
         <Topbar title="Settings" subtitle="Platform-wide configuration and preferences" />
-        <div style={{ padding: '4rem', textAlign: 'center' }}><Spinner size={32} color="#6366f1" /></div>
+        <div style={{ padding: '4rem 1rem', textAlign: 'center' }}><Loader fullScreen={false} size="md" text="Loading platform settings…" /></div>
       </div>
     );
   }

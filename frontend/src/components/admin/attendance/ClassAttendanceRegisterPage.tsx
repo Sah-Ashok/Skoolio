@@ -8,7 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { isoToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 
 // -- Types ------------------------------------------------------------------
 interface RegisterRow {
@@ -596,9 +596,8 @@ function ClassAttendanceRegisterContent() {
           overflow: "hidden", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)",
         }}>
           {loading ? (
-            <div style={{ padding: "5rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9b51" />
-              <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>Loading attendance register-</p>
+            <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+              <Loader fullScreen={false} size="md" text="Loading attendance register…" />
             </div>
           ) : error ? (
             <div style={{ padding: "3rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{error}</div>
@@ -707,7 +706,7 @@ function ClassAttendanceRegisterContent() {
 
 export default function ClassAttendanceRegisterPage() {
   return (
-    <Suspense fallback={<div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>}>
+    <Suspense fallback={<div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading attendance register…" /></div>}>
       <ClassAttendanceRegisterContent />
     </Suspense>
   );

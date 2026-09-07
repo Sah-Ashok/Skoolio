@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { isoToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -757,9 +757,8 @@ export default function TeacherAttendanceRegisterPage() {
 
         {/* ── 2. Content States ── */}
         {loading ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-            <Spinner size={36} color="#ff9148" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Loading attendance register...</span>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "4rem 1rem" }}>
+            <Loader fullScreen={false} size="md" text="Loading attendance register…" />
           </div>
         ) : error ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#dc2626", gap: 10 }}>

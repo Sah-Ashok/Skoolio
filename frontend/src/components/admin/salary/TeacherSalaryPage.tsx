@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import styles from "@/components/admin/salary/salary.module.css";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -223,7 +223,7 @@ export default function TeacherSalaryPage() {
 
           <div className={s("tableWrap")}>
             {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+              <Loader fullScreen={false} size="md" text="Loading salary slips…" />
             ) : sorted.length === 0 ? (
               <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
                 <i className="fa-solid fa-file-invoice-dollar" style={{ fontSize: 32, marginBottom: 12, display: "block", color: "#d4dde2" }} />

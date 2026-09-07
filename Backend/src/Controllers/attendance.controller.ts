@@ -6,7 +6,7 @@ import {
   createAttendanceService, getAttendanceBySectionService,
   getAttendanceByIdService, updateAttendanceService, submitAttendanceService,
   deleteAttendanceService,
-  updateAttendanceDetailService, getStudentAttendanceSummaryService,
+  updateAttendanceDetailService, bulkUpdateAttendanceDetailsService, getStudentAttendanceSummaryService,
   getStudentMonthlyAttendanceService, assignSectionTeacherService,
   getSectionTeacherHistoryService,
   getClassAttendanceOverviewService, getAllClassesAttendanceOverviewService,
@@ -29,10 +29,10 @@ export const getAttendanceBySection = catchAsync(async (req: Request, res: Respo
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
-  const { academic_year_id } = req.query;
+  const { academic_year_id, date } = req.query;
   if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getAttendanceBySectionService(
-    Number(req.params.sectionId), school_id, Number(academic_year_id), teacherId
+    Number(req.params.sectionId), school_id, Number(academic_year_id), teacherId, date ? String(date) : undefined
   );
   sendResponse(res, 200, true, 'Attendance fetched successfully', result);
 });
@@ -80,6 +80,20 @@ export const updateAttendanceDetail = catchAsync(async (req: Request, res: Respo
     Number(req.params.id), school_id, req.body, Number(attendance_id)
   );
   sendResponse(res, 200, true, 'Attendance detail updated successfully', result);
+});
+
+export const bulkUpdateAttendanceDetails = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
+  const { students, submit } = req.body;
+  if (!students || !Array.isArray(students)) {
+    return sendResponse(res, 400, false, 'students array is required', null);
+  }
+  const result = await bulkUpdateAttendanceDetailsService(
+    Number(req.params.id), school_id, students, Boolean(submit), teacherId
+  );
+  sendResponse(res, 200, true, 'Attendance updated successfully', result);
 });
 
 // ── STUDENT ATTENDANCE SUMMARY (ADMIN + FACULTY) ──

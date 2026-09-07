@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAppSelector } from "@/store/hooks";
 
@@ -644,9 +644,7 @@ export default function StudentResultsPage() {
 
           {/* ── Content View ── */}
           {loading ? (
-            <div style={{ padding: "4rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9148" />
-            </div>
+            <Loader fullScreen={false} size="md" text="Loading examination data…" />
           ) : activeTab === "schedule" ? (
             /* ── TAB 1: EXAM SCHEDULES ── */
             Object.keys(groupedSchedules).length === 0 ? (

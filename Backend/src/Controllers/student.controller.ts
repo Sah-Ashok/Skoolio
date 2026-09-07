@@ -26,10 +26,16 @@ export const createStudent = catchAsync(async (req: Request, res: Response, next
 
 export const getStudents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const { academic_year_id } = req.query;
+  const { academic_year_id, page, limit, search, class_id, section_id, status } = req.query;
   const students = await getStudentsService(
     school_id,
-    academic_year_id ? Number(academic_year_id) : undefined
+    academic_year_id ? Number(academic_year_id) : undefined,
+    page ? Number(page) : undefined,
+    limit ? Number(limit) : undefined,
+    search ? String(search) : undefined,
+    class_id ? Number(class_id) : undefined,
+    section_id ? Number(section_id) : undefined,
+    status ? String(status) : undefined
   );
   sendResponse(res, 200, true, 'Students fetched successfully', students);
 });
@@ -104,7 +110,7 @@ export const createEnrollment = catchAsync(async (req: Request, res: Response, n
 export const getEnrollments = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
   const school_id = 'school_id' in user ? user.school_id : user.id;
-  const { academic_year_id, section_id } = req.query;
+  const { academic_year_id, section_id, class_id, student_id } = req.query;
 
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
@@ -113,7 +119,9 @@ export const getEnrollments = catchAsync(async (req: Request, res: Response, nex
   const enrollments = await getEnrollmentsService(
     school_id,
     Number(academic_year_id),
-    section_id ? Number(section_id) : undefined
+    section_id ? Number(section_id) : undefined,
+    class_id ? Number(class_id) : undefined,
+    student_id ? Number(student_id) : undefined
   );
 
   // Faculty: strictly hide financial and scholarship information

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import styles from "./sa.module.css";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 
 const s = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -61,12 +61,7 @@ export default function SuperAdminDashboard() {
 
       <main className={s("page-content")}>
         {schoolsLoading ? (
-          <div style={{ padding: "4rem", textAlign: "center" }}>
-            <Spinner size={36} color="#FF9B51" />
-            <p style={{ marginTop: 12, fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-              Loading platform telemetry…
-            </p>
-          </div>
+          <Loader fullScreen={false} size="md" text="Loading platform telemetry…" />
         ) : (
           <>
             {/* ── 1. PLATFORM STATUS HEADER BANNER ── */}

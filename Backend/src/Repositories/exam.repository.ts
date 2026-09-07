@@ -671,3 +671,81 @@ export const getExamClassRegisterData = async (
     results: resultsRes.rows,
   };
 };
+
+export const upsertSingleExamResult = async (
+  client: any,
+  school_id: number,
+  data: ICreateExamResult,
+  percentage: number | null,
+  grade: string | null,
+  gpa: number | null,
+  is_passed: boolean | null
+): Promise<IExamResult> => {
+  const existing = await client.query(
+    `SELECT id FROM exam_results
+     WHERE school_id = $1 AND schedule_id = $2 AND student_id = $3
+     LIMIT 1`,
+    [school_id, data.schedule_id, data.student_id]
+  );
+
+  if (existing.rows.length > 0) {
+    const res = await client.query(
+      `UPDATE exam_results SET
+        marks_obtained = $1,
+        max_marks      = $2,
+        pass_marks     = $3,
+        percentage     = $4,
+        grade          = $5,
+        gpa            = $6,
+        is_passed      = $7,
+        is_absent      = $8,
+        remarks        = COALESCE($9, remarks),
+        updated_at     = NOW()
+       WHERE id = $10 AND school_id = $11
+       RETURNING *`,
+      [
+        data.marks_obtained ?? null,
+        data.max_marks,
+        data.pass_marks,
+        percentage,
+        grade,
+        gpa,
+        is_passed,
+        data.is_absent || false,
+        data.remarks || null,
+        existing.rows[0].id,
+        school_id,
+      ]
+    );
+    return res.rows[0];
+  } else {
+    const res = await client.query(
+      `INSERT INTO exam_results
+        (school_id, exam_id, schedule_id, student_id, enrollment_id, subject_id,
+         marks_obtained, max_marks, pass_marks, percentage, grade, gpa, is_passed,
+         is_absent, remarks, entered_by, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       RETURNING *`,
+      [
+        school_id,
+        data.exam_id,
+        data.schedule_id,
+        data.student_id,
+        data.enrollment_id,
+        data.subject_id,
+        data.marks_obtained ?? null,
+        data.max_marks,
+        data.pass_marks,
+        percentage,
+        grade,
+        gpa,
+        is_passed,
+        data.is_absent || false,
+        data.remarks || null,
+        data.entered_by || null,
+        'draft',
+      ]
+    );
+    return res.rows[0];
+  }
+};

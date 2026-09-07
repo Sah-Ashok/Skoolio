@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
@@ -557,10 +557,7 @@ export function StaffAttendancePage() {
           overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.03)",
         }}>
           {isLoading ? (
-            <div style={{ padding: "4rem", textAlign: "center" }}>
-              <Spinner size={32} color="#ff9b51" />
-              <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>Loading staff members…</p>
-            </div>
+            <Loader fullScreen={false} size="md" text="Loading staff members…" />
           ) : displayed.length === 0 ? (
             <div style={{ padding: "4rem 2rem", textAlign: "center", color: "#64748b" }}>
               <i className="fa-solid fa-users-slash" style={{ fontSize: 36, opacity: 0.35, marginBottom: 12, display: "block" }} />

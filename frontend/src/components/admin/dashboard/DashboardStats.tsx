@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
 import { useCurrency } from "@/lib/useCurrency";
 import type { DashboardData } from "@/types/dashboard.types";
@@ -142,7 +143,7 @@ export default function DashboardStats({ data }: Props) {
       {/* ── Quick Actions ── */}
       <section className={s("quick-row")}>
         {quickActions.map(([href, icon, title, subtitle]) => (
-          <a className={s("qa-btn")} href={href} key={title}>
+          <Link className={s("qa-btn")} href={href} key={title}>
             <div className={s("qa-ico")}>
               <i className={`fa-solid ${icon}`} />
             </div>
@@ -151,7 +152,7 @@ export default function DashboardStats({ data }: Props) {
               <span>{subtitle}</span>
             </div>
             <i className={`fa-solid fa-chevron-right ${s("qa-arrow")}`} />
-          </a>
+          </Link>
         ))}
       </section>
     </>

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
@@ -235,10 +235,7 @@ export default function FeeStructuresPage() {
         </section>
 
         {loading && (
-          <div style={{ padding: "4rem", textAlign: "center" }}>
-            <Spinner size={32} color="#FF9B51" />
-            <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading fee structures…</p>
-          </div>
+          <Loader fullScreen={false} size="md" text="Loading fee structures…" />
         )}
 
         {!loading && classGroups.length === 0 && (

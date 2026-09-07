@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
@@ -101,7 +101,7 @@ export default function TeacherStudentDetailPage({ studentId }: Props) {
           </button>
 
           {loading ? (
-            <div style={{ padding:"6rem", textAlign:"center" }}><Spinner size={32} color="#FF9B51" /></div>
+            <Loader fullScreen={false} size="md" text="Loading student details…" />
           ) : !student ? (
             <Card style={{ padding:"4rem", textAlign:"center" }}>
               <i className="fa-solid fa-user-slash" style={{ fontSize:40, color:"#d4dde2", display:"block", marginBottom:14 }} />

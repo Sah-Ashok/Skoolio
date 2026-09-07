@@ -246,7 +246,13 @@ export const getFeeCollectionsBySchool = async (
   page?:       number,
   limit?:      number,
   billing_months?: string[],
-): Promise<{ data: IFeeCollection[]; total: number }> => {
+): Promise<{
+  data: IFeeCollection[];
+  total: number;
+  total_collected: number;
+  total_pending: number;
+  transport_bills_count: number;
+}> => {
   const params: Array<number | string | string[]> = [school_id, academic_year_id];
 
   // billing_months / billing_month filter (used by MonthlyBilling)
@@ -259,7 +265,9 @@ export const getFeeCollectionsBySchool = async (
       OR fc.billing_to_month = ANY($${idx}::text[])
       OR EXISTS (
         SELECT 1 FROM unnest($${idx}::text[]) AS m
-        WHERE m BETWEEN fc.billing_from_month AND fc.billing_to_month
+        WHERE fc.billing_from_month IS NOT NULL
+          AND fc.billing_to_month IS NOT NULL
+          AND m BETWEEN fc.billing_from_month AND fc.billing_to_month
       )
     )`;
   } else if (billing_month) {
@@ -268,7 +276,7 @@ export const getFeeCollectionsBySchool = async (
       to_char(fc.due_date, 'YYYY-MM') = $${idx}
       OR fc.billing_from_month = $${idx}
       OR fc.billing_to_month = $${idx}
-      OR ($${idx} BETWEEN fc.billing_from_month AND fc.billing_to_month)
+      OR (fc.billing_from_month IS NOT NULL AND fc.billing_to_month IS NOT NULL AND $${idx} BETWEEN fc.billing_from_month AND fc.billing_to_month)
     )`;
   }
 
@@ -334,16 +342,25 @@ export const getFeeCollectionsBySchool = async (
     ${feeTypeFilter}
   `;
 
-  // total count for frontend pagination controls
+  // total count & server aggregates for frontend hero cards & pagination
   const countResult = await pool.query(
-    `SELECT COUNT(*) AS total ${joinAndWhere}`,
+    `SELECT 
+       COUNT(*) AS total,
+       COALESCE(SUM(fc.paid_amount), 0)::numeric AS total_collected,
+       COALESCE(SUM(CASE WHEN fc.status NOT IN ('paid', 'waived') THEN COALESCE(fc.remaining_amount, fc.net_amount - fc.paid_amount, fc.total_amount - fc.paid_amount, 0) ELSE 0 END), 0)::numeric AS total_pending,
+       COUNT(*) FILTER (WHERE COALESCE(fc.fee_type, 'academic') IN ('transport', 'hostel'))::int AS transport_bills_count
+     ${joinAndWhere}`,
     params
   );
   const total = Number(countResult.rows[0]?.total ?? 0);
+  const total_collected = Number(countResult.rows[0]?.total_collected ?? 0);
+  const total_pending = Number(countResult.rows[0]?.total_pending ?? 0);
+  const transport_bills_count = Number(countResult.rows[0]?.transport_bills_count ?? 0);
 
-  // pagination  (cap at 200 rows per page to protect memory)
+  // pagination (allow up to 2000 for monthly billing / bulk overview)
+  const maxLimit = (billing_months && billing_months.length > 0) || (limit && limit > 200) ? 2000 : 200;
   const pageNum  = Math.max(1, page  || 1);
-  const pageSize = Math.min(200, Math.max(1, limit || 50));
+  const pageSize = Math.min(maxLimit, Math.max(1, limit || 50));
   const limitIdx  = params.push(pageSize);
   const offsetIdx = params.push((pageNum - 1) * pageSize);
 
@@ -358,7 +375,13 @@ export const getFeeCollectionsBySchool = async (
     params
   );
 
-  return { data: dataResult.rows, total };
+  return {
+    data: dataResult.rows,
+    total,
+    total_collected,
+    total_pending,
+    transport_bills_count,
+  };
 };
 
 export const getFeeCollectionById = async (

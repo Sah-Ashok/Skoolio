@@ -9,7 +9,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { uploadChunked } from "@/lib/uploadChunked";
 
@@ -228,7 +228,7 @@ export default function EditStudentForm() {
     <div className={s("students-page")}>
       <Topbar title="Edit Student" subtitle="" />
       <main className={s("page-content")}>
-        <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={36} color="#FF9B51" /></div>
+        <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading student details…" /></div>
       </main>
     </div>
   );

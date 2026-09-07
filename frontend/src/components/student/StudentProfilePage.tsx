@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
 
@@ -160,7 +160,7 @@ export default function StudentProfilePage({ studentId }: Props = {}) {
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
         {loading ? (
-          <div style={{ padding: "5rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading your profile…" /></div>
         ) : (
           <>
             {/* ══ HERO ══ */}

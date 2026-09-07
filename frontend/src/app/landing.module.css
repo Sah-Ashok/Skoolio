@@ -36,7 +36,7 @@
 }
 
 /* ══════════════════════════════════════════════
-   NAVBAR (Fixed 72px)
+   NAVBAR (Sticky 72px)
 ══════════════════════════════════════════════ */
 .nav {
   position: sticky;
@@ -47,10 +47,26 @@
   justify-content: space-between;
   padding: 0 6vw;
   height: 72px;
-  background: rgba(255, 255, 255, 0.98);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+/* Scrolled state — stronger glass effect + shadow */
+.navScrolled {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 1px 0 rgba(226, 232, 240, 0.9),
+    0 4px 24px rgba(0, 43, 102, 0.07),
+    0 1px 6px rgba(0, 0, 0, 0.05);
+  border-bottom-color: rgba(226, 232, 240, 0.95);
 }
 
 .navLogo {
@@ -630,6 +646,63 @@
   animation: heroFadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.36s backwards;
 }
 
+/* New pill badge design */
+.heroTrustBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fff7ed 0%, #fff3e8 100%);
+  border: 1.5px solid rgba(255, 94, 30, 0.18);
+  border-radius: 999px;
+  padding: 8px 14px 8px 8px;
+  box-shadow:
+    0 2px 12px rgba(255, 94, 30, 0.10),
+    0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.heroTrustBadge:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 18px rgba(255, 94, 30, 0.15),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.heroTrustIconWrap {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff5e1e 0%, #ff7a3e 100%);
+  box-shadow: 0 2px 8px rgba(255, 94, 30, 0.35);
+  flex-shrink: 0;
+}
+
+.heroTrustIconWrap i {
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.heroTrustBadgeText {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #7c3c00;
+  letter-spacing: -0.01em;
+}
+
+.heroTrustBadgeTag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff5e1e;
+  background: rgba(255, 94, 30, 0.10);
+  border: 1px solid rgba(255, 94, 30, 0.20);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+/* Keep old classes for any legacy references */
 .heroTrustItem {
   display: inline-flex;
   align-items: center;

@@ -6,7 +6,7 @@ import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -84,7 +84,7 @@ function PaymentsModal({
         {/* Body */}
         <div style={{ padding: "16px 24px", maxHeight: 420, overflowY: "auto" }}>
           {loading ? (
-            <div style={{ textAlign: "center", padding: "2.5rem" }}><Spinner size={28} color="#ff9b51" /></div>
+            <div style={{ textAlign: "center", padding: "2.5rem 1rem" }}><Loader fullScreen={false} size="sm" text="Loading receipts…" /></div>
           ) : !payments?.length ? (
             <div style={{ textAlign: "center", padding: "2.5rem", color: "#64748b" }}>
               <i className="fa-solid fa-receipt" style={{ fontSize: 32, display: "block", marginBottom: 8, opacity: 0.25 }} />
@@ -196,7 +196,13 @@ export default function FeeRecordsPage() {
     return `/fees/collections?${p.toString()}`;
   }, [academicYearId, currentPage, pageSize, debouncedSearch, classFilter, sectionFilter, statusFilter, typeFilter]);
 
-  const { data: apiResult, loading, error, refetch } = useApi<{ data: any[]; total: number }>(
+  const { data: apiResult, loading, error, refetch } = useApi<{
+    data: any[];
+    total: number;
+    total_collected?: number;
+    total_pending?: number;
+    transport_bills_count?: number;
+  }>(
     collectionsUrl,
     [collectionsUrl]
   );
@@ -312,15 +318,10 @@ export default function FeeRecordsPage() {
     }
   };
 
-  // Stat card aggregates — computed from the current page's data.
-  // These reflect the filtered set returned by the server.
-  const totalPaid    = collections.reduce((s, c) => s + parseFloat(c.paid_amount    || "0"), 0);
-  const totalPending = collections.filter(c => c.status !== "paid" && c.status !== "waived")
-                         .reduce((s, c) => s + parseFloat(c.remaining_amount || "0"), 0);
-  const transportBills = collections.filter(c => {
-    const t = (c.fee_type || "academic").toLowerCase();
-    return t === "transport" || t === "hostel" || t.includes("hostel") || t.includes("transport");
-  }).length;
+  // Stat card aggregates — provided by server for the entire filtered dataset.
+  const totalPaid      = apiResult?.total_collected ?? 0;
+  const totalPending   = apiResult?.total_pending ?? 0;
+  const transportBills = apiResult?.transport_bills_count ?? 0;
 
   return (
     <div className={s("feesPage")}>
@@ -361,7 +362,7 @@ export default function FeeRecordsPage() {
           <article className={cx(s("heroCard"), s("c3"))}>
             <div className={s("hcInfo")}>
               <span className={s("hcLabel")}>Total Invoices</span>
-              <strong className={s("hcValue")}>{collections?.length || 0}</strong>
+              <strong className={s("hcValue")}>{totalRecords}</strong>
               <span className={s("hcSub")}>Generated records</span>
             </div>
             <div className={s("hcIcon")}><i className="fa-solid fa-receipt" /></div>
@@ -506,10 +507,7 @@ export default function FeeRecordsPage() {
 
           <div className={s("tableWrap")}>
             {loading ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
-                <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading fee records…</p>
-              </div>
+              <Loader fullScreen={false} size="md" text="Loading fee records…" />
             ) : error ? (
               <div style={{ padding: "2.5rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{error}</div>
             ) : collections.length === 0 ? (

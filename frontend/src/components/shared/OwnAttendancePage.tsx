@@ -8,7 +8,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, BS_MONTH_NAMES, bsToAD, daysInBSMonth, isoToBS } from "@/lib/bs-ad";
 import { useAppSelector } from "@/store/hooks";
@@ -449,7 +449,7 @@ export default function OwnAttendancePage({
 
                 {/* Day cells */}
                 {loading ? (
-                  <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#ff9b51" /></div>
+                  <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading calendar…" /></div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
                     {cells.map((cell, i) => {
@@ -526,7 +526,7 @@ export default function OwnAttendancePage({
                 </div>
                 <div className="oa-body">
                   {sumLoading ? (
-                    <div style={{ textAlign: "center", padding: "1rem" }}><Spinner size={20} color="#ff9b51" /></div>
+                    <div style={{ textAlign: "center", padding: "1.5rem 1rem" }}><Loader fullScreen={false} size="sm" text="Loading summary…" /></div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>

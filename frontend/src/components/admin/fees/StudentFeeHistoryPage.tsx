@@ -9,7 +9,7 @@ import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { adToBS, bsToISO, isoToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
 const s  = (c: string) => styles[c] || c;
@@ -504,15 +504,18 @@ export default function StudentFeeHistoryPage() {
   const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
   const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
 
+  const classId = enrollmentData?.class_id || student?.class_id || student?.enrollments?.[0]?.class_id;
+
   // B5 fix: pass academic_year_id to payments, collections, and structures
   const fetchData = useCallback(() => {
     if (!studentId || !selectedYearId) return;
     setLoading(true);
     const ayParam = `?academic_year_id=${selectedYearId}`;
+    const classParam = classId ? `&class_id=${classId}` : "";
     Promise.allSettled([
       apiRequest(`/fees/payments/student/${studentId}${ayParam}`),
       apiRequest(`/fees/collections/student/${studentId}${ayParam}`),
-      apiRequest(`/fees/structures${ayParam}`),
+      apiRequest(`/fees/structures${ayParam}${classParam}`),
     ]).then(([payRes, colRes, structRes]) => {
       const cols: any[] = colRes.status === "fulfilled"
         ? ((colRes.value as any)?.data ?? colRes.value ?? [])
@@ -535,7 +538,7 @@ export default function StudentFeeHistoryPage() {
       setCollections(cols);
       setFeeStructures(structMap);
     }).finally(() => setLoading(false));
-  }, [studentId, selectedYearId]);
+  }, [studentId, selectedYearId, classId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -721,9 +724,7 @@ export default function StudentFeeHistoryPage() {
         )}
 
         {(studentLoading || loading) && (
-          <div style={{ padding: "60px", textAlign: "center" }}>
-            <Spinner size={32} color="#ff9b51" />
-          </div>
+          <Loader fullScreen={false} size="md" text="Loading fee history…" />
         )}
 
         {!studentLoading && !loading && student && (

@@ -5,7 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 
@@ -351,8 +351,8 @@ export default function BankAccountsPage() {
         </div>
 
         {loading ? (
-          <div style={{ padding: "5rem", textAlign: "center" }}>
-            <Spinner size={36} color="#FF9B51" />
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
+            <Loader fullScreen={false} size="md" text="Loading bank accounts…" />
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>

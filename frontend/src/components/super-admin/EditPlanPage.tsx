@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Topbar from "@/components/shared/Topbar";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useApi } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -400,7 +400,7 @@ export default function EditPlanPage({ planId }: Props) {
       <div className={s("sa-page")}>
         <Topbar title="Edit Plan" subtitle="Configure plan limits and pricing" />
         <main className={s("page-content")}>
-          <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading plan details…" /></div>
         </main>
       </div>
     );

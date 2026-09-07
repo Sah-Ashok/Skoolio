@@ -8,7 +8,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import Topbar from "@/components/shared/Topbar";
 import DateInput from "@/components/shared/DateInput";
 
@@ -159,7 +159,7 @@ export default function EditFacultyForm() {
       <div className={s("faculty-page")}>
         <Topbar title="Edit Teacher" subtitle="" />
         <main className={s("page-content")}>
-          <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={36} color="#FF9B51" /></div>
+          <div style={{ padding: "4rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading teacher details…" /></div>
         </main>
       </div>
     );

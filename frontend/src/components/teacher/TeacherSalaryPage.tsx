@@ -2,13 +2,12 @@
 
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-const fmt = (n: any) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const STATUS: Record<string, { bg: string; color: string; icon: string }> = {
   paid:      { bg: "#e2f6ee", color: "#12805c", icon: "fa-circle-check"  },
@@ -18,6 +17,8 @@ const STATUS: Record<string, { bg: string; color: string; icon: string }> = {
 
 export default function TeacherSalaryPage() {
   const { user }                                    = useAppSelector((s) => s.auth);
+  const { fmt }                                     = useCurrency();
+  const { formatDate }                              = useDateFormat();
   const { data: salaries, loading }                 = useApi<any[]>("/teachers/me/salary");
 
   const totalEarned = (salaries ?? [])
@@ -69,7 +70,7 @@ export default function TeacherSalaryPage() {
           </div>
 
           {loading ? (
-            <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#ff9b51" /></div>
+            <Loader fullScreen={false} size="md" text="Loading salary records…" />
           ) : !salaries?.length ? (
             <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
               <i className="fa-solid fa-receipt" style={{ fontSize: 32, display: "block", marginBottom: 12, opacity: 0.35 }} />
@@ -100,7 +101,7 @@ export default function TeacherSalaryPage() {
                         </strong>
                         <span style={{ fontSize: 11, color: "#6a7882", fontWeight: 700 }}>
                           {rec.payment_date
-                            ? `Paid ${new Date(rec.payment_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`
+                            ? `Paid ${formatDate(rec.payment_date)}`
                             : "Not paid yet"}
                         </span>
                       </div>
@@ -234,7 +235,7 @@ export default function TeacherSalaryPage() {
                           </strong>
                           {rec.payment_date && (
                             <p style={{ fontSize: 11, color: "#6a7882", fontWeight: 700, marginTop: 3 }}>
-                              {new Date(rec.payment_date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+                              {formatDate(rec.payment_date)}
                             </p>
                           )}
                         </div>

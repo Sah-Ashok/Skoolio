@@ -4,7 +4,7 @@ import { useState } from "react";
 import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 
@@ -359,7 +359,7 @@ function SubmitPaymentForm({
 
 // ── My Submissions ────────────────────────────────────────────────────────────
 function MySubmissions({ requests, loading, refetch }: { requests: any[]; loading: boolean; refetch: () => void }) {
-  if (loading) return <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>;
+  if (loading) return <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading submissions…" /></div>;
   if (!requests.length) return (
     <div style={{ padding: "2.5rem", textAlign: "center", color: "#94a3b8" }}>
       <i className="fa-solid fa-inbox" style={{ fontSize: 28, display: "block", marginBottom: 10, opacity: 0.2 }} />
@@ -481,7 +481,7 @@ export default function StudentPayFeesPage() {
             </div>
             <div className="spfp-card-body">
               {bankLoading ? (
-                <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
+                <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading bank accounts…" /></div>
               ) : !hasBankAccounts ? (
                 <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
                   <i className="fa-solid fa-building-columns" style={{ fontSize: 28, display: "block", marginBottom: 10, opacity: 0.2 }} />
@@ -525,7 +525,7 @@ export default function StudentPayFeesPage() {
               </div>
               <div className="spfp-card-body">
                 {colLoading ? (
-                  <div style={{ padding: "2rem", textAlign: "center" }}><Spinner size={24} color="#FF9B51" /></div>
+                  <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading fee data…" /></div>
                 ) : !hasBankAccounts ? (
                   <div style={{ padding: "1rem", textAlign: "center", color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
                     Online payments are not yet configured by your school admin.

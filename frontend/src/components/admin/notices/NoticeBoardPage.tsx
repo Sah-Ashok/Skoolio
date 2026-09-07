@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import styles from "./notices.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { Spinner } from "@/components/shared/Loader";
+import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
@@ -285,10 +285,7 @@ export default function NoticeBoardPage() {
             <div className={s("noticeList")} role="list" aria-label="Notice list">
               {/* Loading state */}
               {loading && (
-                <div style={{ padding: "3rem", textAlign: "center" }}>
-                  <Spinner size={28} color="#FF9B51" />
-                  <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading notices…</p>
-                </div>
+                <Loader fullScreen={false} size="md" text="Loading notices…" />
               )}
 
               {/* Empty state */}

@@ -5,7 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
-import { Spinner } from "@/components/shared/Loader";
+import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 
@@ -349,7 +349,7 @@ export default function OnlinePaymentRequestsPage() {
         <section className={s("card")}>
           <div className={s("table-wrap")}>
             {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}><Spinner size={32} color="#FF9B51" /></div>
+              <Loader fullScreen={false} size="md" text="Loading payment requests…" />
             ) : filtered.length === 0 ? (
               <div style={{ padding: "3rem", textAlign: "center", color: "#6a7882" }}>
                 <i className="fa-solid fa-inbox" style={{ fontSize: 28, display: "block", marginBottom: 10, opacity: 0.25 }} />

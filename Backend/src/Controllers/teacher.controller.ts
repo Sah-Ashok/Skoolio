@@ -28,8 +28,14 @@ export const createTeacher = catchAsync(async (req: Request, res: Response, next
 });
 
 export const getTeachers = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
   const teachers = await getTeachersService(school_id);
+  if (user.role === 'faculty') {
+    teachers.forEach((t: any) => {
+      delete t.monthly_salary;
+    });
+  }
   sendResponse(res, 200, true, 'Teachers fetched successfully', teachers);
 });
 

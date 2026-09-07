@@ -4,7 +4,7 @@ import restrictTo from '../middlewares/role.middleware';
 import {
   createExam, getExams, getExamById, updateExam, deleteExam,
   createExamSchedule, getExamSchedules, updateExamSchedule, deleteExamSchedule,
-  createExamResult, getClassResults, getStudentExamResults, getStudentAllResults,
+  createExamResult, bulkUpsertExamResults, getClassResults, getStudentExamResults, getStudentAllResults,
   updateExamResult, publishExamResults, unpublishExamResults,
   createGradeScale, getGradeScales, updateGradeScale, deleteGradeScale,
   getMyResults, getMyExamSchedules, publishExamSchedule, getClassExamRegister,
@@ -33,6 +33,7 @@ router.patch('/schedules/:id', restrictTo('admin', 'super_admin'), updateExamSch
 router.delete('/schedules/:id', restrictTo('admin', 'super_admin'), deleteExamSchedule);
 
 // ── EXAM RESULT ROUTES (FACULTY enters marks for their subjects, ADMIN can do everything) ──
+router.post('/results/bulk', restrictTo('admin', 'super_admin', 'faculty'), bulkUpsertExamResults);
 router.post('/results', restrictTo('admin', 'super_admin', 'faculty'), createExamResult);
 router.get('/:examId/class/:classId/results', restrictTo('admin', 'super_admin', 'faculty'), getClassResults);
 router.get('/:examId/class/:classId/register', restrictTo('admin', 'super_admin', 'faculty'), getClassExamRegister);
