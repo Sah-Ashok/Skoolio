@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import Topbar from "@/components/shared/Topbar";
 import styles from "@/components/admin/academic/academic.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
@@ -251,8 +250,6 @@ export default function ClassEditPage() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className={s("academic-page")}>
-      <Topbar title={`Edit: ${cls?.name ?? "…"}`} subtitle="Update class info, subjects and sections" />
-
       <main className={s("content")}>
 
         {/* Hero */}

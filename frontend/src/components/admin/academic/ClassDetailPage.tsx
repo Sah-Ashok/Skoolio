@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import Topbar from "@/components/shared/Topbar";
 import styles from "@/components/admin/academic/academic.module.css";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
@@ -28,7 +27,6 @@ export default function ClassDetailPage() {
 
   if (loading) return (
     <div className={s("academic-page")}>
-      <Topbar title="Loading…" subtitle="" />
       <main className={s("content")}>
         <div style={{ padding: "4rem", textAlign: "center" }}><Spinner size={36} color="#FF9B51" /></div>
       </main>
@@ -37,8 +35,6 @@ export default function ClassDetailPage() {
 
   return (
     <div className={s("academic-page")}>
-      <Topbar title={cls?.name || "Class Details"} subtitle="Sections, subjects and teacher assignments" />
-
       <main className={s("content")}>
 
         {/* ── Hero ── */}

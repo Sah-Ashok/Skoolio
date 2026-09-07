@@ -8,6 +8,8 @@ import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import DateInput from "@/components/shared/DateInput";
 import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -33,7 +35,7 @@ export default function TransportPage() {
   const { fmt: fmtCur } = useCurrency();
   const [tab, setTab] = useState<Tab>("overview");
 
-  const { data: activeYear } = useApi<any>("/academic-years/active");
+  const { activeYear } = useAcademicYear();
   const { data: summary, refetch: refetchSummary } = useApi<any>(
     activeYear?.id ? `/transport/summary?academic_year_id=${activeYear.id}` : "", [activeYear?.id]
   );
@@ -456,54 +458,71 @@ export default function TransportPage() {
         {/* ══ OVERVIEW ══ */}
         {tab === "overview" && (
           <>
-            <div className={s("stats-grid")}>
-              <div className={cx(s("stat-card"), s("stat-blue"))}>
-                <div className={s("stat-icon")}>
-                  <i className="fa-solid fa-bus" />
-                </div>
-                <div>
-                  <p>Fleet Vehicles</p>
-                  <strong>{summary?.active_vehicles || 0} <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700 }}>/ {vehicles?.length || 0} Total</span></strong>
-                </div>
+            {!summary && !routes ? (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <SkeletonStatRow count={4} />
               </div>
+            ) : (
+              <div className={s("stats-grid")}>
+                <div className={cx(s("stat-card"), s("stat-blue"))}>
+                  <div className={s("stat-icon")}>
+                    <i className="fa-solid fa-bus" />
+                  </div>
+                  <div>
+                    <p>Fleet Vehicles</p>
+                    <strong>{summary?.active_vehicles || 0} <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 700 }}>/ {vehicles?.length || 0} Total</span></strong>
+                  </div>
+                </div>
 
-              <div className={cx(s("stat-card"), s("stat-amber"))}>
-                <div className={s("stat-icon")}>
-                  <i className="fa-solid fa-route" />
+                <div className={cx(s("stat-card"), s("stat-amber"))}>
+                  <div className={s("stat-icon")}>
+                    <i className="fa-solid fa-route" />
+                  </div>
+                  <div>
+                    <p>Active Routes</p>
+                    <strong>{summary?.active_routes || 0}</strong>
+                  </div>
                 </div>
-                <div>
-                  <p>Active Routes</p>
-                  <strong>{summary?.active_routes || 0}</strong>
-                </div>
-              </div>
 
-              <div className={cx(s("stat-card"), s("stat-green"))}>
-                <div className={s("stat-icon")}>
-                  <i className="fa-solid fa-user-graduate" />
+                <div className={cx(s("stat-card"), s("stat-green"))}>
+                  <div className={s("stat-icon")}>
+                    <i className="fa-solid fa-user-graduate" />
+                  </div>
+                  <div>
+                    <p>Students Riding</p>
+                    <strong>{summary?.students_assigned || 0}</strong>
+                  </div>
                 </div>
-                <div>
-                  <p>Students Riding</p>
-                  <strong>{summary?.students_assigned || 0}</strong>
-                </div>
-              </div>
 
-              <div className={cx(s("stat-card"), s("stat-purple"))}>
-                <div className={s("stat-icon")}>
-                  <i className="fa-solid fa-map-location-dot" />
-                </div>
-                <div>
-                  <p>Pickup Stops</p>
-                  <strong>{routes?.reduce((acc: number, r: any) => acc + (r.stop_count || 0), 0) || 0}</strong>
+                <div className={cx(s("stat-card"), s("stat-purple"))}>
+                  <div className={s("stat-icon")}>
+                    <i className="fa-solid fa-map-location-dot" />
+                  </div>
+                  <div>
+                    <p>Pickup Stops</p>
+                    <strong>{routes?.reduce((acc: number, r: any) => acc + (r.stop_count || 0), 0) || 0}</strong>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             {/* Route overview cards */}
             <div className={s("panel")}>
               <div className={s("panel-head")}>
                 <div><h2><i className="fa-solid fa-route" style={{color:"#ff9b51",marginRight:8}}/>Routes Overview</h2></div>
               </div>
               <div className={s("route-grid")}>
-                {(routes||[]).length === 0 ? (
+                {!routes ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className={s("route-card")} style={{ padding: "1.25rem" }}>
+                      <Skeleton width="60%" height={20} style={{ marginBottom: 10 }} />
+                      <Skeleton width="90%" height={14} style={{ marginBottom: 12 }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <Skeleton width={70} height={24} borderRadius={12} />
+                        <Skeleton width={70} height={24} borderRadius={12} />
+                      </div>
+                    </div>
+                  ))
+                ) : (routes||[]).length === 0 ? (
                   <div className={s("empty")}><i className="fa-solid fa-route"/><p>No routes yet. Go to Routes tab to add one.</p></div>
                 ) : (routes||[]).map((r:any) => (
                   <div key={r.id} className={s("route-card")}>
@@ -583,7 +602,9 @@ export default function TransportPage() {
               </div>
             )}
             <div className={s("table-wrap")}>
-              {vLoading ? <div style={{padding:"2rem",textAlign:"center"}}><Spinner size={28}/></div> : (
+              {vLoading && !vehicles ? (
+                <SkeletonTable rows={5} columns={7} />
+              ) : (
                 <table>
                   <thead><tr><th>Vehicle</th><th>Type</th><th>Driver</th><th>Capacity</th><th>GPS</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>

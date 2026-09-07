@@ -5,6 +5,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { SkeletonTable } from "@/components/shared/Skeleton";
 import { apiRequest } from "@/lib/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -479,11 +480,8 @@ export default function AdminTimetablePage() {
 
         {/* ── Timetable Grid ── */}
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-          {ttLoading ? (
-            <div style={{ padding: "5rem", textAlign: "center" }}>
-              <Spinner size={32} color="#FF9B51" />
-              <p style={{ marginTop: 12, color: "#94A3B8", fontSize: 13, fontWeight: 600 }}>Loading timetable…</p>
-            </div>
+          {ttLoading && !ttData ? (
+            <SkeletonTable rows={6} columns={7} />
           ) : !sectionId ? (
             <EmptyState icon="fa-calendar-plus" title="No section selected" subtitle="Choose a class and section above to build the timetable." />
           ) : maxPeriods === 0 ? (

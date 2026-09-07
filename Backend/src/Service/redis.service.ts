@@ -396,3 +396,115 @@ export async function setGlobalAnnouncement(message: string, active: boolean): P
     console.warn('[Redis] setGlobalAnnouncement error:', (err as any).message);
   }
 }
+
+/**
+ * Cached Subscription Status for sub-millisecond per-request checks
+ */
+export interface ICachedSubscriptionStatus {
+  status: 'active' | 'grace_period' | 'expired';
+  plan_id: number;
+  plan_name: string;
+  is_in_grace_period: boolean;
+  days_until_lock: number | null;
+  end_date: string | null;
+}
+
+const SUBSCRIPTION_CACHE_TTL = 3600; // 1 hour
+const GRACE_PERIOD_DAYS = 10;
+
+export async function getCachedSchoolSubscription(schoolId: number): Promise<ICachedSubscriptionStatus> {
+  const cacheKey = `school:subscription:status:${schoolId}`;
+  try {
+    const raw = await redis.get(cacheKey);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('[Redis] getCachedSchoolSubscription cache read error:', (err as any).message);
+  }
+
+  // Cache miss: resolve snapshot from DB
+  try {
+    const result = await pool.query(
+      `SELECT ss.*, sp.name as plan_name
+       FROM school_subscriptions ss
+       INNER JOIN subscription_plans sp ON sp.id = ss.plan_id
+       WHERE ss.school_id = $1
+       ORDER BY ss.created_at DESC
+       LIMIT 1`,
+      [schoolId]
+    );
+
+    let status: 'active' | 'grace_period' | 'expired' = 'active';
+    let is_in_grace_period = false;
+    let days_until_lock: number | null = null;
+    let plan_id = 0;
+    let plan_name = 'Free Trial';
+    let end_date: string | null = null;
+
+    if (result.rows.length > 0) {
+      const sub = result.rows[0];
+      plan_id = sub.plan_id;
+      plan_name = sub.plan_name || 'Standard';
+      end_date = sub.end_date ? new Date(sub.end_date).toISOString().split('T')[0] : null;
+
+      if (sub.end_date) {
+        const today = new Date();
+        const endDate = new Date(sub.end_date);
+        const daysSinceExpiry = Math.floor((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysSinceExpiry > GRACE_PERIOD_DAYS) {
+          status = 'expired';
+          is_in_grace_period = false;
+          days_until_lock = 0;
+        } else if (daysSinceExpiry > 0) {
+          status = 'grace_period';
+          is_in_grace_period = true;
+          days_until_lock = GRACE_PERIOD_DAYS - daysSinceExpiry;
+        } else {
+          status = sub.status === 'expired' ? 'expired' : 'active';
+        }
+      } else {
+        status = sub.status || 'active';
+      }
+    } else {
+      // If no subscription recorded yet, default to active
+      status = 'active';
+    }
+
+    const payload: ICachedSubscriptionStatus = {
+      status,
+      plan_id,
+      plan_name,
+      is_in_grace_period,
+      days_until_lock,
+      end_date,
+    };
+
+    try {
+      await redis.set(cacheKey, JSON.stringify(payload), 'EX', SUBSCRIPTION_CACHE_TTL);
+    } catch (err) {
+      console.warn('[Redis] getCachedSchoolSubscription cache write error:', (err as any).message);
+    }
+
+    return payload;
+  } catch (dbErr) {
+    console.warn('[Redis] getCachedSchoolSubscription DB fallback error:', (dbErr as any).message);
+    return {
+      status: 'active',
+      plan_id: 0,
+      plan_name: 'Unknown',
+      is_in_grace_period: false,
+      days_until_lock: null,
+      end_date: null,
+    };
+  }
+}
+
+export async function invalidateSchoolSubscriptionCache(schoolId: number): Promise<void> {
+  try {
+    await redis.del(`school:subscription:status:${schoolId}`);
+  } catch (err) {
+    console.warn('[Redis] invalidateSchoolSubscriptionCache error:', (err as any).message);
+  }
+}

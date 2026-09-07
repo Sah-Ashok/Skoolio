@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./academic.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (c: string) => styles[c] || c;
@@ -99,8 +99,6 @@ export default function SubjectsPage() {
 
   return (
     <div className={s("academic-page")}>
-      <Topbar title="Subjects" subtitle="Manage the master list of all subjects" />
-
       <main className={s("content")}>
 
         {/* ── Hero ── */}
@@ -122,42 +120,48 @@ export default function SubjectsPage() {
         </section>
 
         {/* ── Stats ── */}
-        <div className={s("stats-grid")}>
-          <article className={s("stat-card")}>
-            <div className={s("stat-icon")}><i className="fa-solid fa-book" /></div>
-            <div>
-              <p>Total Subjects</p>
-              <strong>{subjects?.length ?? "—"}</strong>
-            </div>
-          </article>
-          <article className={s("stat-card")}>
-            <div className={s("stat-icon")} style={{ background: "#dcfce7", color: "#15803d" }}>
-              <i className="fa-solid fa-tag" />
-            </div>
-            <div>
-              <p>With Code</p>
-              <strong>{withCode}</strong>
-            </div>
-          </article>
-          <article className={s("stat-card")}>
-            <div className={s("stat-icon")} style={{ background: "#fef3c7", color: "#b45309" }}>
-              <i className="fa-solid fa-tag" style={{ opacity: 0.4 }} />
-            </div>
-            <div>
-              <p>Without Code</p>
-              <strong>{withoutCode}</strong>
-            </div>
-          </article>
-          <article className={s("stat-card")}>
-            <div className={s("stat-icon")} style={{ background: "#ede9fe", color: "#7c3aed" }}>
-              <i className="fa-solid fa-layer-group" />
-            </div>
-            <div>
-              <p>Shown</p>
-              <strong>{filtered.length}</strong>
-            </div>
-          </article>
-        </div>
+        {loading && !subjects ? (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <SkeletonStatRow count={4} />
+          </div>
+        ) : (
+          <div className={s("stats-grid")}>
+            <article className={s("stat-card")}>
+              <div className={s("stat-icon")}><i className="fa-solid fa-book" /></div>
+              <div>
+                <p>Total Subjects</p>
+                <strong>{subjects?.length ?? "—"}</strong>
+              </div>
+            </article>
+            <article className={s("stat-card")}>
+              <div className={s("stat-icon")} style={{ background: "#dcfce7", color: "#15803d" }}>
+                <i className="fa-solid fa-tag" />
+              </div>
+              <div>
+                <p>With Code</p>
+                <strong>{withCode}</strong>
+              </div>
+            </article>
+            <article className={s("stat-card")}>
+              <div className={s("stat-icon")} style={{ background: "#fef3c7", color: "#b45309" }}>
+                <i className="fa-solid fa-tag" style={{ opacity: 0.4 }} />
+              </div>
+              <div>
+                <p>Without Code</p>
+                <strong>{withoutCode}</strong>
+              </div>
+            </article>
+            <article className={s("stat-card")}>
+              <div className={s("stat-icon")} style={{ background: "#ede9fe", color: "#7c3aed" }}>
+                <i className="fa-solid fa-layer-group" />
+              </div>
+              <div>
+                <p>Shown</p>
+                <strong>{filtered.length}</strong>
+              </div>
+            </article>
+          </div>
+        )}
 
         {/* ── Add Subject inline form ── */}
         {showForm && (
@@ -219,10 +223,8 @@ export default function SubjectsPage() {
           </div>
 
           <div className={s("panel-body")} style={{ padding: 0 }}>
-            {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
-              </div>
+            {loading && !subjects ? (
+              <SkeletonTable rows={5} columns={5} />
             ) : (
               <div className={s("table-scroll")}>
                 <table className={s("subject-table")}>

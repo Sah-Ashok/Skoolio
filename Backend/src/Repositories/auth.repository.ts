@@ -1,5 +1,6 @@
 import pool from '../config/db';
 import { IRegisterSchool, ISchool } from '../types/auth.types';
+import { getCache, setCache, deleteCache } from '../utils/redisCache';
 
 // Columns returned for all "safe" (no password) school queries
 const SAFE_COLS = `
@@ -57,11 +58,19 @@ export const findSchoolById = async (id: number): Promise<ISchool | null> => {
 };
 
 export const findSchoolByIdSafe = async (id: number): Promise<Omit<ISchool, 'password'> | null> => {
+  const cacheKey = `cache:school:${id}:profile`;
+  const cached = await getCache<Omit<ISchool, 'password'>>(cacheKey);
+  if (cached) return cached;
+
   const result = await pool.query(
     `SELECT ${SAFE_COLS} FROM schools WHERE id = $1`,
     [id]
   );
-  return result.rows[0] || null;
+  const school = result.rows[0] || null;
+  if (school) {
+    await setCache(cacheKey, school, 86400); // 24 hours TTL
+  }
+  return school;
 };
 
 // ── SCHOOL SETTINGS ──────────────────────────────────────────────────────────
@@ -113,7 +122,11 @@ export const updateSchoolSettingsRepo = async (
      RETURNING ${SAFE_COLS}`,
     values
   );
-  return result.rows[0] || null;
+  const updated = result.rows[0] || null;
+  if (updated) {
+    await deleteCache(`cache:school:${schoolId}:profile`);
+  }
+  return updated;
 };
 
 export const updateSchoolPassword = async (

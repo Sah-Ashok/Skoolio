@@ -110,10 +110,15 @@ export const createSection = async (school_id: number, class_id: number, data: I
     [school_id, class_id, data.name, data.room_no || null,
      data.capacity || 40, data.coordinator_id || null, data.status || 'active']
   );
+  await deleteCachePattern(`cache:sections:${school_id}:*`);
   return result.rows[0];
 };
 
 export const getSectionsByClass = async (class_id: number, school_id: number): Promise<ISection[]> => {
+  const cacheKey = `cache:sections:${school_id}:${class_id}`;
+  const cached = await getCache<ISection[]>(cacheKey);
+  if (cached) return cached;
+
   const result = await pool.query(
     `SELECT s.*, t.full_name AS coordinator_name
      FROM sections s
@@ -122,6 +127,9 @@ export const getSectionsByClass = async (class_id: number, school_id: number): P
      ORDER BY s.name ASC`,
     [class_id, school_id]
   );
+  if (result.rows) {
+    await setCache(cacheKey, result.rows, 86400); // 24 hours TTL
+  }
   return result.rows;
 };
 
@@ -191,6 +199,7 @@ export const updateSection = async (id: number, school_id: number, data: IUpdate
      RETURNING *`,
     values
   );
+  await deleteCachePattern(`cache:sections:${school_id}:*`);
   return result.rows[0] || null;
 };
 
@@ -198,6 +207,7 @@ export const deleteSection = async (id: number, school_id: number): Promise<bool
   const result = await pool.query(
     `DELETE FROM sections WHERE id = $1 AND school_id = $2`, [id, school_id]
   );
+  await deleteCachePattern(`cache:sections:${school_id}:*`);
   return (result.rowCount ?? 0) > 0;
 };
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Topbar from "@/components/shared/Topbar";
 import styles from "./academic.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { Skeleton, SkeletonStatRow } from "@/components/shared/Skeleton";
 import { apiRequest } from "@/lib/api";
 
 const s = (c: string) => styles[c] || c;
@@ -572,8 +572,6 @@ export default function SectionsPage() {
 
   return (
     <div className={s("academic-page")}>
-      <Topbar title="Sections" subtitle="Manage class sections and room assignments" />
-
       <main className={s("content")}>
         {/* ── Hero ── */}
         <section className={s("hero")}>
@@ -591,27 +589,33 @@ export default function SectionsPage() {
         </section>
 
         {/* ── Stats row ── */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-          {[
-            { icon: "fa-school",       label: "Total Classes",   value: totalClasses,     color: "#e98239", bg: "#fff3e8" },
-            { icon: "fa-table-cells",  label: "Active Year",     value: activeYear?.year_name ?? "—", color: "#0284c7", bg: "#e0f2fe" },
-          ].map(stat => (
-            <div key={stat.label} style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "14px 18px", borderRadius: 12,
-              border: "1px solid rgba(191,201,209,0.7)", background: "#fff",
-              boxShadow: "0 2px 10px rgba(37,52,63,0.05)", flex: "1 1 180px",
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: stat.bg, color: stat.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                <i className={`fa-solid ${stat.icon}`} />
+        {classesLoading && !classes ? (
+          <div style={{ marginBottom: 18 }}>
+            <SkeletonStatRow count={2} />
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+            {[
+              { icon: "fa-school",       label: "Total Classes",   value: totalClasses,     color: "#e98239", bg: "#fff3e8" },
+              { icon: "fa-table-cells",  label: "Active Year",     value: activeYear?.year_name ?? "—", color: "#0284c7", bg: "#e0f2fe" },
+            ].map(stat => (
+              <div key={stat.label} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "14px 18px", borderRadius: 12,
+                border: "1px solid rgba(191,201,209,0.7)", background: "#fff",
+                boxShadow: "0 2px 10px rgba(37,52,63,0.05)", flex: "1 1 180px",
+              }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: stat.bg, color: stat.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                  <i className={`fa-solid ${stat.icon}`} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, color: "#6a7882", fontWeight: 800, margin: 0 }}>{stat.label}</p>
+                  <strong style={{ fontSize: 20, fontWeight: 900, color: "#1f2d36" }}>{stat.value}</strong>
+                </div>
               </div>
-              <div>
-                <p style={{ fontSize: 11, color: "#6a7882", fontWeight: 800, margin: 0 }}>{stat.label}</p>
-                <strong style={{ fontSize: 20, fontWeight: 900, color: "#1f2d36" }}>{stat.value}</strong>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Toolbar ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
@@ -636,10 +640,20 @@ export default function SectionsPage() {
         </div>
 
         {/* ── Class cards ── */}
-        {classesLoading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "5rem 0", gap: 14 }}>
-            <Spinner size={36} color="#e98239" />
-            <p style={{ color: "#6a7882", fontWeight: 700, fontSize: 13 }}>Loading classes…</p>
+        {classesLoading && !classes ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ padding: "18px 24px", borderRadius: 16, border: "1px solid rgba(191,201,209,0.7)", background: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                  <Skeleton width="30%" height={24} />
+                  <Skeleton width="15%" height={24} borderRadius={8} />
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <Skeleton width={120} height={40} borderRadius={10} />
+                  <Skeleton width={120} height={40} borderRadius={10} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : !classes || classes.length === 0 ? (
           <div style={{

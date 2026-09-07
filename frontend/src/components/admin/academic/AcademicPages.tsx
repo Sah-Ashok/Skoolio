@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import Topbar from "@/components/shared/Topbar";
 import AddClassForm from "./AddClassForm";
 import styles from "./academic.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
@@ -23,14 +22,13 @@ function AcademicShell({
   children,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   eyebrow: string;
   description: string;
   children: ReactNode;
 }) {
   return (
     <div className={s("academic-page")}>
-      <Topbar title={title} subtitle={subtitle} />
       <main className={s("content")}>
         <section className={s("hero")}>
           <div>

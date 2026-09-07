@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import styles from "./expenses.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
+import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -132,51 +133,57 @@ export default function ExpensesPage() {
         </section>
 
         {/* ── Metric Summary Cards ── */}
-        <section className={s("stats")}>
-          <article className={s("statCard")}>
-            <div className={s("statInfo")}>
-              <span className={s("statLabel")}>Total Expenses</span>
-              <strong className={s("statValue")}>₹{totalAmount.toLocaleString("en-IN")}</strong>
-              <span className={s("statSub")}>Active academic session</span>
-            </div>
-            <div className={cx(s("statIconWrap"), s("iconGreen"))}>
-              <i className="fa-solid fa-wallet" />
-            </div>
-          </article>
+        {loading && !expenses ? (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <SkeletonStatRow count={4} />
+          </div>
+        ) : (
+          <section className={s("stats")}>
+            <article className={s("statCard")}>
+              <div className={s("statInfo")}>
+                <span className={s("statLabel")}>Total Expenses</span>
+                <strong className={s("statValue")}>₹{totalAmount.toLocaleString("en-IN")}</strong>
+                <span className={s("statSub")}>Active academic session</span>
+              </div>
+              <div className={cx(s("statIconWrap"), s("iconGreen"))}>
+                <i className="fa-solid fa-wallet" />
+              </div>
+            </article>
 
-          <article className={s("statCard")}>
-            <div className={s("statInfo")}>
-              <span className={s("statLabel")}>Total Vouchers</span>
-              <strong className={s("statValue")}>{expenses?.length || 0}</strong>
-              <span className={s("statSub")}>Recorded entries</span>
-            </div>
-            <div className={cx(s("statIconWrap"), s("iconOrange"))}>
-              <i className="fa-solid fa-file-invoice" />
-            </div>
-          </article>
+            <article className={s("statCard")}>
+              <div className={s("statInfo")}>
+                <span className={s("statLabel")}>Total Vouchers</span>
+                <strong className={s("statValue")}>{expenses?.length || 0}</strong>
+                <span className={s("statSub")}>Recorded entries</span>
+              </div>
+              <div className={cx(s("statIconWrap"), s("iconOrange"))}>
+                <i className="fa-solid fa-file-invoice" />
+              </div>
+            </article>
 
-          <article className={s("statCard")}>
-            <div className={s("statInfo")}>
-              <span className={s("statLabel")}>Active Categories</span>
-              <strong className={s("statValue")}>{categories?.length || 0}</strong>
-              <span className={s("statSub")}>Expense heads</span>
-            </div>
-            <div className={cx(s("statIconWrap"), s("iconBlue"))}>
-              <i className="fa-solid fa-layer-group" />
-            </div>
-          </article>
+            <article className={s("statCard")}>
+              <div className={s("statInfo")}>
+                <span className={s("statLabel")}>Active Categories</span>
+                <strong className={s("statValue")}>{categories?.length || 0}</strong>
+                <span className={s("statSub")}>Expense heads</span>
+              </div>
+              <div className={cx(s("statIconWrap"), s("iconBlue"))}>
+                <i className="fa-solid fa-layer-group" />
+              </div>
+            </article>
 
-          <article className={s("statCard")}>
-            <div className={s("statInfo")}>
-              <span className={s("statLabel")}>Average Spending</span>
-              <strong className={s("statValue")}>₹{avgAmount.toLocaleString("en-IN")}</strong>
-              <span className={s("statSub")}>Per voucher average</span>
-            </div>
-            <div className={cx(s("statIconWrap"), s("iconPurple"))}>
-              <i className="fa-solid fa-chart-line" />
-            </div>
-          </article>
-        </section>
+            <article className={s("statCard")}>
+              <div className={s("statInfo")}>
+                <span className={s("statLabel")}>Average Spending</span>
+                <strong className={s("statValue")}>₹{avgAmount.toLocaleString("en-IN")}</strong>
+                <span className={s("statSub")}>Per voucher average</span>
+              </div>
+              <div className={cx(s("statIconWrap"), s("iconPurple"))}>
+                <i className="fa-solid fa-chart-line" />
+              </div>
+            </article>
+          </section>
+        )}
 
         {/* ── Filter Toolbar ── */}
         <section className={s("toolbar")}>
@@ -240,7 +247,31 @@ export default function ExpensesPage() {
             </div>
 
             <div className={s("categoryList")}>
-              {summary?.by_category && summary.by_category.length > 0 ? (
+              {loading && !summary ? (
+                <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <Skeleton width="45%" height={16} />
+                      <Skeleton width="25%" height={16} />
+                    </div>
+                    <Skeleton width="100%" height={8} borderRadius={4} />
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <Skeleton width="55%" height={16} />
+                      <Skeleton width="20%" height={16} />
+                    </div>
+                    <Skeleton width="100%" height={8} borderRadius={4} />
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <Skeleton width="35%" height={16} />
+                      <Skeleton width="30%" height={16} />
+                    </div>
+                    <Skeleton width="100%" height={8} borderRadius={4} />
+                  </div>
+                </div>
+              ) : summary?.by_category && summary.by_category.length > 0 ? (
                 summary.by_category.map((item: any, idx: number) => {
                   const itemAmount = Number(item.total_amount || 0);
                   const percentage = totalAmount > 0 ? Math.round((itemAmount / totalAmount) * 100) : 0;
@@ -294,11 +325,8 @@ export default function ExpensesPage() {
             </div>
 
             <div className={s("tableWrap")}>
-              {loading ? (
-                <div style={{ padding: "4rem", textAlign: "center" }}>
-                  <Spinner size={32} color="#FF9B51" />
-                  <p style={{ marginTop: 12, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading expenses…</p>
-                </div>
+              {loading && !expenses ? (
+                <SkeletonTable rows={6} columns={7} />
               ) : paginatedExpenses.length > 0 ? (
                 <>
                   <table className={s("table")}>

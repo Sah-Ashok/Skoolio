@@ -11,6 +11,7 @@ import {
 } from '../types/subscription.types';
 import { resolvePlanPricing } from '../config/currencyConfig';
 import AppError from '../utils/AppError';
+import { invalidateSchoolSubscriptionCache } from './redis.service';
 
 const GRACE_PERIOD_DAYS = 10;
 
@@ -123,6 +124,7 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
     if (daysSinceExpiry > GRACE_PERIOD_DAYS) {
       if (latest.status !== 'expired') {
         await updateSubscriptionStatus(latest.id, 'expired');
+        await invalidateSchoolSubscriptionCache(school_id);
         const refreshed = await getLatestSubscription(school_id);
         if (refreshed) latest = refreshed;
       }
@@ -133,6 +135,7 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
       days_until_lock = GRACE_PERIOD_DAYS - daysSinceExpiry;
       if (latest.status === 'active') {
         await updateSubscriptionStatus(latest.id, 'grace_period');
+        await invalidateSchoolSubscriptionCache(school_id);
         const refreshed = await getLatestSubscription(school_id);
         if (refreshed) latest = refreshed;
       }
@@ -210,6 +213,7 @@ export const activateSubscriptionService = async (
   }
 
   const subscription = await createSubscription(activated_by, activation);
+  await invalidateSchoolSubscriptionCache(activation.school_id);
   return subscription;
 };
 

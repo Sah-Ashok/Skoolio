@@ -9,6 +9,7 @@ import styles from "./faculty.module.css";
 import AddFacultyForm from "./AddFacultyForm";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
+import { SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
 
@@ -91,47 +92,51 @@ export function FacultyPage() {
       }
     >
       {/* ── Stats ── */}
-      <section className={s("stats-row")}>
-        <article className={s("stat-card")}>
-          <div className={cx(s("stat-icon"), s("orange"))}>
-            <i className="fa-solid fa-chalkboard-user" />
-          </div>
-          <div className={s("stat-info")}>
-            <span>Total Faculty</span>
-            <strong>{total}</strong>
-          </div>
-        </article>
+      {loading && !faculty ? (
+        <SkeletonStatRow count={4} />
+      ) : (
+        <section className={s("stats-row")}>
+          <article className={s("stat-card")}>
+            <div className={cx(s("stat-icon"), s("orange"))}>
+              <i className="fa-solid fa-chalkboard-user" />
+            </div>
+            <div className={s("stat-info")}>
+              <span>Total Faculty</span>
+              <strong>{total}</strong>
+            </div>
+          </article>
 
-        <article className={s("stat-card")}>
-          <div className={cx(s("stat-icon"), s("green"))}>
-            <i className="fa-solid fa-circle-check" />
-          </div>
-          <div className={s("stat-info")}>
-            <span>Active</span>
-            <strong>{active}</strong>
-          </div>
-        </article>
+          <article className={s("stat-card")}>
+            <div className={cx(s("stat-icon"), s("green"))}>
+              <i className="fa-solid fa-circle-check" />
+            </div>
+            <div className={s("stat-info")}>
+              <span>Active</span>
+              <strong>{active}</strong>
+            </div>
+          </article>
 
-        <article className={s("stat-card")}>
-          <div className={cx(s("stat-icon"), s("amber"))}>
-            <i className="fa-solid fa-circle-pause" />
-          </div>
-          <div className={s("stat-info")}>
-            <span>Inactive</span>
-            <strong>{inactive}</strong>
-          </div>
-        </article>
+          <article className={s("stat-card")}>
+            <div className={cx(s("stat-icon"), s("amber"))}>
+              <i className="fa-solid fa-circle-pause" />
+            </div>
+            <div className={s("stat-info")}>
+              <span>Inactive</span>
+              <strong>{inactive}</strong>
+            </div>
+          </article>
 
-        <article className={s("stat-card")}>
-          <div className={cx(s("stat-icon"), s("blue"))}>
-            <i className="fa-solid fa-briefcase" />
-          </div>
-          <div className={s("stat-info")}>
-            <span>Avg Experience</span>
-            <strong>{avgExp} yrs</strong>
-          </div>
-        </article>
-      </section>
+          <article className={s("stat-card")}>
+            <div className={cx(s("stat-icon"), s("blue"))}>
+              <i className="fa-solid fa-briefcase" />
+            </div>
+            <div className={s("stat-info")}>
+              <span>Avg Experience</span>
+              <strong>{avgExp} yrs</strong>
+            </div>
+          </article>
+        </section>
+      )}
 
       {/* ── Toolbar ── */}
       <div className={s("toolbar")}>
@@ -192,10 +197,8 @@ export function FacultyPage() {
         </div>
 
         <div className={s("table-wrap")}>
-          {loading ? (
-            <div style={{ padding: "3rem", textAlign: "center" }}>
-              <Spinner size={32} color="#FF9B51" />
-            </div>
+          {loading && !faculty ? (
+            <SkeletonTable rows={6} columns={8} />
           ) : error ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "#f43f5e" }}>
               <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 8 }} />

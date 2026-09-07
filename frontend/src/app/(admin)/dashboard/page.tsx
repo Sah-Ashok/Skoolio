@@ -44,7 +44,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {loading || !data ? (
+        {!data ? (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 340 }}>
             <Spinner size={36} />
           </div>

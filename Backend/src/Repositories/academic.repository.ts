@@ -1,6 +1,6 @@
-import pool from '../config/db'
-import { IAcademicYear, ICreateAcademicYear, IUpdateAcademicYear } from '../types/academic.types'
-
+import pool from '../config/db';
+import { IAcademicYear, ICreateAcademicYear, IUpdateAcademicYear } from '../types/academic.types';
+import { getCache, setCache, deleteCachePattern } from '../utils/redisCache';
 
 export const createAcademicYear = async(school_id: number, data: ICreateAcademicYear): Promise<IAcademicYear> => {
     const result = await pool.query(
@@ -20,6 +20,7 @@ export const createAcademicYear = async(school_id: number, data: ICreateAcademic
             data.description || null,
         ]
     );
+    await deleteCachePattern(`cache:school:${school_id}:academic_year:*`);
     return result.rows[0];
 }
 
@@ -59,6 +60,10 @@ export const getAcademicYearById = async (
 export const getActiveAcademicYear = async(
     school_id: number
 ): Promise<IAcademicYear | null> => {
+    const cacheKey = `cache:school:${school_id}:academic_year:active`;
+    const cached = await getCache<IAcademicYear>(cacheKey);
+    if (cached) return cached;
+
     const result = await pool.query(
         `SELECT id, school_id, year_name,
         start_date::text,
@@ -67,7 +72,11 @@ export const getActiveAcademicYear = async(
         FROM academic_years WHERE school_id = $1 AND status = 'active'`,
         [school_id]
     );
-    return result.rows[0] || null;
+    const activeYear = result.rows[0] || null;
+    if (activeYear) {
+        await setCache(cacheKey, activeYear, 86400); // 24 hours TTL
+    }
+    return activeYear;
 }
 
 
@@ -100,6 +109,7 @@ export const updateAcademicYear = async(
             school_id,
         ]
     );
+    await deleteCachePattern(`cache:school:${school_id}:academic_year:*`);
     return result.rows[0] || null;
 };
 
@@ -112,5 +122,6 @@ export const deleteAcademicYear = async (
         `DELETE FROM academic_years WHERE id = $1 AND school_id = $2`,
         [id, school_id]
     );
+    await deleteCachePattern(`cache:school:${school_id}:academic_year:*`);
     return (result.rowCount ?? 0) > 0;
 }

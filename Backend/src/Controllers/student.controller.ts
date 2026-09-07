@@ -12,6 +12,7 @@ import {
 } from '../Service/student.service';
 import { getEnrollmentById, updateEnrollment as updateEnrollmentRepo } from '../Repositories/student.repository';
 import { getSectionsByCoordinator } from '../Repositories/teacher.repository';
+import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 import AppError from '../utils/AppError';
 
 // ── STUDENT CONTROLLERS (ADMIN) ──
@@ -19,6 +20,7 @@ import AppError from '../utils/AppError';
 export const createStudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const student = await createStudentService(school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Student created successfully', student);
 });
 
@@ -75,12 +77,14 @@ export const getStudentById = catchAsync(async (req: Request, res: Response, nex
 export const updateStudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const student = await updateStudentService(Number(req.params.id), school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Student updated successfully', student);
 });
 
 export const deleteStudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   await deleteStudentService(Number(req.params.id), school_id);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Student deleted successfully', null);
 });
 
@@ -89,6 +93,7 @@ export const deleteStudent = catchAsync(async (req: Request, res: Response, next
 export const createEnrollment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const enrollment = await createEnrollmentService(school_id, { ...req.body, created_by: school_id });
+  invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Student enrolled successfully', enrollment);
 });
 
@@ -112,6 +117,7 @@ export const getEnrollments = catchAsync(async (req: Request, res: Response, nex
     enrollments.forEach((e: any) => {
       delete e.scholarship_type;
       delete e.scholarship_percent;
+      delete e.scholarship_remarks;
     });
   }
 
@@ -127,6 +133,7 @@ export const getStudentEnrollments = catchAsync(async (req: Request, res: Respon
 export const updateEnrollment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const enrollment = await updateEnrollmentService(Number(req.params.id), school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Enrollment updated successfully', enrollment);
 });
 

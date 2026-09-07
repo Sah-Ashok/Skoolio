@@ -6,6 +6,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
+import { SkeletonStatRow, SkeletonChart, SkeletonTable } from "@/components/shared/Skeleton";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
@@ -144,43 +145,47 @@ export default function FeesPage() {
         </section>
 
         {/* ── Compact 4 Stat Cards (~75px) ── */}
-        <section className={s("heroCards")}>
-          <article className={cx(s("heroCard"), s("c1"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Collected</span>
-              <strong className={s("hcValue")}>{formatCurrency(totalCollected)}</strong>
-              <span className={s("hcSub")}>Active academic session</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-wallet" /></div>
-          </article>
+        {loading && !collections ? (
+          <SkeletonStatRow count={4} />
+        ) : (
+          <section className={s("heroCards")}>
+            <article className={cx(s("heroCard"), s("c1"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Total Collected</span>
+                <strong className={s("hcValue")}>{formatCurrency(totalCollected)}</strong>
+                <span className={s("hcSub")}>Active academic session</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-wallet" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c2"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Outstanding Dues</span>
-              <strong className={s("hcValue")}>{formatCurrency(totalPending)}</strong>
-              <span className={s("hcSub")}>{pendingStudentsCount} students with dues</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
-          </article>
+            <article className={cx(s("heroCard"), s("c2"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Total Outstanding Dues</span>
+                <strong className={s("hcValue")}>{formatCurrency(totalPending)}</strong>
+                <span className={s("hcSub")}>{pendingStudentsCount} students with dues</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c3"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>This Month's Collections</span>
-              <strong className={s("hcValue")}>{formatCurrency(thisMonthCollected)}</strong>
-              <span className={s("hcSub")}>{MONTH_NAMES[currentMonthIdx]} revenue</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-calendar-check" /></div>
-          </article>
+            <article className={cx(s("heroCard"), s("c3"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>This Month's Collections</span>
+                <strong className={s("hcValue")}>{formatCurrency(thisMonthCollected)}</strong>
+                <span className={s("hcSub")}>{MONTH_NAMES[currentMonthIdx]} revenue</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-calendar-check" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c4"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Collection Rate</span>
-              <strong className={s("hcValue")}>{collectionRate}%</strong>
-              <span className={s("hcSub")}>{collectionRate >= 75 ? "Healthy recovery" : "Needs attention"}</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-chart-line" /></div>
-          </article>
-        </section>
+            <article className={cx(s("heroCard"), s("c4"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Collection Rate</span>
+                <strong className={s("hcValue")}>{collectionRate}%</strong>
+                <span className={s("hcSub")}>{collectionRate >= 75 ? "Healthy recovery" : "Needs attention"}</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-chart-line" /></div>
+            </article>
+          </section>
+        )}
 
         {/* ── Sub-Bar Quick Navigation Strip ── */}
         <section className={s("subBar")}>
@@ -210,7 +215,13 @@ export default function FeesPage() {
         </section>
 
         {/* ── Charts Grid (2 Columns) ── */}
-        <section className={s("chartRow")}>
+        {loading && !collections ? (
+          <section className={s("chartRow")}>
+            <SkeletonChart height={340} />
+            <SkeletonChart height={340} />
+          </section>
+        ) : (
+          <section className={s("chartRow")}>
           {/* Monthly Collection Trend */}
           <article className={s("chartCard")}>
             <div className={s("chartHead")}>
@@ -346,6 +357,7 @@ export default function FeesPage() {
             </div>
           </article>
         </section>
+      )}
 
         {/* ── Pending Payments Table ── */}
         <article className={s("card")}>
@@ -360,11 +372,8 @@ export default function FeesPage() {
           </div>
 
           <div className={s("tableWrap")}>
-            {loading ? (
-              <div style={{ padding: "4rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
-                <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading fee collections…</p>
-              </div>
+            {loading && !collections ? (
+              <SkeletonTable rows={5} columns={7} />
             ) : pendingList.length > 0 ? (
               <table className={s("table")}>
                 <thead>

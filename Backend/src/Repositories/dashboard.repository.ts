@@ -2,21 +2,25 @@ import pool from '../config/db';
 import { adToBS, bsToAD, bsToISO, BS_MONTH_NAMES } from '../utils/bs-ad';
 
 /**
- * In-memory cache for dashboard summary: 30s TTL
- * Eliminates 20-30s round trips to remote Azure PostgreSQL on frequent tab navigation.
+ * In-memory cache for dashboard summary: 3 minutes TTL (with auto-invalidation on data changes)
+ * Eliminates round trips to remote Azure PostgreSQL on frequent tab navigation.
  */
 interface DashboardCacheEntry {
   data: any;
   cachedAt: number;
 }
 const dashboardCache = new Map<number, DashboardCacheEntry>();
-const CACHE_TTL_MS = 30 * 1000; // 30 seconds
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+
+const schoolSettingsCache = new Map<number, { country: string; calendar_system: string }>();
 
 export const invalidateDashboardCache = (school_id?: number) => {
   if (school_id) {
     dashboardCache.delete(school_id);
+    schoolSettingsCache.delete(school_id);
   } else {
     dashboardCache.clear();
+    schoolSettingsCache.clear();
   }
 };
 
@@ -25,18 +29,26 @@ export const invalidateDashboardCache = (school_id?: number) => {
  * Parallelized with Promise.all and cached for fast sub-second loads.
  */
 export const getDashboardSummary = async (school_id: number) => {
-  // Return cached result if within 30 seconds
+  // Return cached result if within 3 minutes
   const cached = dashboardCache.get(school_id);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
     return cached.data;
   }
 
   // ── 0. School Settings (Country, Calendar System, Currency) ─
-  const schoolRes = await pool.query(
-    `SELECT country, calendar_system FROM schools WHERE id = $1`,
-    [school_id]
-  );
-  const school = schoolRes.rows[0];
+  let school = schoolSettingsCache.get(school_id);
+  if (!school) {
+    const schoolRes = await pool.query(
+      `SELECT country, calendar_system FROM schools WHERE id = $1`,
+      [school_id]
+    );
+    const row = schoolRes.rows[0];
+    school = {
+      country: row?.country || 'Nepal',
+      calendar_system: row?.calendar_system || 'BS',
+    };
+    schoolSettingsCache.set(school_id, school);
+  }
   const isIndia = school?.country?.toLowerCase() === 'india';
   const isBS = school?.calendar_system === 'BS';
   const currency = isIndia ? 'INR' : 'NPR';

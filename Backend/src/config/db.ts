@@ -17,8 +17,9 @@ const pool = new Pool({
     },
 
 // ── Connection pool settings for Azure PostgreSQL ──────────────────────────
+    min:                     4,       // keep at least 4 pre-warmed, SSL-authenticated connections
     max:                     20,      // max connections in pool
-    idleTimeoutMillis:       30000,   // close idle connections after 30 s
+    idleTimeoutMillis:       300000,  // keep idle connections alive for 5 minutes (prevents SSL drops)
     connectionTimeoutMillis: 30000,   // allow up to 30 s for remote SSL handshake & cold starts
 
     // ── TCP keepalive — prevents Azure load balancer from silently dropping idle connections

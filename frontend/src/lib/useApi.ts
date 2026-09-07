@@ -10,20 +10,31 @@ interface UseApiResult<T> {
   refetch: () => void;
 }
 
-// ── In-Memory SWR Cache ──────────────────────────────────────────────────────
+// ── In-Memory SWR Cache (Persistent across Next.js route chunks) ───────────
 interface CacheEntry {
   data: any;
   timestamp: number;
 }
-const apiCache = new Map<string, CacheEntry>();
+
+const getApiCache = (): Map<string, CacheEntry> => {
+  if (typeof window !== 'undefined') {
+    if (!(window as any).__skoolioApiCache) {
+      (window as any).__skoolioApiCache = new Map<string, CacheEntry>();
+    }
+    return (window as any).__skoolioApiCache;
+  }
+  return new Map<string, CacheEntry>();
+};
+
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function getCached(key: string | null | undefined): any | null {
   if (!key) return null;
-  const entry = apiCache.get(key);
+  const cache = getApiCache();
+  const entry = cache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > DEFAULT_CACHE_TTL_MS) {
-    apiCache.delete(key);
+    cache.delete(key);
     return null;
   }
   return entry.data;
@@ -34,12 +45,13 @@ function getCached(key: string | null | undefined): any | null {
  * otherwise purges the entire cache.
  */
 export function clearApiCache(endpointPrefix?: string) {
+  const cache = getApiCache();
   if (!endpointPrefix) {
-    apiCache.clear();
+    cache.clear();
   } else {
-    for (const key of apiCache.keys()) {
+    for (const key of cache.keys()) {
       if (key.startsWith(endpointPrefix)) {
-        apiCache.delete(key);
+        cache.delete(key);
       }
     }
   }
@@ -63,7 +75,7 @@ export function useApi<T = any>(
   const [tick, setTick]       = useState(0);
 
   const refetch = useCallback(() => {
-    if (endpoint) apiCache.delete(endpoint);
+    if (endpoint) getApiCache().delete(endpoint);
     setTick((t) => t + 1);
   }, [endpoint]);
 
@@ -87,7 +99,7 @@ export function useApi<T = any>(
         if (!cancelled) {
           // Backend wraps in { data: ... } — unwrap if present
           const unwrapped = res?.data !== undefined ? res.data : res;
-          apiCache.set(endpoint, { data: unwrapped, timestamp: Date.now() });
+          getApiCache().set(endpoint, { data: unwrapped, timestamp: Date.now() });
           setData(unwrapped);
         }
       })
@@ -112,7 +124,8 @@ export function useApi<T = any>(
 /** POST/PATCH/DELETE helper that returns { loading, error, execute } */
 export function useMutation<TBody = any, TResult = any>(
   endpoint: string,
-  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST'
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
+  invalidatePrefixes?: string[]
 ) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -122,12 +135,19 @@ export function useMutation<TBody = any, TResult = any>(
       setLoading(true);
       setError(null);
       try {
-        const res = await apiRequest<any>(endpointOverride || endpoint, {
+        const target = endpointOverride || endpoint;
+        const res = await apiRequest<any>(target, {
           method,
           body: body ? JSON.stringify(body) : undefined,
         });
-        // Clear related caches on successful mutation so UI sees fresh data immediately
-        clearApiCache();
+        // Selectively clear related caches rather than nuking the entire global cache
+        if (invalidatePrefixes && invalidatePrefixes.length > 0) {
+          invalidatePrefixes.forEach(p => clearApiCache(p));
+        } else {
+          const root = '/' + target.replace(/^\//, '').split('/')[0].split('?')[0];
+          clearApiCache(root);
+          clearApiCache('/dashboard');
+        }
         return res?.data !== undefined ? res.data : res;
       } catch (err: any) {
         const message = err.message || 'Request failed';
@@ -137,7 +157,7 @@ export function useMutation<TBody = any, TResult = any>(
         setLoading(false);
       }
     },
-    [endpoint, method]
+    [endpoint, method, invalidatePrefixes]
   );
 
   return { loading, error, execute };

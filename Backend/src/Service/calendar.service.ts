@@ -67,6 +67,7 @@ export const createCalendarEventService = async (
   }
 
   const event = await createCalendarEvent(school_id, school_id, data);
+  invalidateWorkingDaysCache(school_id);
   return event;
 };
 
@@ -88,6 +89,7 @@ export const updateCalendarEventService = async (
 ) => {
   const event = await updateCalendarEvent(id, school_id, data);
   if (!event) throw new AppError('Calendar event not found.', 404);
+  invalidateWorkingDaysCache(school_id);
   return event;
 };
 
@@ -100,6 +102,7 @@ export const deleteCalendarEventService = async (
 
   const deleted = await deleteCalendarEvent(id, school_id);
   if (!deleted) throw new AppError('Failed to delete calendar event.', 500);
+  invalidateWorkingDaysCache(school_id);
 };
 
 // ── CALENDAR WEEKLY OFF SERVICES ──
@@ -137,7 +140,9 @@ export const setWeeklyOffsService = async (
     }
   }
 
-  return await replaceWeeklyOffs(calendar_id, school_id, offs);
+  const result = await replaceWeeklyOffs(calendar_id, school_id, offs);
+  invalidateWorkingDaysCache(school_id);
+  return result;
 };
 
 // ── SHARED HELPERS ──
@@ -198,6 +203,26 @@ export const isWorkingDayService = async (
   return { isWorking: true };
 };
 
+// ── WORKING DAYS IN-MEMORY CACHE ──
+interface WorkingDaysCacheEntry {
+  result: IWorkingDaysResult;
+  timestamp: number;
+}
+const workingDaysCache = new Map<string, WorkingDaysCacheEntry>();
+const WORKING_DAYS_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export const invalidateWorkingDaysCache = (school_id?: number) => {
+  if (school_id) {
+    for (const key of workingDaysCache.keys()) {
+      if (key.startsWith(`${school_id}:`)) {
+        workingDaysCache.delete(key);
+      }
+    }
+  } else {
+    workingDaysCache.clear();
+  }
+};
+
 // ── WORKING DAYS CALCULATION ──
 // Uses getCalendarService (auto-creates default calendar if missing) so this
 // never throws "Calendar not found" for schools that haven't set one up yet.
@@ -207,6 +232,12 @@ export const calculateWorkingDays = async (
   start_date: string,
   end_date: string
 ): Promise<IWorkingDaysResult> => {
+  const cacheKey = `${school_id}:${academic_year_id}:${start_date}:${end_date}`;
+  const cached = workingDaysCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < WORKING_DAYS_TTL_MS) {
+    return cached.result;
+  }
+
   // Auto-create calendar if missing — prevents 404 crashing attendance summary
   const calendar = await getCalendarService(school_id, academic_year_id);
 
@@ -259,10 +290,13 @@ export const calculateWorkingDays = async (
     current.setDate(current.getDate() + 1);
   }
 
-  return {
+  const result: IWorkingDaysResult = {
     total_days,
     working_days,
     weekend_days,
     holidays: holiday_days,
   };
+
+  workingDaysCache.set(cacheKey, { result, timestamp: Date.now() });
+  return result;
 };

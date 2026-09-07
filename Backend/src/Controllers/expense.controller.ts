@@ -9,6 +9,7 @@ import {
   getExpensesByCategoryService, updateExpenseService, deleteExpenseService,
   getExpenseSummaryService,
 } from '../Service/expense.service';
+import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 
 // ── EXPENSE CATEGORY CONTROLLERS ──
 
@@ -41,6 +42,7 @@ export const deleteExpenseCategory = catchAsync(async (req: Request, res: Respon
 export const createExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await createExpenseService(school_id, school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Expense created successfully', result);
 });
 
@@ -77,12 +79,14 @@ export const getExpensesByCategory = catchAsync(async (req: Request, res: Respon
 export const updateExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await updateExpenseService(Number(req.params.id), school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Expense updated successfully', result);
 });
 
 export const deleteExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   await deleteExpenseService(Number(req.params.id), school_id);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Expense deleted successfully', null);
 });
 

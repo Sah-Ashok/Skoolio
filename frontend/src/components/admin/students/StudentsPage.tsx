@@ -6,6 +6,8 @@ import styles from "./students.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
+import { SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDebounce } from "@/hooks/useDebounce";
 
 const s  = (c: string) => styles[c] || c;
@@ -15,10 +17,10 @@ const PAGE_SIZE = 15;
 
 export default function StudentsPage() {
   const { data: students, loading, error } = useApi<any[]>("/students");
-  const { data: activeYear }               = useApi<any>("/academic-years/active");
+  const { activeYear, academicYearId }     = useAcademicYear();
   const { data: classes }                  = useApi<any[]>(
-    activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "",
-    [activeYear?.id]
+    academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
   );
 
   const [search,        setSearch]        = useState("");
@@ -105,23 +107,27 @@ export default function StudentsPage() {
         </section>
 
         {/* Stats */}
-        <section className={s("stats-row")}>
-          {[
-            ["fa-users",        "Total Students",   students?.length ?? 0, "ink"],
-            ["fa-circle-check", "Active Students",  activeCount,           "green"],
-            ["fa-user-plus",    "New (30 days)",     newCount,              "orange"],
-          ].map(([icon, label, value, tone]) => (
-            <article className={s("stat-card")} key={String(label)}>
-              <div className={cx(s("stat-icon"), s(String(tone)))}>
-                <i className={`fa-solid ${icon}`} />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, gap: 10 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
-                <strong style={{ fontSize: 22, fontWeight: 900, color: "#0f172a", margin: 0 }}>{value}</strong>
-              </div>
-            </article>
-          ))}
-        </section>
+        {loading && !students ? (
+          <SkeletonStatRow count={3} />
+        ) : (
+          <section className={s("stats-row")}>
+            {[
+              ["fa-users",        "Total Students",   students?.length ?? 0, "ink"],
+              ["fa-circle-check", "Active Students",  activeCount,           "green"],
+              ["fa-user-plus",    "New (30 days)",     newCount,              "orange"],
+            ].map(([icon, label, value, tone]) => (
+              <article className={s("stat-card")} key={String(label)}>
+                <div className={cx(s("stat-icon"), s(String(tone)))}>
+                  <i className={`fa-solid ${icon}`} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, gap: 10 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
+                  <strong style={{ fontSize: 22, fontWeight: 900, color: "#0f172a", margin: 0 }}>{value}</strong>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
 
         {/* Toolbar */}
         <section className={cx(s("card"), s("toolbar"))} style={{ gridTemplateColumns: "minmax(220px, 1fr) repeat(3, minmax(140px, 200px))" }}>
@@ -180,10 +186,8 @@ export default function StudentsPage() {
           </div>
 
           <div className={s("table-wrap")}>
-            {loading ? (
-              <div style={{ padding: "3rem", textAlign: "center" }}>
-                <Spinner size={32} color="#FF9B51" />
-              </div>
+            {loading && !students ? (
+              <SkeletonTable rows={7} columns={8} />
             ) : error ? (
               <div style={{ color: "#be123c", padding: "1rem" }}>{error}</div>
             ) : (

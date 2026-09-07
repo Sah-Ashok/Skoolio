@@ -3,6 +3,7 @@ import RequireRole from "@/components/shared/RequireRole";
 import PlanStatusBanner from "@/components/shared/PlanStatusBanner";
 import AppFooter from "@/components/shared/AppFooter";
 import OfflineGuard from "@/components/shared/OfflineGuard";
+import SubscriptionLockGuard from "@/components/shared/SubscriptionLockGuard";
 import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
 import FeedbackWidget from "@/components/shared/FeedbackWidget";
 
@@ -15,7 +16,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <PlanStatusBanner />
           <div className="app-page">
             <OfflineGuard>
-              <NoActiveYearGuard role="admin">{children}</NoActiveYearGuard>
+              <SubscriptionLockGuard role="admin">
+                <NoActiveYearGuard role="admin">{children}</NoActiveYearGuard>
+              </SubscriptionLockGuard>
             </OfflineGuard>
           </div>
           <AppFooter role="admin" />

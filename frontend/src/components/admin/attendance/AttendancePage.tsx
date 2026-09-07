@@ -7,6 +7,7 @@ import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { Spinner } from "@/components/shared/Loader";
+import { Skeleton, SkeletonStatRow } from "@/components/shared/Skeleton";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -287,43 +288,49 @@ export default function AttendancePage() {
         </section>
 
         {/* ── 4 Compact Stat Cards (~75px) ── */}
-        <section className={s("heroCards")}>
-          <article className={cx(s("heroCard"), s("c1"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Sections</span>
-              <strong className={s("hcValue")}>{totalSections}</strong>
-              <span className={s("hcSub")}>Active sections</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-table-cells" /></div>
-          </article>
+        {loading && !summary ? (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <SkeletonStatRow count={4} />
+          </div>
+        ) : (
+          <section className={s("heroCards")}>
+            <article className={cx(s("heroCard"), s("c1"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Total Sections</span>
+                <strong className={s("hcValue")}>{totalSections}</strong>
+                <span className={s("hcSub")}>Active sections</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-table-cells" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c2"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Enrolled Students</span>
-              <strong className={s("hcValue")}>{totalStudents}</strong>
-              <span className={s("hcSub")}>Active academic year</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-user-graduate" /></div>
-          </article>
+            <article className={cx(s("heroCard"), s("c2"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Enrolled Students</span>
+                <strong className={s("hcValue")}>{totalStudents}</strong>
+                <span className={s("hcSub")}>Active academic year</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-user-graduate" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c3"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Today&apos;s Status</span>
-              <strong className={s("hcValue")}>{markedTodayCnt} / {totalSections}</strong>
-              <span className={s("hcSub")}>{markedTodayPct}% sections marked</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-circle-check" /></div>
-          </article>
+            <article className={cx(s("heroCard"), s("c3"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>Today&apos;s Status</span>
+                <strong className={s("hcValue")}>{markedTodayCnt} / {totalSections}</strong>
+                <span className={s("hcSub")}>{markedTodayPct}% sections marked</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-circle-check" /></div>
+            </article>
 
-          <article className={cx(s("heroCard"), s("c4"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>{curLabel} Avg</span>
-              <strong className={s("hcValue")}>{curAvgRate}%</strong>
-              <span className={s("hcSub")}>Monthly overall rate</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-chart-line" /></div>
-          </article>
-        </section>
+            <article className={cx(s("heroCard"), s("c4"))}>
+              <div className={s("hcInfo")}>
+                <span className={s("hcLabel")}>{curLabel} Avg</span>
+                <strong className={s("hcValue")}>{curAvgRate}%</strong>
+                <span className={s("hcSub")}>Monthly overall rate</span>
+              </div>
+              <div className={s("hcIcon")}><i className="fa-solid fa-chart-line" /></div>
+            </article>
+          </section>
+        )}
 
         {/* ── Filter & Search Toolbar ── */}
         <section className={s("filterBar")}>
@@ -349,12 +356,12 @@ export default function AttendancePage() {
                 }}
               >
                 <option value="all">All Classes</option>
-                {classes?.map(c => (
-                  <option key={c.id} value={c.id.toString()}>{c.name}</option>
+                {classes?.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
 
-              {/* Today's Status Filter */}
+              {/* Status Filter */}
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
@@ -363,9 +370,9 @@ export default function AttendancePage() {
                   background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
                 }}
               >
-                <option value="all">All Today&apos;s Statuses</option>
-                <option value="marked">🟢 Marked Today</option>
-                <option value="pending">🟠 Pending Today</option>
+                <option value="all">All Status</option>
+                <option value="marked">Marked Today</option>
+                <option value="unmarked">Not Marked Today</option>
               </select>
             </div>
           </div>
@@ -376,10 +383,21 @@ export default function AttendancePage() {
         </section>
 
         {/* ── Section Cards grouped by Class ── */}
-        {loading ? (
-          <div style={{ padding: "4rem", textAlign: "center" }}>
-            <Spinner size={32} color="#FF9B51" />
-            <p style={{ marginTop: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Loading attendance summaries…</p>
+        {loading && !summary ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+                  <Skeleton width="50%" height={20} />
+                  <Skeleton width="22%" height={20} borderRadius={10} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <Skeleton width="80%" height={14} />
+                  <Skeleton width="100%" height={8} borderRadius={4} />
+                  <Skeleton width="40%" height={12} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div style={{ padding: "2.5rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{error}</div>

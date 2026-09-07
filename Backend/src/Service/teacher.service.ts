@@ -33,7 +33,11 @@ export const getTeachersService = async (school_id: number) => {
 export const getTeacherByIdService = async (id: number, school_id: number) => {
   const teacher = await getTeacherById(id, school_id);
   if (!teacher) throw new AppError('Teacher not found.', 404);
-  const allAssigned = await getAllTeacherAssignedSubjects(id, school_id);
+
+  const [allAssigned, sections] = await Promise.all([
+    getAllTeacherAssignedSubjects(id, school_id),
+    getSectionsByCoordinator(id, school_id),
+  ]);
 
   const subjectMap = new Map<number, any>();
   for (const item of allAssigned) {
@@ -55,7 +59,6 @@ export const getTeacherByIdService = async (id: number, school_id: number) => {
   }
 
   const subjects = Array.from(subjectMap.values());
-  const sections = await getSectionsByCoordinator(id, school_id);
   return { ...teacher, subjects, sections };
 };
 
