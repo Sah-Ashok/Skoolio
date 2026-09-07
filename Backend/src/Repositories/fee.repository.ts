@@ -66,6 +66,26 @@ export const getFeeStructuresByClass = async (
   return result.rows;
 };
 
+export const getFeeStructuresByYear = async (
+  school_id: number,
+  academic_year_id: number
+): Promise<IFeeStructure[]> => {
+  const cacheKey = `cache:fee_structures:${school_id}:${academic_year_id}:all`;
+  const cached = await getCache<IFeeStructure[]>(cacheKey);
+  if (cached) return cached;
+
+  const result = await pool.query(
+    `SELECT * FROM fee_structures
+     WHERE school_id = $1 AND academic_year_id = $2
+     ORDER BY fee_name ASC`,
+    [school_id, academic_year_id]
+  );
+  if (result.rows) {
+    await setCache(cacheKey, result.rows, 3600);
+  }
+  return result.rows;
+};
+
 export const getFeeStructureById = async (
   id: number,
   school_id: number
@@ -213,14 +233,36 @@ export const waiveFeeCollection = async (
 };
 
 export const getFeeCollectionsBySchool = async (
-  school_id: number,
+  school_id:        number,
   academic_year_id: number,
-  billing_month?: string,
-  pending_only?: boolean,
-): Promise<IFeeCollection[]> => {
-  const params: Array<number | string> = [school_id, academic_year_id];
+  billing_month?:   string,
+  pending_only?:    boolean,
+  // ── server-side filter + pagination (used by FeeRecordsPage) ─────────────
+  search?:     string,
+  class_id?:   number,
+  section_id?: number,
+  status?:     string,
+  fee_type?:   string,
+  page?:       number,
+  limit?:      number,
+  billing_months?: string[],
+): Promise<{ data: IFeeCollection[]; total: number }> => {
+  const params: Array<number | string | string[]> = [school_id, academic_year_id];
+
+  // billing_months / billing_month filter (used by MonthlyBilling)
   let monthFilter = '';
-  if (billing_month) {
+  if (billing_months && billing_months.length > 0) {
+    const idx = params.push(billing_months);
+    monthFilter = `AND (
+      to_char(fc.due_date, 'YYYY-MM') = ANY($${idx}::text[])
+      OR fc.billing_from_month = ANY($${idx}::text[])
+      OR fc.billing_to_month = ANY($${idx}::text[])
+      OR EXISTS (
+        SELECT 1 FROM unnest($${idx}::text[]) AS m
+        WHERE m BETWEEN fc.billing_from_month AND fc.billing_to_month
+      )
+    )`;
+  } else if (billing_month) {
     const idx = params.push(billing_month);
     monthFilter = `AND (
       to_char(fc.due_date, 'YYYY-MM') = $${idx}
@@ -229,27 +271,94 @@ export const getFeeCollectionsBySchool = async (
       OR ($${idx} BETWEEN fc.billing_from_month AND fc.billing_to_month)
     )`;
   }
+
+  // pending_only filter (unchanged — used by MonthlyBilling)
   const pendingFilter = pending_only
     ? `AND fc.status NOT IN ('paid', 'waived') AND COALESCE(fc.remaining_amount, fc.net_amount, fc.total_amount) > 0`
     : '';
-  const result = await pool.query(
+
+  // full-text search: student name, admission number, fee name
+  let searchFilter = '';
+  if (search && search.trim()) {
+    const idx = params.push(`%${search.trim().toLowerCase()}%`);
+    searchFilter = `AND (
+      LOWER(s.full_name)           LIKE $${idx}
+      OR LOWER(s.admission_number) LIKE $${idx}
+      OR LOWER(fc.fee_name)        LIKE $${idx}
+    )`;
+  }
+
+  // class / section filters
+  let classFilter = '';
+  if (class_id) {
+    const idx = params.push(class_id);
+    classFilter = `AND cl.id = $${idx}`;
+  }
+  let sectionFilter = '';
+  if (section_id) {
+    const idx = params.push(section_id);
+    sectionFilter = `AND sec.id = $${idx}`;
+  }
+
+  // status filter
+  let statusFilter = '';
+  if (status && status !== 'all') {
+    const idx = params.push(status);
+    statusFilter = `AND fc.status = $${idx}`;
+  }
+
+  // fee_type filter
+  let feeTypeFilter = '';
+  if (fee_type && fee_type !== 'all') {
+    const idx = params.push(fee_type);
+    feeTypeFilter = `AND COALESCE(fc.fee_type, 'academic') = $${idx}`;
+  }
+
+  const joinAndWhere = `
+    FROM fee_collections fc
+    INNER JOIN students s ON s.id = fc.student_id
+    LEFT JOIN student_enrollments se
+      ON se.student_id       = fc.student_id
+     AND se.school_id        = fc.school_id
+     AND se.academic_year_id = fc.academic_year_id
+     AND se.status           = 'active'
+    LEFT JOIN classes  cl  ON cl.id  = se.class_id
+    LEFT JOIN sections sec ON sec.id = se.section_id
+    WHERE fc.school_id = $1 AND fc.academic_year_id = $2
+    ${monthFilter}
+    ${pendingFilter}
+    ${searchFilter}
+    ${classFilter}
+    ${sectionFilter}
+    ${statusFilter}
+    ${feeTypeFilter}
+  `;
+
+  // total count for frontend pagination controls
+  const countResult = await pool.query(
+    `SELECT COUNT(*) AS total ${joinAndWhere}`,
+    params
+  );
+  const total = Number(countResult.rows[0]?.total ?? 0);
+
+  // pagination  (cap at 200 rows per page to protect memory)
+  const pageNum  = Math.max(1, page  || 1);
+  const pageSize = Math.min(200, Math.max(1, limit || 50));
+  const limitIdx  = params.push(pageSize);
+  const offsetIdx = params.push((pageNum - 1) * pageSize);
+
+  const dataResult = await pool.query(
     `SELECT fc.*, s.full_name, s.admission_number,
             cl.id AS class_id, sec.id AS section_id,
             cl.name AS class_name, sec.name AS section_name,
             COALESCE(fc.fee_type, 'academic') AS fee_type
-     FROM fee_collections fc
-     INNER JOIN students s ON s.id = fc.student_id
-     LEFT JOIN student_enrollments se ON se.student_id = fc.student_id
-       AND se.school_id = fc.school_id AND se.academic_year_id = fc.academic_year_id AND se.status = 'active'
-     LEFT JOIN classes cl ON cl.id = se.class_id
-     LEFT JOIN sections sec ON sec.id = se.section_id
-     WHERE fc.school_id = $1 AND fc.academic_year_id = $2
-     ${monthFilter}
-     ${pendingFilter}
-     ORDER BY fc.due_date DESC`,
+     ${joinAndWhere}
+     ORDER BY fc.due_date DESC
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
     params
   );
-  return result.rows;
+
+  return { data: dataResult.rows, total };
 };
 
 export const getFeeCollectionById = async (
@@ -495,15 +604,21 @@ export const getPaymentsByCollection = async (
 
 export const getPaymentsByStudent = async (
   student_id: number,
-  school_id:  number
+  school_id:  number,
+  academic_year_id?: number
 ): Promise<IFeePayment[]> => {
+  const params: any[] = [student_id, school_id];
+  const yearFilter = academic_year_id
+    ? `AND fc.academic_year_id = $${params.push(academic_year_id)}`
+    : '';
   const result = await pool.query(
     `SELECT fp.*, fc.fee_name, fc.due_date, fc.fee_type
      FROM fee_payments fp
      INNER JOIN fee_collections fc ON fc.id = fp.collection_id
      WHERE fp.student_id = $1 AND fp.school_id = $2
+     ${yearFilter}
      ORDER BY fp.payment_date DESC`,
-    [student_id, school_id]
+    params
   );
   return result.rows;
 };

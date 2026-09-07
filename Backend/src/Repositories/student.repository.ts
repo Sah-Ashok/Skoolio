@@ -65,7 +65,24 @@ export const searchStudentsBySchool = async (
   return result.rows;
 };
 
-export const getStudentsBySchool = async (school_id: number): Promise<IStudent[]> => {
+export const getStudentsBySchool = async (
+  school_id: number,
+  academic_year_id?: number
+): Promise<IStudent[]> => {
+  const params: any[] = [school_id];
+
+  let lateralCondition = `student_id = s.id AND school_id = s.school_id`;
+  let whereClause = `WHERE s.school_id = $1`;
+
+  if (academic_year_id) {
+    const ayParam = `$${params.push(academic_year_id)}`;
+    lateralCondition += ` AND academic_year_id = ${ayParam}`;
+    whereClause += ` AND EXISTS (
+      SELECT 1 FROM student_enrollments
+      WHERE student_id = s.id AND school_id = s.school_id AND academic_year_id = ${ayParam}
+    )`;
+  }
+
   const result = await pool.query(
     `SELECT s.id, s.school_id, s.admission_number, s.full_name, s.email, s.phone, s.gender,
        s.date_of_birth::text, s.blood_group, s.photo, s.nationality, s.religion, s.ethnicity,
@@ -81,15 +98,15 @@ export const getStudentsBySchool = async (school_id: number): Promise<IStudent[]
      LEFT JOIN LATERAL (
        SELECT class_id, section_id, roll_number
        FROM student_enrollments
-       WHERE student_id = s.id AND school_id = s.school_id
+       WHERE ${lateralCondition}
        ORDER BY (status = 'active') DESC, created_at DESC
        LIMIT 1
      ) se ON true
      LEFT JOIN classes cl ON cl.id = se.class_id
      LEFT JOIN sections sec ON sec.id = se.section_id
-     WHERE s.school_id = $1
+     ${whereClause}
      ORDER BY s.full_name ASC`,
-    [school_id]
+    params
   );
   return result.rows;
 };

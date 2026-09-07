@@ -7,6 +7,7 @@ import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { SkeletonTable } from "@/components/shared/Skeleton";
 import { apiRequest } from "@/lib/api";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -242,12 +243,15 @@ export default function AdminTimetablePage() {
     }
   };
 
-  const deleteSlot = async (slotId: number) => {
-    if (!confirm("Remove this period?")) return;
+  const [slotToDelete, setSlotToDelete] = useState<any | null>(null);
+
+  const handleConfirmDeleteSlot = async () => {
+    if (!slotToDelete) return;
     try {
-      await apiRequest(`/timetable/slot/${slotId}`, { method: "DELETE" });
+      await apiRequest(`/timetable/slot/${slotToDelete.id}`, { method: "DELETE" });
       dispatch(showToast({ type: "success", title: "Removed", message: "Slot removed." }));
       refetchTT();
+      setSlotToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err?.message || "Could not remove slot." }));
     }
@@ -593,8 +597,8 @@ export default function AdminTimetablePage() {
                           return (
                             <td key={p} style={{ padding: "6px", verticalAlign: "top", borderLeft: "1px solid #F1F5F9" }}>
                               {s.is_break
-                                ? <BreakCell slot={s} onEdit={() => openEdit(s)} onDelete={() => deleteSlot(s.id)} />
-                                : <SubjectCell slot={s} onEdit={() => openEdit(s)} onDelete={() => deleteSlot(s.id)} />
+                                ? <BreakCell slot={s} onEdit={() => openEdit(s)} onDelete={() => setSlotToDelete(s)} />
+                                : <SubjectCell slot={s} onEdit={() => openEdit(s)} onDelete={() => setSlotToDelete(s)} />
                               }
                             </td>
                           );
@@ -1052,6 +1056,23 @@ export default function AdminTimetablePage() {
           </ModalCard>
         </ModalOverlay>
       )}
+
+      {/* ── Confirm Delete Period Slot Modal ── */}
+      <ConfirmModal
+        isOpen={!!slotToDelete}
+        onClose={() => setSlotToDelete(null)}
+        onConfirm={handleConfirmDeleteSlot}
+        title={slotToDelete?.is_break ? "Remove Break?" : "Remove Period Slot?"}
+        message={
+          slotToDelete?.is_break
+            ? `Remove break "${slotToDelete.title || "Break"}"? This slot will be cleared.`
+            : `Remove period ${slotToDelete?.period_number ?? ""} (${slotToDelete?.subject_name || "Subject"})? This slot will be cleared.`
+        }
+        confirmText="Remove Slot"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

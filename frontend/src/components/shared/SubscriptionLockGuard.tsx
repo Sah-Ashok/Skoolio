@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApi } from '@/lib/useApi';
 import { useAppSelector } from '@/store/hooks';
+import { Spinner } from '@/components/shared/Loader';
 import styles from './no-active-year.module.css';
 
 const ADMIN_SUBSCRIPTION_BYPASS_PATHS = ['/upgrade', '/subscription', '/settings'];
@@ -19,8 +20,19 @@ export default function SubscriptionLockGuard({
   const authBootstrapped = useAppSelector((s) => s.auth.bootstrapped);
   const pathname = usePathname();
 
-  // While loading or not yet bootstrapped, render children to avoid flash
-  if (!authBootstrapped || (loading && !status)) return <>{children}</>;
+  // If on bypass paths, allow access immediately
+  if (role === 'admin' && ADMIN_SUBSCRIPTION_BYPASS_PATHS.some((p) => pathname.startsWith(p))) {
+    return <>{children}</>;
+  }
+
+  // While loading or not yet bootstrapped, render a neutral placeholder to avoid content flash
+  if (!authBootstrapped || (loading && !status)) {
+    return (
+      <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spinner size={32} color="#FF9B51" />
+      </div>
+    );
+  }
 
   // If no status or active or in grace period, render children normally
   if (!status || status.is_in_grace_period || status.subscription?.status !== 'expired') {

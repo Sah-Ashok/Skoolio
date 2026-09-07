@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import { apiRequest } from "@/lib/api";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const DAYS_OF_WEEK = [
   { key: "sunday",    label: "Sunday",    short: "Sun" },
@@ -294,13 +295,16 @@ export default function TeacherTimetablePage() {
     }
   };
 
-  const handleDeleteSlot = async (slotId: number) => {
-    if (!confirm("Are you sure you want to remove this period slot?")) return;
+  const [slotToDelete, setSlotToDelete] = useState<any | null>(null);
+
+  const handleConfirmDeleteSlot = async () => {
+    if (!slotToDelete) return;
     try {
-      await apiRequest(`/timetable/slot/${slotId}`, { method: "DELETE" });
+      await apiRequest(`/timetable/slot/${slotToDelete.id}`, { method: "DELETE" });
       dispatch(showToast({ type: "success", title: "Removed", message: "Period slot deleted." }));
       refetchTimetable();
       refetchMySchedule();
+      setSlotToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err?.message || "Could not delete slot." }));
     }
@@ -761,7 +765,7 @@ export default function TeacherTimetablePage() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        onClick={() => setSlotToDelete(slot)}
                                         title="Remove slot"
                                         style={{ background: "#ffffff", border: "1px solid #fecdd3", borderRadius: 5, width: 22, height: 22, cursor: "pointer", color: "#dc2626", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
                                       >
@@ -858,7 +862,7 @@ export default function TeacherTimetablePage() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        onClick={() => setSlotToDelete(slot)}
                                         title="Remove slot"
                                         style={{
                                           background: "#ffffff",
@@ -1652,6 +1656,23 @@ export default function TeacherTimetablePage() {
           </div>
         </div>
       )}
+
+      {/* Remove Period Slot Modal */}
+      <ConfirmModal
+        isOpen={!!slotToDelete}
+        onClose={() => setSlotToDelete(null)}
+        onConfirm={handleConfirmDeleteSlot}
+        title={slotToDelete?.is_break ? "Remove Break Slot?" : "Remove Period Slot?"}
+        message={
+          slotToDelete?.is_break
+            ? `Remove break "${slotToDelete.title || "Break"}"? This slot will be cleared.`
+            : `Remove period ${slotToDelete?.period_number ?? ""} (${slotToDelete?.subject_name || "Subject"})? This slot will be cleared.`
+        }
+        confirmText="Remove Slot"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

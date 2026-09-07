@@ -9,6 +9,7 @@ import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Sk
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -100,12 +101,19 @@ export default function ExpensesPage() {
   const endIdx = Math.min(startIdx + pageSize, filteredExpenses.length);
   const paginatedExpenses = filteredExpenses.slice(startIdx, endIdx);
 
-  const handleDelete = async (id: number, title: string) => {
-    if (!confirm(`Are you sure you want to delete expense "${title}"?`)) return;
+  const [expenseToDelete, setExpenseToDelete] = useState<{ id: number; title: string } | null>(null);
+
+  const handleDelete = (id: number, title: string) => {
+    setExpenseToDelete({ id, title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!expenseToDelete) return;
     try {
-      await deleteExpense(undefined, `/expenses/${id}`);
+      await deleteExpense(undefined, `/expenses/${expenseToDelete.id}`);
       dispatch(showToast({ type: 'success', title: 'Deleted', message: 'Expense deleted successfully' }));
       refetch();
+      setExpenseToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: 'error', title: 'Error', message: err.message || 'Failed to delete expense' }));
     }
@@ -478,6 +486,19 @@ export default function ExpensesPage() {
           </article>
         </section>
       </main>
+
+      {/* ── Delete Expense Confirmation Modal ── */}
+      <ConfirmModal
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Expense"
+        message={`Are you sure you want to delete expense "${expenseToDelete?.title}"? This action cannot be undone.`}
+        confirmText="Delete Expense"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

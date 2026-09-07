@@ -3,6 +3,7 @@
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
 import { useCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
+import type { DashboardData } from "@/types/dashboard.types";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (n: string) => styles[n];
@@ -10,32 +11,23 @@ const s  = (n: string) => styles[n];
 const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
 
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-
-interface Props { data: any }
+interface Props { data: DashboardData }
 
 export default function DashboardTables({ data }: Props) {
   const { isBS, formatMonth, formatDateShort } = useDateFormat();
-  const { symbol: currSymbol } = useCurrency();
+  const { symbol: currSymbol, fmt, fmtShort: currencyShort } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
 
   const currentMonthDisplay = isBS
     ? formatMonth(new Date().getFullYear(), new Date().getMonth() + 1)
     : new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
-  const fmtCurrency = (n: number) =>
-    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+  const fmtCurrency = (n: number) => fmt(n, sym);
+  const fmtShort = (n: number) => currencyShort(n, sym);
 
-  const fmtShort = (n: number) => {
-    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
-    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
-    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
-  };
-
-  const recentStudents: any[] = data.recentStudents ?? [];
-  const recentExpenses: any[] = data.recentExpenses ?? [];
-  const recentSalaries: any[] = data.recentSalaries ?? [];
+  const recentStudents = data.recentStudents ?? [];
+  const recentExpenses = data.recentExpenses ?? [];
+  const recentSalaries = data.recentSalaries ?? [];
 
   const totalAssigned    = data.totalAssigned    ?? 0;
   const totalCollected   = data.totalCollected   ?? 0;

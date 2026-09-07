@@ -12,6 +12,7 @@ import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -135,7 +136,9 @@ export default function ExamSchedulePage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const [scheduleToDelete, setScheduleToDelete] = useState<any | null>(null);
+
+  const handleDelete = (sch: any) => {
     if (hasPublishedResults) {
       return dispatch(showToast({
         type: "error",
@@ -143,12 +146,17 @@ export default function ExamSchedulePage() {
         message: "Cannot delete schedule entries because exam results are already published.",
       }));
     }
-    if (!confirm("Remove this schedule entry?")) return;
+    setScheduleToDelete(sch);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!scheduleToDelete) return;
     try {
-      await deleteSchedule(undefined, `/exams/schedules/${id}`);
+      await deleteSchedule(undefined, `/exams/schedules/${scheduleToDelete.id}`);
       dispatch(showToast({ type: "success", title: "Removed", message: "Schedule entry deleted." }));
       refetch();
       refetchExam();
+      setScheduleToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not delete schedule." }));
     }
@@ -410,7 +418,7 @@ export default function ExamSchedulePage() {
                           <td>
                             <button
                               className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
-                              onClick={() => handleDelete(sch.id)}
+                              onClick={() => handleDelete(sch)}
                               disabled={hasPublishedResults}
                               title={hasPublishedResults ? "Cannot delete schedule when results are published" : "Remove entry"}
                               style={hasPublishedResults ? { opacity: 0.4, cursor: "not-allowed" } : {}}
@@ -461,6 +469,19 @@ export default function ExamSchedulePage() {
           </aside>
         </div>
       </main>
+
+      {/* Remove Schedule Entry Modal */}
+      <ConfirmModal
+        isOpen={!!scheduleToDelete}
+        onClose={() => setScheduleToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remove Schedule Entry"
+        message={`Remove schedule entry for ${scheduleToDelete?.class_name ?? ""} · ${scheduleToDelete?.subject_name ?? ""}? This cannot be undone.`}
+        confirmText="Remove Entry"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

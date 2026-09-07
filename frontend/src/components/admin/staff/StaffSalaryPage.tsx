@@ -57,7 +57,14 @@ type AttPreview = {
   salary_set:       boolean;
 };
 
-type Deduction = { deduction_type: string; amount: number; note?: string };
+type Deduction = { id?: string; deduction_type: string; amount: number; note?: string };
+
+const createDeduction = (deduction_type: string, amount: number = 0, note: string = ""): Deduction => ({
+  id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+  deduction_type,
+  amount,
+  note,
+});
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   paid:      { bg: "#e2f6ee", color: "#12805c" },
@@ -130,11 +137,11 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
             if (p.absent_days > 0) parts.push(`${p.absent_days} absent`);
             if (p.half_days > 0)   parts.push(`${p.half_days} half-day`);
             if (unpaidLeave > 0)   parts.push(`${unpaidLeave} unpaid leave`);
-            setDeductions([{
-              deduction_type: "absent",
-              amount: Math.round(totalAttDeduct),
-              note: `${parts.join(" + ")} @ ${fmt(p.per_day_salary)}/day`,
-            }]);
+            setDeductions([createDeduction(
+              "absent",
+              Math.round(totalAttDeduct),
+              `${parts.join(" + ")} @ ${fmt(p.per_day_salary)}/day`
+            )]);
           } else {
             setDeductions([]);
           }
@@ -145,8 +152,8 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
           const pfAmt  = payrollPolicy?.default_pf_percent > 0
             ? Math.round((p.basic_salary * payrollPolicy.default_pf_percent) / 100) : 0;
           const extraDeductions: Deduction[] = [];
-          if (taxAmt > 0) extraDeductions.push({ deduction_type: "tax",            amount: taxAmt, note: `${payrollPolicy.default_tax_percent}% of basic` });
-          if (pfAmt  > 0) extraDeductions.push({ deduction_type: "provident_fund", amount: pfAmt,  note: `${payrollPolicy.default_pf_percent}% of basic`  });
+          if (taxAmt > 0) extraDeductions.push(createDeduction("tax", taxAmt, `${payrollPolicy.default_tax_percent}% of basic`));
+          if (pfAmt  > 0) extraDeductions.push(createDeduction("provident_fund", pfAmt, `${payrollPolicy.default_pf_percent}% of basic`));
           if (extraDeductions.length > 0) {
             setDeductions(prev => [...(totalAttDeduct > 0 ? prev : []), ...extraDeductions]);
           }
@@ -157,7 +164,7 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
   }, [form.staff_id, form.salary_month]);
 
   const addDeduction = () =>
-    setDeductions(d => [...d, { deduction_type: "absent", amount: 0, note: "" }]);
+    setDeductions(d => [...d, createDeduction("absent", 0, "")]);
 
   const updateDeduction = (i: number, k: keyof Deduction, v: string | number) =>
     setDeductions(d => d.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
@@ -349,7 +356,7 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
             )}
 
             {deductions.map((d, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 110px 1fr auto", gap: 8, marginBottom: 8, alignItems: "start" }}>
+              <div key={d.id || `deduct-${i}`} style={{ display: "grid", gridTemplateColumns: "1fr 110px 1fr auto", gap: 8, marginBottom: 8, alignItems: "start" }}>
                 <div className={s("field")}>
                   {i === 0 && <label>Type</label>}
                   <select value={d.deduction_type} onChange={e => updateDeduction(i, "deduction_type", e.target.value)}>

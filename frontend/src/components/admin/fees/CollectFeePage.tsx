@@ -406,13 +406,16 @@ export default function CollectFeePage() {
     }
 
     setIsPaying(true);
-    const receipts: Array<{ payment_id: number; receipt_number: string }> = [];
-    let ok = 0;
 
-    for (const colItem of selectedCollections) {
-      const amount = parseFloat(bulkAmounts[colItem.id] || colItem.remaining_amount || "0");
-      if (amount <= 0) continue;
-      try {
+    const validItems = selectedCollections
+      .map(colItem => ({
+        colItem,
+        amount: parseFloat(bulkAmounts[colItem.id] || colItem.remaining_amount || "0"),
+      }))
+      .filter(item => item.amount > 0);
+
+    const settledResults = await Promise.allSettled(
+      validItems.map(async ({ colItem, amount }) => {
         const res: any = await apiRequest("/fees/payments", {
           method: "POST",
           body: JSON.stringify({
@@ -425,13 +428,24 @@ export default function CollectFeePage() {
             remarks:        remarks     || undefined,
           }),
         });
+        return { colItem, res };
+      })
+    );
+
+    const receipts: Array<{ payment_id: number; receipt_number: string }> = [];
+    let ok = 0;
+
+    settledResults.forEach((r, idx) => {
+      const { colItem } = validItems[idx];
+      if (r.status === "fulfilled") {
+        const res = r.value.res;
         if (res?.payment?.id) receipts.push({ payment_id: res.payment.id, receipt_number: res.receipt_number || res.payment?.receipt_number });
         else if (res?.id)    receipts.push({ payment_id: res.id, receipt_number: res.receipt_number });
         ok++;
-      } catch (err: any) {
-        dispatch(showToast({ type: "error", title: `Failed: ${colItem.fee_name}`, message: err.message || "Payment error" }));
+      } else {
+        dispatch(showToast({ type: "error", title: `Failed: ${colItem.fee_name}`, message: r.reason?.message || "Payment error" }));
       }
-    }
+    });
 
     if (ok > 0) {
       setLastReceipts(receipts);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./fees.module.css";
@@ -500,120 +500,132 @@ export default function StudentFeeHistoryPage() {
   const [feeStructures, setFeeStructures] = useState<Record<number, any>>({});
   const [loading,       setLoading]       = useState(false);
 
-  // B5 fix: pass academic_year_id to both fetches
+  // ── Billing policy (needed for overdue_grace_days before overdueCt) ──
+  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
+  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
+
+  // B5 fix: pass academic_year_id to payments, collections, and structures
   const fetchData = useCallback(() => {
     if (!studentId || !selectedYearId) return;
     setLoading(true);
     const ayParam = `?academic_year_id=${selectedYearId}`;
     Promise.allSettled([
-      apiRequest(`/fees/payments/student/${studentId}`),           // payments have no AY filter endpoint yet — filter client-side below
+      apiRequest(`/fees/payments/student/${studentId}${ayParam}`),
       apiRequest(`/fees/collections/student/${studentId}${ayParam}`),
-    ]).then(async ([payRes, colRes]) => {
+      apiRequest(`/fees/structures${ayParam}`),
+    ]).then(([payRes, colRes, structRes]) => {
       const cols: any[] = colRes.status === "fulfilled"
         ? ((colRes.value as any)?.data ?? colRes.value ?? [])
         : [];
       const allPays: any[] = payRes.status === "fulfilled"
         ? ((payRes.value as any)?.data ?? payRes.value ?? [])
         : [];
+      const structuresList: any[] = structRes.status === "fulfilled"
+        ? ((structRes.value as any)?.data ?? structRes.value ?? [])
+        : [];
 
-      // Filter payments to only those whose collection_id is in the fetched cols
-      const colIds = new Set(cols.map((c: any) => c.id));
-      const filteredPays = allPays.filter((p: any) => colIds.has(p.collection_id));
-
-      setPayments(filteredPays);
-      setCollections(cols);
-
-      // Fetch fee structures for any collection that has a fee_structure_id
-      const structureIds = [...new Set(cols.filter(c => c.fee_structure_id).map(c => c.fee_structure_id))] as number[];
-      if (structureIds.length > 0) {
-        const structMap: Record<number, any> = {};
-        await Promise.allSettled(
-          structureIds.map(id =>
-            apiRequest(`/fees/structures/${id}`)
-              .then((res: any) => {
-                const s = res?.data ?? res;
-                if (s?.id) structMap[s.id] = s;
-              })
-              .catch(() => {})
-          )
-        );
-        setFeeStructures(structMap);
-      } else {
-        setFeeStructures({});
+      const structMap: Record<number, any> = {};
+      if (Array.isArray(structuresList)) {
+        structuresList.forEach((s: any) => {
+          if (s?.id) structMap[s.id] = s;
+        });
       }
+
+      setPayments(allPays);
+      setCollections(cols);
+      setFeeStructures(structMap);
     }).finally(() => setLoading(false));
   }, [studentId, selectedYearId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── B6 fix: effectivePaid — waived bill = cash paid only, NOT full net_amount ──
-  // A waived bill where the student paid Rs 200 of Rs 500 then got waived:
-  //   cashPaid = 200 (correct)
-  //   waivedAmt = 300 (the forgiven portion — shown separately, NOT added to paid total)
-  // So effectivePaid for summary = paid_amount only, regardless of waive status.
-  const effectivePaid = (c: any): number => parseFloat(c.paid_amount || 0);
-
-  // ── Derived totals ──
-  const pendingCollections = collections.filter(c => c.status !== "paid" && c.status !== "waived");
-  const waivedCollections  = collections.filter(c => c.status === "waived");
-  const totalBilled   = collections.reduce((a, c) => a + parseFloat(c.net_amount || c.total_amount || 0), 0);
-  const totalPaid     = collections.reduce((a, c) => a + effectivePaid(c), 0);
-  // totalWaived = sum of the forgiven portions (net - cashPaid) for waived bills
-  const totalWaived   = waivedCollections.reduce((a, c) => {
-    const net      = parseFloat(c.net_amount || c.total_amount || 0);
-    const cashPaid = parseFloat(c.paid_amount || 0);
-    return a + Math.max(0, net - cashPaid);
-  }, 0);
-  const totalPending  = pendingCollections.reduce((a, c) => a + parseFloat(c.remaining_amount || 0), 0);
-
-  // ── Billing policy (needed for overdue_grace_days before overdueCt) ──
-  const { data: billingPolicy } = useApi<any>("/fee-billing-policy");
-  const graceDays: number = (billingPolicy?.data ?? billingPolicy)?.overdue_grace_days ?? 0;
+  const effectivePaid = useCallback((c: any): number => parseFloat(c.paid_amount || 0), []);
 
   // An unpaid/partial bill is "overdue" only after due_date + grace period
-  const isOverdueFn = (dueDate: string, status: string): boolean => {
+  const isOverdueFn = useCallback((dueDate: string, status: string): boolean => {
     if (status === "paid" || status === "waived") return false;
     const due = new Date(dueDate);
     due.setDate(due.getDate() + graceDays);
     return due < new Date();
-  };
+  }, [graceDays]);
 
-  const overdueCt     = pendingCollections.filter(c => isOverdueFn(c.due_date, c.status)).length;
-  // Progress: (cash paid + waived forgiven portion) / total billed
-  const effectivePaidForProgress = totalPaid + totalWaived;
-  const paidPct = totalBilled > 0 ? (effectivePaidForProgress / totalBilled) * 100 : 0;
+  // ── Derived totals (memoized) ──
+  const {
+    pendingCollections,
+    waivedCollections,
+    totalBilled,
+    totalPaid,
+    totalWaived,
+    totalPending,
+    overdueCt,
+    paidPct,
+  } = useMemo(() => {
+    const pending = collections.filter(c => c.status !== "paid" && c.status !== "waived");
+    const waived  = collections.filter(c => c.status === "waived");
+    const billed  = collections.reduce((a, c) => a + parseFloat(c.net_amount || c.total_amount || 0), 0);
+    const paid    = collections.reduce((a, c) => a + effectivePaid(c), 0);
+    const waivAmt = waived.reduce((a, c) => {
+      const net      = parseFloat(c.net_amount || c.total_amount || 0);
+      const cashPaid = parseFloat(c.paid_amount || 0);
+      return a + Math.max(0, net - cashPaid);
+    }, 0);
+    const pendAmt = pending.reduce((a, c) => a + parseFloat(c.remaining_amount || 0), 0);
+    const overdue = pending.filter(c => isOverdueFn(c.due_date, c.status)).length;
+    const effectivePaidForProg = paid + waivAmt;
+    const pct = billed > 0 ? (effectivePaidForProg / billed) * 100 : 0;
 
-  // ── Group by display month ──
-  const collectionsByMonth: Record<string, { key: string; label: string; items: any[] }> = {};
-  collections.forEach((c: any) => {
-    if (!c.due_date) return;
-    const { key, label } = billingGroupKey(c.due_date);
-    if (!collectionsByMonth[key]) collectionsByMonth[key] = { key, label, items: [] };
-    collectionsByMonth[key].items.push(c);
-  });
-  const sortedMonthGroups = Object.values(collectionsByMonth).sort((a, b) => b.key.localeCompare(a.key));
+    return {
+      pendingCollections: pending,
+      waivedCollections: waived,
+      totalBilled: billed,
+      totalPaid: paid,
+      totalWaived: waivAmt,
+      totalPending: pendAmt,
+      overdueCt: overdue,
+      paidPct: pct,
+    };
+  }, [collections, effectivePaid, graceDays]);
 
-  // ── Payment map ──
-  const paymentsByCollection: Record<number, any[]> = {};
-  payments.forEach((p: any) => {
-    if (!paymentsByCollection[p.collection_id]) paymentsByCollection[p.collection_id] = [];
-    paymentsByCollection[p.collection_id].push(p);
-  });
+  // ── Group by display month (memoized) ──
+  const sortedMonthGroups = useMemo(() => {
+    const collectionsByMonth: Record<string, { key: string; label: string; items: any[] }> = {};
+    collections.forEach((c: any) => {
+      if (!c.due_date) return;
+      const { key, label } = billingGroupKey(c.due_date);
+      if (!collectionsByMonth[key]) collectionsByMonth[key] = { key, label, items: [] };
+      collectionsByMonth[key].items.push(c);
+    });
+    return Object.values(collectionsByMonth).sort((a, b) => b.key.localeCompare(a.key));
+  }, [collections, billingGroupKey]);
 
-  // ── Fee type summary ──
-  const byType: Record<string, { billed: number; paid: number; waived: number; pending: number }> = {};
-  collections.forEach((c: any) => {
-    const t = c.fee_type || "academic";
-    if (!byType[t]) byType[t] = { billed: 0, paid: 0, waived: 0, pending: 0 };
-    const net = parseFloat(c.net_amount || c.total_amount || 0);
-    const paid = effectivePaid(c);
-    byType[t].billed  += net;
-    byType[t].paid    += paid;
-    if (c.status === "waived") {
-      byType[t].waived += Math.max(0, net - paid);
-    }
-    byType[t].pending += (c.status === "paid" || c.status === "waived") ? 0 : parseFloat(c.remaining_amount || 0);
-  });
+  // ── Payment map (memoized) ──
+  const paymentsByCollection = useMemo(() => {
+    const map: Record<number, any[]> = {};
+    payments.forEach((p: any) => {
+      if (!map[p.collection_id]) map[p.collection_id] = [];
+      map[p.collection_id].push(p);
+    });
+    return map;
+  }, [payments]);
+
+  // ── Fee type summary (memoized) ──
+  const byType = useMemo(() => {
+    const map: Record<string, { billed: number; paid: number; waived: number; pending: number }> = {};
+    collections.forEach((c: any) => {
+      const t = c.fee_type || "academic";
+      if (!map[t]) map[t] = { billed: 0, paid: 0, waived: 0, pending: 0 };
+      const net = parseFloat(c.net_amount || c.total_amount || 0);
+      const paid = effectivePaid(c);
+      map[t].billed  += net;
+      map[t].paid    += paid;
+      if (c.status === "waived") {
+        map[t].waived += Math.max(0, net - paid);
+      }
+      map[t].pending += (c.status === "paid" || c.status === "waived") ? 0 : parseFloat(c.remaining_amount || 0);
+    });
+    return map;
+  }, [collections, effectivePaid]);
 
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const toggleMonth = (key: string) => {

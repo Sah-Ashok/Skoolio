@@ -20,66 +20,91 @@ export default function FeesPage() {
   const { formatDate, formatFeeName } = useDateFormat();
   const { fmt: formatCurrency } = useCurrency();
   const { academicYearId } = useAcademicYear();
-  const { data: collections, loading } = useApi<any[]>(
+  const { data: rawCollections, loading } = useApi<any>(
     academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
     [academicYearId]
   );
   const { data: paymentRequests } = useApi<any[]>("/online-payments/pending");
 
-  const totalCollected = useMemo(() => {
-    return collections
-      ?.reduce((sum, c) => sum + parseFloat(c.paid_amount || "0"), 0) || 0;
-  }, [collections]);
+  const collections: any[] = useMemo(() => {
+    if (!rawCollections) return [];
+    if (Array.isArray(rawCollections)) return rawCollections;
+    return rawCollections.data ?? [];
+  }, [rawCollections]);
 
-  const totalPending = useMemo(() => {
-    return collections
-      ?.filter(c => c.status !== "paid" && c.status !== "waived")
-      .reduce((sum, c) => sum + parseFloat(c.remaining_amount || "0"), 0) || 0;
-  }, [collections]);
-
-  const totalWaived = useMemo(() => {
-    return collections
-      ?.reduce((sum, c) => {
-        const disc = parseFloat(c.discount_amount || "0");
-        const isWaivedStatus = c.status === "waived";
-        const waivedRem = isWaivedStatus ? Math.max(0, parseFloat(c.net_amount || c.total_amount || "0") - parseFloat(c.paid_amount || "0")) : 0;
-        return sum + disc + waivedRem;
-      }, 0) || 0;
-  }, [collections]);
-
-  const pendingStudentsCount = useMemo(() => {
-    const set = new Set();
-    collections?.filter(c => c.status !== "paid" && c.status !== "waived").forEach(c => set.add(c.student_id));
-    return set.size;
-  }, [collections]);
-
-  // Current Month collections
   const currentMonthIdx = new Date().getMonth();
-  const thisMonthCollected = useMemo(() => {
-    return collections
-      ?.filter(c => {
-        const dStr = c.paid_at || c.updated_at || c.created_at;
-        if (!dStr) return false;
-        const d = new Date(dStr);
-        return d.getMonth() === currentMonthIdx;
-      })
-      .reduce((sum, c) => sum + parseFloat(c.paid_amount || "0"), 0) || 0;
-  }, [collections, currentMonthIdx]);
 
-  const totalNetPayable = Math.max(1, totalCollected + totalPending);
-  const collectionRate = Math.min(100, Math.round((totalCollected / totalNetPayable) * 100));
-
-  // Monthly 6-month data mapping
-  const monthlyData = useMemo(() => {
+  // Single-pass computation for all dashboard statistics (P2 optimization)
+  const {
+    totalCollected,
+    totalPending,
+    totalWaived,
+    pendingStudentsCount,
+    thisMonthCollected,
+    monthlyData,
+    pendingList,
+    feeStatusData,
+  } = useMemo(() => {
+    let collected = 0;
+    let pending = 0;
+    let waived = 0;
+    let thisMonth = 0;
+    let paidCount = 0;
+    let partialCount = 0;
+    let unpaidCount = 0;
+    let waivedCount = 0;
+    const pendingStudentsSet = new Set<number>();
+    const pendingRows: any[] = [];
     const monthlyMap: Record<number, { collected: number; pending: number }> = {};
-    (collections || []).forEach(c => {
-      const month = new Date(c.due_date).getMonth();
-      if (!monthlyMap[month]) monthlyMap[month] = { collected: 0, pending: 0 };
-      monthlyMap[month].collected += parseFloat(c.paid_amount || "0");
-      if (c.status !== "paid" && c.status !== "waived") monthlyMap[month].pending += parseFloat(c.remaining_amount || "0");
-    });
 
-    return Object.entries(monthlyMap)
+    for (let i = 0; i < collections.length; i++) {
+      const c = collections[i];
+      const paidAmt = parseFloat(c.paid_amount || "0");
+      const remAmt = parseFloat(c.remaining_amount || "0");
+      const netAmt = parseFloat(c.net_amount || c.total_amount || "0");
+      const discAmt = parseFloat(c.discount_amount || "0");
+      const isPaid = c.status === "paid";
+      const isWaived = c.status === "waived";
+
+      collected += paidAmt;
+
+      if (!isPaid && !isWaived) {
+        pending += remAmt;
+        if (c.student_id) pendingStudentsSet.add(c.student_id);
+        if (pendingRows.length < 5) pendingRows.push(c);
+      }
+
+      if (isWaived) {
+        waived += discAmt + Math.max(0, netAmt - paidAmt);
+        waivedCount++;
+      } else {
+        waived += discAmt;
+        if (isPaid) paidCount++;
+        else if (c.status === "partial") partialCount++;
+        else unpaidCount++;
+      }
+
+      // This month collected
+      const dStr = c.paid_at || c.updated_at || c.created_at;
+      if (dStr) {
+        const d = new Date(dStr);
+        if (d.getMonth() === currentMonthIdx) {
+          thisMonth += paidAmt;
+        }
+      }
+
+      // Monthly breakdown
+      if (c.due_date) {
+        const mIdx = new Date(c.due_date).getMonth();
+        if (!monthlyMap[mIdx]) monthlyMap[mIdx] = { collected: 0, pending: 0 };
+        monthlyMap[mIdx].collected += paidAmt;
+        if (!isPaid && !isWaived) {
+          monthlyMap[mIdx].pending += remAmt;
+        }
+      }
+    }
+
+    const monthlyFormatted = Object.entries(monthlyMap)
       .sort(([a], [b]) => Number(a) - Number(b))
       .slice(-6)
       .map(([month, v]) => {
@@ -92,26 +117,27 @@ export default function FeesPage() {
           pendingPct: Math.round((v.pending / maxVal) * 100),
         };
       });
-  }, [collections]);
 
-  const pendingList = useMemo(() => {
-    return collections?.filter(c => c.status !== "paid" && c.status !== "waived").slice(0, 5) || [];
-  }, [collections]);
+    return {
+      totalCollected: collected,
+      totalPending: pending,
+      totalWaived: waived,
+      pendingStudentsCount: pendingStudentsSet.size,
+      thisMonthCollected: thisMonth,
+      monthlyData: monthlyFormatted,
+      pendingList: pendingRows,
+      feeStatusData: [
+        { name: "Paid",    value: paidCount,    color: "#10B981" },
+        { name: "Partial", value: partialCount, color: "#F59E0B" },
+        { name: "Unpaid",  value: unpaidCount,  color: "#EF4444" },
+        { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
+      ],
+    };
+  }, [collections, formatCurrency]);
 
-  const feeStatusData = useMemo(() => {
-    const paidCount = collections?.filter(c => c.status === "paid").length || 0;
-    const partialCount = collections?.filter(c => c.status === "partial").length || 0;
-    const unpaidCount = collections?.filter(c => c.status === "unpaid").length || 0;
-    const waivedCount = collections?.filter(c => c.status === "waived").length || 0;
-    return [
-      { name: "Paid",    value: paidCount,    color: "#10B981" },
-      { name: "Partial", value: partialCount, color: "#F59E0B" },
-      { name: "Unpaid",  value: unpaidCount,  color: "#EF4444" },
-      { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
-    ];
-  }, [collections]);
-
-  const totalFeeRecords = collections?.length || 0;
+  const totalFeeRecords = collections.length;
+  const totalBilled = totalCollected + totalPending;
+  const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
   return (
     <div className={s("feesPage")}>

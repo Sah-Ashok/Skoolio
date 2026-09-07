@@ -7,6 +7,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import styles from "./settings.module.css";
 
 const s  = (c: string) => styles[c] || c;
@@ -83,7 +84,6 @@ export default function PaymentSettingsTab() {
   const [editing,  setEditing]    = useState<BankAccount | null>(null);
   const [form,     setForm]       = useState<Record<string, string>>(emptyForm());
   const [saving,   setSaving]     = useState(false);
-  const [deleting, setDeleting]   = useState<number | null>(null);
 
   useEffect(() => {
     if (editing) {
@@ -144,17 +144,17 @@ export default function PaymentSettingsTab() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this bank account? This cannot be undone.")) return;
-    setDeleting(id);
+  const [accountToDelete, setAccountToDelete] = useState<BankAccount | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!accountToDelete) return;
     try {
-      await apiRequest(`/online-payments/bank-accounts/${id}`, { method: "DELETE" });
+      await apiRequest(`/online-payments/bank-accounts/${accountToDelete.id}`, { method: "DELETE" });
       dispatch(showToast({ type: "success", title: "Deleted", message: "Bank account removed." }));
       refetch();
+      setAccountToDelete(null);
     } catch (e: any) {
       dispatch(showToast({ type: "error", title: "Error", message: e.message || "Could not delete — it may have requests linked to it. Deactivate instead." }));
-    } finally {
-      setDeleting(null);
     }
   };
 
@@ -279,16 +279,29 @@ export default function PaymentSettingsTab() {
                 </button>
                 <button
                   style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: "#fde7e7", color: "#b42318", cursor: "pointer", fontSize: 12 }}
-                  onClick={() => handleDelete(acc.id)}
-                  disabled={deleting === acc.id}
+                  onClick={() => setAccountToDelete(acc)}
+                  title="Delete account"
                 >
-                  {deleting === acc.id ? <Spinner size={12} /> : <i className="fa-solid fa-trash" />}
+                  <i className="fa-solid fa-trash" />
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Delete Bank Account Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!accountToDelete}
+        onClose={() => setAccountToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Bank Account"
+        message={`Delete "${accountToDelete?.bank_name} (${accountToDelete?.account_number})"? This cannot be undone.`}
+        confirmText="Delete Account"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
@@ -10,6 +10,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useDebounce } from "@/hooks/useDebounce";
 
 import { useCurrency } from "@/lib/useCurrency";
 
@@ -138,92 +139,143 @@ function PaymentsModal({
   );
 }
 
+function getPaginationItems(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const items: (number | "...")[] = [];
+  if (current <= 4) {
+    items.push(1, 2, 3, 4, 5, "...", total);
+  } else if (current >= total - 3) {
+    items.push(1, "...", total - 4, total - 3, total - 2, total - 1, total);
+  } else {
+    items.push(1, "...", current - 1, current, current + 1, "...", total);
+  }
+  return items;
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FeeRecordsPage() {
   const dispatch = useAppDispatch();
   const { formatDate, formatFeeName } = useDateFormat();
   const { fmt: formatCurrency, symbol: currSymbol } = useCurrency();
   const { academicYearId } = useAcademicYear();
-  const { data: collections, loading, error, refetch } = useApi<any[]>(
-    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}` : "",
-    [academicYearId]
-  );
-  const { data: classes } = useApi<any[]>(
-    academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
-    [academicYearId]
-  );
 
+  // ── filter state ──────────────────────────────────────────────────────────
   const [search,        setSearch]        = useState("");
   const [classFilter,   setClassFilter]   = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
   const [statusFilter,  setStatusFilter]  = useState("all");
   const [typeFilter,    setTypeFilter]    = useState("all");
-  const [modalCol,      setModalCol]      = useState<any | null>(null);
-  const [waiving,       setWaiving]       = useState<number | null>(null);
-  const [fineTarget,    setFineTarget]    = useState<any | null>(null);
-  const [fineAmount,    setFineAmount]    = useState("");
-  const [fineReason,    setFineReason]    = useState("");
-  const [addingFine,    setAddingFine]    = useState(false);
+  const [currentPage,   setCurrentPage]   = useState(1);
+  const [pageSize,      setPageSize]      = useState(10);
 
-  // Fetch sections for the selected class
+  // debounce search so we don't fire on every keystroke
+  const debouncedSearch = useDebounce(search, 350);
+
+  // ── modal / action state ──────────────────────────────────────────────────
+  const [modalCol,   setModalCol]   = useState<any | null>(null);
+  const [waiving,    setWaiving]    = useState<number | null>(null);
+  const [fineTarget, setFineTarget] = useState<any | null>(null);
+  const [fineAmount, setFineAmount] = useState("");
+  const [fineReason, setFineReason] = useState("");
+  const [addingFine, setAddingFine] = useState(false);
+
+  // ── build server-side URL — all filtering & pagination happen on the backend
+  const collectionsUrl = useMemo(() => {
+    if (!academicYearId) return "";
+    const p = new URLSearchParams();
+    p.set("academic_year_id", String(academicYearId));
+    p.set("page",  String(currentPage));
+    p.set("limit", String(pageSize));
+    if (debouncedSearch)              p.set("search",     debouncedSearch);
+    if (classFilter   !== "all")      p.set("class_id",   classFilter);
+    if (sectionFilter !== "all")      p.set("section_id", sectionFilter);
+    if (statusFilter  !== "all")      p.set("status",     statusFilter);
+    if (typeFilter    !== "all")      p.set("fee_type",   typeFilter);
+    return `/fees/collections?${p.toString()}`;
+  }, [academicYearId, currentPage, pageSize, debouncedSearch, classFilter, sectionFilter, statusFilter, typeFilter]);
+
+  const { data: apiResult, loading, error, refetch } = useApi<{ data: any[]; total: number }>(
+    collectionsUrl,
+    [collectionsUrl]
+  );
+
+  const collections   = apiResult?.data  ?? [];
+  const totalRecords  = apiResult?.total ?? 0;
+  const totalPages    = Math.max(1, Math.ceil(totalRecords / pageSize));
+
+  // ── classes & sections for the filter dropdowns ───────────────────────────
+  const { data: classes } = useApi<any[]>(
+    academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
+    [academicYearId]
+  );
   const { data: sections } = useApi<any[]>(
     classFilter !== "all" ? `/classes/${classFilter}/sections` : "",
     [classFilter]
   );
+  const availableSections: any[] = sections ?? [];
 
-  // Available sections (API or derived from collections fallback)
-  const availableSections = useMemo(() => {
-    if (sections && sections.length > 0) return sections;
-    if (classFilter === "all") return [];
-    const secMap = new Map<string, any>();
-    const selectedClassObj = classes?.find(c => String(c.id) === classFilter);
-    (collections || []).forEach(c => {
-      const matchCls = String(c.class_id) === classFilter ||
-        (selectedClassObj && c.class_name?.toLowerCase() === selectedClassObj.name?.toLowerCase()) ||
-        c.class_name?.toLowerCase() === classFilter.toLowerCase();
-      if (matchCls && c.section_name) {
-        secMap.set(c.section_name, { id: c.section_id || c.section_name, name: c.section_name });
-      }
-    });
-    return Array.from(secMap.values());
-  }, [sections, classFilter, collections, classes]);
+  // reset page when filters change
+  const resetPage = useCallback(() => setCurrentPage(1), []);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize]       = useState(10);
+  const [exporting, setExporting] = useState(false);
 
-  const handleExportCSV = () => {
-    if (!filtered.length) {
+  const handleExportCSV = async () => {
+    if (!totalRecords) {
       return dispatch(showToast({ type: "error", title: "No Records", message: "No records to export." }));
     }
-    const headers = ["Student Name", "Admission / Roll No", "Class", "Section", "Fee Title", "Due Date", `Total (${currSymbol})`, `Paid (${currSymbol})`, `Remaining Due (${currSymbol})`, "Status"];
-    const rows = filtered.map(col => {
-      let rawFee = col.fee_name || "Fee";
-      let cleanTitle = rawFee.replace(/\s*\([^)]*\)/g, "").trim() || rawFee;
-      return [
-        `"${(col.full_name || "").replace(/"/g, '""')}"`,
-        `"${(col.admission_number || col.student_roll || "").replace(/"/g, '""')}"`,
-        `"${(col.class_name || "").replace(/"/g, '""')}"`,
-        `"${(col.section_name || "").replace(/"/g, '""')}"`,
-        `"${cleanTitle.replace(/"/g, '""')}"`,
-        `"${col.due_date ? col.due_date.slice(0, 10) : ""}"`,
-        parseFloat(col.total_amount || 0).toFixed(2),
-        parseFloat(col.paid_amount || 0).toFixed(2),
-        parseFloat(col.remaining_amount || col.total_amount || 0).toFixed(2),
-        `"${col.status || ""}"`,
-      ].join(",");
-    });
+    setExporting(true);
+    try {
+      const p = new URLSearchParams();
+      p.set("academic_year_id", String(academicYearId));
+      p.set("page", "1");
+      p.set("limit", String(Math.min(totalRecords, 10000)));
+      if (debouncedSearch)              p.set("search",     debouncedSearch);
+      if (classFilter   !== "all")      p.set("class_id",   classFilter);
+      if (sectionFilter !== "all")      p.set("section_id", sectionFilter);
+      if (statusFilter  !== "all")      p.set("status",     statusFilter);
+      if (typeFilter    !== "all")      p.set("fee_type",   typeFilter);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    const dateStr = new Date().toISOString().slice(0, 10);
-    link.setAttribute("download", `Fee_Records_${dateStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    dispatch(showToast({ type: "success", title: "Exported", message: `Exported ${filtered.length} fee records to CSV.` }));
+      const res = await apiRequest<{ data: any[]; total: number }>(`/fees/collections?${p.toString()}`);
+      const exportList: any[] = res?.data ?? (Array.isArray(res) ? res : []);
+      if (!exportList.length) {
+        return dispatch(showToast({ type: "error", title: "No Records", message: "No records found to export." }));
+      }
+
+      const headers = ["Student Name", "Admission / Roll No", "Class", "Section", "Fee Title", "Due Date", `Total (${currSymbol})`, `Paid (${currSymbol})`, `Remaining Due (${currSymbol})`, "Status"];
+      const rows = exportList.map(col => {
+        let rawFee = col.fee_name || "Fee";
+        let cleanTitle = rawFee.replace(/\s*\([^)]*\)/g, "").trim() || rawFee;
+        return [
+          `"${(col.full_name || "").replace(/"/g, '""')}"`,
+          `"${(col.admission_number || col.student_roll || "").replace(/"/g, '""')}"`,
+          `"${(col.class_name || "").replace(/"/g, '""')}"`,
+          `"${(col.section_name || "").replace(/"/g, '""')}"`,
+          `"${cleanTitle.replace(/"/g, '""')}"`,
+          `"${col.due_date ? col.due_date.slice(0, 10) : ""}"`,
+          parseFloat(col.total_amount || 0).toFixed(2),
+          parseFloat(col.paid_amount || 0).toFixed(2),
+          parseFloat(col.remaining_amount || col.total_amount || 0).toFixed(2),
+          `"${col.status || ""}"`,
+        ].join(",");
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.setAttribute("download", `Fee_Records_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      dispatch(showToast({ type: "success", title: "Exported", message: `Exported ${exportList.length} fee records to CSV.` }));
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Export Failed", message: err?.message || "Could not export CSV." }));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleAddFine = async (e: React.FormEvent) => {
@@ -260,46 +312,14 @@ export default function FeeRecordsPage() {
     }
   };
 
-  const filtered = useMemo(() => {
-    const selectedClassObj = classes?.find(c => String(c.id) === classFilter);
-    return (collections || []).filter(col => {
-      const q = search.toLowerCase();
-      const matchSearch =
-        col.fee_name?.toLowerCase().includes(q) ||
-        col.full_name?.toLowerCase().includes(q) ||
-        col.admission_number?.toLowerCase().includes(q) ||
-        col.student_roll?.toLowerCase().includes(q);
-
-      const matchClass =
-        classFilter === "all" ||
-        String(col.class_id) === classFilter ||
-        (selectedClassObj && col.class_name?.toLowerCase() === selectedClassObj.name?.toLowerCase()) ||
-        col.class_name?.toLowerCase() === classFilter.toLowerCase();
-
-      const matchSection =
-        sectionFilter === "all" ||
-        String(col.section_id) === sectionFilter ||
-        col.section_name?.toLowerCase() === sectionFilter.toLowerCase();
-
-      const matchStatus  = statusFilter  === "all" || col.status === statusFilter;
-      const matchType    = typeFilter    === "all" || (col.fee_type || "academic") === typeFilter;
-      return matchSearch && matchClass && matchSection && matchStatus && matchType;
-    });
-  }, [collections, search, classFilter, sectionFilter, statusFilter, typeFilter, classes]);
-
-  // Paginated records
-  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginatedRecords = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize]);
-
-  const totalPaid    = (collections || []).reduce((s, c) => s + parseFloat(c.paid_amount || "0"), 0);
-  const totalPending = (collections || []).filter(c => c.status !== "paid" && c.status !== "waived")
-    .reduce((s, c) => s + parseFloat(c.remaining_amount || "0"), 0);
-  const transportBills = (collections || []).filter(c => {
+  // Stat card aggregates — computed from the current page's data.
+  // These reflect the filtered set returned by the server.
+  const totalPaid    = collections.reduce((s, c) => s + parseFloat(c.paid_amount    || "0"), 0);
+  const totalPending = collections.filter(c => c.status !== "paid" && c.status !== "waived")
+                         .reduce((s, c) => s + parseFloat(c.remaining_amount || "0"), 0);
+  const transportBills = collections.filter(c => {
     const t = (c.fee_type || "academic").toLowerCase();
-    return t === "transport" || t === "hostel" || t === "facility" || t.includes("hostel") || t.includes("transport");
+    return t === "transport" || t === "hostel" || t.includes("hostel") || t.includes("transport");
   }).length;
 
   return (
@@ -375,7 +395,7 @@ export default function FeeRecordsPage() {
                 type="search"
                 placeholder="Search by student, roll no, fee…"
                 value={search}
-                onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setSearch(e.target.value); resetPage(); }}
               />
             </div>
 
@@ -386,7 +406,7 @@ export default function FeeRecordsPage() {
                 onChange={e => {
                   setClassFilter(e.target.value);
                   setSectionFilter("all");
-                  setCurrentPage(1);
+                  resetPage();
                 }}
                 style={{
                   height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
@@ -402,7 +422,7 @@ export default function FeeRecordsPage() {
               {/* Section Filter */}
               <select
                 value={sectionFilter}
-                onChange={e => { setSectionFilter(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setSectionFilter(e.target.value); resetPage(); }}
                 disabled={classFilter === "all" || !availableSections.length}
                 style={{
                   height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
@@ -421,7 +441,7 @@ export default function FeeRecordsPage() {
               {/* Status Filter */}
               <select
                 value={statusFilter}
-                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setStatusFilter(e.target.value); resetPage(); }}
                 style={{
                   height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
                   background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
@@ -437,7 +457,7 @@ export default function FeeRecordsPage() {
               {/* Fee Type Filter */}
               <select
                 value={typeFilter}
-                onChange={e => { setTypeFilter(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setTypeFilter(e.target.value); resetPage(); }}
                 style={{
                   height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
                   background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
@@ -452,7 +472,7 @@ export default function FeeRecordsPage() {
           </div>
 
           <div style={{ fontSize: 12.5, fontWeight: 700, color: "#64748b" }}>
-            Showing <strong>{filtered.length}</strong> record{filtered.length !== 1 ? "s" : ""}
+            Showing <strong>{totalRecords}</strong> record{totalRecords !== 1 ? "s" : ""}
           </div>
         </section>
 
@@ -467,10 +487,19 @@ export default function FeeRecordsPage() {
               <button
                 type="button"
                 onClick={handleExportCSV}
+                disabled={exporting || loading}
                 className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
                 title="Download CSV report for class section teachers & accounting"
               >
-                <i className="fa-solid fa-file-csv" style={{ color: "#059669" }} /> Export CSV
+                {exporting ? (
+                  <>
+                    <Spinner size={12} color="#059669" /> Exporting…
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-file-csv" style={{ color: "#059669" }} /> Export CSV
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -483,7 +512,7 @@ export default function FeeRecordsPage() {
               </div>
             ) : error ? (
               <div style={{ padding: "2.5rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{error}</div>
-            ) : filtered.length === 0 ? (
+            ) : collections.length === 0 ? (
               <div className={s("emptyState")}>
                 <div className={s("emptyIcon")}><i className="fa-solid fa-inbox" /></div>
                 <p>No fee records match the selected search or filters.</p>
@@ -502,7 +531,7 @@ export default function FeeRecordsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRecords.map(col => {
+                  {collections.map(col => {
                     const totalAmt = parseFloat(col.total_amount || 0);
                     const remAmt   = parseFloat(col.remaining_amount || col.total_amount || 0);
                     const paidAmt  = parseFloat(col.paid_amount || 0);
@@ -708,7 +737,7 @@ export default function FeeRecordsPage() {
           </div>
 
           {/* ── Table Pagination Footer ── */}
-          {filtered.length > pageSize && (
+          {totalRecords > pageSize && (
             <div style={{
               padding: "14px 20px",
               borderTop: "1px solid #f1f5f9",
@@ -721,7 +750,7 @@ export default function FeeRecordsPage() {
             }}>
               <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 10 }}>
                 <span>
-                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong>–<strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> records
+                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong>–<strong>{Math.min(currentPage * pageSize, totalRecords)}</strong> of <strong>{totalRecords}</strong> records
                 </span>
                 <select
                   value={pageSize}
@@ -741,6 +770,16 @@ export default function FeeRecordsPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <button
                   disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
+                  style={{ padding: "0 8px" }}
+                  title="First Page"
+                >
+                  <i className="fa-solid fa-angles-left" />
+                </button>
+
+                <button
+                  disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                   className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
                   style={{ padding: "0 10px" }}
@@ -748,16 +787,22 @@ export default function FeeRecordsPage() {
                   <i className="fa-solid fa-chevron-left" /> Prev
                 </button>
 
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  const pNum = i + 1;
+                {getPaginationItems(currentPage, totalPages).map((item, idx) => {
+                  if (item === "...") {
+                    return (
+                      <span key={`ellipsis-${idx}`} style={{ minWidth: 28, textAlign: "center", color: "#94a3b8", fontWeight: 800 }}>
+                        …
+                      </span>
+                    );
+                  }
                   return (
                     <button
-                      key={pNum}
-                      onClick={() => setCurrentPage(pNum)}
-                      className={cx(s("btn"), currentPage === pNum ? s("btnPrimary") : s("btnOutline"), s("btnSm"))}
+                      key={item}
+                      onClick={() => setCurrentPage(item)}
+                      className={cx(s("btn"), currentPage === item ? s("btnPrimary") : s("btnOutline"), s("btnSm"))}
                       style={{ minWidth: 32, padding: 0 }}
                     >
-                      {pNum}
+                      {item}
                     </button>
                   );
                 })}
@@ -769,6 +814,16 @@ export default function FeeRecordsPage() {
                   style={{ padding: "0 10px" }}
                 >
                   Next <i className="fa-solid fa-chevron-right" />
+                </button>
+
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
+                  style={{ padding: "0 8px" }}
+                  title="Last Page"
+                >
+                  <i className="fa-solid fa-angles-right" />
                 </button>
               </div>
             </div>

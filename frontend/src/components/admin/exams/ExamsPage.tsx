@@ -9,6 +9,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 function getExamStatus(exam: any): "upcoming" | "active" | "completed" {
   const now   = new Date();
@@ -60,12 +61,15 @@ export default function ExamsPage() {
     return matchName && matchStatus;
   });
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const [examToDelete, setExamToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!examToDelete) return;
     try {
-      await deleteExam(undefined, `/exams/${id}`);
-      dispatch(showToast({ type: "success", title: "Deleted", message: `"${name}" removed.` }));
+      await deleteExam(undefined, `/exams/${examToDelete.id}`);
+      dispatch(showToast({ type: "success", title: "Deleted", message: `"${examToDelete.name}" removed.` }));
       refetch();
+      setExamToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message ?? "Failed to delete." }));
     }
@@ -230,7 +234,7 @@ export default function ExamsPage() {
                             </Link>
                             <button
                               className={s.deleteBtn}
-                              onClick={() => handleDelete(ex.id, ex.name)}
+                              onClick={() => setExamToDelete({ id: ex.id, name: ex.name })}
                               title="Delete"
                             >
                               <i className="fa-solid fa-trash" />
@@ -247,6 +251,19 @@ export default function ExamsPage() {
         </div>
 
       </div>
+
+      {/* Delete Exam Modal */}
+      <ConfirmModal
+        isOpen={!!examToDelete}
+        onClose={() => setExamToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Examination"
+        message={`Delete "${examToDelete?.name}"? All related schedule entries and results will be permanently removed.`}
+        confirmText="Delete Exam"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

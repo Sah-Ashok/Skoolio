@@ -16,8 +16,9 @@ const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join
 const PAGE_SIZE = 15;
 
 export default function StudentsPage() {
-  const { data: students, loading, error } = useApi<any[]>("/students");
   const { activeYear, academicYearId }     = useAcademicYear();
+  const studentsUrl = academicYearId ? `/students?academic_year_id=${academicYearId}` : "/students";
+  const { data: students, loading, error } = useApi<any[]>(studentsUrl, [studentsUrl]);
   const { data: classes }                  = useApi<any[]>(
     academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
     [academicYearId]
@@ -62,17 +63,15 @@ export default function StudentsPage() {
 
       const matchClass =
         classFilter === "all" ||
-        String(st.class_id) === String(classFilter) ||
-        (st.class_name && classes?.find(c => String(c.id) === String(classFilter))?.name === st.class_name);
+        String(st.class_id) === String(classFilter);
 
       const matchSection =
         sectionFilter === "all" ||
-        String(st.section_id) === String(sectionFilter) ||
-        (st.section_name && sections?.find(sec => String(sec.id) === String(sectionFilter))?.name === st.section_name);
+        String(st.section_id) === String(sectionFilter);
 
       return matchSearch && matchStatus && matchClass && matchSection;
     });
-  }, [students, debouncedSearch, statusFilter, classFilter, sectionFilter, classes, sections]);
+  }, [students, debouncedSearch, statusFilter, classFilter, sectionFilter]);
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);

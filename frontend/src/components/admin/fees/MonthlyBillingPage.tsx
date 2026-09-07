@@ -223,6 +223,8 @@ export default function MonthlyBillingPage() {
     return months;
   }, [fromMonth, toMonth]);
 
+  const monthRangeKey = useMemo(() => monthRange.join(","), [monthRange]);
+
   // ── VIEW MODE: "unbilled" (pre-generate) vs "billed" (post-generate) ──────
   const [viewMode, setViewMode] = useState<"unbilled" | "billed">("unbilled");
 
@@ -235,16 +237,16 @@ export default function MonthlyBillingPage() {
     if (!academicYearId || monthRange.length === 0) { setAllBills([]); return; }
     if (isFirst) setIsInitialLoad(true); else setIsRefreshing(true);
     try {
-      const results = await Promise.all(
-        monthRange.map(bm => apiRequest<any>(`/fees/collections?academic_year_id=${academicYearId}&billing_month=${bm}`))
+      const res = await apiRequest<any>(
+        `/fees/collections?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthRangeKey)}`
       );
-      const merged = results.flatMap(r => Array.isArray(r) ? r : (r?.data ?? []));
+      const rows: any[] = Array.isArray(res) ? res : (res?.data ?? []);
       const deduped = new Map<number, any>();
-      for (const b of merged) if (b.id) deduped.set(b.id, b);
+      for (const b of rows) if (b.id) deduped.set(b.id, b);
       setAllBills(Array.from(deduped.values()));
     } catch { setAllBills([]); }
     finally { setIsInitialLoad(false); setIsRefreshing(false); }
-  }, [academicYearId, monthRange.join(",")]);
+  }, [academicYearId, monthRangeKey]);
 
   useEffect(() => { refetchAll(true); setPage(1); }, [refetchAll]);
 
@@ -260,14 +262,13 @@ export default function MonthlyBillingPage() {
     unbilledAbortRef.current = new AbortController();
     setUnbilledLoading(true);
     try {
-      const monthsParam = monthRange.join(",");
       const res = await apiRequest<any>(
-        `/fees/monthly/unbilled?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthsParam)}&fee_type=${activeFeeType}`
+        `/fees/monthly/unbilled?academic_year_id=${academicYearId}&billing_months=${encodeURIComponent(monthRangeKey)}&fee_type=${activeFeeType}`
       );
       setUnbilledStudents(Array.isArray(res) ? res : (res?.data ?? []));
     } catch { setUnbilledStudents([]); }
     finally { setUnbilledLoading(false); }
-  }, [academicYearId, monthRange.join(","), activeFeeType]);
+  }, [academicYearId, monthRangeKey, activeFeeType]);
 
   useEffect(() => {
     if (viewMode === "unbilled") { refetchUnbilled(); setPage(1); }
@@ -285,21 +286,24 @@ export default function MonthlyBillingPage() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase().trim();
     const source = viewMode === "unbilled" ? unbilledStudents : billedSummaries;
+    const selCls = selectedClassId ? classesList.find(c => String(c.id) === String(selectedClassId)) : null;
+    const selSec = selectedSectionId ? sectionsList.find(s => String(s.id) === String(selectedSectionId)) : null;
+    const selClsName = selCls?.name?.toLowerCase();
+    const selSecName = selSec?.name?.toLowerCase();
+
     return source.filter((st: any) => {
       const matchesSearch = !q
         || (st.full_name        || "").toLowerCase().includes(q)
         || (st.admission_number || "").toLowerCase().includes(q)
         || (st.class_name       || "").toLowerCase().includes(q);
 
-      const selCls = classesList.find(c => String(c.id) === String(selectedClassId));
       const matchesClass = !selectedClassId
         || String(st.class_id) === String(selectedClassId)
-        || (selCls && (st.class_name || "").toLowerCase() === (selCls.name || "").toLowerCase());
+        || (selClsName && (st.class_name || "").toLowerCase() === selClsName);
 
-      const selSec = sectionsList.find(s => String(s.id) === String(selectedSectionId));
       const matchesSection = !selectedSectionId
         || String(st.section_id) === String(selectedSectionId)
-        || (selSec && (st.section_name || "").toLowerCase() === (selSec.name || "").toLowerCase());
+        || (selSecName && (st.section_name || "").toLowerCase() === selSecName);
 
       return matchesSearch && matchesClass && matchesSection;
     });
@@ -328,52 +332,72 @@ export default function MonthlyBillingPage() {
     }))
   , [monthRange, allBills]);
 
-  // Queue Polling Worker
-  const startPollingJob = useCallback((jobId: string, feeType: FeeTypeValue) => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+  // Queue Polling Worker — returns Promise<boolean> and respects max attempts (P3)
+  const startPollingJob = useCallback((jobId: string, feeType: FeeTypeValue): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      let attempts = 0;
+      const MAX_ATTEMPTS = 50; // 50 * 1200ms = 60s timeout
 
-    pollTimerRef.current = setInterval(async () => {
-      try {
-        const res = await apiRequest<{ data: any }>(`/fees/monthly/queue-status/${jobId}`);
-        const jobData = res.data ?? res;
-        if (!jobData) return;
-
-        setQueueProgress(jobData.progress || 0);
-        setQueueStatus(jobData.state || "active");
-
-        if (jobData.state === "completed") {
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          setGenerating(false);
-          setQueueProgress(100);
-          setTimeout(() => {
-            setShowProgressModal(false);
-          }, 1200);
-
-          const result = jobData.result || {};
-          const errors = Array.isArray(result.errors) ? result.errors : [];
-          dispatch(showToast({
-            type: errors.length ? "error" : "success",
-            title: errors.length ? `${TYPE_META[feeType].label} Billing Needs Attention` : `${TYPE_META[feeType].label} Bills Generated`,
-            message: errors.length
-              ? `${result.created ?? 0} bills created. ${errors[0]}`
-              : `${result.created ?? 0} bills created, ${result.skipped ?? 0} already existed`
-          }));
-          refetchAll(false);
-          refetchUnbilled();
-        } else if (jobData.state === "failed") {
+      pollTimerRef.current = setInterval(async () => {
+        attempts++;
+        if (attempts > MAX_ATTEMPTS) {
           if (pollTimerRef.current) clearInterval(pollTimerRef.current);
           setGenerating(false);
           setShowProgressModal(false);
           dispatch(showToast({
             type: "error",
-            title: "Generation Failed",
-            message: jobData.failedReason || "Background generation failed"
+            title: "Generation Timeout",
+            message: "Generation is taking longer than usual. Please refresh to view created bills.",
           }));
+          resolve(false);
+          return;
         }
-      } catch {
-        // Network blip — keep polling
-      }
-    }, 800);
+
+        try {
+          const res = await apiRequest<{ data: any }>(`/fees/monthly/queue-status/${jobId}`);
+          const jobData = res.data ?? res;
+          if (!jobData) return;
+
+          setQueueProgress(jobData.progress || 0);
+          setQueueStatus(jobData.state || "active");
+
+          if (jobData.state === "completed") {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            setGenerating(false);
+            setQueueProgress(100);
+            setTimeout(() => {
+              setShowProgressModal(false);
+            }, 1000);
+
+            const result = jobData.result || {};
+            const errors = Array.isArray(result.errors) ? result.errors : [];
+            dispatch(showToast({
+              type: errors.length ? "error" : "success",
+              title: errors.length ? `${TYPE_META[feeType].label} Billing Needs Attention` : `${TYPE_META[feeType].label} Bills Generated`,
+              message: errors.length
+                ? `${result.created ?? 0} bills created. ${errors[0]}`
+                : `${result.created ?? 0} bills created, ${result.skipped ?? 0} already existed`
+            }));
+            refetchAll(false);
+            refetchUnbilled();
+            resolve(true);
+          } else if (jobData.state === "failed") {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            setGenerating(false);
+            setShowProgressModal(false);
+            dispatch(showToast({
+              type: "error",
+              title: "Generation Failed",
+              message: jobData.failedReason || "Background generation failed"
+            }));
+            resolve(false);
+          }
+        } catch {
+          // Network blip — keep polling
+        }
+      }, 1200);
+    });
   }, [dispatch, refetchAll, refetchUnbilled]);
 
   useEffect(() => {
@@ -382,16 +406,16 @@ export default function MonthlyBillingPage() {
     };
   }, []);
 
-  // Generate handler via Redis Queue
-  const handleGenerate = async (feeType: FeeTypeValue) => {
-    if (!academicYearId) return;
+  // Generate handler via Redis Queue (returns Promise<boolean>)
+  const handleGenerate = async (feeType: FeeTypeValue): Promise<boolean> => {
+    if (!academicYearId) return false;
     setGenerating(true);
     const yearStart = activeYear?.start_date ? String(activeYear.start_date).slice(0, 7) : null;
     const yearEnd   = activeYear?.end_date   ? String(activeYear.end_date).slice(0, 7)   : null;
     const validMonths = monthRange.filter(bm => (!yearStart || bm >= yearStart) && (!yearEnd || bm <= yearEnd));
     if (!validMonths.length) {
       dispatch(showToast({ type: "error", title: "Outside Academic Year", message: `Selected months are outside the active academic year.` }));
-      setGenerating(false); return;
+      setGenerating(false); return false;
     }
 
     try {
@@ -420,18 +444,21 @@ export default function MonthlyBillingPage() {
         setQueueProgress(5);
         setQueueStatus("queued");
         setShowProgressModal(true);
-        startPollingJob(job.jobId, feeType);
+        return await startPollingJob(job.jobId, feeType);
       }
+      return false;
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Generation Failed", message: err.message || "Could not start bill generation" }));
       setGenerating(false);
+      return false;
     }
   };
 
-  // Fire generate for all selected fee types in sequence
+  // Fire generate for all selected fee types in sequence (B7 fix: awaits completion)
   const handleGenerateAll = async () => {
     if (!academicYearId || selectedFeeTypes.size === 0) return;
-    for (const ft of (["academic", "transport", "hostel"] as FeeTypeValue[]).filter(f => selectedFeeTypes.has(f))) {
+    const types = (["academic", "transport", "hostel"] as FeeTypeValue[]).filter(f => selectedFeeTypes.has(f));
+    for (const ft of types) {
       await handleGenerate(ft);
     }
   };
@@ -1187,6 +1214,43 @@ export default function MonthlyBillingPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Floating Background Progress Indicator (when modal is closed) ── */}
+      {generating && !showProgressModal && (
+        <button
+          type="button"
+          onClick={() => setShowProgressModal(true)}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 1100,
+            background: "#0f172a",
+            color: "#fff",
+            borderRadius: 999,
+            padding: "10px 18px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.3)",
+            border: "1px solid #334155",
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+          title="Click to view generation progress"
+        >
+          <span style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: "#3b82f6",
+            boxShadow: "0 0 8px #3b82f6",
+          }} />
+          <span>Generating {TYPE_META[jobFeeType]?.label || "Fee"} Bills… ({queueProgress}%)</span>
+          <i className="fa-solid fa-up-right-and-down-left-from-center" style={{ fontSize: 11, opacity: 0.7 }} />
+        </button>
       )}
 
     </div>

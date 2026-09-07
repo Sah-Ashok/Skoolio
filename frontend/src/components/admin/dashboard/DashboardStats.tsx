@@ -2,27 +2,22 @@
 
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
 import { useCurrency } from "@/lib/useCurrency";
+import type { DashboardData } from "@/types/dashboard.types";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (className: string) => styles[className];
 
-interface Props { data: any }
+interface Props { data: DashboardData }
 
 export default function DashboardStats({ data }: Props) {
-  const { symbol: currSymbol } = useCurrency();
+  const { symbol: currSymbol, fmt, fmtShort: currencyShort } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
 
-  const fmtShort = (n: number) => {
-    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
-    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
-    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
-  };
-
-  const fmtFull = (n: number) =>
-    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
+  const fmtShort = (n: number) => currencyShort(n, sym);
+  const fmtFull  = (n: number) => fmt(n, sym);
 
   const collectionRate = data.collectionRate ?? 0;
-  const netBalanceSign = data.netBalance >= 0 ? "+" : "";
+  const netBalanceSign = (data.netBalance ?? 0) >= 0 ? "+" : "";
 
   const heroCards = [
     {

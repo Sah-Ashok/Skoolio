@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -47,18 +48,18 @@ export default function SuperAdminFeedbackPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this feedback?")) return;
-    setActionLoading(id);
+  const [feedbackToDelete, setFeedbackToDelete] = useState<any | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!feedbackToDelete) return;
     try {
-      await apiRequest(`/feedback/super/${id}`, { method: "DELETE" });
+      await apiRequest(`/feedback/super/${feedbackToDelete.id}`, { method: "DELETE" });
       dispatch(showToast({ type: "success", title: "Deleted", message: "Feedback removed." }));
       refetch();
       refetchStats();
+      setFeedbackToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to delete feedback." }));
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -278,8 +279,7 @@ export default function SuperAdminFeedbackPage() {
                   )}
 
                   <button
-                    onClick={() => handleDelete(item.id)}
-                    disabled={actionLoading === item.id}
+                    onClick={() => setFeedbackToDelete(item)}
                     style={{ padding: "4px 8px", borderRadius: 6, background: "#fff", border: "1px solid #fee2e2", color: "#dc2626", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
                     title="Delete"
                   >
@@ -293,6 +293,19 @@ export default function SuperAdminFeedbackPage() {
         )}
 
       </main>
+
+      {/* Delete Feedback Modal */}
+      <ConfirmModal
+        isOpen={!!feedbackToDelete}
+        onClose={() => setFeedbackToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Feedback"
+        message={`Delete feedback from "${feedbackToDelete?.user_name || feedbackToDelete?.school_name || "User"}"? This cannot be undone.`}
+        confirmText="Delete Feedback"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

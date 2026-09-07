@@ -10,6 +10,7 @@ import { fetchActiveAcademicYear } from "@/store/academicYearSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -211,16 +212,22 @@ export default function AcademicYearsPage() {
   };
 
   // ── Delete ──
-  const handleDelete = async (year: AcademicYear) => {
+  const [yearToDelete, setYearToDelete] = useState<AcademicYear | null>(null);
+
+  const handleDelete = (year: AcademicYear) => {
     if (year.status === "active") return;
-    const ok = window.confirm(`Delete "${year.year_name}"? This cannot be undone.`);
-    if (!ok) return;
-    setBusyId(year.id);
-    const res = await deleteYear(undefined, `/academic-years/${year.id}`);
+    setYearToDelete(year);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!yearToDelete) return;
+    setBusyId(yearToDelete.id);
+    const res = await deleteYear(undefined, `/academic-years/${yearToDelete.id}`);
     setBusyId(null);
     if (res !== null) {
-      dispatch(showToast({ type: "success", title: "Deleted", message: `"${year.year_name}" was removed.` }));
+      dispatch(showToast({ type: "success", title: "Deleted", message: `"${yearToDelete.year_name}" was removed.` }));
       refetch();
+      setYearToDelete(null);
     } else {
       dispatch(showToast({ type: "error", title: "Could not delete", message: "Please try again." }));
     }
@@ -434,6 +441,19 @@ export default function AcademicYearsPage() {
           </div>
         </section>
       </main>
+
+      {/* ── Delete Year Confirmation Modal ── */}
+      <ConfirmModal
+        isOpen={!!yearToDelete}
+        onClose={() => setYearToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Academic Year"
+        message={`Delete "${yearToDelete?.year_name}"? This cannot be undone.`}
+        confirmText="Delete Year"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

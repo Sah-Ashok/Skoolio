@@ -18,8 +18,16 @@ export function useCurrency() {
   const calendarSystem = user?.calendar_system || settings?.calendar_system;
   const symbol = resolveSymbol(country, calendarSystem);
   
-  const fmt = (n: number | string) =>
-    `${symbol}${Number(n || 0).toLocaleString('en-IN')}`;
-    
-  return { symbol, fmt };
+  const fmt = (n: number | string, customSymbol?: string) =>
+    `${customSymbol || symbol}${Number(n || 0).toLocaleString('en-IN')}`;
+
+  const fmtShort = (n: number | string, customSymbol?: string) => {
+    const sym = customSymbol || symbol;
+    const num = Number(n || 0);
+    if (num >= 100_000) return `${sym}${(num / 100_000).toFixed(1)}L`;
+    if (num >= 1_000)   return `${sym}${(num / 1_000).toFixed(1)}K`;
+    return `${sym}${num.toLocaleString('en-IN')}`;
+  };
+
+  return { symbol, fmt, fmtShort };
 }

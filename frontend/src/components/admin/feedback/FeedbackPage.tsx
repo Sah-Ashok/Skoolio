@@ -7,6 +7,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import styles from "./feedback.module.css";
 
 const s  = (n: string) => styles[n] || n;
@@ -136,14 +137,21 @@ export default function FeedbackPage() {
     }
   };
 
-  const handleDelete = async (fb: Feedback, e: React.MouseEvent) => {
+  const [feedbackToDelete, setFeedbackToDelete] = useState<Feedback | null>(null);
+
+  const handleDelete = (fb: Feedback, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${fb.title}"?`)) return;
+    setFeedbackToDelete(fb);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!feedbackToDelete) return;
     try {
-      await deleteFb(undefined, `/feedback/${fb.id}`);
+      await deleteFb(undefined, `/feedback/${feedbackToDelete.id}`);
       dispatch(showToast({ type: "success", title: "Deleted", message: "Feedback deleted." }));
-      if (selected?.id === fb.id) setSelected(null);
+      if (selected?.id === feedbackToDelete.id) setSelected(null);
       refetch();
+      setFeedbackToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message }));
     }
@@ -438,6 +446,19 @@ export default function FeedbackPage() {
           </div>
         </div>
       )}
+
+      {/* ── Delete Feedback Confirmation Modal ── */}
+      <ConfirmModal
+        isOpen={!!feedbackToDelete}
+        onClose={() => setFeedbackToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Feedback"
+        message={`Are you sure you want to delete "${feedbackToDelete?.title}"? This cannot be undone.`}
+        confirmText="Delete Feedback"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

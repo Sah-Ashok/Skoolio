@@ -11,6 +11,7 @@ import { Spinner } from '@/components/shared/Loader';
 import styles from './settings.module.css';
 import PayrollPolicyTab from '@/components/admin/settings/PayrollPolicyTab';
 import FeeBillingPolicyTab from '@/components/admin/settings/FeeBillingPolicyTab';
+import ConfirmModal from '@/components/shared/ConfirmModal';
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(' ');
@@ -171,8 +172,11 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // Bank accounts
-  const { data: bankAccounts, loading: bankLoading, refetch: refetchBanks } = useApi<any[]>('/school/bank-accounts');
+  // Bank accounts — fetched on-demand only when Payment Setup tab is selected
+  const { data: bankAccounts, loading: bankLoading, refetch: refetchBanks } = useApi<any[]>(
+    tab === 'payment' ? '/school/bank-accounts' : null,
+    [tab]
+  );
   const [showBankForm, setShowBankForm] = useState(false);
   const [editingBank, setEditingBank]   = useState<any | null>(null);
   const [bankForm, setBankForm]         = useState(emptyBankForm);
@@ -240,14 +244,23 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleDeleteBank = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this bank account?')) return;
+  const [bankToDeleteId, setBankToDeleteId] = useState<number | null>(null);
+  const [showConfirm2FA,  setShowConfirm2FA]  = useState(false);
+
+  const handleDeleteBank = (id: number) => {
+    setBankToDeleteId(id);
+  };
+
+  const confirmDeleteBank = async () => {
+    if (!bankToDeleteId) return;
     try {
-      await apiRequest(`/school/bank-accounts/${id}`, { method: 'DELETE' });
+      await apiRequest(`/school/bank-accounts/${bankToDeleteId}`, { method: 'DELETE' });
       dispatch(showToast({ type: 'success', title: 'Deleted', message: 'Bank account deleted.' }));
       refetchBanks();
     } catch (err: any) {
       dispatch(showToast({ type: 'error', title: 'Error', message: err.message }));
+    } finally {
+      setBankToDeleteId(null);
     }
   };
 
@@ -286,11 +299,12 @@ export default function AdminSettingsPage() {
 
   const [toggling2FA, setToggling2FA] = useState(false);
 
-  const handleToggleTwoFA = async () => {
-    const willEnable = !school?.two_fa_enabled;
-    const actionText = willEnable ? 'enable' : 'disable';
-    if (!confirm(`Are you sure you want to ${actionText} Two-Factor Authentication for your school administrator account?`)) return;
+  const handleToggleTwoFA = () => {
+    setShowConfirm2FA(true);
+  };
 
+  const confirmToggleTwoFA = async () => {
+    const willEnable = !school?.two_fa_enabled;
     setToggling2FA(true);
     try {
       await apiRequest('/school/toggle-2fa', {
@@ -309,6 +323,7 @@ export default function AdminSettingsPage() {
       dispatch(showToast({ type: 'error', title: 'Error', message: err.message || 'Failed to update 2FA status.' }));
     } finally {
       setToggling2FA(false);
+      setShowConfirm2FA(false);
     }
   };
 
@@ -953,6 +968,33 @@ export default function AdminSettingsPage() {
             <FeeBillingPolicyTab />
           </div>
         )}
+
+        {/* ── Confirmation Modals ── */}
+        <ConfirmModal
+          isOpen={bankToDeleteId !== null}
+          onClose={() => setBankToDeleteId(null)}
+          onConfirm={confirmDeleteBank}
+          title="Delete Bank Account?"
+          message="Are you sure you want to permanently delete this bank account? This action cannot be undone."
+          confirmText="Delete Account"
+          confirmVariant="danger"
+          icon="fa-trash-can"
+        />
+
+        <ConfirmModal
+          isOpen={showConfirm2FA}
+          onClose={() => setShowConfirm2FA(false)}
+          onConfirm={confirmToggleTwoFA}
+          title={school?.two_fa_enabled ? "Disable 2FA?" : "Enable Two-Factor Authentication?"}
+          message={
+            school?.two_fa_enabled
+              ? "Are you sure you want to disable Two-Factor Authentication for your school administrator account? Login OTP will no longer be requested."
+              : "Are you sure you want to enable Two-Factor Authentication? A verification OTP code will be required on future administrator logins."
+          }
+          confirmText={school?.two_fa_enabled ? "Disable 2FA" : "Enable 2FA"}
+          confirmVariant={school?.two_fa_enabled ? "warning" : "primary"}
+          icon={school?.two_fa_enabled ? "fa-shield-halved" : "fa-shield-check"}
+        />
       </main>
     </div>
   );

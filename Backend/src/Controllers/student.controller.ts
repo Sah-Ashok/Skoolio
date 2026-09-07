@@ -26,7 +26,11 @@ export const createStudent = catchAsync(async (req: Request, res: Response, next
 
 export const getStudents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
-  const students = await getStudentsService(school_id);
+  const { academic_year_id } = req.query;
+  const students = await getStudentsService(
+    school_id,
+    academic_year_id ? Number(academic_year_id) : undefined
+  );
   sendResponse(res, 200, true, 'Students fetched successfully', students);
 });
 

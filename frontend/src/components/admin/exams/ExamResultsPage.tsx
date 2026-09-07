@@ -12,6 +12,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -166,23 +167,30 @@ export default function ExamResultsPage() {
     }
   };
 
-  const handleTogglePublish = async () => {
+  const [showPublishModal, setShowPublishModal] = useState(false);
+
+  const handleTogglePublish = () => {
+    if (!selectedSchedule) return;
+    setShowPublishModal(true);
+  };
+
+  const handleConfirmPublishToggle = async () => {
     if (!selectedSchedule) return;
     if (isPublished) {
-      if (!confirm(`Unpublish results for ${selectedSchedule.class_name} — ${selectedSchedule.subject_name}?\n\nThis will allow editing marks and unlocking the schedule.`)) return;
       try {
         await unpublishResults({ exam_id: parseInt(examId), class_id: selectedSchedule.class_id });
         dispatch(showToast({ type: "success", title: "Unpublished", message: "Results reverted to draft mode." }));
         refetchResults();
+        setShowPublishModal(false);
       } catch (err: any) {
         dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not unpublish results." }));
       }
     } else {
-      if (!confirm(`Publish results for ${selectedSchedule.class_name} — ${selectedSchedule.subject_name}?\n\nPublished results are visible to students and lock the schedule.`)) return;
       try {
         await publishResults({ exam_id: parseInt(examId), class_id: selectedSchedule.class_id });
         dispatch(showToast({ type: "success", title: "Published!", message: "Results are now visible to students." }));
         refetchResults();
+        setShowPublishModal(false);
       } catch (err: any) {
         dispatch(showToast({ type: "error", title: "Failed", message: err.message ?? "Could not publish results." }));
       }
@@ -457,6 +465,23 @@ export default function ExamResultsPage() {
           </>
         )}
       </main>
+
+      {/* Publish / Unpublish Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        onConfirm={handleConfirmPublishToggle}
+        title={isPublished ? "Unpublish Results?" : "Publish Results?"}
+        message={
+          isPublished
+            ? `Unpublish results for ${selectedSchedule?.class_name ?? ""} — ${selectedSchedule?.subject_name ?? ""}? This will allow editing marks and unlocks the schedule.`
+            : `Publish results for ${selectedSchedule?.class_name ?? ""} — ${selectedSchedule?.subject_name ?? ""}? Published results will be visible to students and lock the schedule.`
+        }
+        confirmText={isPublished ? "Unpublish Results" : "Publish Results"}
+        cancelText="Cancel"
+        confirmVariant={isPublished ? "warning" : "primary"}
+        icon={isPublished ? "fa-arrow-rotate-left" : "fa-share-from-square"}
+      />
     </div>
   );
 }

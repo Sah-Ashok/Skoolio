@@ -12,6 +12,7 @@ import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
 import { useCurrency } from "@/lib/useCurrency";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -112,15 +113,21 @@ export default function FeeStructuresPage() {
 
   const classGroups = Object.values(groupedByClass);
 
-  const handleDelete = async (id: number) => {
-    if (confirm("Are you sure you want to delete this fee structure?")) {
-      try {
-        await deleteStructure(undefined, `/fees/structures/${id}`);
-        dispatch(showToast({ type: "success", title: "Deleted", message: "Fee structure deleted" }));
-        loadAllStructures();
-      } catch (err: any) {
-        dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to delete" }));
-      }
+  const [structureToDelete, setStructureToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  const handleDelete = (id: number, name: string) => {
+    setStructureToDelete({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!structureToDelete) return;
+    try {
+      await deleteStructure(undefined, `/fees/structures/${structureToDelete.id}`);
+      dispatch(showToast({ type: "success", title: "Deleted", message: "Fee structure deleted" }));
+      loadAllStructures();
+      setStructureToDelete(null);
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to delete" }));
     }
   };
 
@@ -321,7 +328,7 @@ export default function FeeStructuresPage() {
                               className={cx(s("btn"), s("btnDanger"), s("btnSm"))}
                               type="button"
                               title="Delete Structure"
-                              onClick={() => handleDelete(row.id)}
+                              onClick={() => handleDelete(row.id, row.feeName)}
                             >
                               <i className="fa-solid fa-trash" />
                             </button>
@@ -467,6 +474,19 @@ export default function FeeStructuresPage() {
           </div>
         </div>
       )}
+
+      {/* ── Delete Fee Structure Confirmation Modal ── */}
+      <ConfirmModal
+        isOpen={!!structureToDelete}
+        onClose={() => setStructureToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Fee Structure"
+        message={`Are you sure you want to delete "${structureToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Structure"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

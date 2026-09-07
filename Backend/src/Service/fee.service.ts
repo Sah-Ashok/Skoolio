@@ -1,6 +1,6 @@
 import pool from '../config/db';
 import {
-  createFeeStructure, getFeeStructuresByClass, getFeeStructureById,
+  createFeeStructure, getFeeStructuresByClass, getFeeStructuresByYear, getFeeStructureById,
   updateFeeStructure, deleteFeeStructure,
   createFeeCollection, getFeeCollectionsByStudent, getFeeCollectionsBySchool,
   getFeeCollectionById, updateFeeCollection,
@@ -97,11 +97,14 @@ export const createFeeStructureService = async (
 };
 
 export const getFeeStructuresService = async (
-  class_id:         number,
+  class_id:         number | null | undefined,
   school_id:        number,
   academic_year_id: number
 ) => {
-  return await getFeeStructuresByClass(class_id, school_id, academic_year_id);
+  if (class_id) {
+    return await getFeeStructuresByClass(class_id, school_id, academic_year_id);
+  }
+  return await getFeeStructuresByYear(school_id, academic_year_id);
 };
 
 export const updateFeeStructureService = async (
@@ -273,8 +276,27 @@ export const createMiscFeeCollectionService = async (
   );
 };
 
-export const getFeeCollectionsService = async (school_id: number, academic_year_id: number, billing_month?: string, pending_only?: boolean) => {
-  return await getFeeCollectionsBySchool(school_id, academic_year_id, billing_month, pending_only);
+export const getFeeCollectionsService = async (
+  school_id:        number,
+  academic_year_id: number,
+  billing_month?:   string,
+  pending_only?:    boolean,
+  search?:     string,
+  class_id?:   number,
+  section_id?: number,
+  status?:     string,
+  fee_type?:   string,
+  page?:       number,
+  limit?:      number,
+  billing_months?: string[],
+) => {
+  return await getFeeCollectionsBySchool(
+    school_id, academic_year_id,
+    billing_month, pending_only,
+    search, class_id, section_id, status, fee_type,
+    page, limit,
+    billing_months,
+  );
 };
 
 export const getStudentFeeCollectionsService = async (
@@ -423,10 +445,14 @@ export const getPaymentsByCollectionService = async (collection_id: number, scho
   return await getPaymentsByCollection(collection_id, school_id);
 };
 
-export const getStudentPaymentsService = async (student_id: number, school_id: number) => {
+export const getStudentPaymentsService = async (
+  student_id: number,
+  school_id: number,
+  academic_year_id?: number
+) => {
   const student = await getStudentById(student_id, school_id);
   if (!student) throw new AppError('Student not found.', 404);
-  return await getPaymentsByStudent(student_id, school_id);
+  return await getPaymentsByStudent(student_id, school_id, academic_year_id);
 };
 
 // ── GENERATE MONTHLY ACADEMIC BILLS — fully batched, O(classes) not O(students) ──

@@ -8,6 +8,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(" ");
@@ -148,14 +149,21 @@ export default function NoticeBoardPage() {
     }
   };
 
-  const handleDelete = async (notice: Notice, e: React.MouseEvent) => {
+  const [noticeToDelete, setNoticeToDelete] = useState<Notice | null>(null);
+
+  const handleDelete = (notice: Notice, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${notice.title}"? This cannot be undone.`)) return;
+    setNoticeToDelete(notice);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!noticeToDelete) return;
     try {
-      await deleteNotice(undefined, `/notices/${notice.id}`);
+      await deleteNotice(undefined, `/notices/${noticeToDelete.id}`);
       dispatch(showToast({ type: "success", title: "Deleted", message: "Notice deleted." }));
       refetch();
-      if (selected?.id === notice.id) setSelected(null);
+      if (selected?.id === noticeToDelete.id) setSelected(null);
+      setNoticeToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message }));
     }
@@ -596,6 +604,19 @@ export default function NoticeBoardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      <ConfirmModal
+        isOpen={!!noticeToDelete}
+        onClose={() => setNoticeToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Notice"
+        message={`Delete "${noticeToDelete?.title}"? This cannot be undone.`}
+        confirmText="Delete Notice"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -166,13 +167,16 @@ export default function SuperAdminTrafficPage() {
     }
   };
 
-  const handleUnban = async (ip: string) => {
-    if (!confirm(`Are you sure you want to unban IP ${ip}?`)) return;
+  const [ipToUnban, setIpToUnban] = useState<string | null>(null);
+
+  const handleConfirmUnban = async () => {
+    if (!ipToUnban) return;
     try {
-      await apiRequest(`/security/unban-ip/${encodeURIComponent(ip)}`, { method: "DELETE" });
-      dispatch(showToast({ type: "success", title: "IP Unbanned", message: `${ip} removed from blacklist.` }));
+      await apiRequest(`/security/unban-ip/${encodeURIComponent(ipToUnban)}`, { method: "DELETE" });
+      dispatch(showToast({ type: "success", title: "IP Unbanned", message: `${ipToUnban} removed from blacklist.` }));
       refetchIps();
       refetchStats();
+      setIpToUnban(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to unban IP." }));
     }
@@ -775,7 +779,7 @@ export default function SuperAdminTrafficPage() {
                         </td>
                         <td style={{ padding: "10px 16px", textAlign: "right" }}>
                           <button
-                            onClick={() => handleUnban(b.ip)}
+                            onClick={() => setIpToUnban(b.ip)}
                             style={{ padding: "5px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e2e8f0", color: "#16a34a", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
                           >
                             <i className="fa-solid fa-lock-open" /> Unban
@@ -933,6 +937,18 @@ export default function SuperAdminTrafficPage() {
         </div>
       )}
 
+      {/* Unban IP Modal */}
+      <ConfirmModal
+        isOpen={!!ipToUnban}
+        onClose={() => setIpToUnban(null)}
+        onConfirm={handleConfirmUnban}
+        title="Unban IP Address"
+        message={`Are you sure you want to unban IP address ${ipToUnban}? Traffic from this IP will once again be allowed.`}
+        confirmText="Unban IP"
+        cancelText="Cancel"
+        confirmVariant="primary"
+        icon="fa-lock-open"
+      />
     </div>
   );
 }

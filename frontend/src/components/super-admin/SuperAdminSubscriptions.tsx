@@ -10,6 +10,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { apiRequest } from "@/lib/api";
 import OfferModal, { computeSavingText } from "./OfferModal";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -557,19 +558,17 @@ function OffersTab({ offers, loading, plans, onEdit, onRefresh, dispatch }: {
   offers: any[]; loading: boolean; plans: any[];
   onEdit: (o: any) => void; onRefresh: () => void; dispatch: any;
 }) {
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [offerToDelete, setOfferToDelete] = useState<any | null>(null);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this offer? This cannot be undone.")) return;
-    setDeleting(id);
+  const handleConfirmDelete = async () => {
+    if (!offerToDelete) return;
     try {
-      await apiRequest(`/subscriptions/offers/${id}`, { method: "DELETE" });
+      await apiRequest(`/subscriptions/offers/${offerToDelete.id}`, { method: "DELETE" });
       dispatch(showToast({ type: "success", title: "Deleted", message: "Offer removed." }));
       onRefresh();
+      setOfferToDelete(null);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message ?? "Failed to delete" }));
-    } finally {
-      setDeleting(null);
     }
   };
 
@@ -678,9 +677,9 @@ function OffersTab({ offers, loading, plans, onEdit, onRefresh, dispatch }: {
               style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: 12, color: "#374151" }}>
               <i className="fa-solid fa-pen" />
             </button>
-            <button onClick={() => handleDelete(offer.id)} disabled={deleting === offer.id} title="Delete"
+            <button onClick={() => setOfferToDelete(offer)} title="Delete"
               style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #fee2e2", background: "#fff1f2", cursor: "pointer", fontSize: 12, color: "#be123c" }}>
-              {deleting === offer.id ? <Spinner size={12} /> : <i className="fa-solid fa-trash" />}
+              <i className="fa-solid fa-trash" />
             </button>
           </div>
         </td>
@@ -718,6 +717,19 @@ function OffersTab({ offers, loading, plans, onEdit, onRefresh, dispatch }: {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {activeOffers.length   > 0 && <OfferTable list={activeOffers}   label="Active Offers"            accent="green" />}
       {inactiveOffers.length > 0 && <OfferTable list={inactiveOffers} label="Inactive / Expired Offers" accent="grey"  />}
+
+      {/* Delete Offer Modal */}
+      <ConfirmModal
+        isOpen={!!offerToDelete}
+        onClose={() => setOfferToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Offer"
+        message={`Delete offer "${offerToDelete?.title}"? This cannot be undone.`}
+        confirmText="Delete Offer"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon="fa-trash-can"
+      />
     </div>
   );
 }

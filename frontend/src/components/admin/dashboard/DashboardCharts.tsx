@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
 import { useCurrency } from "@/lib/useCurrency";
+import type { DashboardData } from "@/types/dashboard.types";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (n: string) => styles[n];
@@ -13,23 +14,17 @@ const s  = (n: string) => styles[n];
 const PIE_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#ec4899"];
 const NOTICE_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"];
 
-interface Props { data: any }
+interface Props { data: DashboardData }
 
 export default function DashboardCharts({ data }: Props) {
-  const { symbol: currSymbol } = useCurrency();
+  const { symbol: currSymbol, fmt, fmtShort: currencyShort } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
 
-  const fmtShort = (n: number) => {
-    if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(1)}L`;
-    if (n >= 1_000)   return `${sym}${(n / 1_000).toFixed(1)}K`;
-    return `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
-  };
+  const fmtShort = (n: number) => currencyShort(n, sym);
+  const fmtFull  = (n: number) => fmt(n, sym);
 
-  const fmtFull = (n: number) =>
-    `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
-
-  const feeMonthly:        any[] = data.feeMonthly        ?? [];
-  const admissionsMonthly: any[] = data.admissionsMonthly ?? [];
+  const feeMonthly        = data.feeMonthly        ?? [];
+  const admissionsMonthly = data.admissionsMonthly ?? [];
   const expenseBreakdown:  any[] = (data.expenseBreakdown ?? []).map(
     (e: any, i: number) => ({ ...e, color: PIE_COLORS[i % PIE_COLORS.length] })
   );

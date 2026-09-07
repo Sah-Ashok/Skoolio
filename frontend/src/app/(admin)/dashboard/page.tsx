@@ -8,13 +8,14 @@ import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { Spinner } from "@/components/shared/Loader";
+import type { DashboardData } from "@/types/dashboard.types";
 
 const s = (className: string) => styles[className];
 
 export default function AdminDashboardPage() {
   const { user } = useAppSelector((st) => st.auth);
   const { isBS, formatDate } = useDateFormat();
-  const { data, loading } = useApi<any>("/dashboard");
+  const { data, loading } = useApi<DashboardData>("/dashboard");
 
   const now = new Date();
   const dateStr = isBS

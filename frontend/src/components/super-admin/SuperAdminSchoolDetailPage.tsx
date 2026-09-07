@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -94,9 +95,11 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     }
   };
 
-  const handleBlockUnblock = async () => {
+  const [showBlockModal, setShowBlockModal] = useState(false);
+
+  const handleConfirmBlockUnblock = async () => {
+    if (!school) return;
     const action = school.is_account === "blocked" ? "unblock" : "block";
-    if (!confirm(`Are you sure you want to ${action} ${school.school_name}?`)) return;
     setActionLoading(true);
     try {
       await apiRequest(`/school/${schoolId}/${action}`, { method: "PATCH" });
@@ -106,6 +109,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
         message: `${school.school_name} has been ${action === "block" ? "blocked" : "unblocked"}.`,
       }));
       refetch();
+      setShowBlockModal(false);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || `Could not ${action} school.` }));
     } finally {
@@ -366,7 +370,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
             </button>
 
             <button
-              onClick={handleBlockUnblock}
+              onClick={() => setShowBlockModal(true)}
               disabled={actionLoading}
               style={{
                 display: "inline-flex",
@@ -1032,6 +1036,22 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
         </div>
       )}
 
+      {/* Block / Unblock School Modal */}
+      <ConfirmModal
+        isOpen={showBlockModal}
+        onClose={() => setShowBlockModal(false)}
+        onConfirm={handleConfirmBlockUnblock}
+        title={school?.is_account === "blocked" ? "Unblock School?" : "Block School?"}
+        message={
+          school?.is_account === "blocked"
+            ? `Are you sure you want to unblock ${school?.school_name}? Teachers, students and admins will regain access.`
+            : `Are you sure you want to block ${school?.school_name}? All users for this school will be prevented from accessing the platform.`
+        }
+        confirmText={school?.is_account === "blocked" ? "Unblock School" : "Block School"}
+        cancelText="Cancel"
+        confirmVariant={school?.is_account === "blocked" ? "primary" : "danger"}
+        icon={school?.is_account === "blocked" ? "fa-lock-open" : "fa-ban"}
+      />
     </div>
   );
 }
