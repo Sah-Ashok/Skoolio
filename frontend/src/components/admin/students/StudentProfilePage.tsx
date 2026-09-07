@@ -114,6 +114,10 @@ export default function StudentProfilePage() {
   const [yearPresent, setYearPresent] = useState(0);
   const [yearMarked,  setYearMarked]  = useState(0);
 
+  // Photo error fallback to initials
+  const [photoError,  setPhotoError]  = useState(false);
+  useEffect(() => { setPhotoError(false); }, [id]);
+
   /* ── Fetch fees ── */
   const fetchFees = useCallback(() => {
     if (!id || !activeYear?.id) return;
@@ -227,8 +231,8 @@ export default function StudentProfilePage() {
         {/* HERO BANNER */}
         <section className={s("sp-hero")}>
           <div className={s("sp-hero-left")}>
-            {student.photo
-              ? <img src={student.photo} alt="" className={s("sp-avatar-img")} />
+            {student.photo && student.photo !== "null" && !photoError
+              ? <img src={student.photo} alt="" className={s("sp-avatar-img")} onError={() => setPhotoError(true)} />
               : <div className={s("sp-avatar")}>{initials}</div>
             }
             <div className={s("sp-hero-info")}>

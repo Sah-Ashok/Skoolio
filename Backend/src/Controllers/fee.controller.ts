@@ -24,6 +24,7 @@ import {
 } from '../Service/fee.service';
 import { getFeeStructureById } from '../Repositories/fee.repository';
 import { addBillingJob, getBillingJobStatus } from '../queues/feeBilling.queue';
+import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 
 const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
   'school_id' in user ? user.school_id : user.id;
@@ -122,12 +123,14 @@ export const waiveFeeCollection = catchAsync(async (req: Request, res: Response,
   const { id: school_id } = req.user as IJwtAdminPayload;
   const { reason } = req.body;
   const result = await waiveFeeCollectionService(Number(req.params.id), school_id, reason || 'Waived by admin');
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Fee collection waived successfully', result);
 });
 
 export const updateFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await updateFeeCollectionService(Number(req.params.id), school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Fee collection updated successfully', result);
 });
 
@@ -136,6 +139,7 @@ export const updateFeeCollection = catchAsync(async (req: Request, res: Response
 export const createFeePayment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: school_id } = req.user as IJwtAdminPayload;
   const result = await createFeePaymentService(school_id, school_id, req.body);
+  invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Payment recorded successfully', result);
 });
 

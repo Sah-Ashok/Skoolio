@@ -2,6 +2,7 @@ import { Router } from 'express';
 import protect from '../middlewares/auth.middleware';
 import restrictTo from '../middlewares/role.middleware';
 import {
+  getPublicPlans,
   getActivePlans, getAllPlans, getPlanById, createPlan, updatePlan,
   getMyPlanStatus, getMyPlanHistory,
   getSchoolPlanStatus, activateSubscription,
@@ -10,6 +11,9 @@ import {
 } from '../Controllers/subscription.controller';
 
 const router = Router();
+
+// ── PUBLIC: For landing page pricing (unauthenticated) ────────────────────────
+router.get('/public/plans', getPublicPlans);
 
 router.use(protect);
 

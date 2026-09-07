@@ -6,18 +6,22 @@ import DashboardTables from "@/components/admin/dashboard/DashboardTables";
 import styles from "./dashboard.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { Spinner } from "@/components/shared/Loader";
 
 const s = (className: string) => styles[className];
 
 export default function AdminDashboardPage() {
   const { user } = useAppSelector((st) => st.auth);
+  const { isBS, formatDate } = useDateFormat();
   const { data, loading } = useApi<any>("/dashboard");
 
   const now = new Date();
-  const dateStr = now.toLocaleDateString("en-IN", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
+  const dateStr = isBS
+    ? `${now.toLocaleDateString("en-US", { weekday: "long" })}, ${formatDate(now.toISOString().slice(0, 10))}`
+    : now.toLocaleDateString("en-IN", {
+        weekday: "long", day: "numeric", month: "long", year: "numeric",
+      });
   const adminName = user?.school_name || "School Admin";
 
   return (

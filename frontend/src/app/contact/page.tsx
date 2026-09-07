@@ -4,7 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiRequest } from '@/lib/api';
+import { useAppSelector } from '@/store/hooks';
+import AppFooter from '@/components/shared/AppFooter';
 import styles from './contact.module.css';
+import s from '../landing.module.css';
 
 type Form = {
   name:        string;
@@ -49,21 +52,24 @@ const CONTACT_INFO = [
     color: '#12805c',
     bg:    '#f0fdf4',
   },
-  {
-    icon: 'fa-globe',
-    label: 'Serving Schools in',
-    value: 'Nepal & India',
-    href:  null,
-    color: '#3b5bdb',
-    bg:    '#eef2ff',
-  },
 ];
 
 export default function ContactPage() {
+  const { user, isAuthenticated, bootstrapped } = useAppSelector((st) => st.auth);
   const [form, setForm]       = useState<Form>({ name: '', email: '', school_name: '', phone: '', subject: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error,   setError]   = useState('');
+
+  const roleSlug = (user?.role || "school_admin").toLowerCase().replace(/[\s-]+/g, "_");
+  const dashboardHref =
+    roleSlug === "teacher"
+      ? "/teacher"
+      : roleSlug === "student"
+      ? "/student"
+      : roleSlug === "parent"
+      ? "/parent"
+      : "/overview";
 
   const set = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
@@ -90,25 +96,65 @@ export default function ContactPage() {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${s.page}`}>
 
-      {/* ── Nav ── */}
-      <nav className={styles.nav}>
-        <Link href="/" className={styles.logo}>
-          <Image src="/Logo.png" alt="Skoolio" width={105} height={36} style={{ objectFit: "contain" }} />
-          <span>Skoolio</span>
+      {/* ═══════════════════════════════ NAVBAR ═══════════════════════════════ */}
+      <nav className={s.nav} role="navigation" aria-label="Main Navigation">
+        {/* Logo */}
+        <Link href="/" className={s.navLogo} aria-label="Skoolio — Home">
+          <Image
+            src="/Logo.png"
+            alt="Skoolio Logo"
+            width={132}
+            height={42}
+            priority
+            style={{ objectFit: "contain" }}
+          />
         </Link>
-        <div className={styles.navLinks}>
-          <Link href="/">Home</Link>
-          <Link href="/login" className={styles.navBtn}>Sign In</Link>
+
+        {/* Center Links */}
+        <div className={s.navLinks}>
+          <Link href="/#features" className={s.navLink}>Features</Link>
+          <Link href="/#solutions" className={s.navLink}>
+            Solutions <i className={`fa-solid fa-chevron-down ${s.navLinkChevron}`} />
+          </Link>
+          <Link href="/#pricing" className={s.navLink}>Pricing</Link>
+          <Link href="/#testimonials" className={s.navLink}>Reviews</Link>
+          <Link href="/#faq" className={s.navLink}>FAQs</Link>
+          <Link href="/contact" className={s.navLink} style={{ color: "var(--royal-blue, #003882)" }}>Contact</Link>
+        </div>
+
+        {/* Right Actions */}
+        <div className={s.navActions}>
+          {bootstrapped && isAuthenticated && user ? (
+            <>
+              <Link href={dashboardHref} className={s.navUserChip}>
+                <span className={s.navUserAvatar}>
+                  {(user.school_name || user.full_name || "U").charAt(0).toUpperCase()}
+                </span>
+                <span className={s.navUserName}>
+                  {user.school_name || user.full_name || user.email}
+                </span>
+              </Link>
+              <Link href={dashboardHref} className={s.navCtaBtn}>
+                <i className="fa-solid fa-gauge-high" /> Go to Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className={s.navLoginBtn}>
+                Login
+              </Link>
+              <Link href="/register" className={s.navCtaBtn}>
+                Get Started Free <i className="fa-solid fa-arrow-right" />
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
       {/* ── Hero ── */}
       <div className={styles.hero}>
-        <div className={styles.heroBadge}>
-          <i className="fa-solid fa-headset" /> Get in touch
-        </div>
         <h1 className={styles.heroTitle}>
           We'd love to <span className={styles.heroAccent}>hear from you</span>
         </h1>
@@ -184,7 +230,12 @@ export default function ContactPage() {
             ) : (
               <>
                 <div className={styles.formHead}>
-                  <h2>Send us a message</h2>
+                  <div className={styles.formTitleRow}>
+                    <h2>Send us a message</h2>
+                    <div className={styles.formBadge}>
+                      <i className="fa-solid fa-headset" /> Get in touch
+                    </div>
+                  </div>
                   <p>Fill in the form and we'll respond within 24 hours.</p>
                 </div>
 
@@ -280,9 +331,38 @@ export default function ContactPage() {
       </div>
 
       {/* ── Footer ── */}
-      <footer className={styles.footer}>
-        <p>© 2026 Skoolio · <Link href="/">Home</Link> · <Link href="/login">Sign In</Link> · <Link href="/register">Register School</Link></p>
-      </footer>
+      <AppFooter role="admin" />
+
+      {/* ═══════════════════════════════ MOBILE VIEW FOOTER NAVIGATION ═══════════════════════════════ */}
+      <nav className={s.mobileBottomNav} aria-label="Mobile Navigation">
+        <Link href="/" className={s.mobileBottomNavItem}>
+          <i className="fa-solid fa-house" />
+          <span>Home</span>
+        </Link>
+        <Link href="/#features" className={s.mobileBottomNavItem}>
+          <i className="fa-solid fa-wand-magic-sparkles" />
+          <span>Features</span>
+        </Link>
+        <Link href="/#pricing" className={s.mobileBottomNavItem}>
+          <i className="fa-solid fa-tags" />
+          <span>Pricing</span>
+        </Link>
+        <Link href="/contact" className={`${s.mobileBottomNavItem} ${s.mobileBottomNavItemActive}`}>
+          <i className="fa-solid fa-headset" />
+          <span>Contact</span>
+        </Link>
+        {bootstrapped && isAuthenticated && user ? (
+          <Link href={dashboardHref} className={`${s.mobileBottomNavItem} ${s.mobileBottomNavCta}`}>
+            <i className="fa-solid fa-gauge-high" />
+            <span>Dashboard</span>
+          </Link>
+        ) : (
+          <Link href="/register" className={`${s.mobileBottomNavItem} ${s.mobileBottomNavCta}`}>
+            <i className="fa-solid fa-rocket" />
+            <span>Sign Up</span>
+          </Link>
+        )}
+      </nav>
     </div>
   );
 }

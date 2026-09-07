@@ -24,7 +24,12 @@ export interface ICurrencyConfig {
 const COUNTRY_CURRENCY_MAP: Record<string, ICurrencyConfig> = {
   nepal: {
     currency: 'NPR',
-    symbol:   'NPR ',
+    symbol:   'रु ',
+    priceKey: 'npr',
+  },
+  np: {
+    currency: 'NPR',
+    symbol:   'रु ',
     priceKey: 'npr',
   },
   india: {
@@ -32,16 +37,37 @@ const COUNTRY_CURRENCY_MAP: Record<string, ICurrencyConfig> = {
     symbol:   '₹',
     priceKey: 'inr',
   },
-  // ── Add new currencies here ──────────────────────────────────────────────
-  // 'united states': { currency: 'USD', symbol: '$',  priceKey: 'usd' },
-  // 'australia':     { currency: 'USD', symbol: 'A$', priceKey: 'usd' },
-  // 'united kingdom':{ currency: 'USD', symbol: '£',  priceKey: 'usd' }, // or add GBP
+  in: {
+    currency: 'INR',
+    symbol:   '₹',
+    priceKey: 'inr',
+  },
+  global: {
+    currency: 'USD',
+    symbol:   '$',
+    priceKey: 'usd',
+  },
+  'united states': {
+    currency: 'USD',
+    symbol:   '$',
+    priceKey: 'usd',
+  },
+  us: {
+    currency: 'USD',
+    symbol:   '$',
+    priceKey: 'usd',
+  },
+  usa: {
+    currency: 'USD',
+    symbol:   '$',
+    priceKey: 'usd',
+  },
 };
 
 /** Default when a country is not in the map */
 const DEFAULT_CONFIG: ICurrencyConfig = {
   currency: 'NPR',
-  symbol:   'NPR ',
+  symbol:   'रु ',
   priceKey: 'npr',
 };
 
@@ -51,7 +77,8 @@ const DEFAULT_CONFIG: ICurrencyConfig = {
  */
 export function resolveCurrencyConfig(country: string | null | undefined): ICurrencyConfig {
   if (!country) return DEFAULT_CONFIG;
-  return COUNTRY_CURRENCY_MAP[country.toLowerCase().trim()] ?? DEFAULT_CONFIG;
+  const key = country.toLowerCase().trim();
+  return COUNTRY_CURRENCY_MAP[key] ?? DEFAULT_CONFIG;
 }
 
 /**

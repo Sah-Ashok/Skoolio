@@ -2,6 +2,7 @@
 
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
 import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 const s  = (n: string) => styles[n];
@@ -15,8 +16,13 @@ const fmtDate = (d: string) =>
 interface Props { data: any }
 
 export default function DashboardTables({ data }: Props) {
+  const { isBS, formatMonth, formatDateShort } = useDateFormat();
   const { symbol: currSymbol } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
+
+  const currentMonthDisplay = isBS
+    ? formatMonth(new Date().getFullYear(), new Date().getMonth() + 1)
+    : new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
   const fmtCurrency = (n: number) =>
     `${sym}${Number(n || 0).toLocaleString("en-IN")}`;
@@ -113,7 +119,7 @@ export default function DashboardTables({ data }: Props) {
           <div className={s("fee-panel-head")}>
             <h3><i className="fa-solid fa-circle-dollar-to-slot" /> Fee Overview</h3>
             <span className={cx(s("badge"), s("b-indigo"))}>
-              {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+              {currentMonthDisplay}
             </span>
           </div>
           <div className={s("fee-body")}>
@@ -189,7 +195,7 @@ export default function DashboardTables({ data }: Props) {
                       </span>
                     </td>
                     <td className={s("strong-cell")}>{fmtCurrency(Number(ex.amount))}</td>
-                    <td className={s("muted-cell")}>{fmtDate(ex.expense_date)}</td>
+                    <td className={s("muted-cell")}>{formatDateShort(ex.expense_date)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -202,7 +208,7 @@ export default function DashboardTables({ data }: Props) {
           <div className={s("fee-panel-head")}>
             <h3><i className="fa-solid fa-money-bill-wave" /> Salary Status</h3>
             <span className={cx(s("badge"), s("b-teal"))}>
-              {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+              {currentMonthDisplay}
             </span>
           </div>
           <div className={s("fee-body")}>

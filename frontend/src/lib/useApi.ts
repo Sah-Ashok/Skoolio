@@ -10,20 +10,62 @@ interface UseApiResult<T> {
   refetch: () => void;
 }
 
+// ── In-Memory SWR Cache ──────────────────────────────────────────────────────
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+const apiCache = new Map<string, CacheEntry>();
+const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string | null | undefined): any | null {
+  if (!key) return null;
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > DEFAULT_CACHE_TTL_MS) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
 /**
- * Generic data-fetching hook.
+ * Purge cache entries. If endpointPrefix is provided, deletes matching keys;
+ * otherwise purges the entire cache.
+ */
+export function clearApiCache(endpointPrefix?: string) {
+  if (!endpointPrefix) {
+    apiCache.clear();
+  } else {
+    for (const key of apiCache.keys()) {
+      if (key.startsWith(endpointPrefix)) {
+        apiCache.delete(key);
+      }
+    }
+  }
+}
+
+/**
+ * Generic data-fetching hook with Stale-While-Revalidate (SWR) caching.
+ * On repeated visits, cached data renders INSTANTLY (0ms, no spinner)
+ * while a background fetch refreshes the latest data smoothly.
+ *
  * Usage: const { data, loading, error, refetch } = useApi<MyType[]>('/endpoint');
  */
 export function useApi<T = any>(
   endpoint: string | null | undefined,
   deps: any[] = []
 ): UseApiResult<T> {
-  const [data, setData]       = useState<T | null>(null);
-  const [loading, setLoading] = useState(!!endpoint); // don't show loading if no endpoint yet
+  const initialCached = getCached(endpoint);
+  const [data, setData]       = useState<T | null>(initialCached !== null ? initialCached : null);
+  const [loading, setLoading] = useState(!!endpoint && initialCached === null);
   const [error, setError]     = useState<string | null>(null);
   const [tick, setTick]       = useState(0);
 
-  const refetch = useCallback(() => setTick((t) => t + 1), []);
+  const refetch = useCallback(() => {
+    if (endpoint) apiCache.delete(endpoint);
+    setTick((t) => t + 1);
+  }, [endpoint]);
 
   useEffect(() => {
     if (!endpoint) {
@@ -34,18 +76,27 @@ export function useApi<T = any>(
     }
 
     let cancelled = false;
-    setLoading(true);
+    const hasCached = getCached(endpoint) !== null;
+    if (!hasCached) {
+      setLoading(true);
+    }
     setError(null);
 
     apiRequest<any>(endpoint)
       .then((res) => {
         if (!cancelled) {
           // Backend wraps in { data: ... } — unwrap if present
-          setData(res?.data !== undefined ? res.data : res);
+          const unwrapped = res?.data !== undefined ? res.data : res;
+          apiCache.set(endpoint, { data: unwrapped, timestamp: Date.now() });
+          setData(unwrapped);
         }
       })
       .catch((err: Error) => {
-        if (!cancelled) setError(err.message || 'Failed to load data');
+        if (!cancelled) {
+          if (!hasCached) {
+            setError(err.message || 'Failed to load data');
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -75,6 +126,8 @@ export function useMutation<TBody = any, TResult = any>(
           method,
           body: body ? JSON.stringify(body) : undefined,
         });
+        // Clear related caches on successful mutation so UI sees fresh data immediately
+        clearApiCache();
         return res?.data !== undefined ? res.data : res;
       } catch (err: any) {
         const message = err.message || 'Request failed';

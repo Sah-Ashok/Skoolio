@@ -88,9 +88,9 @@ export default function DashboardCharts({ data }: Props) {
                     data={feeMonthly}
                     barGap={6}
                     barCategoryGap="28%"
-                    margin={{ top: 8, right: 12, left: -10, bottom: 0 }}
+                    margin={{ top: 8, right: 24, left: -10, bottom: 0 }}
                   >
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} interval={0} />
                     <YAxis
                       axisLine={false} tickLine={false}
                       tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }}
@@ -212,14 +212,14 @@ export default function DashboardCharts({ data }: Props) {
             <div className={s("chart-canvas")}>
               {admissionsMonthly.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={admissionsMonthly} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
+                  <AreaChart data={admissionsMonthly} margin={{ top: 10, right: 24, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="admFill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.20} />
                         <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} interval={0} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} allowDecimals={false} />
                     <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
                     <Tooltip

@@ -13,6 +13,13 @@ import {
 
 // ── PLAN CONTROLLERS ──────────────────────────────────────────────────────────
 
+// Public: For landing page pricing (unauthenticated)
+export const getPublicPlans = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const country = (req.query.country as string) || undefined;
+  const plans = await getActivePlansService(country);
+  sendResponse(res, 200, true, 'Public plans fetched successfully', plans);
+});
+
 export const getActivePlans = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { country } = req.user as IJwtAdminPayload;
   const plans = await getActivePlansService(country);

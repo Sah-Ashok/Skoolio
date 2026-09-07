@@ -65,7 +65,9 @@ export default function DashboardStats({ data }: Props) {
       icon: "fa-clock-rotate-left",
       label: "Pending Fees",
       value: fmtShort(data.totalPending ?? 0),
-      helper: `${data.pendingStudents ?? 0} students pending`,
+      helper: data.pendingBills && data.pendingBills !== data.pendingStudents
+        ? `${data.pendingStudents ?? 0} students pending (${data.pendingBills} bills)`
+        : `${data.pendingStudents ?? 0} students pending`,
       trend: "trend-down",
     },
     {
