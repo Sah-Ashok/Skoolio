@@ -32,7 +32,8 @@ export default function RequireRole({ allow, children }: RequireRoleProps) {
       // Logged in, but wrong role for this section — send them to their own area
       const fallback =
         user.role === 'admin' || user.role === 'super_admin' ? '/dashboard' :
-        user.role === 'faculty' ? '/teacher/dashboard' :
+        user.role === 'faculty'  ? '/teacher/dashboard' :
+        user.role === 'finance'  ? '/finance/dashboard' :
         '/student/dashboard';
       router.replace(fallback);
     }

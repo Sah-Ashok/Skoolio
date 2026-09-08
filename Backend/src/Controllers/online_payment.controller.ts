@@ -19,28 +19,31 @@ import {
   rejectPaymentRequestService,
 } from '../Service/online_payment.service';
 
+const resolveSchoolId = (user: any): number =>
+  (user && 'school_id' in user && user.school_id) ? Number(user.school_id) : Number(user?.id || 0);
+
 // ── ADMIN: bank accounts ──────────────────────────────────────────────────────
 
 export const getBankAccounts = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getBankAccountsService(school_id);
   sendResponse(res, 200, true, 'Bank accounts fetched', result);
 });
 
 export const createBankAccount = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createBankAccountService(school_id, req.body);
   sendResponse(res, 201, true, 'Bank account created', result);
 });
 
 export const updateBankAccount = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await updateBankAccountService(Number(req.params.id), school_id, req.body);
   sendResponse(res, 200, true, 'Bank account updated', result);
 });
 
 export const deleteBankAccount = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   await deleteBankAccountService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Bank account deleted', null);
 });
@@ -48,43 +51,44 @@ export const deleteBankAccount = catchAsync(async (req: Request, res: Response) 
 // ── ADMIN: payment request management ────────────────────────────────────────
 
 export const getPaymentRequests = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const status = req.query.status as string | undefined;
   const result = await getPaymentRequestsService(school_id, status);
   sendResponse(res, 200, true, 'Payment requests fetched', result);
 });
 
 export const getPendingCount = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const count = await getPendingCountService(school_id);
   sendResponse(res, 200, true, 'Pending count fetched', { count });
 });
 
 export const getPaymentRequestDetail = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getPaymentRequestDetailService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Payment request fetched', result);
 });
 
 export const verifyPaymentRequest = catchAsync(async (req: Request, res: Response) => {
-  const adminPayload = req.user as IJwtAdminPayload;
-  const school_id = adminPayload.id;
-  // admin_id comes from the JWT — use school_id as admin identifier (same record)
+  const school_id = resolveSchoolId(req.user);
+  const admin_id = req.user?.id || school_id;
+  // admin_id comes from the JWT — use school_id or user.id as identifier
   const { notes } = req.body;
   const result = await verifyPaymentRequestService(
-    Number(req.params.id), school_id, school_id, notes
+    Number(req.params.id), school_id, admin_id, notes
   );
   sendResponse(res, 200, true, 'Payment verified and fee record updated', result);
 });
 
 export const rejectPaymentRequest = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
+  const admin_id = req.user?.id || school_id;
   const { rejection_reason } = req.body;
   if (!rejection_reason?.trim()) {
     return sendResponse(res, 400, false, 'rejection_reason is required', null);
   }
   const result = await rejectPaymentRequestService(
-    Number(req.params.id), school_id, school_id, rejection_reason
+    Number(req.params.id), school_id, admin_id, rejection_reason
   );
   sendResponse(res, 200, true, 'Payment request rejected', result);
 });

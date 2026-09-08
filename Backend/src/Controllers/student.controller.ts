@@ -15,6 +15,9 @@ import { getSectionsByCoordinator } from '../Repositories/teacher.repository';
 import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 import AppError from '../utils/AppError';
 
+const resolveSchoolId = (user: any): number =>
+  (user && 'school_id' in user && user.school_id) ? Number(user.school_id) : Number(user?.id || 0);
+
 // ── STUDENT CONTROLLERS (ADMIN) ──
 
 export const createStudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -25,7 +28,7 @@ export const createStudent = catchAsync(async (req: Request, res: Response, next
 });
 
 export const getStudents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, page, limit, search, class_id, section_id, status } = req.query;
   const students = await getStudentsService(
     school_id,
@@ -41,7 +44,7 @@ export const getStudents = catchAsync(async (req: Request, res: Response, next: 
 });
 
 export const searchStudents = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const q = String(req.query.q || '').trim();
   if (!q || q.length < 2) return sendResponse(res, 400, false, 'Query must be at least 2 characters', null);
   const results = await searchStudentsService(school_id, q);
@@ -137,7 +140,7 @@ export const getEnrollments = catchAsync(async (req: Request, res: Response, nex
 });
 
 export const getStudentEnrollments = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const enrollments = await getStudentEnrollmentsService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Student enrollments fetched successfully', enrollments);
 });

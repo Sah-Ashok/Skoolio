@@ -127,6 +127,24 @@ export const getSuperAdminSchoolDetails = catchAsync(async (req: Request, res: R
     getSchoolActiveUsersCount(schoolId).catch(() => 0),
   ]);
 
+  const rawPlanName = planStatus?.plan?.name || (planStatus as any)?.subscription?.plan_name || 'Free';
+  const enrichedPlan = planStatus ? {
+    ...planStatus,
+    plan_name: rawPlanName,
+    status: planStatus.subscription?.status || 'active',
+    billing_cycle: planStatus.subscription?.billing_cycle || 'monthly',
+    end_date: planStatus.subscription?.end_date || null,
+    price_paid: planStatus.subscription?.amount_paid || 0,
+    amount_paid: planStatus.subscription?.amount_paid || 0,
+    days_remaining: planStatus.days_until_lock,
+  } : null;
+
+  const normalizedHistory = (subHistory || []).map((h: any) => ({
+    ...h,
+    price_paid: h.price_paid ?? h.amount_paid ?? 0,
+    payment_ref: h.payment_ref ?? h.payment_reference ?? 'Manual',
+  }));
+
   sendResponse(res, 200, true, 'School details fetched successfully', {
     school,
     metrics: {
@@ -138,8 +156,8 @@ export const getSuperAdminSchoolDetails = catchAsync(async (req: Request, res: R
       totalAcademicYears: yearsCount,
       liveActiveUsers: activeUsersCount,
     },
-    plan: planStatus,
-    history: subHistory,
+    plan: enrichedPlan,
+    history: normalizedHistory,
     storage: storageUsage,
   });
 });

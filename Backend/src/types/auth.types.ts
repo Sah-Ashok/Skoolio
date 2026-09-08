@@ -1,6 +1,6 @@
 // Role Types
 export type SchoolRole = 'super_admin' | 'admin';
-export type UserRole = 'faculty' | 'student';
+export type UserRole = 'faculty' | 'student' | 'finance';
 export type AllRoles = SchoolRole | UserRole;
 
 // School Type

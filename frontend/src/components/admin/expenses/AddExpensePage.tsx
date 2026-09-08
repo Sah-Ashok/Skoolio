@@ -5,7 +5,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./expenses.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
@@ -16,6 +16,8 @@ const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boo
 export default function AddExpensePage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const backUrl = user?.role === 'finance' ? '/finance/expenses' : '/expenses';
   const { data: activeYear } = useApi<any>('/academic-years/active');
   const { data: categoriesData, refetch: refetchCategories } = useApi<any[]>('/expenses/categories');
   const { execute: createExpense, loading: saving } = useMutation('/expenses', 'POST');
@@ -69,7 +71,7 @@ export default function AddExpensePage() {
       });
       
       dispatch(showToast({ type: 'success', title: 'Success', message: 'Expense recorded successfully' }));
-      router.push('/expenses');
+      router.push(backUrl);
     } catch (err: any) {
       dispatch(showToast({ type: 'error', title: 'Error', message: err.message || 'Failed to record expense' }));
     }
@@ -92,7 +94,7 @@ export default function AddExpensePage() {
             </div>
           </div>
           <div className={s("actions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/expenses">
+            <Link className={cx(s("btn"), s("btnOutline"))} href={backUrl}>
               <i className="fa-solid fa-arrow-left" /> Back to Expenses
             </Link>
           </div>
@@ -245,7 +247,7 @@ export default function AddExpensePage() {
                   <><i className="fa-solid fa-floppy-disk" /> Save Expense Voucher</>
                 )}
               </button>
-              <Link className={cx(s("btn"), s("btnOutline"))} href="/expenses">
+              <Link className={cx(s("btn"), s("btnOutline"))} href={backUrl}>
                 Cancel
               </Link>
             </div>

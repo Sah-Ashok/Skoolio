@@ -37,6 +37,25 @@ body, input, button, select, textarea, table, th, td {
   text-rendering: optimizeLegibility;
 }
 
+/* ── Disable WebKit/Blink & Edge native clear ('cancel') button on input[type="search"] ── */
+/* Prevents duplicate double cancel button (x ×) across all search inputs */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+  margin: 0 !important;
+}
+
+input[type="search"]::-ms-clear,
+input[type="search"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 body {
   background-color: var(--bg-main);
   color: var(--text-main);

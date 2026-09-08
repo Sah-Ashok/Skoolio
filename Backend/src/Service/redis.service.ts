@@ -255,6 +255,9 @@ export async function setSchoolBlockedState(schoolId: number, blocked: boolean):
  * Check if an IP address is banned
  */
 export async function isIpBanned(ip: string): Promise<boolean> {
+  if (['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) {
+    return false;
+  }
   try {
     const banned = await redis.sismember('banned_ips', ip);
     return banned === 1;
@@ -267,6 +270,9 @@ export async function isIpBanned(ip: string): Promise<boolean> {
  * Ban an IP address
  */
 export async function banIp(ip: string, reason: string = 'Abusive requests / security trigger', durationSeconds: number = 86400): Promise<void> {
+  if (['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) {
+    return;
+  }
   try {
     await redis.sadd('banned_ips', ip);
     const entry: BannedIpEntry = {

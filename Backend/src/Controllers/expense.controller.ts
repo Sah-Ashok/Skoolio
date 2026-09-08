@@ -11,28 +11,31 @@ import {
 } from '../Service/expense.service';
 import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 
+const resolveSchoolId = (user: any): number =>
+  (user && 'school_id' in user && user.school_id) ? Number(user.school_id) : Number(user?.id || 0);
+
 // ── EXPENSE CATEGORY CONTROLLERS ──
 
 export const createExpenseCategory = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createExpenseCategoryService(school_id, req.body);
   sendResponse(res, 201, true, 'Expense category created successfully', result);
 });
 
 export const getExpenseCategories = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getExpenseCategoriesService(school_id);
   sendResponse(res, 200, true, 'Expense categories fetched successfully', result);
 });
 
 export const updateExpenseCategory = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await updateExpenseCategoryService(Number(req.params.id), school_id, req.body);
   sendResponse(res, 200, true, 'Expense category updated successfully', result);
 });
 
 export const deleteExpenseCategory = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   await deleteExpenseCategoryService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Expense category deleted successfully', null);
 });
@@ -40,14 +43,14 @@ export const deleteExpenseCategory = catchAsync(async (req: Request, res: Respon
 // ── EXPENSE CONTROLLERS ──
 
 export const createExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createExpenseService(school_id, school_id, req.body);
   invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Expense created successfully', result);
 });
 
 export const getExpenses = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
@@ -57,13 +60,13 @@ export const getExpenses = catchAsync(async (req: Request, res: Response, next: 
 });
 
 export const getExpenseById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getExpenseByIdService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Expense fetched successfully', result);
 });
 
 export const getExpensesByCategory = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
@@ -77,14 +80,14 @@ export const getExpensesByCategory = catchAsync(async (req: Request, res: Respon
 });
 
 export const updateExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await updateExpenseService(Number(req.params.id), school_id, req.body);
   invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Expense updated successfully', result);
 });
 
 export const deleteExpense = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   await deleteExpenseService(Number(req.params.id), school_id);
   invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Expense deleted successfully', null);
@@ -93,7 +96,7 @@ export const deleteExpense = catchAsync(async (req: Request, res: Response, next
 // ── EXPENSE SUMMARY CONTROLLER ──
 
 export const getExpenseSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);

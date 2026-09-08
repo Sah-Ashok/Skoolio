@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 interface AppFooterProps {
-  role?: 'admin' | 'teacher' | 'student' | 'super_admin';
+  role?: 'admin' | 'teacher' | 'student' | 'super_admin' | 'finance';
 }
 
 export default function AppFooter({ role = 'admin' }: AppFooterProps) {
@@ -10,6 +10,7 @@ export default function AppFooter({ role = 'admin' }: AppFooterProps) {
     role === 'super_admin' ? '/super-admin' :
     role === 'teacher'     ? '/teacher' :
     role === 'student'     ? '/student' :
+    role === 'finance'     ? '/finance' :
     '';
 
   return (

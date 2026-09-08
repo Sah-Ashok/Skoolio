@@ -5,8 +5,8 @@ import { getPolicy, upsertPolicy } from '../Controllers/payroll_policy.controlle
 
 const router = Router();
 
-// Admin only
-router.use(protect, restrictTo('admin', 'super_admin'));
+// Admin and Finance
+router.use(protect, restrictTo('admin', 'super_admin', 'finance'));
 
 router.get('/',  getPolicy);
 router.put('/',  upsertPolicy);

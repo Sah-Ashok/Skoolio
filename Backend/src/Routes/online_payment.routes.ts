@@ -23,19 +23,19 @@ import {
 const router = Router();
 router.use(protect);
 
-// ── ADMIN: bank account management ──────────────────────────────────────────
-router.get   ('/bank-accounts',     restrictTo('admin', 'super_admin'), getBankAccounts);
-router.post  ('/bank-accounts',     restrictTo('admin', 'super_admin'), createBankAccount);
-router.patch ('/bank-accounts/:id', restrictTo('admin', 'super_admin'), updateBankAccount);
-router.delete('/bank-accounts/:id', restrictTo('admin', 'super_admin'), deleteBankAccount);
+// ── ADMIN / FINANCE: bank account management ──────────────────────────────────────────
+router.get   ('/bank-accounts',     restrictTo('admin', 'super_admin', 'finance'), getBankAccounts);
+router.post  ('/bank-accounts',     restrictTo('admin', 'super_admin', 'finance'), createBankAccount);
+router.patch ('/bank-accounts/:id', restrictTo('admin', 'super_admin', 'finance'), updateBankAccount);
+router.delete('/bank-accounts/:id', restrictTo('admin', 'super_admin', 'finance'), deleteBankAccount);
 
-// ── ADMIN: payment request queue ────────────────────────────────────────────
 // Static routes must come BEFORE /:id dynamic routes
-router.get ('/requests/pending-count', restrictTo('admin', 'super_admin'), getPendingCount);
-router.get ('/requests',               restrictTo('admin', 'super_admin'), getPaymentRequests);
-router.get ('/requests/:id',           restrictTo('admin', 'super_admin'), getPaymentRequestDetail);
-router.post('/requests/:id/verify',    restrictTo('admin', 'super_admin'), verifyPaymentRequest);
-router.post('/requests/:id/reject',    restrictTo('admin', 'super_admin'), rejectPaymentRequest);
+router.get ('/requests/pending-count', restrictTo('admin', 'super_admin', 'finance'), getPendingCount);
+router.get ('/pending',                restrictTo('admin', 'super_admin', 'finance'), getPendingCount);
+router.get ('/requests',               restrictTo('admin', 'super_admin', 'finance'), getPaymentRequests);
+router.get ('/requests/:id',           restrictTo('admin', 'super_admin', 'finance'), getPaymentRequestDetail);
+router.post('/requests/:id/verify',    restrictTo('admin', 'super_admin', 'finance'), verifyPaymentRequest);
+router.post('/requests/:id/reject',    restrictTo('admin', 'super_admin', 'finance'), rejectPaymentRequest);
 
 // ── STUDENT: view active bank accounts ───────────────────────────────────────
 // Frontend calls: GET /online-payments/active-bank-accounts

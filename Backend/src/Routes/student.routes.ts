@@ -17,20 +17,20 @@ router.get('/me/profile',     restrictTo('student'),                          ge
 router.get('/me/enrollments', restrictTo('student'),                          getMyEnrollments);
 
 // ── ENROLLMENT ROUTES — MUST be before /:id ──
-router.post('/enrollments',           restrictTo('admin', 'super_admin'),           createEnrollment);
-router.get('/enrollments',            restrictTo('admin', 'super_admin', 'faculty'), getEnrollments);
-router.patch('/enrollments/:id',      restrictTo('admin', 'super_admin'),           updateEnrollment);
-router.patch('/enrollments/:id/roll', restrictTo('faculty'),                        updateEnrollmentRoll);
+router.post('/enrollments',           restrictTo('admin', 'super_admin'),                    createEnrollment);
+router.get('/enrollments',            restrictTo('admin', 'super_admin', 'faculty', 'finance'), getEnrollments);
+router.patch('/enrollments/:id',      restrictTo('admin', 'super_admin'),                    updateEnrollment);
+router.patch('/enrollments/:id/roll', restrictTo('faculty'),                                 updateEnrollmentRoll);
 
 // ── STUDENT CRUD ──
-router.post('/',              restrictTo('admin', 'super_admin'),                    createStudent);
-router.get('/',               restrictTo('admin', 'super_admin'),                    getStudents);
-router.get('/search',         restrictTo('admin', 'super_admin'),                    searchStudents);
-router.get('/:id',            restrictTo('admin', 'super_admin', 'faculty'),         getStudentById);  // faculty: section-scoped in controller
-router.patch('/:id',          restrictTo('admin', 'super_admin'),                    updateStudent);
-router.delete('/:id',         restrictTo('admin', 'super_admin'),                    deleteStudent);
+router.post('/',              restrictTo('admin', 'super_admin'),                             createStudent);
+router.get('/',               restrictTo('admin', 'super_admin', 'finance'),                  getStudents);
+router.get('/search',         restrictTo('admin', 'super_admin', 'finance'),                  searchStudents);
+router.get('/:id',            restrictTo('admin', 'super_admin', 'faculty', 'finance'),          getStudentById);  // faculty: section-scoped in controller
+router.patch('/:id',          restrictTo('admin', 'super_admin'),                             updateStudent);
+router.delete('/:id',         restrictTo('admin', 'super_admin'),                             deleteStudent);
 
 // ── STUDENT ENROLLMENT HISTORY ──
-router.get('/:id/enrollments', restrictTo('admin', 'super_admin'),          getStudentEnrollments);
+router.get('/:id/enrollments', restrictTo('admin', 'super_admin', 'finance'),                   getStudentEnrollments);
 
 export default router;

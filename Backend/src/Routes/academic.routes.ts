@@ -16,13 +16,13 @@ const router = Router();
 // Must be declared BEFORE the admin-only middleware below
 router.get('/active', protect,  getActiveAcademicYear);
 
-// All other routes — admin only
-router.use(protect, restrictTo('admin', 'super_admin'));
+// All other routes
+router.use(protect);
 
-router.post('/', createAcademicYear);
-router.get('/', getAcademicYears);
-router.get('/:id', getAcademicYearById);
-router.patch('/:id', updateAcademicYear);
-router.delete('/:id', deleteAcademicYear);
+router.post('/',   restrictTo('admin', 'super_admin'), createAcademicYear);
+router.get('/',    restrictTo('admin', 'super_admin', 'finance'), getAcademicYears);
+router.get('/:id', restrictTo('admin', 'super_admin', 'finance'), getAcademicYearById);
+router.patch('/:id', restrictTo('admin', 'super_admin'), updateAcademicYear);
+router.delete('/:id', restrictTo('admin', 'super_admin'), deleteAcademicYear);
 
 export default router;

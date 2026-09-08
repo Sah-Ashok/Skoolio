@@ -90,7 +90,12 @@ function FeeRow({ label, value, muted, accent }: { label: string; value: string;
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════════════════════════ */
-export default function StudentProfilePage() {
+interface StudentProfilePageProps {
+  basePath?: string;
+  isFinance?: boolean;
+}
+
+export default function StudentProfilePage({ basePath = "", isFinance = false }: StudentProfilePageProps = {}) {
   const { formatDate }         = useDateFormat();
   const { fmt }                = useCurrency();
   const { activeYear }         = useAcademicYear();
@@ -207,24 +212,26 @@ export default function StudentProfilePage() {
             <p>View detailed records, academic enrollments, attendance, and fee history.</p>
           </div>
           <div className={s("head-actions")}>
-            <Link className={cx(s("btn"), s("btn-outline"))} href="/students">
+            <Link className={cx(s("btn"), s("btn-outline"))} href={isFinance ? `${basePath}/students` : "/students"}>
               <i className="fa-solid fa-arrow-left" /> Back
             </Link>
             <Link
               className={cx(s("btn"), s("btn-outline"))}
-              href={`/fees/history?student_id=${id}`}
+              href={`${basePath}/fees/history?student_id=${id}`}
             >
               <i className="fa-solid fa-clock-rotate-left" /> Fee History
             </Link>
             <Link
               className={cx(s("btn"), s("btn-outline"))}
-              href={`/fees/collect?student_id=${id}`}
+              href={`${basePath}/fees/collect?student_id=${id}`}
             >
               <i className="fa-solid fa-money-bill-wave" /> Collect Fee
             </Link>
-            <Link className={cx(s("btn"), s("btn-primary"))} href={`/students/${id}/edit`}>
-              <i className="fa-solid fa-pen-to-square" /> Edit Profile
-            </Link>
+            {!isFinance && (
+              <Link className={cx(s("btn"), s("btn-primary"))} href={`/students/${id}/edit`}>
+                <i className="fa-solid fa-pen-to-square" /> Edit Profile
+              </Link>
+            )}
           </div>
         </section>
 
@@ -497,7 +504,7 @@ export default function StudentProfilePage() {
               {/* Link to full history */}
               <div style={{ padding: "0 16px 14px" }}>
                 <Link
-                  href={`/fees/history?student_id=${id}`}
+                  href={`${basePath}/fees/history?student_id=${id}`}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                     padding: "9px 14px", borderRadius: 8,

@@ -10,7 +10,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, logoutThunk } from '@/store/authSlice';
 import LogoutConfirmModal from '@/components/shared/LogoutConfirmModal';
 
-type SidebarRole = 'admin' | 'teacher' | 'student';
+type SidebarRole = 'admin' | 'teacher' | 'student' | 'finance';
 
 interface NavItem {
   href: string;
@@ -26,9 +26,10 @@ interface NavSection {
 }
 
 const roleLabel: Record<SidebarRole, string> = {
-  admin: 'School Admin',
+  admin:   'School Admin',
   teacher: 'Faculty',
   student: 'Student',
+  finance: 'Finance Manager',
 };
 
 const adminNav: NavSection[] = [
@@ -59,10 +60,8 @@ const adminNav: NavSection[] = [
   {
     label: 'Finance',
     items: [
-      { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fees',             exact: true },
-      { href: '/fees/monthly-billing',  icon: 'fa-calendar-plus',       label: 'Monthly Billing',  exact: true },
+      { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Status',       exact: true },
       { href: '/expenses',              icon: 'fa-receipt',             label: 'Expenses' },
-      { href: '/salary',                icon: 'fa-money-bill-wave',     label: 'Salary'   },
     ],
   },
   {
@@ -126,6 +125,40 @@ const studentNav: NavSection[] = [
   },
 ];
 
+const financeNav: NavSection[] = [
+  {
+    label: 'Main',
+    items: [
+      { href: '/finance/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Fee Management',
+    items: [
+      { href: '/finance/fees/collect',          icon: 'fa-hand-holding-dollar',   label: 'Collect Fee',      exact: true },
+      { href: '/finance/fees/monthly-billing',  icon: 'fa-calendar-plus',         label: 'Monthly Billing',  exact: true },
+      { href: '/finance/fees/records',          icon: 'fa-table-list',            label: 'Fee Records',      exact: true },
+      { href: '/finance/fees/history',          icon: 'fa-clock-rotate-left',     label: 'Fee History' },
+      { href: '/finance/fees/structures',       icon: 'fa-layer-group',           label: 'Fee Structures' },
+      { href: '/finance/fees/bank-accounts',    icon: 'fa-building-columns',      label: 'Bank Accounts & QR' },
+      { href: '/finance/fees/payment-requests', icon: 'fa-receipt',               label: 'Online Requests' },
+    ],
+  },
+  {
+    label: 'Students',
+    items: [
+      { href: '/finance/students',              icon: 'fa-user-graduate',         label: 'Student Directory' },
+    ],
+  },
+  {
+    label: 'Accounting',
+    items: [
+      { href: '/finance/expenses',             icon: 'fa-file-invoice-dollar',   label: 'Expenses' },
+      { href: '/finance/salary',               icon: 'fa-money-bill-wave',       label: 'Payroll & Salary' },
+    ],
+  },
+];
+
 const mobileNavMap: Record<SidebarRole, NavItem[]> = {
   admin: [
     { href: '/dashboard', icon: 'fa-gauge-high',    label: 'Dashboard' },
@@ -149,12 +182,20 @@ const mobileNavMap: Record<SidebarRole, NavItem[]> = {
     { href: '/student/results', icon: 'fa-file-circle-check', label: 'Results' },
     { href: '/student/fees', icon: 'fa-file-invoice-dollar', label: 'Fees' },
   ],
+  finance: [
+    { href: '/finance/dashboard',    icon: 'fa-gauge-high',          label: 'Dashboard' },
+    { href: '/finance/fees/collect', icon: 'fa-hand-holding-dollar', label: 'Collect' },
+    { href: '/finance/fees/records', icon: 'fa-table-list',          label: 'Records' },
+    { href: '/finance/expenses',     icon: 'fa-receipt',             label: 'Expenses' },
+    { href: '/finance/salary',       icon: 'fa-money-bill-wave',     label: 'Salary' },
+  ],
 };
 
 const navMap: Record<SidebarRole, NavSection[]> = {
-  admin: adminNav,
+  admin:   adminNav,
   teacher: teacherNav,
   student: studentNav,
+  finance: financeNav,
 };
 
 function isNavItemActive(pathname: string, searchParams: ReturnType<typeof useSearchParams> | null, item: NavItem) {

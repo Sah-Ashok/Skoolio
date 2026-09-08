@@ -9,6 +9,13 @@ import {
   blockSchool, unblockSchool, verifySchoolById,
 } from '../Controllers/auth.controller';
 
+import {
+  getFinanceAccount,
+  createFinanceAccount,
+  updateFinanceAccount,
+  deleteFinanceAccount,
+} from '../Controllers/finance.controller';
+
 const router = Router();
 
 // School admin — own school settings
@@ -17,6 +24,12 @@ router.put   ('/settings',         protect, restrictTo('admin'), updateSettings)
 router.patch ('/settings',         protect, restrictTo('admin'), updateSettings);
 router.patch ('/change-password',   protect, restrictTo('admin'), changePassword);
 router.patch ('/toggle-2fa',        protect, restrictTo('admin'), toggleMyTwoFA);
+
+// School admin — manage single finance account
+router.get   ('/finance-account',    protect, restrictTo('admin', 'super_admin'), getFinanceAccount);
+router.post  ('/finance-account',    protect, restrictTo('admin', 'super_admin'), createFinanceAccount);
+router.put   ('/finance-account',    protect, restrictTo('admin', 'super_admin'), updateFinanceAccount);
+router.delete('/finance-account',    protect, restrictTo('admin', 'super_admin'), deleteFinanceAccount);
 
 // Super admin — manage any school
 router.get  ('/:schoolId/details',   protect, restrictTo('super_admin'), getSuperAdminSchoolDetails);

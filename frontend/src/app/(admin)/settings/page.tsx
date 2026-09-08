@@ -11,12 +11,13 @@ import { Loader, Spinner } from '@/components/shared/Loader';
 import styles from './settings.module.css';
 import PayrollPolicyTab from '@/components/admin/settings/PayrollPolicyTab';
 import FeeBillingPolicyTab from '@/components/admin/settings/FeeBillingPolicyTab';
+import FinanceAccountTab from '@/components/admin/settings/FinanceAccountTab';
 import ConfirmModal from '@/components/shared/ConfirmModal';
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(' ');
 
-type Tab = 'school' | 'payment' | 'security' | 'payroll' | 'fees';
+type Tab = 'school' | 'payment' | 'security' | 'payroll' | 'fees' | 'finance';
 
 const SCHOOL_TYPES = ['Primary', 'Secondary', 'Higher_Secondary', 'College', 'University', 'Other'];
 const TIMEZONES    = ['Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Dhaka', 'UTC', 'Asia/Bangkok', 'Asia/Singapore'];
@@ -413,6 +414,7 @@ export default function AdminSettingsPage() {
             ['security', 'fa-lock',                  'Security'         ],
             ['payroll',  'fa-money-check-dollar',    'Payroll Policy'   ],
             ['fees',     'fa-file-invoice-dollar',   'Fee Billing'      ],
+            ['finance',  'fa-calculator',            'Finance Account'  ],
           ] as const).map(([key, icon, label]) => (
             <button 
               key={key} 
@@ -965,6 +967,13 @@ export default function AdminSettingsPage() {
         {!loading && tab === 'fees' && (
           <div className={s('panel')}>
             <FeeBillingPolicyTab />
+          </div>
+        )}
+
+        {/* ── Tab 6: Finance Account ── */}
+        {!loading && tab === 'finance' && (
+          <div className={s('panel')}>
+            <FinanceAccountTab />
           </div>
         )}
 

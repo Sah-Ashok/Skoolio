@@ -10,21 +10,46 @@ import { SkeletonStatRow, SkeletonChart, SkeletonTable } from "@/components/shar
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
+import { useAppSelector } from "@/store/hooks";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export default function FeesPage() {
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return { text: "Good morning",   icon: "fa-sun"       };
+  if (h < 17) return { text: "Good afternoon", icon: "fa-cloud-sun" };
+  return              { text: "Good evening",   icon: "fa-moon"      };
+}
+
+interface FeesPageProps {
+  mode?: 'admin' | 'finance';
+  basePath?: string;
+  showHeroGreeting?: boolean;
+}
+
+export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageProps = {}) {
+  const user = useAppSelector((state) => state.auth.user);
+  const { data: me } = useApi<any>("/auth/me");
+  const currentMode = mode || (user?.role === 'finance' ? 'finance' : 'admin');
+  const isFinance = currentMode === 'finance';
+  const prefix = basePath || (isFinance ? '/finance/fees' : '/fees');
+
   const { formatDate, formatFeeName } = useDateFormat();
   const { fmt: formatCurrency } = useCurrency();
-  const { academicYearId } = useAcademicYear();
+  const { activeYear, academicYearId } = useAcademicYear();
   const { data: rawCollections, loading } = useApi<any>(
     academicYearId ? `/fees/collections?academic_year_id=${academicYearId}&limit=2000` : "",
     [academicYearId]
   );
-  const { data: paymentRequests } = useApi<any[]>("/online-payments/pending");
+  const { data: countData } = useApi<{ count: number }>("/online-payments/requests/pending-count");
+  const pendingRequestsCount = countData?.count ?? 0;
+
+  const schoolName = me?.school_name || user?.school_name || "";
+  const personName = me?.full_name || user?.full_name || "Finance Manager";
+  const greeting = getGreeting();
 
   const collections: any[] = useMemo(() => {
     if (!rawCollections) return [];
@@ -143,6 +168,90 @@ export default function FeesPage() {
     <div className={s("feesPage")}>
       <main className={s("pageContent")}>
 
+        {/* ── Top Hero Greeting (Finance Dashboard) ── */}
+        {showHeroGreeting && (
+          <section style={{
+            background: "#ffffff",
+            borderRadius: 16,
+            padding: "24px 28px",
+            border: "1px solid #e2e8f0",
+            marginBottom: 20,
+            boxShadow: "0 2px 10px rgba(15, 23, 42, 0.03)",
+          }}>
+            {schoolName && (
+              <div style={{
+                fontSize: "clamp(24px, 4vw, 34px)",
+                fontWeight: 900,
+                color: "#FF9B51",
+                lineHeight: 1.15,
+                marginBottom: 6,
+                letterSpacing: "-0.02em",
+              }}>
+                {schoolName}
+              </div>
+            )}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: "clamp(20px, 3vw, 26px)",
+              color: "#64748b",
+              fontWeight: 700,
+              margin: "6px 0",
+            }}>
+              <img
+                src={greeting.icon === "fa-sun" ? "/icons/GoodMorning.svg" : greeting.icon === "fa-cloud-sun" ? "/icons/Afternoon.svg" : "/icons/GoodEvening.svg"}
+                alt={greeting.text}
+                width={52}
+                height={52}
+                style={{ objectFit: "contain" }}
+              />
+              <span>{greeting.text},</span>
+            </div>
+            <div style={{
+              fontSize: "clamp(22px, 3.2vw, 30px)",
+              fontWeight: 900,
+              color: "#1e293b",
+              marginBottom: 12,
+            }}>
+              {personName}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 12px",
+                borderRadius: 999,
+                background: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                color: "#065f46",
+                fontSize: 12,
+                fontWeight: 800,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
+                Active Finance Manager
+              </span>
+              {activeYear?.year_name && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 12px",
+                  borderRadius: 999,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  color: "#475569",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}>
+                  <i className="fa-regular fa-calendar" /> {activeYear.year_name}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* ── Page Header ── */}
         <section className={s("pageHead")}>
           <div className={s("headLeft")}>
@@ -155,18 +264,37 @@ export default function FeesPage() {
             </div>
           </div>
           <div className={s("headActions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees/structures">
-              <i className="fa-solid fa-layer-group" /> Fee Structures
-            </Link>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees/monthly-billing">
-              <i className="fa-solid fa-calendar-plus" /> Monthly Billing
-            </Link>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees/records">
-              <i className="fa-solid fa-table-list" /> All Records
-            </Link>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/fees/collect">
-              <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
-            </Link>
+            {isFinance ? (
+              <>
+                <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/structures`}>
+                  <i className="fa-solid fa-layer-group" /> Fee Structures
+                </Link>
+                <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/monthly-billing`}>
+                  <i className="fa-solid fa-calendar-plus" /> Monthly Billing
+                </Link>
+                <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/records`}>
+                  <i className="fa-solid fa-table-list" /> All Records
+                </Link>
+                <Link className={cx(s("btn"), s("btnPrimary"))} href={`${prefix}/collect`}>
+                  <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
+                </Link>
+              </>
+            ) : (
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                padding: "8px 16px",
+                borderRadius: "999px",
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                color: "#1d4ed8",
+                fontSize: "12.5px",
+                fontWeight: "700",
+              }}>
+                <i className="fa-solid fa-chart-pie" /> Fee Status &amp; Dues Overview
+              </span>
+            )}
           </div>
         </section>
 
@@ -213,32 +341,34 @@ export default function FeesPage() {
           </section>
         )}
 
-        {/* ── Sub-Bar Quick Navigation Strip ── */}
-        <section className={s("subBar")}>
-          <div className={s("subBarLeft")}>
-            <i className="fa-solid fa-bolt" />
-            <span>Quick Financial Hub</span>
-          </div>
-          <div className={s("subBarLinks")}>
-            <Link className={s("subLink")} href="/fees/bank-accounts">
-              <i className="fa-solid fa-building-columns" /> Bank Accounts & QR
-            </Link>
-            <Link className={s("subLink")} href="/fees/payment-requests">
-              <i className="fa-solid fa-receipt" /> Online Requests
-              {paymentRequests && paymentRequests.length > 0 && (
-                <span style={{ background: "#ea580c", color: "#fff", fontSize: 10, fontWeight: 900, padding: "1px 6px", borderRadius: 10 }}>
-                  {paymentRequests.length}
-                </span>
-              )}
-            </Link>
-            <Link className={s("subLink")} href="/fees/monthly-billing">
-              <i className="fa-solid fa-calendar-days" /> Generate Monthly Bills
-            </Link>
-            <Link className={s("subLink")} href="/fees/structures/add">
-              <i className="fa-solid fa-plus" /> New Fee Structure
-            </Link>
-          </div>
-        </section>
+        {/* ── Sub-Bar Quick Navigation Strip (Finance only) ── */}
+        {isFinance && (
+          <section className={s("subBar")}>
+            <div className={s("subBarLeft")}>
+              <i className="fa-solid fa-bolt" />
+              <span>Quick Financial Hub</span>
+            </div>
+            <div className={s("subBarLinks")}>
+              <Link className={s("subLink")} href={`${prefix}/bank-accounts`}>
+                <i className="fa-solid fa-building-columns" /> Bank Accounts &amp; QR
+              </Link>
+              <Link className={s("subLink")} href={`${prefix}/payment-requests`}>
+                <i className="fa-solid fa-receipt" /> Online Requests
+                {pendingRequestsCount > 0 && (
+                  <span style={{ background: "#ea580c", color: "#fff", fontSize: 10, fontWeight: 900, padding: "1px 6px", borderRadius: 10 }}>
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </Link>
+              <Link className={s("subLink")} href={`${prefix}/monthly-billing`}>
+                <i className="fa-solid fa-calendar-days" /> Generate Monthly Bills
+              </Link>
+              <Link className={s("subLink")} href={`${prefix}/structures/add`}>
+                <i className="fa-solid fa-plus" /> New Fee Structure
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* ── Charts Grid (2 Columns) ── */}
         {loading && !collections ? (
@@ -392,7 +522,7 @@ export default function FeesPage() {
               <h3><i className="fa-solid fa-clock" />Recent Pending Payments</h3>
               <p>Top outstanding student invoices requiring collection</p>
             </div>
-            <Link className={cx(s("btn"), s("btnOutline"), s("btnSm"))} href="/fees/records">
+            <Link className={cx(s("btn"), s("btnOutline"), s("btnSm"))} href={isFinance ? `${prefix}/records` : '/fees/records'}>
               View All Records <i className="fa-solid fa-arrow-right" />
             </Link>
           </div>
@@ -410,7 +540,7 @@ export default function FeesPage() {
                     <th>Due Date</th>
                     <th>Amount Due</th>
                     <th>Status</th>
-                    <th style={{ textAlign: "right" }}>Action</th>
+                    {isFinance && <th style={{ textAlign: "right" }}>Action</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -459,14 +589,16 @@ export default function FeesPage() {
                             {item.status || "Unpaid"}
                           </span>
                         </td>
-                        <td style={{ textAlign: "right" }}>
-                          <Link 
-                            className={cx(s("btn"), s("btnSoft"), s("btnSm"))} 
-                            href={`/fees/collect?student_id=${item.student_id}&collection_id=${item.id}`}
-                          >
-                            <i className="fa-solid fa-hand-holding-dollar" /> Collect
-                          </Link>
-                        </td>
+                        {isFinance && (
+                          <td style={{ textAlign: "right" }}>
+                            <Link 
+                              className={cx(s("btn"), s("btnSoft"), s("btnSm"))} 
+                              href={`${prefix}/collect?student_id=${item.student_id}&collection_id=${item.id}`}
+                            >
+                              <i className="fa-solid fa-hand-holding-dollar" /> Collect
+                            </Link>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

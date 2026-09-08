@@ -78,13 +78,13 @@ export const deleteOffer = catchAsync(async (req: Request, res: Response, next: 
 // ── SCHOOL'S OWN PLAN STATUS ──────────────────────────────────────────────────
 
 export const getMyPlanStatus = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = 'school_id' in (req.user as any) ? (req.user as any).school_id : (req.user as any).id;
   const status = await resolveCurrentPlanStatus(school_id);
   sendResponse(res, 200, true, 'Plan status fetched successfully', status);
 });
 
 export const getMyPlanHistory = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = 'school_id' in (req.user as any) ? (req.user as any).school_id : (req.user as any).id;
   const history = await getSubscriptionHistoryService(school_id);
   sendResponse(res, 200, true, 'Subscription history fetched successfully', history);
 });

@@ -12,6 +12,7 @@ import pool from '../config/db';
 import { storeOTP, consumeOTP } from '../Repositories/otp.repository';
 import { findTeacherByEmailGlobal, getTeacherByIdWithPassword, updateTeacherPassword } from '../Repositories/teacher.repository';
 import { findStudentByEmailGlobal, getStudentByIdWithPassword, updateStudentPassword } from '../Repositories/student.repository';
+import { findFinanceUserById } from '../Repositories/finance.repository';
 import { getTeacherByIdService }                 from './teacher.service';
 import { getStudentByIdService, getStudentProfileService } from './student.service';
 import { isMaintenanceModeActive }               from './platform.service';
@@ -339,6 +340,20 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
       school_name: u.school_name,
       logo: u.logo,
       calendar_system: u.calendar_system ?? 'AD',
+    };
+  }
+  if (jwtUser.role === 'finance') {
+    const u = jwtUser as IJwtUserPayload;
+    const financeUser = await findFinanceUserById(u.id);
+    if (!financeUser) throw new AppError('Finance account not found.', 404);
+    return {
+      ...financeUser,
+      role: 'finance',
+      school_name: financeUser.school_name || u.school_name,
+      logo: financeUser.logo || u.logo,
+      timezone: financeUser.timezone || u.timezone,
+      calendar_system: financeUser.calendar_system || u.calendar_system || 'AD',
+      is_account: financeUser.is_account || 'active',
     };
   }
   const u = jwtUser as IJwtUserPayload;

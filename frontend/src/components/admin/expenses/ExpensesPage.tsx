@@ -6,7 +6,7 @@ import styles from "./expenses.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { Spinner } from "@/components/shared/Loader";
 import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -29,8 +29,16 @@ function getCategoryColor(index: number) {
   return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
 }
 
-export default function ExpensesPage() {
+interface ExpensesPageProps {
+  readOnly?: boolean;
+  addUrl?: string;
+}
+
+export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {}) {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const isReadOnly = readOnly ?? (user?.role === "admin");
+  const recordExpenseUrl = addUrl || (user?.role === "finance" ? "/finance/expenses/add" : "/expenses/add");
   const { formatDate } = useDateFormat();
   
   const { data: activeYear } = useApi<any>('/academic-years/active');
@@ -134,9 +142,26 @@ export default function ExpensesPage() {
             </div>
           </div>
           <div className={s("actions")}>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/expenses/add">
-              <i className="fa-solid fa-plus" /> Record Expense
-            </Link>
+            {isReadOnly ? (
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                padding: "8px 16px",
+                borderRadius: "999px",
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                color: "#475569",
+                fontSize: "12.5px",
+                fontWeight: "700",
+              }}>
+                <i className="fa-solid fa-shield-halved" style={{ color: "#64748b" }} /> Audit View (Read-Only)
+              </span>
+            ) : (
+              <Link className={cx(s("btn"), s("btnPrimary"))} href={recordExpenseUrl}>
+                <i className="fa-solid fa-plus" /> Record Expense
+              </Link>
+            )}
           </div>
         </section>
 
@@ -346,7 +371,7 @@ export default function ExpensesPage() {
                         <th>Vendor</th>
                         <th>Date</th>
                         <th>Amount</th>
-                        <th style={{ textAlign: "right" }}>Action</th>
+                        {!isReadOnly && <th style={{ textAlign: "right" }}>Action</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -391,15 +416,17 @@ export default function ExpensesPage() {
                               ₹{Number(ex.amount || 0).toLocaleString("en-IN")}
                             </span>
                           </td>
-                          <td style={{ textAlign: "right" }}>
-                            <button 
-                              className={s("btnDangerSoft")} 
-                              title="Delete expense"
-                              onClick={() => handleDelete(ex.id, ex.title)}
-                            >
-                              <i className="fa-solid fa-trash" />
-                            </button>
-                          </td>
+                          {!isReadOnly && (
+                            <td style={{ textAlign: "right" }}>
+                              <button 
+                                className={s("btnDangerSoft")} 
+                                title="Delete expense"
+                                onClick={() => handleDelete(ex.id, ex.title)}
+                              >
+                                <i className="fa-solid fa-trash" />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -475,8 +502,8 @@ export default function ExpensesPage() {
                       ? "No records match your search or filter criteria." 
                       : "No expenses recorded for this academic year yet."}
                   </p>
-                  {!searchTerm && filterCategory === "All" && (
-                    <Link className={cx(s("btn"), s("btnPrimary"))} href="/expenses/add" style={{ marginTop: 8 }}>
+                  {!searchTerm && filterCategory === "All" && !isReadOnly && (
+                    <Link className={cx(s("btn"), s("btnPrimary"))} href={recordExpenseUrl} style={{ marginTop: 8 }}>
                       <i className="fa-solid fa-plus" /> Add First Expense
                     </Link>
                   )}
@@ -488,17 +515,19 @@ export default function ExpensesPage() {
       </main>
 
       {/* ── Delete Expense Confirmation Modal ── */}
-      <ConfirmModal
-        isOpen={!!expenseToDelete}
-        onClose={() => setExpenseToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Expense"
-        message={`Are you sure you want to delete expense "${expenseToDelete?.title}"? This action cannot be undone.`}
-        confirmText="Delete Expense"
-        cancelText="Cancel"
-        confirmVariant="danger"
-        icon="fa-trash-can"
-      />
+      {!isReadOnly && (
+        <ConfirmModal
+          isOpen={!!expenseToDelete}
+          onClose={() => setExpenseToDelete(null)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Expense"
+          message={`Are you sure you want to delete expense "${expenseToDelete?.title}"? This action cannot be undone.`}
+          confirmText="Delete Expense"
+          cancelText="Cancel"
+          confirmVariant="danger"
+          icon="fa-trash-can"
+        />
+      )}
     </div>
   );
 }

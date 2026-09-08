@@ -46,19 +46,33 @@ export const createStudent = async (
 export const searchStudentsBySchool = async (
   school_id: number,
   q: string
-): Promise<Pick<IStudent, 'id' | 'full_name' | 'admission_number' | 'email' | 'phone' | 'scholarship_type' | 'scholarship_percent' | 'scholarship_remarks'>[]> => {
+): Promise<(Pick<IStudent, 'id' | 'full_name' | 'admission_number' | 'email' | 'phone' | 'scholarship_type' | 'scholarship_percent' | 'scholarship_remarks'> & { class_name?: string; section_name?: string; roll_number?: string | number })[]> => {
   const result = await pool.query(
-    `SELECT id, full_name, admission_number, email, phone,
-            scholarship_type, scholarship_percent, scholarship_remarks
-     FROM students
-     WHERE school_id = $1
+    `SELECT s.id, s.full_name, s.admission_number, s.email, s.phone,
+            s.scholarship_type, s.scholarship_percent, s.scholarship_remarks,
+            se.roll_number,
+            cl.name AS class_name,
+            sec.name AS section_name
+     FROM students s
+     LEFT JOIN LATERAL (
+       SELECT class_id, section_id, roll_number
+       FROM student_enrollments
+       WHERE student_id = s.id AND school_id = s.school_id
+       ORDER BY (status = 'active') DESC, created_at DESC
+       LIMIT 1
+     ) se ON true
+     LEFT JOIN classes cl ON cl.id = se.class_id
+     LEFT JOIN sections sec ON sec.id = se.section_id
+     WHERE s.school_id = $1
        AND (
-         full_name        ILIKE $2
-         OR admission_number ILIKE $2
-         OR email           ILIKE $2
-         OR phone           ILIKE $2
+         s.full_name           ILIKE $2
+         OR s.admission_number ILIKE $2
+         OR s.email            ILIKE $2
+         OR s.phone            ILIKE $2
+         OR COALESCE(se.roll_number::text, '') ILIKE $2
+         OR COALESCE(cl.name, '')              ILIKE $2
        )
-     ORDER BY full_name ASC
+     ORDER BY s.full_name ASC
      LIMIT 20`,
     [school_id, `%${q}%`]
   );

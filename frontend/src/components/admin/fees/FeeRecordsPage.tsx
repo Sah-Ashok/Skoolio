@@ -8,7 +8,7 @@ import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -58,24 +58,32 @@ function PaymentsModal({
         onClick={e => e.stopPropagation()}
         style={{
           background: "#fff", borderRadius: 16, width: "100%", maxWidth: 640,
-          boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)", overflow: "hidden",
-          border: "1px solid #e2e8f0",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+          overflow: "hidden", border: "1px solid #e2e8f0",
         }}
       >
         {/* Header */}
-        <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{
+          padding: "18px 24px", borderBottom: "1px solid #e2e8f0",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#f8fafc",
+        }}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="fa-solid fa-receipt" style={{ color: "#FF9B51" }} />
-              Payment History & Receipts
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: "#0f172a" }}>
+              <i className="fa-solid fa-receipt" style={{ color: "#ea580c", marginRight: 8 }} />
+              Payment Receipts
             </h3>
-            <p style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, marginTop: 3 }}>
-              {formatFeeName(collection.fee_name)} · {collection.full_name}
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+              {formatFeeName(collection?.fee_name)} · {collection?.full_name}
             </p>
           </div>
           <button
             onClick={onClose}
-            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: 14, color: "#64748b" }}
+            style={{
+              width: 32, height: 32, borderRadius: 8, border: "1px solid #e2e8f0",
+              background: "#fff", cursor: "pointer", display: "flex", alignItems: "center",
+              justifyContent: "center", color: "#64748b", fontSize: 14,
+            }}
           >
             <i className="fa-solid fa-xmark" />
           </button>
@@ -108,25 +116,25 @@ function PaymentsModal({
                     <td style={{ padding: "12px 14px", color: "#64748b", fontWeight: 600 }}>
                       {formatDate(p.payment_date?.slice(0, 10))}
                     </td>
-                    <td style={{ padding: "12px 14px", fontWeight: 900, color: "#059669" }}>{formatCurrency(p.paid_amount)}</td>
-                    <td style={{ padding: "12px 14px", color: "#475569", fontWeight: 600, textTransform: "capitalize" }}>
-                      {(p.payment_method || "—").replace(/_/g, " ")}
+                    <td style={{ padding: "12px 14px", fontWeight: 800, color: "#16a34a" }}>
+                      {formatCurrency(p.paid_amount)}
+                    </td>
+                    <td style={{ padding: "12px 14px", textTransform: "capitalize", color: "#334155", fontWeight: 600 }}>
+                      {p.payment_mode || "cash"}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
-                      <a
+                      <Link
                         href={`/fees/receipt/${p.id}`}
                         target="_blank"
-                        rel="noreferrer"
                         style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          padding: "6px 12px", borderRadius: 7,
-                          background: "#0f172a", color: "#fff",
-                          fontWeight: 700, fontSize: 11.5, textDecoration: "none",
+                          display: "inline-flex", alignItems: "center", gap: 5,
+                          padding: "4px 10px", borderRadius: 6,
+                          background: "#f1f5f9", color: "#0f172a", textDecoration: "none",
+                          fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1",
                         }}
                       >
-                        <i className="fa-solid fa-print" style={{ fontSize: 11 }} />
-                        Print
-                      </a>
+                        <i className="fa-solid fa-print" /> View Receipt
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -154,9 +162,18 @@ function getPaginationItems(current: number, total: number): (number | "...")[] 
   return items;
 }
 
+interface FeeRecordsPageProps {
+  basePath?: string;
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
-export default function FeeRecordsPage() {
+export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const isFinance = user?.role === 'finance';
+  const overviewUrl = isFinance ? '/finance/dashboard' : (basePath || '/fees');
+  const collectUrl = isFinance ? '/finance/fees/collect' : '/fees/collect';
+
   const { formatDate, formatFeeName } = useDateFormat();
   const { fmt: formatCurrency, symbol: currSymbol } = useCurrency();
   const { academicYearId } = useAcademicYear();
@@ -339,12 +356,14 @@ export default function FeeRecordsPage() {
             </div>
           </div>
           <div className={s("headActions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees">
+            <Link className={cx(s("btn"), s("btnOutline"))} href={overviewUrl}>
               <i className="fa-solid fa-arrow-left" /> Fee Overview
             </Link>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/fees/collect">
-              <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
-            </Link>
+            {isFinance && (
+              <Link className={cx(s("btn"), s("btnPrimary"))} href={collectUrl}>
+                <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
+              </Link>
+            )}
           </div>
         </section>
 
@@ -695,15 +714,15 @@ export default function FeeRecordsPage() {
                                 <i className="fa-solid fa-receipt" style={{ fontSize: 10 }} /> Receipts
                               </button>
                             )}
-                            {col.status !== "paid" && col.status !== "waived" && (
+                            {isFinance && col.status !== "paid" && col.status !== "waived" && (
                               <Link
                                 className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
-                                href={`/fees/collect?student_id=${col.student_id}`}
+                                href={`${collectUrl}?student_id=${col.student_id}`}
                               >
                                 <i className="fa-solid fa-hand-holding-dollar" /> Collect
                               </Link>
                             )}
-                            {col.status !== "paid" && col.status !== "waived" && (
+                            {isFinance && col.status !== "paid" && col.status !== "waived" && (
                               <button
                                 onClick={() => handleWaive(col)}
                                 disabled={waiving === col.id}
@@ -714,7 +733,7 @@ export default function FeeRecordsPage() {
                                 {waiving === col.id ? <Spinner size={10} /> : <i className="fa-solid fa-ban" />} Waive
                               </button>
                             )}
-                            {col.status !== "paid" && col.status !== "waived" && isOverdue && (
+                            {isFinance && col.status !== "paid" && col.status !== "waived" && isOverdue && (
                               <button
                                 onClick={() => { setFineTarget(col); setFineAmount(''); setFineReason(''); }}
                                 title="Apply late fine"

@@ -34,10 +34,13 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
   // Activate Plan Modal
   const [showPlanModal, setShowPlanModal]   = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<number | "">("");
+  const [billingCycle, setBillingCycle]     = useState<"yearly" | "monthly">("yearly");
   const [customDays, setCustomDays]         = useState("365");
   const [customPrice, setCustomPrice]       = useState("");
+  const [paymentMethod, setPaymentMethod]   = useState("bank_transfer");
   const [paymentRef, setPaymentRef]         = useState("");
   const [submittingPlan, setSubmittingPlan] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
 
   if (loading) {
     return (
@@ -78,6 +81,20 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
 
   const { school, metrics, plan, history, storage } = data;
 
+  // Normalized Subscription Properties
+  const currentPlanName = plan?.plan_name || plan?.plan?.name || plan?.subscription?.plan_name || "Pro";
+  const currentSubStatus = plan?.status || plan?.subscription?.status || "active";
+  const currentBillingCycle = plan?.billing_cycle || plan?.subscription?.billing_cycle || "monthly";
+  const currentEndDate = plan?.end_date || plan?.subscription?.end_date;
+  const currentPricePaid = plan?.price_paid ?? plan?.subscription?.amount_paid;
+  const daysLeft = currentEndDate
+    ? Math.ceil((new Date(currentEndDate).getTime() - Date.now()) / 86400000)
+    : null;
+
+  const isUltra = currentPlanName.toLowerCase().includes("ultra");
+  const isPlusOrHigher = isUltra || currentPlanName.toLowerCase().includes("plus");
+  const isProOrHigher = isPlusOrHigher || currentPlanName.toLowerCase().includes("pro");
+
   // Actions
   const handleVerify = async () => {
     setActionLoading(true);
@@ -91,8 +108,6 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
       setActionLoading(false);
     }
   };
-
-  const [showBlockModal, setShowBlockModal] = useState(false);
 
   const handleConfirmBlockUnblock = async () => {
     if (!school) return;
@@ -140,17 +155,28 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     if (!selectedPlanId) return;
     setSubmittingPlan(true);
     try {
-      await apiRequest("/subscriptions/schools/activate", {
+      const selectedPlan = (plans || []).find((p) => p.id === Number(selectedPlanId));
+      const isFree = selectedPlan?.name?.toLowerCase() === "free";
+      const days = Number(customDays) || (billingCycle === "yearly" ? 365 : 30);
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
+
+      await apiRequest("/subscriptions/activate", {
         method: "POST",
         body: JSON.stringify({
           school_id: schoolId,
           plan_id: Number(selectedPlanId),
-          duration_days: Number(customDays) || 365,
-          price_paid: customPrice ? Number(customPrice) : 0,
-          payment_ref: paymentRef.trim() || "Manual Offline Activation",
+          billing_cycle: isFree ? "free" : billingCycle,
+          amount_paid: isFree ? 0 : Number(customPrice || 0),
+          currency: isFree ? undefined : (school.currency || "NPR"),
+          start_date: startDate,
+          end_date: isFree ? undefined : endDate,
+          payment_method: isFree ? undefined : paymentMethod,
+          payment_reference: paymentRef.trim() || "Manual Offline Activation",
+          notes: `Activated via Super Admin console for ${days} days`,
         }),
       });
-      dispatch(showToast({ type: "success", title: "Plan Activated", message: "School subscription successfully updated." }));
+      dispatch(showToast({ type: "success", title: "Plan Activated", message: `${selectedPlan?.name || "Subscription"} plan successfully activated.` }));
       setShowPlanModal(false);
       refetch();
     } catch (err: any) {
@@ -169,7 +195,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     }
   };
 
-  const planStyle = planBadgeColor(plan?.plan_name || "Pro");
+  const planStyle = planBadgeColor(currentPlanName);
 
   return (
     <div className={s("sa-page")}>
@@ -260,7 +286,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                     fontWeight: 800,
                   }}
                 >
-                  {plan?.plan_name || "Pro Trial"}
+                  {currentPlanName}
                 </span>
 
                 <span
@@ -759,46 +785,46 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                 <div>
                   <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Current Subscription</span>
                   <h3 style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 900, color: "#0f172a" }}>
-                    {plan?.plan_name || "Pro Trial"}
+                    {currentPlanName}
                   </h3>
                 </div>
                 <span
                   style={{
                     padding: "4px 12px",
                     borderRadius: 8,
-                    background: plan?.status === "active" ? "#ecfdf5" : plan?.status === "grace_period" ? "#fffbeb" : "#eff6ff",
-                    color: plan?.status === "active" ? "#059669" : plan?.status === "grace_period" ? "#b45309" : "#2563eb",
+                    background: currentSubStatus === "active" ? "#ecfdf5" : currentSubStatus === "grace_period" ? "#fffbeb" : "#eff6ff",
+                    color: currentSubStatus === "active" ? "#059669" : currentSubStatus === "grace_period" ? "#b45309" : "#2563eb",
                     border: "1px solid rgba(0,0,0,0.06)",
                     fontSize: 12,
                     fontWeight: 800,
                     textTransform: "capitalize",
                   }}
                 >
-                  ● {plan?.status?.replace("_", " ") || "Active"}
+                  ● {currentSubStatus.replace("_", " ")}
                 </span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
                   <span style={{ color: "#64748b", fontWeight: 700 }}>Billing Cycle:</span>
-                  <span style={{ color: "#0f172a", fontWeight: 800 }}>{plan?.billing_cycle || "Monthly"}</span>
+                  <span style={{ color: "#0f172a", fontWeight: 800, textTransform: "capitalize" }}>{currentBillingCycle}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
                   <span style={{ color: "#64748b", fontWeight: 700 }}>Expiration Date:</span>
                   <span style={{ color: "#0f172a", fontWeight: 800 }}>
-                    {plan?.end_date ? new Date(plan.end_date).toLocaleDateString() : "Pending Activation"}
+                    {currentEndDate ? new Date(currentEndDate).toLocaleDateString() : "Never / Active"}
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
                   <span style={{ color: "#64748b", fontWeight: 700 }}>Days Remaining:</span>
                   <span style={{ color: "#0f172a", fontWeight: 800 }}>
-                    {plan?.days_remaining != null ? `${plan.days_remaining} day(s)` : "—"}
+                    {daysLeft != null ? `${daysLeft} day(s)` : "—"}
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b", fontWeight: 700 }}>Price Paid:</span>
                   <span style={{ color: "#16a34a", fontWeight: 900 }}>
-                    {plan?.price_paid ? `${school.currency || "NPR"} ${plan.price_paid}` : "14-Day Trial"}
+                    {currentPricePaid ? `${school.currency || "NPR"} ${currentPricePaid}` : "Free / Trial"}
                   </span>
                 </div>
               </div>
@@ -837,10 +863,10 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                   { name: "Attendance & Calendar",      enabled: true },
                   { name: "Exams & Results",            enabled: true },
                   { name: "Fee Invoicing & Receipts",   enabled: true },
-                  { name: "Hostel Management",          enabled: plan?.plan_name === "Pro" || plan?.plan_name === "Plus" },
-                  { name: "Transport & Route Tracking", enabled: plan?.plan_name === "Pro" || plan?.plan_name === "Plus" },
-                  { name: "AI Timetable & Routine",     enabled: plan?.plan_name === "Plus" },
-                  { name: "Online Student Payments",    enabled: plan?.plan_name === "Plus" },
+                  { name: "Hostel Management",          enabled: isProOrHigher },
+                  { name: "Transport & Route Tracking", enabled: isProOrHigher },
+                  { name: "Dedicated Finance Role",     enabled: isPlusOrHigher },
+                  { name: "Online Student Payments",    enabled: isPlusOrHigher },
                 ].map((mod) => (
                   <div
                     key={mod.name}
@@ -928,10 +954,10 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                           {h.end_date ? new Date(h.end_date).toLocaleDateString() : "Unlimited"}
                         </td>
                         <td style={{ padding: "10px 16px", fontWeight: 800, color: "#16a34a" }}>
-                          {school.currency || "NPR"} {h.price_paid || 0}
+                          {school.currency || "NPR"} {h.amount_paid ?? h.price_paid ?? 0}
                         </td>
                         <td style={{ padding: "10px 16px", color: "#64748b", fontFamily: "monospace" }}>
-                          {h.payment_ref || "Manual"}
+                          {h.payment_reference ?? h.payment_ref ?? "Manual"}
                         </td>
                         <td style={{ padding: "10px 16px" }}>
                           <span style={{ padding: "2px 7px", borderRadius: 4, background: h.status === "active" ? "#ecfdf5" : "#f1f5f9", color: h.status === "active" ? "#059669" : "#64748b", fontSize: 11, fontWeight: 800 }}>
@@ -967,48 +993,114 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
               <select
                 required
                 value={selectedPlanId}
-                onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                onChange={(e) => {
+                  const pId = Number(e.target.value);
+                  setSelectedPlanId(pId);
+                  const p = (plans || []).find((x) => x.id === pId);
+                  if (p) {
+                    const curr = (school.currency || "NPR").toLowerCase();
+                    const price = billingCycle === "yearly"
+                      ? (p[`price_${curr}_yearly`] ?? p.price_npr_yearly ?? 0)
+                      : (p[`price_${curr}_monthly`] ?? p.price_npr_monthly ?? 0);
+                    setCustomPrice(price ? String(price) : "0");
+                  }
+                }}
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, marginBottom: 12, boxSizing: "border-box" }}
               >
                 <option value="">-- Choose a Plan --</option>
-                {(plans || []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.billing_cycle}) — {p.price} {school.currency || "NPR"}
-                  </option>
-                ))}
+                {(plans || []).map((p) => {
+                  const curr = (school.currency || "NPR").toLowerCase();
+                  const yrPrice = p[`price_${curr}_yearly`] ?? p.price_npr_yearly ?? 0;
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} Plan — {school.currency || "NPR"} {yrPrice}/yr
+                    </option>
+                  );
+                })}
               </select>
 
-              <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
-                Duration (Days) *
-              </label>
-              <input
-                type="number"
-                required
-                value={customDays}
-                onChange={(e) => setCustomDays(e.target.value)}
-                placeholder="365"
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, marginBottom: 12, boxSizing: "border-box" }}
-              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
+                    Billing Cycle
+                  </label>
+                  <select
+                    value={billingCycle}
+                    onChange={(e) => {
+                      const newCycle = e.target.value as "yearly" | "monthly";
+                      setBillingCycle(newCycle);
+                      setCustomDays(newCycle === "yearly" ? "365" : "30");
+                      const p = (plans || []).find((x) => x.id === Number(selectedPlanId));
+                      if (p) {
+                        const curr = (school.currency || "NPR").toLowerCase();
+                        const price = newCycle === "yearly"
+                          ? (p[`price_${curr}_yearly`] ?? p.price_npr_yearly ?? 0)
+                          : (p[`price_${curr}_monthly`] ?? p.price_npr_monthly ?? 0);
+                        setCustomPrice(price ? String(price) : "0");
+                      }
+                    }}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }}
+                  >
+                    <option value="yearly">Yearly (Annual)</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
+                    Duration (Days) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    placeholder="365"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
+                    Price Paid ({school.currency || "NPR"})
+                  </label>
+                  <input
+                    type="number"
+                    value={customPrice}
+                    onChange={(e) => setCustomPrice(e.target.value)}
+                    placeholder="e.g. 35000"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }}
+                  >
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="esewa">eSewa</option>
+                    <option value="khalti">Khalti</option>
+                    <option value="cash">Cash Offline</option>
+                    <option value="cheque">Cheque</option>
+                  </select>
+                </div>
+              </div>
 
               <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
-                Price Paid ({school.currency || "NPR"})
-              </label>
-              <input
-                type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(e.target.value)}
-                placeholder="e.g. 50000"
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, marginBottom: 12, boxSizing: "border-box" }}
-              />
-
-              <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#334155", marginBottom: 5 }}>
-                Payment Reference / Notes
+                Payment Reference / Transaction ID
               </label>
               <input
                 type="text"
                 value={paymentRef}
                 onChange={(e) => setPaymentRef(e.target.value)}
-                placeholder="e.g. Bank Transfer Ref #12345"
+                placeholder="e.g. Bank Voucher Ref #12345 or eSewa TXN"
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, marginBottom: 18, boxSizing: "border-box" }}
               />
 

@@ -29,39 +29,39 @@ router.get(
   getMyCoordinatedSections
 );
 
-// Apply admin guard to everything below
-router.use(protect, restrictTo('admin', 'super_admin'));
+// Apply protect guard to everything below
+router.use(protect);
 
 // ── SUBJECT ROUTES (before /:id to avoid path collision) ──
-router.post  ('/subjects',    createSubject);
-router.get   ('/subjects',    getSubjects);
-router.patch ('/subjects/:id', updateSubject);
-router.delete('/subjects/:id', deleteSubject);
+router.post  ('/subjects',    restrictTo('admin', 'super_admin'), createSubject);
+router.get   ('/subjects',    restrictTo('admin', 'super_admin'), getSubjects);
+router.patch ('/subjects/:id', restrictTo('admin', 'super_admin'), updateSubject);
+router.delete('/subjects/:id', restrictTo('admin', 'super_admin'), deleteSubject);
 
 // ── SUBJECT-TEACHER ASSIGNMENT ──
 // Assign / remove teacher to a subject+class combination
-router.post  ('/assign-subject-teacher', assignSubjectTeacher);
-router.delete('/remove-subject-teacher', removeSubjectTeacher);
+router.post  ('/assign-subject-teacher', restrictTo('admin', 'super_admin'), assignSubjectTeacher);
+router.delete('/remove-subject-teacher', restrictTo('admin', 'super_admin'), removeSubjectTeacher);
 
 // ── CLASS-LEVEL SUBJECT ASSIGNMENT (bulk, used by AddClassForm) ──
-router.post  ('/assign-subject',  assignSubject);
-router.delete('/remove-subject',  removeSubject);
+router.post  ('/assign-subject',  restrictTo('admin', 'super_admin'), assignSubject);
+router.delete('/remove-subject',  restrictTo('admin', 'super_admin'), removeSubject);
 
 // ── CLASS CRUD ──
-router.post('/', createClass);
-router.get ('/', getClasses);
-router.get ('/:id', getClassById);
-router.patch('/:id', updateClass);
-router.delete('/:id', deleteClass);
+router.post('/',   restrictTo('admin', 'super_admin'), createClass);
+router.get ('/',   restrictTo('admin', 'super_admin', 'finance'), getClasses);
+router.get ('/:id', restrictTo('admin', 'super_admin', 'finance'), getClassById);
+router.patch('/:id', restrictTo('admin', 'super_admin'), updateClass);
+router.delete('/:id', restrictTo('admin', 'super_admin'), deleteClass);
 
 // ── SECTION ROUTES (under /:classId) ──
-router.post('/:classId/sections', addSection);
-router.get ('/:classId/sections', getSections);
-router.patch('/sections/:id',     updateSection);
-router.delete('/sections/:id',    deleteSection);
+router.post('/:classId/sections',  restrictTo('admin', 'super_admin'), addSection);
+router.get ('/:classId/sections',  restrictTo('admin', 'super_admin', 'finance'), getSections);
+router.patch('/sections/:id',      restrictTo('admin', 'super_admin'), updateSection);
+router.delete('/sections/:id',     restrictTo('admin', 'super_admin'), deleteSection);
 
 // ── CLASS SUBJECTS (read) ──
-router.get('/:classId/subjects',         getClassSubjects);
-router.get('/:classId/subject-teachers', getSubjectTeachers);
+router.get('/:classId/subjects',         restrictTo('admin', 'super_admin'), getClassSubjects);
+router.get('/:classId/subject-teachers', restrictTo('admin', 'super_admin'), getSubjectTeachers);
 
 export default router;

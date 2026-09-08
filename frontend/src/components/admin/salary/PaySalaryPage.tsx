@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./salary.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
@@ -56,6 +56,8 @@ export default function PaySalaryPage() {
   const router        = useRouter();
   const searchParams  = useSearchParams();
   const dispatch      = useAppDispatch();
+  const user          = useAppSelector((state) => state.auth.user);
+  const salaryUrl     = user?.role === 'finance' ? '/finance/salary' : '/salary';
   const { isBS, formatDate } = useDateFormat();
 
   const monthNames  = isBS ? BS_MONTH_NAMES : AD_MONTHS;
@@ -239,7 +241,7 @@ export default function PaySalaryPage() {
         remarks,
       });
       dispatch(showToast({ type: "success", title: "Paid!", message: "Salary recorded successfully" }));
-      router.push("/salary");
+      router.push(salaryUrl);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Failed", message: err.message || "Payment failed" }));
     }
@@ -256,7 +258,7 @@ export default function PaySalaryPage() {
             <h1>Pay Salary</h1>
             <p>Select faculty and month, load attendance, then process payment.</p>
           </div>
-          <Link className={cx(s("btn"), s("btnOutline"))} href="/salary">
+          <Link className={cx(s("btn"), s("btnOutline"))} href={salaryUrl}>
             <i className="fa-solid fa-arrow-left" /> Back to Salary
           </Link>
         </section>

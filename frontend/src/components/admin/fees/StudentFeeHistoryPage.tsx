@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
@@ -17,6 +17,18 @@ const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join
 
 const getInitials = (name: string) =>
   (name || "?").split(" ").map((p: string) => p[0]).join("").substring(0, 2).toUpperCase();
+
+const formatClassName = (name?: string) => {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (/^(class|grade|nursery|kg|playgroup|lkg|ukg)\b/i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return `Class ${trimmed}`;
+  }
+  return trimmed;
+};
 
 // ─── colour maps ─────────────────────────────────────────────────────────────
 const TYPE_COLOR:  Record<string, string> = { academic: "#3b5bdb", transport: "#c46a14", hostel: "#7c3aed" };
@@ -471,8 +483,643 @@ function YearlyFeesBanner({
   );
 }
 
+// ─── Student Search Autocomplete with Suggestion Box ─────────────────────────
+function StudentSearchAutoComplete({
+  basePath,
+  placeholder = "Search student by name, admission no, class...",
+  compact = false,
+  onSelect,
+}: {
+  basePath: string;
+  placeholder?: string;
+  compact?: boolean;
+  onSelect?: (st: any) => void;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await apiRequest<{ data: any[] }>(
+          `/students/search?q=${encodeURIComponent(query.trim())}`
+        );
+        const list = res.data || [];
+        setResults(list);
+        setOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+  }, [query]);
+
+  const handleSelect = (st: any) => {
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+    if (onSelect) {
+      onSelect(st);
+    } else {
+      router.push(`${basePath || ""}/fees/history?student_id=${st.id}`);
+    }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: "100%", maxWidth: compact ? 340 : 540 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: "#ffffff",
+          border: "1.5px solid #d4dde2",
+          borderRadius: compact ? 9 : 12,
+          padding: compact ? "7px 12px" : "12px 18px",
+          boxShadow: compact ? "0 1px 3px rgba(0,0,0,0.03)" : "0 4px 16px rgba(15, 23, 42, 0.05)",
+        }}
+      >
+        <i
+          className="fa-solid fa-magnifying-glass"
+          style={{ color: "#ea580c", fontSize: compact ? 13 : 15, flexShrink: 0 }}
+        />
+        <input
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={placeholder}
+          value={query}
+          onFocus={() => { if (results.length > 0) setOpen(true); }}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            border: "none",
+            outline: "none",
+            width: "100%",
+            fontSize: compact ? 13 : 14,
+            fontWeight: 600,
+            color: "#0f172a",
+            background: "transparent",
+          }}
+        />
+        {searching && <Spinner size={compact ? 13 : 16} color="#ea580c" />}
+        {query && (
+          <button
+            type="button"
+            onClick={() => { setQuery(""); setResults([]); setOpen(false); }}
+            aria-label="Clear search"
+            style={{
+              border: "none",
+              background: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              padding: "2px 4px",
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1,
+              borderRadius: 4,
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Suggestion Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: compact ? "auto" : 0,
+            right: 0,
+            width: compact ? 420 : "100%",
+            maxWidth: "92vw",
+            background: "#ffffff",
+            border: "1.5px solid #e2e8f0",
+            borderRadius: 12,
+            boxShadow: "0 14px 36px rgba(15, 23, 42, 0.16)",
+            maxHeight: 380,
+            overflowY: "auto",
+            zIndex: 9999,
+          }}
+        >
+          {results.length > 0 ? (
+            <div>
+              <div
+                style={{
+                  padding: "8px 14px",
+                  background: "#f8fafc",
+                  borderBottom: "1px solid #f1f5f9",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Matching Students ({results.length})
+              </div>
+              {results.map((st) => (
+                <div
+                  key={st.id}
+                  onClick={() => handleSelect(st)}
+                  style={{
+                    padding: "11px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    borderBottom: "1px solid #f8fafc",
+                    cursor: "pointer",
+                    background: "#ffffff",
+                    transition: "background 0.12s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <span
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 8,
+                        background: "#fff7ed",
+                        border: "1.5px solid #fed7aa",
+                        color: "#ea580c",
+                        fontSize: 13,
+                        fontWeight: 900,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {getInitials(st.full_name)}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {st.full_name}
+                      </strong>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                        {st.class_name ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#3b5bdb", background: "#eef1fd", border: "1px solid #c5cffa", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fa-solid fa-graduation-cap" style={{ fontSize: 9 }} />
+                            {formatClassName(st.class_name)}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>No Class</span>
+                        )}
+                        {st.section_name && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fa-solid fa-layer-group" style={{ fontSize: 9 }} />
+                            Sec {st.section_name}
+                          </span>
+                        )}
+                        {st.admission_number && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fa-regular fa-id-badge" style={{ fontSize: 9 }} />
+                            Adm: {st.admission_number}
+                          </span>
+                        )}
+                        {st.roll_number && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", background: "#f1f5f9", border: "1px solid #e2e8f0", padding: "1px 7px", borderRadius: 6 }}>
+                            Roll #{st.roll_number}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: "#ea580c",
+                      background: "#fff7ed",
+                      border: "1px solid #fed7aa",
+                      padding: "3px 9px",
+                      borderRadius: 6,
+                      whiteSpace: "nowrap",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      flexShrink: 0,
+                    }}
+                  >
+                    View Ledger <i className="fa-solid fa-arrow-right" style={{ fontSize: 9 }} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            query.trim().length >= 2 && !searching && (
+              <div style={{ padding: "20px 14px", textAlign: "center", color: "#64748b", fontSize: 12.5 }}>
+                <i className="fa-solid fa-user-slash" style={{ fontSize: 20, color: "#94a3b8", display: "block", marginBottom: 6 }} />
+                No student found matching &ldquo;<strong>{query}</strong>&rdquo;
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Student Fee Search Directory (rendered when no student is selected) ─────
+function StudentFeeSearchDirectory({ basePath = "" }: { basePath?: string }) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const { data: classesData } = useApi<any>("/classes");
+  const classes: any[] = Array.isArray(classesData) ? classesData : (classesData?.data ?? []);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const loadInitialStudents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiRequest<any>(`/students?limit=50`);
+      const list = res?.data?.data || res?.data || (Array.isArray(res) ? res : []);
+      setStudents(list);
+    } catch {
+      setStudents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInitialStudents();
+  }, [loadInitialStudents]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      loadInitialStudents();
+      return;
+    }
+    if (query.trim().length < 2) return;
+
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await apiRequest<any>(
+          `/students/search?q=${encodeURIComponent(query.trim())}`
+        );
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        setStudents(list);
+      } catch {
+        setStudents([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+  }, [query, loadInitialStudents]);
+
+  const filteredStudents = useMemo(() => {
+    if (classFilter === "all") return students;
+    return students.filter((st: any) => {
+      if (st.class_id && String(st.class_id) === String(classFilter)) return true;
+      const matchedClass = classes.find((c: any) => String(c.id) === String(classFilter));
+      if (matchedClass && st.class_name && st.class_name.toLowerCase() === (matchedClass.name || "").toLowerCase()) return true;
+      return false;
+    });
+  }, [students, classFilter, classes]);
+
+  return (
+    <div className={s("fees-page")} style={{ minHeight: "calc(100vh - 120px)" }}>
+      <main className={s("page-content")}>
+        {/* Page Head */}
+        <section className={s("page-head")}>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#ea580c", textTransform: "uppercase", letterSpacing: 0.8, display: "inline-block", marginBottom: 3 }}>
+              Billing · Student Fee History
+            </span>
+            <h1>Student Fee History</h1>
+            <p>Select a student to view fee structures, payments, invoices, and ledger history</p>
+          </div>
+          <div className={s("head-actions")}>
+            <Link className={cx(s("btn"), s("btn-outline"))} href={`${basePath || ""}/students`}>
+              <i className="fa-solid fa-users" /> Browse Students
+            </Link>
+            {basePath?.startsWith("/finance") && (
+              <Link className={cx(s("btn"), s("btn-primary"))} href={`${basePath}/fees`}>
+                <i className="fa-solid fa-receipt" /> Fee Collections
+              </Link>
+            )}
+          </div>
+        </section>
+
+        {/* Search & Filter Toolbar */}
+        <div style={{
+          background: "#ffffff",
+          borderRadius: 12,
+          border: "1px solid #e2e8f0",
+          padding: "12px 16px",
+          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}>
+          {/* Search Field */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "#f8fafc",
+            border: "1.5px solid #e2e8f0",
+            borderRadius: 9,
+            padding: "8px 14px",
+            flex: 1,
+            minWidth: 260,
+          }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: "#ea580c", fontSize: 13, flexShrink: 0 }} />
+            <input
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Search student by name, admission no, class, roll no…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                width: "100%",
+                fontSize: 13.5,
+                fontWeight: 600,
+                color: "#0f172a",
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                style={{
+                  border: "none",
+                  background: "none",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  padding: "2px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                  borderRadius: 4,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Class Filter */}
+          {classes.length > 0 && (
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 9,
+                border: "1.5px solid #e2e8f0",
+                background: "#ffffff",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#334155",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value="all">All Classes</option>
+              {classes.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {formatClassName(c.name) || `Class ${c.id}`}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Results Table Card (in-flow, natural height, zero footer overlap) */}
+        <div style={{
+          background: "#ffffff",
+          borderRadius: 12,
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          overflow: "hidden",
+        }}>
+          {/* Header Strip */}
+          <div style={{
+            padding: "11px 18px",
+            borderBottom: "1px solid #f1f5f9",
+            background: "#f8fafc",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              {loading ? "Searching students…" : `${filteredStudents.length} Students Found`}
+            </span>
+            {query.trim() && (
+              <span style={{ fontSize: 12, color: "#64748b" }}>
+                Filter: &ldquo;<strong>{query}</strong>&rdquo;
+              </span>
+            )}
+          </div>
+
+          {/* Body */}
+          {loading ? (
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "#64748b" }}>
+              <Spinner size={22} color="#ea580c" />
+              <p style={{ marginTop: 8, fontSize: 13, fontWeight: 600 }}>Loading students…</p>
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div style={{ padding: "50px 20px", textAlign: "center", color: "#64748b" }}>
+              <i className="fa-solid fa-user-slash" style={{ fontSize: 28, color: "#cbd5e1", marginBottom: 10, display: "block" }} />
+              <strong style={{ fontSize: 14, color: "#1f2d36" }}>No students found</strong>
+              <p style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4 }}>
+                {query ? `No student matched "${query}". Try another search term.` : "No students currently enrolled."}
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ padding: "10px 16px", fontWeight: 800, color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>Student</th>
+                    <th style={{ padding: "10px 16px", fontWeight: 800, color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>Class & Section</th>
+                    <th style={{ padding: "10px 16px", fontWeight: 800, color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>Admission No</th>
+                    <th style={{ padding: "10px 16px", fontWeight: 800, color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>Roll No</th>
+                    <th style={{ padding: "10px 16px", fontWeight: 800, color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((st) => (
+                    <tr
+                      key={st.id}
+                      onClick={() => router.push(`${basePath || ""}/fees/history?student_id=${st.id}`)}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        cursor: "pointer",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                    >
+                      {/* Student Info */}
+                      <td style={{ padding: "10px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 8,
+                            background: "#fff7ed",
+                            border: "1.5px solid #fed7aa",
+                            color: "#ea580c",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}>
+                            {getInitials(st.full_name)}
+                          </span>
+                          <div>
+                            <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block" }}>{st.full_name}</strong>
+                            {(st.email || st.phone) && (
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{st.email || st.phone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Class & Section */}
+                      <td style={{ padding: "10px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          {st.class_name ? (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#3b5bdb", background: "#eef1fd", border: "1px solid #c5cffa", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <i className="fa-solid fa-graduation-cap" style={{ fontSize: 9 }} />
+                              {formatClassName(st.class_name)}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>—</span>
+                          )}
+                          {st.section_name && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <i className="fa-solid fa-layer-group" style={{ fontSize: 9 }} />
+                              Sec {st.section_name}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Admission Number */}
+                      <td style={{ padding: "10px 16px" }}>
+                        {st.admission_number ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fa-regular fa-id-badge" style={{ fontSize: 9 }} />
+                            Adm: {st.admission_number}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Roll Number */}
+                      <td style={{ padding: "10px 16px" }}>
+                        {st.roll_number ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", background: "#f1f5f9", border: "1px solid #e2e8f0", padding: "1px 7px", borderRadius: 6 }}>
+                            #{st.roll_number}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ padding: "10px 16px", textAlign: "right" }}>
+                        <Link
+                          href={`${basePath || ""}/fees/history?student_id=${st.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "5px 12px",
+                            borderRadius: 7,
+                            background: "#fff7ed",
+                            border: "1px solid #fed7aa",
+                            color: "#ea580c",
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            textDecoration: "none",
+                            transition: "all 0.12s",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "#ea580c";
+                            e.currentTarget.style.color = "#ffffff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "#fff7ed";
+                            e.currentTarget.style.color = "#ea580c";
+                          }}
+                        >
+                          View Ledger <i className="fa-solid fa-arrow-right" style={{ fontSize: 9 }} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function StudentFeeHistoryPage() {
+interface StudentFeeHistoryPageProps {
+  basePath?: string;
+}
+
+export default function StudentFeeHistoryPage({ basePath = "" }: StudentFeeHistoryPageProps = {}) {
   const { fmt }                                    = useCurrency();
   const { isBS, formatDate, formatFeeName, billingGroupKey } = useDateFormat();
   const { activeYear, academicYearId }             = useAcademicYear();
@@ -652,20 +1299,7 @@ export default function StudentFeeHistoryPage() {
   const initials = student ? getInitials(student.full_name || "") : "?";
 
   if (!studentId) {
-    return (
-      <div className={s("fees-page")}>
-        <main className={s("page-content")}>
-          <div style={{ padding: "80px 24px", textAlign: "center", border: "2px dashed #d4dde2", borderRadius: 14, background: "#fff", marginTop: 24 }}>
-            <i className="fa-solid fa-user-graduate" style={{ fontSize: 40, color: "#c8d6de", display: "block", marginBottom: 16 }} />
-            <strong style={{ fontSize: 16, color: "#1f2d36" }}>No student selected</strong>
-            <p style={{ color: "#6a7882", marginTop: 8 }}>Open this page from a student's profile.</p>
-            <Link href="/students" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 20, padding: "10px 22px", borderRadius: 9, background: "#1f2d36", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 900 }}>
-              <i className="fa-solid fa-users" /> Browse Students
-            </Link>
-          </div>
-        </main>
-      </div>
-    );
+    return <StudentFeeSearchDirectory basePath={basePath} />;
   }
 
   return (
@@ -682,6 +1316,20 @@ export default function StudentFeeHistoryPage() {
             <p>Fee structures, scholarship discounts, payment records, and timeline</p>
           </div>
           <div className={s("head-actions")}>
+            {/* Quick search to switch student */}
+            <StudentSearchAutoComplete
+              basePath={basePath}
+              compact
+              placeholder="Switch student..."
+            />
+            {/* Switch / Clear Student button */}
+            <Link
+              className={cx(s("btn"), s("btn-outline"))}
+              href={`${basePath || ""}/fees/history`}
+              title="Change student"
+            >
+              <i className="fa-solid fa-arrows-rotate" /> Switch
+            </Link>
             {/* B5: Academic Year Picker */}
             {allYears && allYears.length > 1 && (
               <select
@@ -699,12 +1347,12 @@ export default function StudentFeeHistoryPage() {
               </select>
             )}
             {student && (
-              <Link className={cx(s("btn"), s("btn-outline"))} href={`/students/profile?id=${studentId}`}>
+              <Link className={cx(s("btn"), s("btn-outline"))} href={`${basePath}/students/profile?id=${studentId}`}>
                 <i className="fa-solid fa-arrow-left" /> Back to Profile
               </Link>
             )}
             {student && (
-              <Link className={cx(s("btn"), s("btn-primary"))} href={`/fees/collect?student_id=${studentId}`}>
+              <Link className={cx(s("btn"), s("btn-primary"))} href={`${basePath}/fees/collect?student_id=${studentId}`}>
                 <i className="fa-solid fa-money-bill-wave" /> Collect Fee
               </Link>
             )}
@@ -1139,7 +1787,7 @@ export default function StudentFeeHistoryPage() {
                             {fmt(monthPending)} pending in {group.label}
                           </span>
                           <Link
-                            href={`/fees/collect?student_id=${studentId}`}
+                            href={`${basePath}/fees/collect?student_id=${studentId}`}
                             style={{ padding: "6px 14px", borderRadius: 8, background: "#ff9b51", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 900, display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
                           >
                             <i className="fa-solid fa-arrow-up-from-bracket" /> Collect Now

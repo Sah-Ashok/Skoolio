@@ -17,8 +17,8 @@ router.get('/public/plans', getPublicPlans);
 
 router.use(protect);
 
-// ── SCHOOL ADMIN ──────────────────────────────────────────────────────────────
-router.get('/me/status',  restrictTo('admin', 'super_admin'), getMyPlanStatus);
+// ── SCHOOL ADMIN & FINANCE ──────────────────────────────────────────────────
+router.get('/me/status',  restrictTo('admin', 'super_admin', 'finance'), getMyPlanStatus);
 router.get('/me/history', restrictTo('admin', 'super_admin'), getMyPlanHistory);
 router.get('/plans',      restrictTo('admin', 'super_admin'), getActivePlans);
 router.get('/offers',     restrictTo('admin', 'super_admin'), getActiveOffers);  // active only
@@ -42,5 +42,6 @@ router.get ('/schools',                   restrictTo('super_admin'), getAllSchoo
 router.get ('/schools/:schoolId/status',  restrictTo('super_admin'), getSchoolPlanStatus);
 router.get ('/schools/:schoolId/history', restrictTo('super_admin'), getSchoolSubscriptionHistory);
 router.post('/activate',                  restrictTo('super_admin'), activateSubscription);
+router.post('/schools/activate',          restrictTo('super_admin'), activateSubscription);
 
 export default router;

@@ -104,6 +104,14 @@ export const createSubscription = async (
   activated_by: number,
   data: IActivateSubscription
 ): Promise<ISchoolSubscription> => {
+  // Expire any existing active or grace period subscriptions so only 1 active subscription exists
+  await pool.query(
+    `UPDATE school_subscriptions 
+     SET status = 'expired' 
+     WHERE school_id = $1 AND status IN ('active', 'grace_period')`,
+    [data.school_id]
+  );
+
   const result = await pool.query(
     `INSERT INTO school_subscriptions
       (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
@@ -136,7 +144,9 @@ export const getLatestSubscription = async (
      FROM school_subscriptions ss
      INNER JOIN subscription_plans sp ON sp.id = ss.plan_id
      WHERE ss.school_id = $1
-     ORDER BY ss.created_at DESC
+     ORDER BY 
+       CASE WHEN ss.status = 'active' THEN 1 WHEN ss.status = 'grace_period' THEN 2 ELSE 3 END ASC,
+       ss.created_at DESC, ss.id DESC
      LIMIT 1`,
     [school_id]
   );
@@ -207,7 +217,7 @@ export const downgradeToFreeTransaction = async (
 
 export const getAllSchoolsWithSubscriptions = async (): Promise<any[]> => {
   const result = await pool.query(
-    `SELECT DISTINCT ON (ss.school_id)
+    `SELECT DISTINCT ON (s.id)
        s.id as school_id, s.school_name, s.email, s.is_account, s.country,
        s.is_verified, s.two_fa_enabled,
        ss.id as subscription_id, ss.plan_id, sp.name as plan_name,
@@ -216,7 +226,9 @@ export const getAllSchoolsWithSubscriptions = async (): Promise<any[]> => {
      FROM schools s
      LEFT JOIN school_subscriptions ss ON ss.school_id = s.id
      LEFT JOIN subscription_plans sp ON sp.id = ss.plan_id
-     ORDER BY ss.school_id, ss.created_at DESC`
+     ORDER BY s.id,
+       CASE WHEN ss.status = 'active' THEN 1 WHEN ss.status = 'grace_period' THEN 2 ELSE 3 END ASC,
+       ss.created_at DESC NULLS LAST, ss.id DESC NULLS LAST`
   );
   return result.rows;
 };

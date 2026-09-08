@@ -7,7 +7,7 @@ import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
@@ -38,6 +38,11 @@ type FeeStructureRow = {
 
 export default function FeeStructuresPage() {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const isFinance = user?.role === 'finance';
+  const overviewUrl = isFinance ? '/finance/dashboard' : '/fees';
+  const addUrl = isFinance ? '/finance/fees/structures/add' : '/fees/structures/add';
+
   const searchParams = useSearchParams();
   const { fmt: formatCurrency } = useCurrency();
   const { activeYear, academicYearId } = useAcademicYear();
@@ -196,10 +201,10 @@ export default function FeeStructuresPage() {
             </div>
           </div>
           <div className={s("headActions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/fees">
+            <Link className={cx(s("btn"), s("btnOutline"))} href={overviewUrl}>
               <i className="fa-solid fa-arrow-left" /> Fee Overview
             </Link>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/fees/structures/add">
+            <Link className={cx(s("btn"), s("btnPrimary"))} href={addUrl}>
               <i className="fa-solid fa-plus" /> Add Fee Structure
             </Link>
           </div>

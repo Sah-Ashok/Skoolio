@@ -15,7 +15,12 @@ const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join
 
 const PAGE_SIZE = 15;
 
-export default function StudentsPage() {
+interface StudentsPageProps {
+  basePath?: string;
+  isFinance?: boolean;
+}
+
+export default function StudentsPage({ basePath = "", isFinance = false }: StudentsPageProps = {}) {
   const { activeYear, academicYearId } = useAcademicYear();
 
   const [search,        setSearch]        = useState("");
@@ -89,9 +94,20 @@ export default function StudentsPage() {
             <p>Search, filter, and manage student admissions, profiles, and fee records.</p>
           </div>
           <div className={s("head-actions")}>
-            <Link className={cx(s("btn"), s("btn-primary"))} href="/students/add">
-              <i className="fa-solid fa-user-plus" /> Add Student
-            </Link>
+            {isFinance ? (
+              <>
+                <Link className={cx(s("btn"), s("btn-outline"))} href={`${basePath}/fees/history`}>
+                  <i className="fa-solid fa-clock-rotate-left" /> Fee History
+                </Link>
+                <Link className={cx(s("btn"), s("btn-primary"))} href={`${basePath}/fees/collect`}>
+                  <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
+                </Link>
+              </>
+            ) : (
+              <Link className={cx(s("btn"), s("btn-primary"))} href="/students/add">
+                <i className="fa-solid fa-user-plus" /> Add Student
+              </Link>
+            )}
           </div>
         </section>
 
@@ -240,19 +256,48 @@ export default function StudentsPage() {
                         </span>
                       </td>
                       <td>
-                        <div className={s("actions")} style={{ justifyContent: "flex-end" }}>
-                          <Link
-                            className={cx(s("btn"), s("btn-outline"), s("btn-sm"))}
-                            href={`/students/profile?id=${st.id}`}
-                          >
-                            View
-                          </Link>
-                          <Link
-                            className={cx(s("btn"), s("btn-soft"), s("btn-sm"))}
-                            href={`/students/${st.id}/edit`}
-                          >
-                            Edit
-                          </Link>
+                        <div className={s("actions")} style={{ justifyContent: "flex-end", gap: 6 }}>
+                          {isFinance ? (
+                            <>
+                              <Link
+                                className={cx(s("btn"), s("btn-outline"), s("btn-sm"))}
+                                href={`${basePath}/students/profile?id=${st.id}`}
+                                title="View Student Profile"
+                              >
+                                Profile
+                              </Link>
+                              <Link
+                                className={cx(s("btn"), s("btn-soft"), s("btn-sm"))}
+                                style={{ color: "#c2410c", background: "#fff7ed", borderColor: "#fed7aa" }}
+                                href={`${basePath}/fees/history?student_id=${st.id}`}
+                                title="View Fee History"
+                              >
+                                <i className="fa-solid fa-clock-rotate-left" /> Fees
+                              </Link>
+                              <Link
+                                className={cx(s("btn"), s("btn-primary"), s("btn-sm"))}
+                                href={`${basePath}/fees/collect?student_id=${st.id}`}
+                                title="Collect Fee"
+                              >
+                                Collect
+                              </Link>
+                            </>
+                          ) : (
+                            <>
+                              <Link
+                                className={cx(s("btn"), s("btn-outline"), s("btn-sm"))}
+                                href={`/students/profile?id=${st.id}`}
+                              >
+                                View
+                              </Link>
+                              <Link
+                                className={cx(s("btn"), s("btn-soft"), s("btn-sm"))}
+                                href={`/students/${st.id}/edit`}
+                              >
+                                Edit
+                              </Link>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

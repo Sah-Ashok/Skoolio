@@ -721,7 +721,9 @@ export default function CollectFeePage() {
               }}>
                 <i className="fa-solid fa-magnifying-glass" style={{ color: col.lightMuted, fontSize: 13 }} />
                 <input
-                  type="search"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
                   placeholder="Search student by name, admission no, or roll number…"
                   value={query}
                   onChange={e => {
@@ -733,8 +735,25 @@ export default function CollectFeePage() {
                 {searching && <Spinner size={14} color={col.orange} />}
                 {(query || selectedStudent) && (
                   <button
+                    type="button"
                     onClick={clearStudent}
-                    style={{ border: "none", background: "none", color: col.lightMuted, cursor: "pointer", padding: 4, fontSize: 12 }}
+                    aria-label="Clear student search"
+                    style={{
+                      border: "none",
+                      background: "none",
+                      color: col.lightMuted,
+                      cursor: "pointer",
+                      padding: "2px 4px",
+                      fontSize: 13,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 1,
+                      borderRadius: 4,
+                      transition: "color 0.15s",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.color = col.navy)}
+                    onMouseLeave={e => (e.currentTarget.style.color = col.lightMuted)}
                   >
                     ✕
                   </button>

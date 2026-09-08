@@ -9,6 +9,11 @@ export async function ipBanAndMaintenanceMiddleware(req: Request, res: Response,
   try {
     const ip = getClientIp(req);
 
+    // Whitelist localhost / loopback addresses
+    if (['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) {
+      return next();
+    }
+
     // 1. IP Ban check
     const banned = await isIpBanned(ip);
     if (banned) {

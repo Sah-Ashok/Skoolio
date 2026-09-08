@@ -26,19 +26,19 @@ import { getFeeStructureById } from '../Repositories/fee.repository';
 import { addBillingJob, getBillingJobStatus } from '../queues/feeBilling.queue';
 import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
 
-const resolveSchoolId = (user: IJwtAdminPayload | IJwtUserPayload): number =>
-  'school_id' in user ? user.school_id : user.id;
+const resolveSchoolId = (user: any): number =>
+  (user && 'school_id' in user && user.school_id) ? Number(user.school_id) : Number(user?.id || 0);
 
 // ── FEE STRUCTURE CONTROLLERS ──────────────────────────────────────────────
 
 export const createFeeStructure = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createFeeStructureService(school_id, req.body);
   sendResponse(res, 201, true, 'Fee structure created successfully', result);
 });
 
 export const getFeeStructures = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { class_id, academic_year_id } = req.query;
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
@@ -52,20 +52,20 @@ export const getFeeStructures = catchAsync(async (req: Request, res: Response, n
 });
 
 export const getFeeStructureByIdController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const structure = await getFeeStructureById(Number(req.params.id), school_id);
   if (!structure) return sendResponse(res, 404, false, 'Fee structure not found', null);
   sendResponse(res, 200, true, 'Fee structure fetched successfully', structure);
 });
 
 export const updateFeeStructure = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await updateFeeStructureService(Number(req.params.id), school_id, req.body);
   sendResponse(res, 200, true, 'Fee structure updated successfully', result);
 });
 
 export const deleteFeeStructure = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   await deleteFeeStructureService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Fee structure deleted successfully', null);
 });
@@ -73,13 +73,13 @@ export const deleteFeeStructure = catchAsync(async (req: Request, res: Response,
 // ── FEE COLLECTION CONTROLLERS ─────────────────────────────────────────────
 
 export const createFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createFeeCollectionService(school_id, school_id, req.body);
   sendResponse(res, 201, true, 'Fee collection created successfully', result);
 });
 
 export const createMiscFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { student_id, enrollment_id, academic_year_id, fee_name, fee_type, due_date, total_amount, discount_amount, discount_reason } = req.body;
   if (!student_id || !academic_year_id || !fee_name || !due_date || !total_amount) {
     return sendResponse(res, 400, false, 'student_id, academic_year_id, fee_name, due_date and total_amount are required', null);
@@ -99,7 +99,7 @@ export const createMiscFeeCollection = catchAsync(async (req: Request, res: Resp
 });
 
 export const getFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const {
     academic_year_id, billing_month, billing_months, pending_only,
     search, class_id, section_id, status, fee_type,
@@ -140,7 +140,7 @@ export const getFeeCollections = catchAsync(async (req: Request, res: Response, 
 });
 
 export const getStudentFeeCollections = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   const result = await getStudentFeeCollectionsService(
     Number(req.params.id), school_id,
@@ -150,7 +150,7 @@ export const getStudentFeeCollections = catchAsync(async (req: Request, res: Res
 });
 
 export const waiveFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { reason } = req.body;
   const result = await waiveFeeCollectionService(Number(req.params.id), school_id, reason || 'Waived by admin');
   invalidateDashboardCache(school_id);
@@ -158,7 +158,7 @@ export const waiveFeeCollection = catchAsync(async (req: Request, res: Response,
 });
 
 export const updateFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await updateFeeCollectionService(Number(req.params.id), school_id, req.body);
   invalidateDashboardCache(school_id);
   sendResponse(res, 200, true, 'Fee collection updated successfully', result);
@@ -167,20 +167,20 @@ export const updateFeeCollection = catchAsync(async (req: Request, res: Response
 // ── FEE PAYMENT CONTROLLERS ────────────────────────────────────────────────
 
 export const createFeePayment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await createFeePaymentService(school_id, school_id, req.body);
   invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Payment recorded successfully', result);
 });
 
 export const getPaymentsByCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const result = await getPaymentsByCollectionService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Payments fetched successfully', result);
 });
 
 export const getStudentPayments = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   const result = await getStudentPaymentsService(
     Number(req.params.id),
@@ -216,7 +216,7 @@ export const getMyPayments = catchAsync(async (req: Request, res: Response, next
 // ── MONTHLY BILLING ────────────────────────────────────────────────────────
 
 export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month, custom_due_date, from_month, to_month, class_id, section_id } = req.body;
   const targetMonth = to_month || billing_month || from_month;
   if (!academic_year_id || !targetMonth) {
@@ -237,7 +237,7 @@ export const generateMonthlyFeeBills = catchAsync(async (req: Request, res: Resp
 });
 
 export const generateMonthlyFeeBillsQueue = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month, custom_due_date, from_month, to_month, class_id, section_id, fee_type } = req.body;
   const targetMonth = to_month || billing_month || from_month;
   if (!academic_year_id || !targetMonth) {
@@ -273,7 +273,7 @@ export const getMonthlyFeeBillsQueueStatus = catchAsync(async (req: Request, res
 // ── MONTHLY BILLING STATUS ─────────────────────────────────────────────────
 
 export const getMonthlyBillingStatusController = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month } = req.query;
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
@@ -287,7 +287,7 @@ export const getMonthlyBillingStatusController = catchAsync(async (req: Request,
 // ── STUDENT BILLING TIMELINE ───────────────────────────────────────────────
 
 export const getStudentBillingTimelineController = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month } = req.query;
   if (!academic_year_id || !billing_month) {
     return sendResponse(res, 400, false, 'academic_year_id and billing_month (YYYY-MM) are required', null);
@@ -301,7 +301,7 @@ export const getStudentBillingTimelineController = catchAsync(async (req: Reques
 // ── TRANSPORT BILLING ──────────────────────────────────────────────────────
 
 export const generateTransportBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month, due_day, due_date, student_ids } = req.body;
   if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
     return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
@@ -314,7 +314,7 @@ export const generateTransportBills = catchAsync(async (req: Request, res: Respo
 });
 
 export const getTransportFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getTransportFeeSummaryService(school_id, Number(academic_year_id));
@@ -322,7 +322,7 @@ export const getTransportFeeSummary = catchAsync(async (req: Request, res: Respo
 });
 
 export const getTransportBillingPreview = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month } = req.query;
   if (!academic_year_id || !billing_month) return sendResponse(res, 400, false, 'academic_year_id and billing_month are required', null);
   const result = await getSpecialFeeBillingPreviewService(school_id, Number(academic_year_id), String(billing_month), 'transport');
@@ -332,7 +332,7 @@ export const getTransportBillingPreview = catchAsync(async (req: Request, res: R
 // ── HOSTEL BILLING ─────────────────────────────────────────────────────────
 
 export const generateHostelBills = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month, due_day, due_date, student_ids } = req.body;
   if (!academic_year_id || !billing_month || !Array.isArray(student_ids) || !student_ids.length) {
     return sendResponse(res, 400, false, 'academic_year_id, billing_month (YYYY-MM), and selected student_ids are required', null);
@@ -345,7 +345,7 @@ export const generateHostelBills = catchAsync(async (req: Request, res: Response
 });
 
 export const getHostelFeeSummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id } = req.query;
   if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getHostelFeeSummaryService(school_id, Number(academic_year_id));
@@ -353,7 +353,7 @@ export const getHostelFeeSummary = catchAsync(async (req: Request, res: Response
 });
 
 export const getHostelBillingPreview = catchAsync(async (req: Request, res: Response) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month } = req.query;
   if (!academic_year_id || !billing_month) return sendResponse(res, 400, false, 'academic_year_id and billing_month are required', null);
   const result = await getSpecialFeeBillingPreviewService(school_id, Number(academic_year_id), String(billing_month), 'hostel');
@@ -367,7 +367,7 @@ export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, 
   const school_id  = resolveSchoolId(user);
   const payment_id = Number(req.params.id);
   const result     = await getPaymentReceiptService(payment_id, school_id);
-  if ('school_id' in user && result.student_id !== user.id) {
+  if (user.role === 'student' && result.student_id !== user.id) {
     return sendResponse(res, 403, false, 'You do not have access to this receipt.', null);
   }
   sendResponse(res, 200, true, 'Payment receipt fetched', result);
@@ -376,7 +376,7 @@ export const getPaymentReceipt = catchAsync(async (req: Request, res: Response, 
 // ── ASSIGN ONE-TIME FEES AT ENROLLMENT ────────────────────────────────────
 
 export const assignOneTimeFeesController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { student_id, enrollment_id, academic_year_id, class_id, scholarship_percent, scholarship_type, admission_date } = req.body;
   if (!student_id || !enrollment_id || !academic_year_id || !class_id || !admission_date) {
     return sendResponse(res, 400, false,
@@ -396,7 +396,7 @@ export const assignOneTimeFeesController = catchAsync(async (req: Request, res: 
 // ── VOID (UNDO) MONTHLY BILLING ───────────────────────────────────────────
 
 export const voidMonthBillingController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_month, fee_type } = req.body;
   if (!academic_year_id || !billing_month || !fee_type) {
     return sendResponse(res, 400, false,
@@ -411,7 +411,7 @@ export const voidMonthBillingController = catchAsync(async (req: Request, res: R
 // ── UNBILLED STUDENTS ──────────────────────────────────────────────────────
 // GET /fees/monthly/unbilled?academic_year_id=&billing_months=2083-01,2083-02&fee_type=academic
 export const getUnbilledStudentsController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const { academic_year_id, billing_months, fee_type } = req.query;
   if (!academic_year_id || !billing_months || !fee_type) {
     return sendResponse(res, 400, false,

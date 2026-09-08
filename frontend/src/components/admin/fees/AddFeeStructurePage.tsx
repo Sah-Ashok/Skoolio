@@ -5,7 +5,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./fees.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
@@ -73,6 +73,8 @@ export default function AddFeeStructurePage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const dispatch     = useAppDispatch();
+  const user         = useAppSelector((state) => state.auth.user);
+  const structuresUrl = user?.role === 'finance' ? '/finance/fees/structures' : '/fees/structures';
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: classes } = useApi<any[]>(
     academicYearId ? `/classes?academic_year_id=${academicYearId}` : "",
@@ -155,7 +157,7 @@ export default function AddFeeStructurePage() {
         });
       }
       dispatch(showToast({ type: "success", title: "Saved", message: "Fee structures created successfully." }));
-      router.push("/fees/structures?saved=1");
+      router.push(`${structuresUrl}?saved=1`);
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to save fee structures." }));
     }
@@ -632,7 +634,7 @@ export default function AddFeeStructurePage() {
                   <><i className="fa-solid fa-floppy-disk" /> Save Structure</>
                 )}
               </button>
-              <Link className={cx(s("btn"), s("btnOutline"))} href="/fees/structures">
+              <Link className={cx(s("btn"), s("btnOutline"))} href={structuresUrl}>
                 Cancel
               </Link>
             </div>

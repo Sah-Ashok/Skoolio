@@ -7,6 +7,7 @@ import { useApi } from "@/lib/useApi";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
+import { useAppSelector } from "@/store/hooks";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -36,6 +37,10 @@ function monthLabel(month: number, year: number, isBS: boolean): string {
 // ── component ────────────────────────────────────────────────────────────────
 
 export default function FacultySalaryPage() {
+  const user = useAppSelector((state) => state.auth.user);
+  const isFinance = user?.role === 'finance';
+  const payUrl = isFinance ? '/finance/salary/pay' : '/salary/pay';
+
   const { data: summary, loading } = useApi<any[]>("/teachers/salary/summary");
   const { data: payrollPolicy }    = useApi<any>("/payroll-policy");
   const [search, setSearch] = useState("");
@@ -72,10 +77,12 @@ export default function FacultySalaryPage() {
             <p>View payment status for teaching faculty and non-teaching staff, and process monthly payroll.</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href="/settings?tab=payroll">
-              <i className="fa-solid fa-gear" /> Payroll Policy
-            </Link>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href="/salary/pay">
+            {!isFinance && (
+              <Link className={cx(s("btn"), s("btnOutline"))} href="/settings?tab=payroll">
+                <i className="fa-solid fa-gear" /> Payroll Policy
+              </Link>
+            )}
+            <Link className={cx(s("btn"), s("btnPrimary"))} href={payUrl}>
               <i className="fa-solid fa-money-check-dollar" /> Pay Salary
             </Link>
           </div>
@@ -375,7 +382,7 @@ export default function FacultySalaryPage() {
                           <div style={{ display: "flex", gap: 8 }}>
                             <Link
                               className={cx(s("btn"), s("btnPrimary"), s("btnSm"))}
-                              href={`/salary/pay?faculty=${t.teacher_id}`}
+                              href={`${payUrl}?faculty=${t.teacher_id}`}
                             >
                               <i className="fa-solid fa-money-check" /> Pay
                             </Link>

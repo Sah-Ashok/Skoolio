@@ -6,7 +6,7 @@ import { getFeeBillingPolicy, upsertFeeBillingPolicy } from '../Controllers/fee_
 const router = Router();
 
 router.use(protect);
-router.use(restrictTo('admin', 'super_admin'));
+router.use(restrictTo('admin', 'super_admin', 'finance'));
 
 router.get('/',  getFeeBillingPolicy);
 router.put('/',  upsertFeeBillingPolicy);

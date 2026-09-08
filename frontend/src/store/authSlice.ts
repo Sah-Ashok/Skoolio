@@ -2,9 +2,9 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { apiRequest } from '@/lib/api';
 
 export type SchoolRole  = 'super_admin' | 'admin';
-export type UserRole    = 'faculty' | 'student';
+export type UserRole    = 'faculty' | 'student' | 'finance';
 export type AllRoles    = SchoolRole | UserRole;
-export type LoginRole   = 'admin' | 'faculty' | 'student';
+export type LoginRole   = 'admin' | 'faculty' | 'student' | 'finance';
 
 export interface AuthUser {
   id:               number;
@@ -54,6 +54,7 @@ export function getRoleRedirect(role: AllRoles): string {
     case 'admin':       return '/dashboard';
     case 'faculty':     return '/teacher/dashboard';
     case 'student':     return '/student/dashboard';
+    case 'finance':     return '/finance/dashboard';
     default:            return '/dashboard';
   }
 }
@@ -62,6 +63,7 @@ const loginEndpoints: Record<LoginRole, string> = {
   admin:   '/auth/login',
   faculty: '/auth/login/teacher',
   student: '/auth/login/student',
+  finance: '/auth/login/finance',
 };
 
 // ── Thunks ────────────────────────────────────────────────────────────────────

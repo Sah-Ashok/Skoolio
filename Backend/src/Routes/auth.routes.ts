@@ -9,6 +9,8 @@ import protect     from '../middlewares/auth.middleware';
 import restrictTo  from '../middlewares/role.middleware';
 import { strictAuthLimiter } from '../middlewares/rateLimiter.middleware';
 
+import { loginFinance } from '../Controllers/finance.controller';
+
 const router = Router();
 
 router.post('/register/send-otp',  strictAuthLimiter, sendRegistrationOTP);
@@ -17,6 +19,7 @@ router.post('/register',           registerSchool);
 router.post('/login',              strictAuthLimiter, loginSchool);
 router.post('/login/teacher',      strictAuthLimiter, loginTeacher);
 router.post('/login/student',      strictAuthLimiter, loginStudent);
+router.post('/login/finance',      strictAuthLimiter, loginFinance);
 router.post('/logout',             logout);
 router.get ('/me',    protect,     getMe);
 
