@@ -6,6 +6,7 @@ import {
   createSchoolFinanceAccountService,
   updateSchoolFinanceAccountService,
   deleteSchoolFinanceAccountService,
+  requestRevokeFinanceOTPService,
   loginFinanceService,
 } from '../Service/finance.service';
 
@@ -44,9 +45,16 @@ export const updateFinanceAccount = catchAsync(async (req: Request, res: Respons
   sendResponse(res, 200, true, 'Finance account updated successfully', account);
 });
 
+export const requestRevokeFinanceOTP = catchAsync(async (req: Request, res: Response) => {
+  const school_id = getSchoolId(req);
+  const result = await requestRevokeFinanceOTPService(school_id);
+  sendResponse(res, 200, true, result.message, result);
+});
+
 export const deleteFinanceAccount = catchAsync(async (req: Request, res: Response) => {
   const school_id = getSchoolId(req);
-  await deleteSchoolFinanceAccountService(school_id);
+  const otp = req.body?.otp || req.query?.otp;
+  await deleteSchoolFinanceAccountService(school_id, otp as string);
   sendResponse(res, 200, true, 'Finance account deleted successfully', null);
 });
 

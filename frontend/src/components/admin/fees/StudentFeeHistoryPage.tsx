@@ -340,6 +340,13 @@ function StudentFeeSearchDirectory({ basePath = "" }: { basePath?: string }) {
   const { data: classesData } = useApi<any[]>(
     academicYearId ? `/classes?academic_year_id=${academicYearId}` : ""
   );
+
+  const { data: financeAccount } = useApi<any>(
+    basePath !== "/finance" ? "/school/finance-account" : null
+  );
+  const hasActiveFinanceAccount = Boolean(
+    basePath !== "/finance" && financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
+  );
   const classes = useMemo(() => {
     if (Array.isArray(classesData)) return classesData;
     if (Array.isArray((classesData as any)?.data)) return (classesData as any).data;
@@ -424,15 +431,37 @@ function StudentFeeSearchDirectory({ basePath = "" }: { basePath?: string }) {
             Select a student to view their official accounting ledger, invoices, payments, and running balance.
           </p>
         </div>
-        <Link
-          href={`${basePath || ""}/fees/collect`}
-          style={{
-            height: 38, padding: "0 16px", borderRadius: 8, background: col.orange, color: "#fff",
-            fontWeight: 800, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none",
-          }}
-        >
-          <i className="fa-solid fa-hand-holding-dollar" /> Open Fee Counter
-        </Link>
+        {hasActiveFinanceAccount ? (
+          <div
+            style={{
+              height: 38,
+              padding: "0 14px",
+              borderRadius: 8,
+              background: "#ecfdf5",
+              border: "1px solid #a7f3d0",
+              color: "#065f46",
+              fontSize: 12.5,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+            title="Fee collection is delegated to the Finance Manager account"
+          >
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+            Fee Counter: Finance Officer
+          </div>
+        ) : (
+          <Link
+            href={`${basePath || ""}/fees/collect`}
+            style={{
+              height: 38, padding: "0 16px", borderRadius: 8, background: col.orange, color: "#fff",
+              fontWeight: 800, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none",
+            }}
+          >
+            <i className="fa-solid fa-hand-holding-dollar" /> Open Fee Counter
+          </Link>
+        )}
       </div>
 
       {/* Search Toolbar */}
@@ -634,6 +663,13 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
 
   // Academic Year Switcher
   const { data: allYearsData } = useApi<any[]>("/academic-years");
+
+  const { data: financeAccount } = useApi<any>(
+    basePath !== "/finance" ? "/school/finance-account" : null
+  );
+  const hasActiveFinanceAccount = Boolean(
+    basePath !== "/finance" && financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
+  );
   const yearsList = useMemo(() => {
     if (Array.isArray(allYearsData)) return allYearsData;
     if (Array.isArray((allYearsData as any)?.data)) return (allYearsData as any).data;
@@ -1020,15 +1056,17 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
           >
             <i className="fa-solid fa-wand-magic-sparkles" /> Sync Dues
           </button>
-          <Link
-            href={`${basePath || ""}/fees/collect?student_id=${studentId}`}
-            style={{
-              height: 36, padding: "0 16px", borderRadius: 8, background: col.navy, color: "#fff",
-              fontWeight: 800, fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
-            }}
-          >
-            <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
-          </Link>
+          {!hasActiveFinanceAccount && (
+            <Link
+              href={`${basePath || ""}/fees/collect?student_id=${studentId}`}
+              style={{
+                height: 36, padding: "0 16px", borderRadius: 8, background: col.navy, color: "#fff",
+                fontWeight: 800, fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+              }}
+            >
+              <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => window.print()}
@@ -1424,15 +1462,21 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
                       {/* Action Button */}
                       <td className="no-print" style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {isInvoice && item.status !== "paid" && item.status !== "waived" && item.status !== "cancelled" ? (
-                          <Link
-                            href={`${basePath || ""}/fees/collect?student_id=${studentId}&collection_id=${item.collectionId}`}
-                            style={{
-                              padding: "4px 10px", borderRadius: 6, background: col.orange, color: "#fff",
-                              fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4,
-                            }}
-                          >
-                            <i className="fa-solid fa-hand-holding-dollar" style={{ fontSize: 10 }} /> Pay
-                          </Link>
+                          !hasActiveFinanceAccount ? (
+                            <Link
+                              href={`${basePath || ""}/fees/collect?student_id=${studentId}&collection_id=${item.collectionId}`}
+                              style={{
+                                padding: "4px 10px", borderRadius: 6, background: col.orange, color: "#fff",
+                                fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              <i className="fa-solid fa-hand-holding-dollar" style={{ fontSize: 10 }} /> Pay
+                            </Link>
+                          ) : (
+                            <span style={{ fontSize: 11, color: col.lightMuted, fontStyle: "italic" }}>
+                              Auditing
+                            </span>
+                          )
                         ) : !isInvoice && item.paymentId ? (
                           <Link
                             href={`${basePath || ""}/fees/receipt/${item.paymentId}`}

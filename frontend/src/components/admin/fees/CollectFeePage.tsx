@@ -146,7 +146,15 @@ export default function CollectFeePage() {
   const { formatDate, formatFeeName, isBS, billingGroupKey } = useDateFormat();
 
   const { fmt, symbol: currencySymbol } = useCurrency();
-  const receiptBaseUrl = pathname?.startsWith("/finance") ? "/finance/fees/receipt" : "/fees/receipt";
+  const isFinance = pathname?.startsWith("/finance");
+  const receiptBaseUrl = isFinance ? "/finance/fees/receipt" : "/fees/receipt";
+
+  const { data: financeAccount } = useApi<any>(
+    !isFinance ? "/school/finance-account" : null
+  );
+  const hasActiveFinanceAccount = Boolean(
+    !isFinance && financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
+  );
 
   // Search state
   const [query, setSearchQuery]               = useState("");
@@ -892,6 +900,122 @@ export default function CollectFeePage() {
       setAddingFine(false);
     }
   };
+
+  if (!isFinance && hasActiveFinanceAccount) {
+    return (
+      <div style={{ minHeight: "80vh", background: col.bg, display: "grid", placeItems: "center", padding: "40px 20px" }}>
+        <div style={{
+          background: "#fff",
+          border: `1.5px solid ${col.border}`,
+          borderRadius: 16,
+          maxWidth: 560,
+          width: "100%",
+          padding: "36px 32px",
+          textAlign: "center",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            background: "#ecfdf5",
+            color: "#059669",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 24,
+            margin: "0 auto 18px",
+            border: "1px solid #a7f3d0",
+          }}>
+            <i className="fa-solid fa-lock" />
+          </div>
+
+          <span style={{
+            padding: "3px 10px",
+            borderRadius: 999,
+            background: "#ecfdf5",
+            color: "#047857",
+            fontSize: 11.5,
+            fontWeight: 800,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            display: "inline-block",
+            marginBottom: 10,
+          }}>
+            Fee Counter Delegated
+          </span>
+
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: col.navy, margin: "0 0 10px" }}>
+            Fee Counter Managed by Finance Officer
+          </h2>
+
+          <p style={{ fontSize: 13.5, color: col.muted, lineHeight: 1.6, margin: "0 0 20px" }}>
+            Your school has assigned an active <strong>Finance Manager</strong> ({financeAccount?.full_name} &bull; {financeAccount?.email}).
+            To maintain cash drawer integrity and strict segregation of duties, fee collections and POS receipt issuing are exclusively conducted via the <strong>Finance Portal</strong>.
+          </p>
+
+          <div style={{
+            background: "#f8fafc",
+            border: `1px solid ${col.border}`,
+            borderRadius: 10,
+            padding: "14px 18px",
+            textAlign: "left",
+            fontSize: 12.5,
+            color: col.slate,
+            marginBottom: 24,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: col.navy, marginBottom: 4 }}>
+              <i className="fa-solid fa-circle-info" style={{ color: col.blue }} />
+              Auditor Access &amp; Fallback
+            </div>
+            <div>
+              You retain complete audit and view access to all student ledgers, fee structures, and receipts. If the Finance Manager is unavailable and you need to collect fees as Admin, you can revoke access in <strong>Settings &rarr; Finance Account</strong> to unlock this counter.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            <Link
+              href={initialId ? `/fees/history?student_id=${initialId}` : "/fees/history"}
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                background: col.navy,
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-clock-rotate-left" /> View Student Ledgers
+            </Link>
+
+            <Link
+              href="/settings?tab=finance"
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                background: "#fff",
+                color: col.navy,
+                border: `1px solid ${col.border}`,
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-gear" /> Finance Settings
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: col.bg, display: "flex", flexDirection: "column" }}>

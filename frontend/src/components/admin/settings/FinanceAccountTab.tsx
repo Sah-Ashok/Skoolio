@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useApi } from '@/lib/useApi';
+import { useApi, clearApiCache } from '@/lib/useApi';
 import { apiRequest } from '@/lib/api';
 import { useAppDispatch } from '@/store/hooks';
 import { showToast } from '@/store/toastSlice';
@@ -35,6 +35,23 @@ export default function FinanceAccountTab() {
   const [newPassword, setNewPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Revocation with OTP states
+  const [showRevokeModal, setShowRevokeModal] = useState(false);
+  const [revokeStep, setRevokeStep] = useState<'request' | 'verify'>('request');
+  const [revokeOtp, setRevokeOtp] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const planName = subStatus?.plan?.name?.toLowerCase() || '';
   const isProPlan = planName.includes('pro') && !planName.includes('plus') && !planName.includes('ultra');
@@ -70,6 +87,11 @@ export default function FinanceAccountTab() {
         title: 'Finance Account Created!',
         message: `${form.full_name} can now log in at /finance-login.`,
       }));
+
+      clearApiCache('/school/finance-account');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('finance-account-changed'));
+      }
 
       setForm({ full_name: '', email: '', phone: '', password: '' });
       refetch();
@@ -110,22 +132,86 @@ export default function FinanceAccountTab() {
     }
   };
 
-  // Handler: Remove / Delete Account
-  const handleDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to revoke this Finance Manager account? Their login access will be removed immediately.')) {
-      return;
+  // Handler: Open Revocation Modal
+  const openRevokeModal = () => {
+    setRevokeStep('request');
+    setRevokeOtp('');
+    setShowRevokeModal(true);
+  };
+
+  // Handler: Send Revoke OTP to Finance Manager Email
+  const handleSendRevokeOTP = async () => {
+    try {
+      setOtpSending(true);
+      const res = await apiRequest<{ data: { masked_email: string; message?: string } }>(
+        '/school/finance-account/revoke-otp',
+        { method: 'POST' }
+      );
+      setMaskedEmail(res.data?.masked_email || financeUser?.email || '');
+      setRevokeStep('verify');
+      setResendCooldown(60);
+      dispatch(
+        showToast({
+          type: 'info',
+          title: 'Authorization Code Sent',
+          message: `6-digit verification code dispatched to ${res.data?.masked_email || 'Finance Manager email'}.`,
+        })
+      );
+    } catch (err: any) {
+      dispatch(
+        showToast({
+          type: 'error',
+          title: 'Failed to send code',
+          message: err.message || 'Error dispatching authorization code.',
+        })
+      );
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Handler: Verify OTP & Confirm Revocation
+  const handleConfirmRevoke = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revokeOtp || revokeOtp.trim().length !== 6) {
+      return dispatch(
+        showToast({
+          type: 'error',
+          title: 'Invalid Code',
+          message: 'Please enter the 6-digit authorization code.',
+        })
+      );
     }
 
     try {
-      await apiRequest('/school/finance-account', { method: 'DELETE' });
-      dispatch(showToast({
-        type: 'info',
-        title: 'Account Revoked',
-        message: 'The finance manager slot is now available to configure a new user.',
-      }));
+      setRevoking(true);
+      await apiRequest('/school/finance-account', {
+        method: 'DELETE',
+        body: JSON.stringify({ otp: revokeOtp.trim() }),
+      });
+      clearApiCache('/school/finance-account');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('finance-account-changed'));
+      }
+      dispatch(
+        showToast({
+          type: 'success',
+          title: 'Account Revoked',
+          message: 'The finance manager account has been safely revoked.',
+        })
+      );
+      setShowRevokeModal(false);
       refetch();
     } catch (err: any) {
-      dispatch(showToast({ type: 'error', title: 'Error', message: err.message || 'Failed to remove account.' }));
+      dispatch(
+        showToast({
+          type: 'error',
+          title: 'Revocation Failed',
+          message: err.message || 'Invalid or expired authorization code.',
+        })
+      );
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -373,7 +459,7 @@ export default function FinanceAccountTab() {
 
                 <button
                   type="button"
-                  onClick={handleDeleteAccount}
+                  onClick={openRevokeModal}
                   className={s('btn')}
                   style={{
                     height: 38,
@@ -709,6 +795,245 @@ export default function FinanceAccountTab() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Revoke Finance Access (OTP Verified) ── */}
+      {showRevokeModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'grid',
+          placeItems: 'center',
+          zIndex: 1000,
+          padding: 20,
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 460,
+            padding: 28,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 16,
+                }}>
+                  <i className="fa-solid fa-shield-halved" />
+                </div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#0f172a' }}>
+                  {revokeStep === 'request' ? 'Revoke Finance Access' : 'Enter Authorization Code'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRevokeModal(false)}
+                style={{ background: 'transparent', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {revokeStep === 'request' ? (
+              <div>
+                <div style={{
+                  background: '#fff1f2',
+                  border: '1px solid #fecdd3',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ color: '#e11d48', marginTop: 2, fontSize: 16 }} />
+                  <div style={{ fontSize: 12.5, color: '#9f1239', lineHeight: 1.5 }}>
+                    <strong>Security Verification Required:</strong> Revoking access will immediately disable the finance account. To authorize this action, a 6-digit one-time code will be dispatched to the finance manager's registered email address.
+                  </div>
+                </div>
+
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  color: '#334155',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ color: '#64748b' }}>Account:</span>
+                    <strong>{financeUser?.full_name}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Target Email:</span>
+                    <strong>{financeUser?.email}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRevokeModal(false)}
+                    className={cx(s('btn'), s('btnOutline'))}
+                    style={{ height: 38 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendRevokeOTP}
+                    disabled={otpSending}
+                    style={{
+                      height: 38,
+                      padding: '0 18px',
+                      borderRadius: 9,
+                      background: '#e11d48',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    {otpSending ? (
+                      <>
+                        <Spinner size={14} color="#fff" /> Dispatching Code…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-regular fa-envelope" /> Send Authorization Code
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmRevoke}>
+                <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                  Please enter the 6-digit security code sent to <strong>{maskedEmail || financeUser?.email}</strong> to verify this revocation request.
+                </p>
+
+                <div style={{ marginBottom: 18 }}>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="• • • • • •"
+                    value={revokeOtp}
+                    onChange={(e) => setRevokeOtp(e.target.value.replace(/\D/g, ''))}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      height: 48,
+                      borderRadius: 10,
+                      border: '2px solid #cbd5e1',
+                      textAlign: 'center',
+                      fontSize: 24,
+                      fontWeight: 800,
+                      letterSpacing: 10,
+                      color: '#0f172a',
+                      background: '#f8fafc',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <button
+                    type="button"
+                    onClick={() => setRevokeStep('request')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#64748b',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <i className="fa-solid fa-arrow-left" /> Back
+                  </button>
+
+                  <div style={{ fontSize: 12.5 }}>
+                    {resendCooldown > 0 ? (
+                      <span style={{ color: '#94a3b8' }}>Resend in {resendCooldown}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendRevokeOTP}
+                        disabled={otpSending}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#FF5E1E',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Resend Code
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRevokeModal(false)}
+                    className={cx(s('btn'), s('btnOutline'))}
+                    style={{ height: 38 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={revoking || revokeOtp.length !== 6}
+                    style={{
+                      height: 38,
+                      padding: '0 20px',
+                      borderRadius: 9,
+                      background: revoking || revokeOtp.length !== 6 ? '#fda4af' : '#dc2626',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: revoking || revokeOtp.length !== 6 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    {revoking ? (
+                      <>
+                        <Spinner size={14} color="#fff" /> Revoking Access…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-check" /> Verify & Revoke
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

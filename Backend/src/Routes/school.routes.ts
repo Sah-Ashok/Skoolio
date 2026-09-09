@@ -14,6 +14,7 @@ import {
   createFinanceAccount,
   updateFinanceAccount,
   deleteFinanceAccount,
+  requestRevokeFinanceOTP,
 } from '../Controllers/finance.controller';
 
 const router = Router();
@@ -26,10 +27,11 @@ router.patch ('/change-password',   protect, restrictTo('admin'), changePassword
 router.patch ('/toggle-2fa',        protect, restrictTo('admin'), toggleMyTwoFA);
 
 // School admin — manage single finance account
-router.get   ('/finance-account',    protect, restrictTo('admin', 'super_admin'), getFinanceAccount);
-router.post  ('/finance-account',    protect, restrictTo('admin', 'super_admin'), createFinanceAccount);
-router.put   ('/finance-account',    protect, restrictTo('admin', 'super_admin'), updateFinanceAccount);
-router.delete('/finance-account',    protect, restrictTo('admin', 'super_admin'), deleteFinanceAccount);
+router.get   ('/finance-account',            protect, restrictTo('admin', 'super_admin'), getFinanceAccount);
+router.post  ('/finance-account',            protect, restrictTo('admin', 'super_admin'), createFinanceAccount);
+router.put   ('/finance-account',            protect, restrictTo('admin', 'super_admin'), updateFinanceAccount);
+router.post  ('/finance-account/revoke-otp', protect, restrictTo('admin', 'super_admin'), requestRevokeFinanceOTP);
+router.delete('/finance-account',            protect, restrictTo('admin', 'super_admin'), deleteFinanceAccount);
 
 // Super admin — manage any school
 router.get  ('/:schoolId/details',   protect, restrictTo('super_admin'), getSuperAdminSchoolDetails);

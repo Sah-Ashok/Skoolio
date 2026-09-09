@@ -85,11 +85,47 @@ export const updateSchoolFinanceAccountService = async (
   return await updateFinanceUser(school_id, data, hashedPassword);
 };
 
-export const deleteSchoolFinanceAccountService = async (school_id: number) => {
+import { storeOTP, consumeOTP } from '../Repositories/otp.repository';
+import { sendOTPEmail } from '../utils/emailService';
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return email;
+  if (local.length <= 2) return `${local[0]}*@${domain}`;
+  return `${local[0]}${'*'.repeat(Math.min(5, Math.max(2, local.length - 2)))}${local[local.length - 1]}@${domain}`;
+}
+
+export const requestRevokeFinanceOTPService = async (school_id: number) => {
   const existing = await findFinanceUserBySchoolId(school_id);
   if (!existing) {
     throw new AppError('Finance account not found for this school.', 404);
   }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await storeOTP(existing.email, otp, 'revoke_finance');
+  await sendOTPEmail(existing.email, otp, 'revoke_finance');
+
+  return {
+    message: `Authorization code dispatched to ${maskEmail(existing.email)}`,
+    masked_email: maskEmail(existing.email),
+  };
+};
+
+export const deleteSchoolFinanceAccountService = async (school_id: number, otp?: string) => {
+  const existing = await findFinanceUserBySchoolId(school_id);
+  if (!existing) {
+    throw new AppError('Finance account not found for this school.', 404);
+  }
+
+  if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
+    throw new AppError('A valid 6-digit authorization code (OTP) is required to revoke access.', 400);
+  }
+
+  const isValid = await consumeOTP(existing.email, otp.trim(), 'revoke_finance');
+  if (!isValid) {
+    throw new AppError('Invalid or expired authorization code. Please request a new code.', 400);
+  }
+
   return await deleteFinanceUser(school_id);
 };
 

@@ -21,7 +21,7 @@ const getTransporter = () => {
   });
 };
 
-export type OTPEmailType = 'forgot_password' | 'two_fa' | 'registration';
+export type OTPEmailType = 'forgot_password' | 'two_fa' | 'registration' | 'revoke_finance';
 
 const FONT_FAMILY = `'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`;
 
@@ -44,24 +44,31 @@ export const sendOTPEmail = async (
 ): Promise<void> => {
   const isForgot       = type === 'forgot_password';
   const isRegistration = type === 'registration';
+  const isRevoke       = type === 'revoke_finance';
 
   const subject = isForgot
     ? 'Your password reset code — Skoolio'
     : isRegistration
       ? 'Confirm your email address — Skoolio'
-      : 'Your login verification code — Skoolio';
+      : isRevoke
+        ? 'Authorization code to revoke Finance Manager access — Skoolio'
+        : 'Your login verification code — Skoolio';
 
   const heading = isForgot
     ? 'Reset your password'
     : isRegistration
       ? 'Confirm your email address'
-      : 'Verify your login';
+      : isRevoke
+        ? 'Authorize Finance Manager Revocation'
+        : 'Verify your login';
 
   const bodyText = isForgot
     ? 'We received a request to reset the password for your Skoolio account. Use the code below to continue. It is valid for 10 minutes.'
     : isRegistration
       ? 'Thank you for signing up. Please use the code below to confirm your email address and complete your school registration. It is valid for 10 minutes.'
-      : 'A login attempt was made to your Skoolio account. Enter the code below to verify it was you. It is valid for 5 minutes.';
+      : isRevoke
+        ? 'A request was initiated by your School Administrator to revoke login access for this Finance Manager account. Please provide the 6-digit authorization code below to the administrator to confirm revocation. It is valid for 10 minutes.'
+        : 'A login attempt was made to your Skoolio account. Enter the code below to verify it was you. It is valid for 5 minutes.';
 
   const year = new Date().getFullYear();
 

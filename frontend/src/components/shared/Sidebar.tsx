@@ -2,13 +2,14 @@
 
 export {};
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, logoutThunk } from '@/store/authSlice';
 import LogoutConfirmModal from '@/components/shared/LogoutConfirmModal';
+import { useApi, clearApiCache } from '@/lib/useApi';
 
 type SidebarRole = 'admin' | 'teacher' | 'student' | 'finance';
 
@@ -31,6 +32,14 @@ const roleLabel: Record<SidebarRole, string> = {
   student: 'Student',
   finance: 'Finance Manager',
 };
+
+const HIDDEN_WHEN_FINANCE_ACTIVE = new Set([
+  '/fees',
+  '/fees/collect',
+  '/fees/structures',
+  '/fees/bank-accounts',
+  '/fees/payment-requests',
+]);
 
 const adminNav: NavSection[] = [
   {
@@ -63,6 +72,10 @@ const adminNav: NavSection[] = [
       { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Status',       exact: true },
       { href: '/fees/collect',          icon: 'fa-hand-holding-dollar', label: 'Collect Fee',      exact: true },
       { href: '/fees/history',          icon: 'fa-clock-rotate-left',   label: 'Fee History' },
+      { href: '/fees/records',          icon: 'fa-table-list',          label: 'Fee Records',      exact: true },
+      { href: '/fees/structures',       icon: 'fa-layer-group',         label: 'Fee Structures' },
+      { href: '/fees/bank-accounts',    icon: 'fa-building-columns',    label: 'Bank Accounts & QR' },
+      { href: '/fees/payment-requests', icon: 'fa-receipt',             label: 'Online Requests' },
       { href: '/expenses',              icon: 'fa-receipt',             label: 'Expenses' },
     ],
   },
@@ -232,9 +245,45 @@ export default function Sidebar({ role }: SidebarProps) {
   const router       = useRouter();
   const dispatch     = useAppDispatch();
   const { user }     = useAppSelector(s => s.auth);
-  const navSections  = navMap[role];
-  const activeRole   = role as SidebarRole;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Check if school has an active finance account configured
+  const [financeAccountTick, setFinanceAccountTick] = useState(0);
+  useEffect(() => {
+    const handleAccountChange = () => {
+      clearApiCache('/school/finance-account');
+      setFinanceAccountTick((t) => t + 1);
+    };
+    window.addEventListener('finance-account-changed', handleAccountChange);
+    return () => window.removeEventListener('finance-account-changed', handleAccountChange);
+  }, []);
+
+  const { data: financeAccount } = useApi<any>(
+    role === 'admin' ? '/school/finance-account' : null,
+    [financeAccountTick]
+  );
+
+  const hasActiveFinanceAccount = Boolean(
+    financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== 'inactive'
+  );
+
+  const navSections = useMemo(() => {
+    const baseSections = navMap[role];
+    if (role !== 'admin' || !hasActiveFinanceAccount) {
+      return baseSections;
+    }
+
+    // When finance account exists, remove operational fee links from admin sidebar
+    return baseSections.map((section) => {
+      if (section.label !== 'Finance') return section;
+      return {
+        ...section,
+        items: section.items.filter((item) => !HIDDEN_WHEN_FINANCE_ACTIVE.has(item.href)),
+      };
+    });
+  }, [role, hasActiveFinanceAccount]);
+
+  const activeRole = role as SidebarRole;
 
   const handleLogout = async () => {
     await dispatch(logoutThunk());

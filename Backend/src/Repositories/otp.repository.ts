@@ -6,7 +6,7 @@ import redis from '../config/redis.config';
 //       otp:forgot_password:admin@school.com
 //       otp:registration:admin@school.com
 
-type OTPType = 'forgot_password' | 'two_fa' | 'registration';
+type OTPType = 'forgot_password' | 'two_fa' | 'registration' | 'revoke_finance';
 
 const otpKey = (email: string, type: OTPType): string =>
   `otp:${type}:${email.toLowerCase()}`;
@@ -16,6 +16,7 @@ const OTP_TTL: Record<OTPType, number> = {
   two_fa:           5  * 60, // 5 minutes
   forgot_password:  10 * 60, // 10 minutes
   registration:     10 * 60, // 10 minutes
+  revoke_finance:   10 * 60, // 10 minutes
 };
 
 // ── Store OTP ────────────────────────────────────────────────────────────────
