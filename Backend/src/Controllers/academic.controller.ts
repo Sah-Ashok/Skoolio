@@ -11,46 +11,49 @@ import {
 } from '../Service/academic.service';
 import { IJwtAdminPayload, IJwtUserPayload } from '../types/auth.types';
 
+const resolveSchoolId = (user: any): number => {
+  if (user && 'school_id' in user && user.school_id) return Number(user.school_id);
+  return Number(user.id);
+};
+
 // Create Academic Year
 export const createAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const academicYear = await createAcademicYearService(school_id, req.body);
   sendResponse(res, 201, true, 'Academic year created successfully', academicYear);
 });
 
 // Get All Academic Years
 export const getAcademicYears = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const years = await getAcademicYearsService(school_id);
   sendResponse(res, 200, true, 'Academic years fetched successfully', years);
 });
 
 // Get Single Academic Year
 export const getAcademicYearById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const year = await getAcademicYearByIdService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Academic year fetched successfully', year);
 });
 
 // Get Active Academic Year — accessible to admin, faculty, and student
 export const getActiveAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
-  // Admin JWT: school_id = user.id  |  Faculty/Student JWT: school_id = user.school_id
-  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const school_id = resolveSchoolId(req.user);
   const year = await getActiveAcademicYearService(school_id);
   sendResponse(res, 200, true, 'Active academic year fetched successfully', year);
 });
 
 // Update Academic Year
 export const updateAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   const year = await updateAcademicYearService(Number(req.params.id), school_id, req.body);
   sendResponse(res, 200, true, 'Academic year updated successfully', year);
 });
 
 // Delete Academic Year
 export const deleteAcademicYear = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req.user);
   await deleteAcademicYearService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Academic year deleted successfully', null);
 });

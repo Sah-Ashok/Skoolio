@@ -107,9 +107,9 @@ const BS_DATA: number[][] = [
   // rat32: Bai=31,Jes=32,Ash=31,Shr=32,Bha=31,Ash=30,Kar=30,Man=29,Pou=30,Mag=29,Fal=30,Cha=30 = 365 ✓
   [2082, 31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30],
   // 2083 verified month-by-month from rat32.com & hamropatro.com
-  // Baishakh=31, Jestha=31, Ashadh=32, Shrawan=30, Bhadra=31, Ashwin=31,
-  // Kartik=30, Mangsir=29, Poush=30, Magh=29, Falgun=30, Chaitra=31 = 365 ✓
-  [2083, 31, 31, 32, 30, 31, 31, 30, 29, 30, 29, 30, 31],
+  // Baishakh=31, Jestha=31, Ashadh=32, Shrawan=31, Bhadra=31, Ashwin=31,
+  // Kartik=30, Mangsir=29, Poush=30, Magh=29, Falgun=30, Chaitra=30 = 365 ✓
+  [2083, 31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30],
   [2084, 31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 30],
   [2085, 31, 32, 31, 32, 30, 31, 30, 29, 30, 29, 30, 30],
   [2086, 30, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31],

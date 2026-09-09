@@ -1,0 +1,589 @@
+.dashboardContainer {
+  padding: 24px 32px 48px;
+  max-width: 1440px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Top Welcome Header ── */
+.topHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+
+.schoolTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ea580c;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.greetingRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.greetingText {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.greetingSub {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #059669;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.yearSelect {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.collectBtn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.collectBtn:hover {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+
+/* ── Top 4 Metric Cards Grid ── */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metricCard {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 18px 20px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.metricCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.metricLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 2;
+}
+
+.metricIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.metricLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.metricValue {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+  margin: 2px 0 1px;
+}
+
+.metricSub {
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.metricBadge {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 2;
+}
+
+.metricBadgeSub {
+  position: absolute;
+  top: 36px;
+  right: 16px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  z-index: 2;
+}
+
+/* ── 2-Column Section Grids ── */
+.twoColGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboardCard {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 20px 22px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.cardHeadLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardHeadIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #ea580c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.cardSubtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 1px 0 0;
+}
+
+.cardFilterSelect {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+}
+
+/* ── Custom Dark Tooltip ── */
+.darkTooltip {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.darkTooltipTitle {
+  font-weight: 800;
+  font-size: 12px;
+  color: #f8fafc;
+  margin-bottom: 2px;
+}
+
+.darkTooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+/* ── Status Breakdown List ── */
+.statusBreakdownList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-width: 180px;
+}
+
+.statusItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.statusItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.statusItemRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusCount {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.statusPercent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ── Category Breakdown Table ── */
+.categoryTable {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.categoryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 12.5px;
+}
+
+.categoryRow:last-child {
+  border-bottom: none;
+}
+
+.categoryName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.categoryPercent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 35px;
+  text-align: right;
+}
+
+.categoryAmount {
+  font-weight: 800;
+  color: #0f172a;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ── Top Classes Ranked List ── */
+.classList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.classItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.classRank {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.className {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 120px;
+}
+
+.classProgressTrack {
+  flex: 1;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.classProgressBar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.classAmount {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  min-width: 60px;
+  text-align: right;
+}
+
+.classPercent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 35px;
+  text-align: right;
+}
+
+/* ── Recent Collections Mini Table ── */
+.recentTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.recentTable th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.recentTable td {
+  padding: 10px 10px;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+
+.receiptBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+
+.receiptBadge:hover {
+  background: #dbeafe;
+}
+
+/* ── Bottom Callout Banner ── */
+.calloutBanner {
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  border-radius: 16px;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.calloutLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.calloutIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffedd5;
+  color: #ea580c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.calloutTitle {
+  font-size: 15px;
+  font-weight: 900;
+  color: #9a3412;
+  margin: 0;
+}
+
+.calloutDesc {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c2410c;
+  margin: 2px 0 0;
+}
+
+.calloutBtn {
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 10px;
+  background: #ea580c;
+  border: none;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.calloutBtn:hover {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+
+/* ── Responsive Breakpoints ── */
+@media (max-width: 1080px) {
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .twoColGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboardContainer {
+    padding: 16px;
+  }
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
+  .topHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .headerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
