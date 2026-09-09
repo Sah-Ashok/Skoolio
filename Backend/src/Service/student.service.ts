@@ -8,7 +8,7 @@ import {
 import { ICreateStudent, IUpdateStudent, ICreateEnrollment, IUpdateEnrollment } from '../types/student.types';
 import AppError from '../utils/AppError';
 import { assertCanAddStudent } from './subscription.service';
-import { assignOneTimeFees } from '../Repositories/fee.repository';
+import { initializeStudentDuesOnAdmission } from './fee.service';
 // ── STUDENT SERVICES ──
 
 export const createStudentService = async (school_id: number, data: ICreateStudent) => {
@@ -69,8 +69,22 @@ export const getStudentByIdService = async (id: number, school_id: number) => {
 
   // Get enrollment history
   const enrollments = await getEnrollmentByStudent(id, school_id);
+  const activeEnrollment: any = enrollments.find(e => e.status === 'active') || enrollments[0];
 
-  return { ...student, enrollments };
+  return {
+    ...student,
+    enrollments,
+    class_id: activeEnrollment?.class_id,
+    class_name: activeEnrollment?.class_name,
+    section_id: activeEnrollment?.section_id,
+    section_name: activeEnrollment?.section_name,
+    roll_number: activeEnrollment?.roll_number,
+    registration_number: activeEnrollment?.registration_number,
+    stream: activeEnrollment?.stream,
+    symbol_number: activeEnrollment?.symbol_number,
+    exam_roll_number: activeEnrollment?.exam_roll_number,
+    academic_year_name: activeEnrollment?.academic_year_name,
+  };
 };
 
 export const getStudentProfileService = async (id: number, school_id: number) => {
@@ -125,19 +139,24 @@ export const createEnrollmentService = async (
   const createdBy    = data.created_by || school_id;
   const admissionDate = String(student.admission_date).slice(0, 10);
 
-  const oneTimeFees = await assignOneTimeFees(
+  const initialDues = await initializeStudentDuesOnAdmission({
     school_id,
-    createdBy,
-    data.student_id,
-    enrollment.id,
-    data.academic_year_id,
-    data.class_id,
-    Number(student.scholarship_percent) || 0,
-    student.scholarship_type || '',
-    admissionDate
-  );
+    created_by: createdBy,
+    student_id: data.student_id,
+    enrollment_id: enrollment.id,
+    academic_year_id: data.academic_year_id,
+    class_id: data.class_id,
+    admission_date: admissionDate,
+    billing_start_choice: data.billing_start_choice || 'admission_month',
+    scholarship_percent: Number(student.scholarship_percent) || 0,
+    scholarship_type: student.scholarship_type || '',
+  });
 
-  return { ...enrollment, one_time_fees: oneTimeFees };
+  return {
+    ...enrollment,
+    one_time_fees: initialDues.oneTimeFees,
+    monthly_bills: initialDues.monthlyBills,
+  };
 };
 
 export const getEnrollmentsService = async (

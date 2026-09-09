@@ -10,6 +10,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { useCurrency } from "@/lib/useCurrency";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -19,12 +20,16 @@ type Step = "details" | "done";
 export default function AddStudentForm() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
+  const { fmt }  = useCurrency();
 
   const { data: activeYear } = useApi<any>("/academic-years/active");
   const { data: classes }    = useApi<any[]>(
     activeYear?.id ? `/classes?academic_year_id=${activeYear.id}` : "",
     [activeYear?.id]
   );
+
+  const [classFees,        setClassFees]        = useState<any[]>([]);
+  const [classFeesLoading, setClassFeesLoading] = useState(false);
 
   const [form, setForm] = useState({
     admission_number: "", full_name: "", email: "", phone: "", password: "",
@@ -47,6 +52,7 @@ export default function AddStudentForm() {
   const [step,            setStep]            = useState<Step>("details");
   const [isSubmitting,    setIsSubmitting]    = useState(false);
   const [createdStudent,  setCreatedStudent]  = useState<any>(null);
+  const [billingStartChoice, setBillingStartChoice] = useState<'admission_month' | 'session_start'>('admission_month');
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview,     setPhotoPreview]     = useState<string | null>(null);
@@ -68,6 +74,7 @@ export default function AddStudentForm() {
     const class_id = e.target.value;
     setEnrollment(prev => ({ ...prev, class_id, section_id: "" }));
     setSections([]);
+    setClassFees([]);
     if (!class_id) return;
     try {
       setSectionsLoading(true);
@@ -75,6 +82,18 @@ export default function AddStudentForm() {
       setSections(res.data || []);
     } catch { setSections([]); }
     finally { setSectionsLoading(false); }
+
+    // Fetch fee structures for live preview and validation
+    if (activeYear?.id) {
+      setClassFeesLoading(true);
+      apiRequest<any>(`/fees/structures?class_id=${class_id}&academic_year_id=${activeYear.id}`)
+        .then(res => {
+          const rows = Array.isArray(res) ? res : (res?.data || []);
+          setClassFees(rows);
+        })
+        .catch(() => setClassFees([]))
+        .finally(() => setClassFeesLoading(false));
+    }
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,17 +190,18 @@ export default function AddStudentForm() {
       const student = studentRes.data;
       if (!student?.id) throw new Error("Could not create student.");
 
-      // Enroll student — one-time fees are auto-assigned by the backend
+      // Enroll student — one-time fees & initial monthly dues are auto-assigned by the backend
       await apiRequest<{ data: any }>("/students/enrollments", {
         method: "POST",
         body: JSON.stringify({
-          student_id:       student.id,
-          academic_year_id: activeYear.id,
-          class_id:         Number(enrollment.class_id),
-          section_id:       Number(enrollment.section_id),
-          roll_number:      enrollment.roll_number || undefined,
-          stream:           enrollment.stream,
-          status:           "active",
+          student_id:           student.id,
+          academic_year_id:     activeYear.id,
+          class_id:             Number(enrollment.class_id),
+          section_id:           Number(enrollment.section_id),
+          roll_number:          enrollment.roll_number || undefined,
+          stream:               enrollment.stream,
+          status:               "active",
+          billing_start_choice: billingStartChoice,
         }),
       });
 
@@ -452,6 +472,127 @@ export default function AddStudentForm() {
                       </select>
                     </label>
                   </div>
+
+                  {/* Live Fee Structure & Concession Preview */}
+                  {enrollment.class_id && (
+                    <div style={{
+                      marginTop: 14,
+                      padding: "12px 14px",
+                      borderRadius: 10,
+                      background: "#f8fafc",
+                      border: "1.5px solid #e2e8f0",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                        <strong style={{ fontSize: 12, fontWeight: 900, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
+                          <i className="fa-solid fa-coins" style={{ color: "#ff9b51" }} />
+                          Class Fee Structure (AY {activeYear?.year_name || "Active"})
+                        </strong>
+                        {classFeesLoading && (
+                          <span style={{ fontSize: 11, color: "#64748b", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Spinner size={12} /> Loading fees...
+                          </span>
+                        )}
+                      </div>
+
+                      {classFeesLoading ? null : classFees.length === 0 ? (
+                        <div style={{ padding: "8px 12px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 12, fontWeight: 700 }}>
+                          <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />
+                          No fee structure configured for this class yet. Remember to set up class fees in Fee Structures.
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {classFees.map((fs: any) => {
+                            const original = Number(fs.amount || 0);
+                            const applies = fs.scholarship_applies !== false && String(fs.scholarship_applies) !== "false";
+                            const discount = (scholarshipPct && scholarshipPct > 0 && applies)
+                              ? Math.round((original * scholarshipPct) / 100)
+                              : 0;
+                            const net = original - discount;
+
+                            return (
+                              <div key={fs.id} style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #edf2f7", fontSize: 12,
+                              }}>
+                                <div>
+                                  <span style={{ fontWeight: 800, color: "#334155" }}>{fs.fee_name}</span>
+                                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#f1f5f9", color: "#64748b", textTransform: "capitalize" }}>
+                                    {fs.frequency}
+                                  </span>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                  {discount > 0 ? (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span style={{ fontSize: 11, color: "#94a3b8", textDecoration: "line-through" }}>{fmt(original)}</span>
+                                      <strong style={{ fontWeight: 900, color: "#16a34a" }}>{fmt(net)}</strong>
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 5px", borderRadius: 4 }}>-{fmt(discount)}</span>
+                                    </div>
+                                  ) : (
+                                    <strong style={{ fontWeight: 900, color: "#0f172a" }}>{fmt(original)}</strong>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Billing Start Choice Selector */}
+                      {classFees.some((f: any) => f.frequency !== 'yearly' && f.frequency !== 'one_time') && (
+                        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed #cbd5e1" }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                            <i className="fa-solid fa-calendar-check" style={{ color: "#ff9b51" }} />
+                            Bill Monthly Tuition Starting From:
+                          </span>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <label style={{
+                              display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px",
+                              borderRadius: 8, border: `1.5px solid ${billingStartChoice === 'admission_month' ? '#2563eb' : '#e2e8f0'}`,
+                              background: billingStartChoice === 'admission_month' ? '#eff6ff' : '#fff',
+                              cursor: "pointer", transition: "all 0.12s",
+                            }}>
+                              <input
+                                type="radio"
+                                name="billing_start_choice"
+                                value="admission_month"
+                                checked={billingStartChoice === 'admission_month'}
+                                onChange={() => setBillingStartChoice('admission_month')}
+                                style={{ marginTop: 2, accentColor: "#2563eb" }}
+                              />
+                              <div>
+                                <strong style={{ fontSize: 11.5, color: "#1e293b", display: "block" }}>Admission Month</strong>
+                                <span style={{ fontSize: 10.5, color: "#64748b" }}>
+                                  {form.admission_date ? `From ${form.admission_date.slice(0, 7)} (Standard)` : "From joining month"}
+                                </span>
+                              </div>
+                            </label>
+
+                            <label style={{
+                              display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px",
+                              borderRadius: 8, border: `1.5px solid ${billingStartChoice === 'session_start' ? '#2563eb' : '#e2e8f0'}`,
+                              background: billingStartChoice === 'session_start' ? '#eff6ff' : '#fff',
+                              cursor: "pointer", transition: "all 0.12s",
+                            }}>
+                              <input
+                                type="radio"
+                                name="billing_start_choice"
+                                value="session_start"
+                                checked={billingStartChoice === 'session_start'}
+                                onChange={() => setBillingStartChoice('session_start')}
+                                style={{ marginTop: 2, accentColor: "#2563eb" }}
+                              />
+                              <div>
+                                <strong style={{ fontSize: 11.5, color: "#1e293b", display: "block" }}>Session Start</strong>
+                                <span style={{ fontSize: 10.5, color: "#64748b" }}>
+                                  Full session back-billing (AY Start)
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
               </div>

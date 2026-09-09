@@ -269,9 +269,6 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
                 <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/structures`}>
                   <i className="fa-solid fa-layer-group" /> Fee Structures
                 </Link>
-                <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/monthly-billing`}>
-                  <i className="fa-solid fa-calendar-plus" /> Monthly Billing
-                </Link>
                 <Link className={cx(s("btn"), s("btnOutline"))} href={`${prefix}/records`}>
                   <i className="fa-solid fa-table-list" /> All Records
                 </Link>
@@ -359,9 +356,6 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
                     {pendingRequestsCount}
                   </span>
                 )}
-              </Link>
-              <Link className={s("subLink")} href={`${prefix}/monthly-billing`}>
-                <i className="fa-solid fa-calendar-days" /> Generate Monthly Bills
               </Link>
               <Link className={s("subLink")} href={`${prefix}/structures/add`}>
                 <i className="fa-solid fa-plus" /> New Fee Structure

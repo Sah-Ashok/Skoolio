@@ -103,13 +103,104 @@ function AzureReceiptButton({ paymentId }: { paymentId: string | number }) {
   );
 }
 
-interface Props { paymentId: string | number; }
+interface ReceiptLineGroup {
+  title: string;
+  count: number;
+  rate: number;
+  totalGross: number;
+  discountAmt: number;
+  netBillAmt: number;
+  paidAmt: number;
+  discountReason?: string;
+  shortRange?: string;
+}
 
-const NOTES = [
-  "Fees paid through cheque/online transfer are subject to clearing and bank verification.",
-  "Fee payments are non-transferable and non-refundable unless approved by management policy.",
-  "This is an official system-generated electronic fee receipt.",
-];
+function groupReceiptItems(items: any[], formatFeeName: (n: string) => string): ReceiptLineGroup[] {
+  if (!items || !items.length) return [];
+
+  const map = new Map<string, any[]>();
+  for (const it of items) {
+    const raw = it.fee_name || "Fee";
+    const base = raw.replace(/\s*\([^)]*\)$/, '').trim() || raw;
+    const key = it.fee_structure_id ? `struct_${it.fee_structure_id}` : `base_${base.toLowerCase()}_${it.fee_type || 'academic'}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(it);
+  }
+
+  const groups: ReceiptLineGroup[] = [];
+  for (const [, list] of map.entries()) {
+    list.sort((a, b) => {
+      const pA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+      const pB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+      if (pA !== pB) return pA.localeCompare(pB);
+      return a.id - b.id;
+    });
+
+    const first = list[0];
+    const last = list[list.length - 1];
+    const baseName = (first.fee_name || "Fee").replace(/\s*\([^)]*\)$/, '').trim() || first.fee_name || "Fee";
+    const cleanBase = baseName.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+    const totalGross = list.reduce((s, r) => s + parseFloat(r.total_amount || 0), 0);
+    const discountAmt = list.reduce((s, r) => s + parseFloat(r.discount_amount || 0), 0);
+    const netBillAmt = list.reduce((s, r) => s + parseFloat(r.net_amount || (parseFloat(r.total_amount || 0) - parseFloat(r.discount_amount || 0))), 0);
+    const paidAmt = list.reduce((s, r) => s + parseFloat(r.paid_amount || 0), 0);
+
+    if (list.length === 1) {
+      const formatted = formatFeeName(first.fee_name || "Fee");
+      groups.push({
+        title: formatted.toUpperCase(),
+        count: 1,
+        rate: paidAmt,
+        totalGross,
+        discountAmt,
+        netBillAmt,
+        paidAmt,
+        discountReason: first.discount_reason,
+        shortRange: formatted,
+      });
+    } else {
+      const getP = (b: any) => {
+        const formatted = formatFeeName(b.fee_name || "");
+        const match = formatted.match(/\(([^)]+)\)$/);
+        return match ? match[1].trim() : (b.due_date ? b.due_date.slice(0, 7) : "");
+      };
+      const p1 = getP(first);
+      const p2 = getP(last);
+
+      const m1Match = p1.match(/^([A-Za-z]+)\s+(\d{4})$/);
+      const m2Match = p2.match(/^([A-Za-z]+)\s+(\d{4})$/);
+
+      let range = "";
+      if (m1Match && m2Match) {
+        range = m1Match[2] === m2Match[2] ? `${m1Match[1]} – ${m2Match[1]} ${m1Match[2]}` : `${p1} – ${p2}`;
+      } else if (p1 && p2 && p1 !== p2) {
+        range = `${p1} – ${p2}`;
+      } else {
+        range = `${list.length} Months`;
+      }
+
+      const title = `${cleanBase.toUpperCase()} (${range.toUpperCase()} · ${list.length} MONTHS)`;
+      groups.push({
+        title,
+        count: list.length,
+        rate: list.length > 0 ? (paidAmt / list.length) : paidAmt,
+        totalGross,
+        discountAmt,
+        netBillAmt,
+        paidAmt,
+        discountReason: first.discount_reason,
+        shortRange: range,
+      });
+    }
+  }
+
+  return groups;
+}
+
+interface Props {
+  paymentId: string | number;
+}
 
 export default function FeeReceiptPage({ paymentId }: Props) {
   const { data: receipt, loading, error } = useApi<any>(`/fees/payments/${paymentId}`);
@@ -143,7 +234,10 @@ export default function FeeReceiptPage({ paymentId }: Props) {
   const waivedAmt = isWaived ? Math.max(0, netBillAmt - totalPaidToDate) : 0;
   const balanceDue = !isWaived && totalPaidToDate < netBillAmt ? Math.max(0, netBillAmt - totalPaidToDate) : 0;
 
-  // Parse Fee Details (Head, From Month, To Month, Months count, Rate per month)
+  // Parse Fee Items (Supports both single-item legacy receipts and consolidated multi-item receipts)
+  const rawItems = receipt.items && receipt.items.length > 0 ? receipt.items : [receipt];
+  const itemGroups = groupReceiptItems(rawItems, formatFeeName);
+
   const formattedFee = formatFeeName(receipt.fee_name || "Fee");
   let cleanHead = formattedFee.replace(/\s*\([^)]*\)/g, "").trim() || receipt.fee_name || "Fee";
   cleanHead = cleanHead.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
@@ -154,33 +248,41 @@ export default function FeeReceiptPage({ paymentId }: Props) {
   let monthsCount = 1;
   let feePeriod = "—";
 
-  const parenMatch = formattedFee.match(/\(([^)]+)\)/);
-  if (parenMatch) {
-    const inside = parenMatch[1].trim();
-    const countMatch = inside.match(/·\s*(\d+)\s*Months?/i);
-    if (countMatch) {
-      monthsCount = parseInt(countMatch[1], 10);
-      duration = `${monthsCount} Month${monthsCount > 1 ? "s" : ""}`;
-    }
+  if (itemGroups.length > 1) {
+    feePeriod = itemGroups.map(g => g.shortRange || g.title).join(", ");
+    duration = `${rawItems.length} Fee Items`;
+  } else if (itemGroups.length === 1 && itemGroups[0].count > 1) {
+    feePeriod = itemGroups[0].shortRange || itemGroups[0].title;
+    duration = `${itemGroups[0].count} Months`;
+  } else {
+    const parenMatch = formattedFee.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      const inside = parenMatch[1].trim();
+      const countMatch = inside.match(/·\s*(\d+)\s*Months?/i);
+      if (countMatch) {
+        monthsCount = parseInt(countMatch[1], 10);
+        duration = `${monthsCount} Month${monthsCount > 1 ? "s" : ""}`;
+      }
 
-    const rangeMatch = inside.match(/([A-Za-z]+(?:\s+\d{4})?)\s+(?:to|–|-)\s+([A-Za-z]+(?:\s+\d{4})?)/i);
-    if (rangeMatch) {
-      fromMonth = rangeMatch[1].trim();
-      toMonth = rangeMatch[2].trim();
-      duration = countMatch ? `${monthsCount} Month${monthsCount > 1 ? "s" : ""}` : `${fromMonth} – ${toMonth}`;
-      feePeriod = `${fromMonth} – ${toMonth}`;
-    } else if (/^(?:AY\s*)?(\d{4}(?:[\/\-]\d{2,4})?)$/i.test(inside) || /annual|session/i.test(inside)) {
-      feePeriod = receipt.year_name || inside;
+      const rangeMatch = inside.match(/([A-Za-z]+(?:\s+\d{4})?)\s+(?:to|–|-)\s+([A-Za-z]+(?:\s+\d{4})?)/i);
+      if (rangeMatch) {
+        fromMonth = rangeMatch[1].trim();
+        toMonth = rangeMatch[2].trim();
+        duration = countMatch ? `${monthsCount} Month${monthsCount > 1 ? "s" : ""}` : `${fromMonth} – ${toMonth}`;
+        feePeriod = `${fromMonth} – ${toMonth}`;
+      } else if (/^(?:AY\s*)?(\d{4}(?:[\/\-]\d{2,4})?)$/i.test(inside) || /annual|session/i.test(inside)) {
+        feePeriod = receipt.year_name || inside;
+        duration = "Annual";
+      } else {
+        feePeriod = inside;
+        duration = "1 Month";
+      }
+    } else if (receipt.year_name) {
+      feePeriod = receipt.year_name;
       duration = "Annual";
     } else {
-      feePeriod = inside;
-      duration = "1 Month";
+      feePeriod = receipt.fee_type ? `${receipt.fee_type.charAt(0).toUpperCase()}${receipt.fee_type.slice(1)} Fee` : "General";
     }
-  } else if (receipt.year_name) {
-    feePeriod = receipt.year_name;
-    duration = "Annual";
-  } else {
-    feePeriod = receipt.fee_type ? `${receipt.fee_type.charAt(0).toUpperCase()}${receipt.fee_type.slice(1)} Fee` : "General";
   }
 
   const ratePerMonth = receipt.structure_amount
@@ -413,7 +515,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
               {classSection}
             </span>
             <span className="r-lbl" style={{ marginLeft: 16 }}>Fee Period &nbsp;:</span>
-            <span className="r-val" style={{ flex: 1.2, marginLeft: 4 }}>
+            <span className="r-val" style={{ flex: 1.2, marginLeft: 4, whiteSpace: 'normal', fontSize: feePeriod.length > 25 ? 11 : 12.5 }}>
               {feePeriod}
             </span>
           </div>
@@ -430,16 +532,39 @@ export default function FeeReceiptPage({ paymentId }: Props) {
               </tr>
             </thead>
             <tbody>
-              {/* Primary Fee Row */}
-              <tr>
-                <td style={{ padding: '6px 8px' }}>1</td>
-                <td style={{ textAlign: 'left', padding: '6px 12px' }}>
-                  {cleanHead.toUpperCase()}
-                  {discountAmt > 0 && ` (LESS DISCOUNT: ${formatCurrency(discountAmt)})`}
-                  {fineAmt > 0 && ` (ADD FINE: ${formatCurrency(fineAmt)})`}
-                </td>
-                <td style={{ padding: '6px 8px' }}>{formatCurrency(netBillAmt)}</td>
-              </tr>
+              {/* Fee Items (single or multi-item/multi-month consolidated) */}
+              {itemGroups.map((g, idx) => (
+                <tr key={idx}>
+                  <td style={{ padding: '6px 8px' }}>{idx + 1}</td>
+                  <td style={{ textAlign: 'left', padding: '6px 12px' }}>
+                    <div>
+                      {g.title}
+                      {g.discountAmt > 0 && (
+                        <span style={{ fontSize: 11, color: '#333', marginLeft: 6, fontWeight: 'normal' }}>
+                          (LESS DISCOUNT: {formatCurrency(g.discountAmt)}{g.discountReason ? ` · ${g.discountReason}` : ''})
+                        </span>
+                      )}
+                    </div>
+                    {g.count > 1 && (
+                      <div style={{ fontSize: 10.5, color: '#555', fontWeight: 'normal', marginTop: 2 }}>
+                        Rate: {formatCurrency(g.rate)} / Month × {g.count} Months
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>{formatCurrency(g.netBillAmt)}</td>
+                </tr>
+              ))}
+
+              {/* Add: Fine Amount (if any fine was assessed) */}
+              {fineAmt > 0 && (
+                <tr>
+                  <td style={{ padding: '6px 8px' }}>&nbsp;</td>
+                  <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#b42318' }}>
+                    Add: Late Payment Fine {receipt.fine_reason ? `(${receipt.fine_reason})` : ''}
+                  </td>
+                  <td style={{ padding: '6px 8px', color: '#b42318' }}>+ {formatCurrency(fineAmt)}</td>
+                </tr>
+              )}
 
               {/* Less: Waived Amount (if any portion was waived) */}
               {waivedAmt > 0 && (

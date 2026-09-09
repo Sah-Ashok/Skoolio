@@ -5,7 +5,7 @@ import { getCache, setCache, deleteCachePattern } from '../utils/redisCache';
 import {
   IFeeStructure, ICreateFeeStructure, IUpdateFeeStructure,
   IFeeCollection, ICreateFeeCollection, IUpdateFeeCollection,
-  IFeePayment, ICreateFeePayment, FeeType
+  IFeePayment, ICreateFeePayment, ICreateBulkFeePayment, FeeType
 } from '../types/fee.types';
 
 // ── FEE STRUCTURE QUERIES ──
@@ -201,9 +201,11 @@ export const getFeeCollectionsByStudent = async (
     : '';
   const result = await pool.query(
     `SELECT fc.*, s.full_name, s.admission_number,
-            COALESCE(fc.fee_type, 'academic') AS fee_type
+            COALESCE(fc.fee_type, 'academic') AS fee_type,
+            fs.frequency
      FROM fee_collections fc
      INNER JOIN students s ON s.id = fc.student_id
+     LEFT JOIN fee_structures fs ON fs.id = fc.fee_structure_id
      WHERE fc.student_id = $1 AND fc.school_id = $2
      ${yearFilter}
      ORDER BY fc.due_date DESC`,
@@ -228,6 +230,34 @@ export const waiveFeeCollection = async (
      WHERE id = $2 AND school_id = $3 AND status != 'paid'
      RETURNING *`,
     [reason || 'Waived by admin', id, school_id]
+  );
+  return result.rows[0] || null;
+};
+
+export const cancelFeeCollection = async (
+  id:        number,
+  school_id: number,
+  reason:    string
+): Promise<IFeeCollection | null> => {
+  const check = await pool.query(
+    `SELECT * FROM fee_collections WHERE id = $1 AND school_id = $2`,
+    [id, school_id]
+  );
+  const col = check.rows[0];
+  if (!col) return null;
+  if (col.status === 'paid' || Number(col.paid_amount || 0) > 0) {
+    throw new AppError('Cannot cancel a bill that has received payments. Please reverse or refund payments first.', 400);
+  }
+
+  const result = await pool.query(
+    `UPDATE fee_collections SET
+      status           = 'cancelled',
+      fine_reason      = $1,
+      remaining_amount = 0,
+      updated_at       = NOW()
+     WHERE id = $2 AND school_id = $3
+     RETURNING *`,
+    [reason || 'Cancelled by admin', id, school_id]
   );
   return result.rows[0] || null;
 };
@@ -282,7 +312,7 @@ export const getFeeCollectionsBySchool = async (
 
   // pending_only filter (unchanged — used by MonthlyBilling)
   const pendingFilter = pending_only
-    ? `AND fc.status NOT IN ('paid', 'waived') AND COALESCE(fc.remaining_amount, fc.net_amount, fc.total_amount) > 0`
+    ? `AND fc.status NOT IN ('paid', 'waived', 'cancelled') AND COALESCE(fc.remaining_amount, fc.net_amount, fc.total_amount) > 0`
     : '';
 
   // full-text search: student name, admission number, fee name
@@ -347,7 +377,7 @@ export const getFeeCollectionsBySchool = async (
     `SELECT 
        COUNT(*) AS total,
        COALESCE(SUM(fc.paid_amount), 0)::numeric AS total_collected,
-       COALESCE(SUM(CASE WHEN fc.status NOT IN ('paid', 'waived') THEN COALESCE(fc.remaining_amount, fc.net_amount - fc.paid_amount, fc.total_amount - fc.paid_amount, 0) ELSE 0 END), 0)::numeric AS total_pending,
+       COALESCE(SUM(CASE WHEN fc.status NOT IN ('paid', 'waived', 'cancelled') THEN COALESCE(fc.remaining_amount, fc.net_amount - fc.paid_amount, fc.total_amount - fc.paid_amount, 0) ELSE 0 END), 0)::numeric AS total_pending,
        COUNT(*) FILTER (WHERE COALESCE(fc.fee_type, 'academic') IN ('transport', 'hostel'))::int AS transport_bills_count
      ${joinAndWhere}`,
     params
@@ -368,7 +398,18 @@ export const getFeeCollectionsBySchool = async (
     `SELECT fc.*, s.full_name, s.admission_number,
             cl.id AS class_id, sec.id AS section_id,
             cl.name AS class_name, sec.name AS section_name,
-            COALESCE(fc.fee_type, 'academic') AS fee_type
+            COALESCE(fc.fee_type, 'academic') AS fee_type,
+            COALESCE((
+              SELECT json_agg(json_build_object(
+                'id', fp.id,
+                'receipt_number', fp.receipt_number,
+                'paid_amount', fp.paid_amount,
+                'payment_date', fp.payment_date,
+                'payment_method', fp.payment_method
+              ) ORDER BY fp.id ASC)
+              FROM fee_payments fp
+              WHERE fp.collection_id = fc.id AND fp.school_id = fc.school_id
+            ), '[]'::json) AS payments
      ${joinAndWhere}
      ORDER BY fc.due_date DESC
      LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
@@ -723,7 +764,53 @@ export const getPaymentWithDetails = async (
      LIMIT 1`,
     [payment_id, school_id]
   );
-  return result.rows[0] || null;
+  const payment = result.rows[0];
+  if (!payment) return null;
+
+  // Query all line items sharing this receipt_number (supports multi-month and multi-item receipts)
+  if (payment.receipt_number) {
+    const siblingResult = await pool.query(
+      `SELECT
+         fp.id              AS payment_id,
+         fp.paid_amount,
+         fc.id              AS collection_id,
+         fc.fee_name,
+         fc.fee_type,
+         fc.status          AS collection_status,
+         fc.total_amount,
+         fc.discount_amount,
+         fc.discount_reason,
+         fc.fine_amount,
+         fc.fine_reason,
+         fc.net_amount,
+         fc.remaining_amount,
+         fc.due_date::text,
+         fs.frequency       AS structure_frequency,
+         fs.amount          AS structure_amount
+       FROM fee_payments fp
+       INNER JOIN fee_collections fc ON fc.id = fp.collection_id
+       LEFT  JOIN fee_structures fs  ON fs.id = fc.fee_structure_id
+       WHERE fp.school_id = $1 AND fp.receipt_number = $2
+       ORDER BY fc.due_date ASC, fc.id ASC`,
+      [school_id, payment.receipt_number]
+    );
+
+    if (siblingResult.rows.length > 1) {
+      payment.items = siblingResult.rows;
+      payment.total_amount     = siblingResult.rows.reduce((s, r) => s + Number(r.total_amount || 0), 0);
+      payment.discount_amount  = siblingResult.rows.reduce((s, r) => s + Number(r.discount_amount || 0), 0);
+      payment.fine_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.fine_amount || 0), 0);
+      payment.net_amount       = siblingResult.rows.reduce((s, r) => s + Number(r.net_amount || 0), 0);
+      payment.paid_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+      payment.remaining_amount = siblingResult.rows.reduce((s, r) => s + Number(r.remaining_amount || 0), 0);
+    } else {
+      payment.items = [payment];
+    }
+  } else {
+    payment.items = [payment];
+  }
+
+  return payment;
 };
 
 // ── ATOMIC PAYMENT TRANSACTION ──
@@ -815,6 +902,112 @@ export const createFeePaymentAtomic = async (
 
     await client.query('COMMIT');
     return { payment, receipt_number };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+// ── ATOMIC BULK PAYMENT TRANSACTION (SINGLE RECEIPT FOR MULTIPLE ITEMS) ──
+export const createBulkFeePaymentAtomic = async (
+  school_id:    number,
+  collected_by: number,
+  data:         ICreateBulkFeePayment
+): Promise<{ payments: IFeePayment[]; receipt_number: string; payment_id: number }> => {
+  if (!data.items || data.items.length === 0) {
+    throw new Error('No fee items provided for payment.');
+  }
+
+  const client: PoolClient = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [school_id]);
+
+    // 1. Generate ONE single receipt_number for this entire counter transaction
+    const lockResult = await client.query(
+      `SELECT receipt_number FROM fee_payments
+       WHERE school_id = $1
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      [school_id]
+    );
+
+    const last: string | undefined = lockResult.rows[0]?.receipt_number;
+    let receipt_number: string;
+    if (!last) {
+      receipt_number = 'RCP-000001';
+    } else {
+      const lastNum = parseInt(last.replace('RCP-', ''), 10);
+      receipt_number = `RCP-${String(lastNum + 1).padStart(6, '0')}`;
+    }
+
+    const payments: IFeePayment[] = [];
+
+    // 2. Process each collection item in the batch with the exact same receipt_number
+    for (const item of data.items) {
+      const collectionResult = await client.query(
+        `SELECT id, student_id, paid_amount, net_amount, remaining_amount, status
+         FROM fee_collections
+         WHERE id = $1 AND school_id = $2
+         FOR UPDATE`,
+        [item.collection_id, school_id]
+      );
+      const collection = collectionResult.rows[0];
+      if (!collection) throw new Error(`Fee collection #${item.collection_id} not found.`);
+      if (Number(collection.student_id) !== Number(data.student_id)) {
+        throw new Error('Payment student does not match the fee collection.');
+      }
+      if (collection.status === 'paid' || collection.status === 'waived') {
+        throw new Error('This fee cannot accept a payment.');
+      }
+      if (Number(item.paid_amount) <= 0 || Number(item.paid_amount) > Number(collection.remaining_amount)) {
+        throw new Error('Payment amount must be greater than zero and cannot exceed the remaining amount.');
+      }
+
+      const paymentResult = await client.query(
+        `INSERT INTO fee_payments
+          (school_id, collection_id, student_id, receipt_number, paid_amount,
+           payment_date, payment_method, transaction_id, remarks, collected_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING *`,
+        [
+          school_id,
+          item.collection_id,
+          data.student_id,
+          receipt_number,
+          item.paid_amount,
+          data.payment_date,
+          data.payment_method,
+          data.transaction_id || null,
+          data.remarks        || null,
+          collected_by,
+        ]
+      );
+      payments.push(paymentResult.rows[0]);
+
+      const new_paid      = Number(collection.paid_amount) + Number(item.paid_amount);
+      const new_remaining = Math.max(0, Number(collection.net_amount) - new_paid);
+      const new_status    = new_remaining <= 0 ? 'paid' : 'partial';
+
+      await client.query(
+        `UPDATE fee_collections SET
+          paid_amount      = $1,
+          remaining_amount = $2,
+          status           = $3,
+          updated_at       = NOW()
+         WHERE id = $4 AND school_id = $5`,
+        [new_paid, new_remaining, new_status, collection.id, school_id]
+      );
+    }
+
+    await client.query('COMMIT');
+    return {
+      payments,
+      receipt_number,
+      payment_id: payments[0]?.id || 0,
+    };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -1072,4 +1265,145 @@ export const getMonthlyBillingStatus = async (
     [school_id, academic_year_id, billing_month]
   );
   return result.rows;
+};
+
+export interface IFeePaymentVoucher {
+  receipt_number: string;
+  payment_id: number;
+  student_id: number;
+  student_name: string;
+  admission_number?: string;
+  class_name?: string;
+  section_name?: string;
+  payment_date: string;
+  payment_method: string;
+  total_paid: number;
+  items_count: number;
+  settled_items: Array<{
+    id: number;
+    fee_name: string;
+    paid_amount: number;
+  }>;
+  created_at: string;
+}
+
+export const getFeePaymentsBySchool = async (
+  school_id:        number,
+  academic_year_id?: number,
+  search?:           string,
+  class_id?:         number,
+  section_id?:       number,
+  payment_method?:   string,
+  page?:             number,
+  limit?:            number,
+): Promise<{
+  data: IFeePaymentVoucher[];
+  total: number;
+  total_collected: number;
+}> => {
+  const params: any[] = [school_id];
+
+  let ayFilter = '';
+  if (academic_year_id) {
+    const idx = params.push(academic_year_id);
+    ayFilter = `AND (fc.academic_year_id = $${idx} OR se.academic_year_id = $${idx})`;
+  }
+
+  let searchFilter = '';
+  if (search && search.trim()) {
+    const idx = params.push(`%${search.trim().toLowerCase()}%`);
+    searchFilter = `AND (
+      LOWER(s.full_name)           LIKE $${idx}
+      OR LOWER(s.admission_number) LIKE $${idx}
+      OR LOWER(fp.receipt_number)  LIKE $${idx}
+    )`;
+  }
+
+  let classFilter = '';
+  if (class_id) {
+    const idx = params.push(class_id);
+    classFilter = `AND cl.id = $${idx}`;
+  }
+
+  let sectionFilter = '';
+  if (section_id) {
+    const idx = params.push(section_id);
+    sectionFilter = `AND sec.id = $${idx}`;
+  }
+
+  let methodFilter = '';
+  if (payment_method && payment_method !== 'all') {
+    const idx = params.push(payment_method);
+    methodFilter = `AND fp.payment_method = $${idx}`;
+  }
+
+  const joinBase = `
+    FROM fee_payments fp
+    JOIN students s ON s.id = fp.student_id
+    LEFT JOIN fee_collections fc ON fc.id = fp.collection_id
+    LEFT JOIN student_enrollments se
+      ON se.student_id = fp.student_id
+     AND se.school_id  = fp.school_id
+     AND se.status     = 'active'
+    LEFT JOIN classes  cl  ON cl.id  = se.class_id
+    LEFT JOIN sections sec ON sec.id = se.section_id
+    WHERE fp.school_id = $1
+    ${ayFilter}
+    ${searchFilter}
+    ${classFilter}
+    ${sectionFilter}
+    ${methodFilter}
+  `;
+
+  const countQuery = await pool.query(
+    `SELECT
+       COUNT(DISTINCT fp.receipt_number)::int AS total,
+       COALESCE(SUM(fp.paid_amount), 0)::numeric AS total_collected
+     ${joinBase}`,
+    params
+  );
+
+  const total = Number(countQuery.rows[0]?.total ?? 0);
+  const total_collected = Number(countQuery.rows[0]?.total_collected ?? 0);
+
+  const pageNum  = Math.max(1, page  || 1);
+  const pageSize = Math.min(200, Math.max(1, limit || 20));
+  const limitIdx  = params.push(pageSize);
+  const offsetIdx = params.push((pageNum - 1) * pageSize);
+
+  const dataQuery = await pool.query(
+    `SELECT
+       fp.receipt_number,
+       MIN(fp.id) AS payment_id,
+       fp.student_id,
+       s.full_name AS student_name,
+       s.admission_number,
+       cl.name AS class_name,
+       sec.name AS section_name,
+       fp.payment_date,
+       fp.payment_method,
+       SUM(fp.paid_amount)::numeric AS total_paid,
+       COUNT(fp.id)::int AS items_count,
+       COALESCE(json_agg(json_build_object(
+         'id', fp.id,
+         'fee_name', COALESCE(fc.fee_name, 'Fee Payment'),
+         'paid_amount', fp.paid_amount
+       ) ORDER BY fp.id ASC), '[]'::json) AS settled_items,
+       MIN(fp.created_at) AS created_at
+     ${joinBase}
+     GROUP BY fp.receipt_number, fp.student_id, s.full_name, s.admission_number, cl.name, sec.name, fp.payment_date, fp.payment_method
+     ORDER BY MIN(fp.created_at) DESC
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    params
+  );
+
+  return {
+    data: dataQuery.rows.map((r: any) => ({
+      ...r,
+      total_paid: Number(r.total_paid || 0),
+      items_count: Number(r.items_count || 0),
+    })),
+    total,
+    total_collected,
+  };
 };

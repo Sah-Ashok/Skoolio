@@ -8,9 +8,9 @@ import {
   createFeeCollectionService, createMiscFeeCollectionService,
   getFeeCollectionsService,
   getStudentFeeCollectionsService, updateFeeCollectionService,
-  waiveFeeCollectionService,
-  createFeePaymentService, getPaymentsByCollectionService,
-  getStudentPaymentsService,
+  waiveFeeCollectionService, cancelFeeCollectionService,
+  createFeePaymentService, createBulkFeePaymentService, getPaymentsByCollectionService,
+  getStudentPaymentsService, getFeePaymentsService,
   generateMonthlyFeeBillsService,
   generateTransportBillsService, getTransportFeeSummaryService,
   generateHostelBillsService, getHostelFeeSummaryService,
@@ -21,6 +21,7 @@ import {
   voidMonthBillingService,
   getStudentBillingTimelineService,
   getUnbilledStudentsService,
+  syncStudentDuesService,
 } from '../Service/fee.service';
 import { getFeeStructureById } from '../Repositories/fee.repository';
 import { addBillingJob, getBillingJobStatus } from '../queues/feeBilling.queue';
@@ -84,7 +85,8 @@ export const createMiscFeeCollection = catchAsync(async (req: Request, res: Resp
   if (!student_id || !academic_year_id || !fee_name || !due_date || !total_amount) {
     return sendResponse(res, 400, false, 'student_id, academic_year_id, fee_name, due_date and total_amount are required', null);
   }
-  const result = await createMiscFeeCollectionService(school_id, school_id, {
+  const created_by = (req.user as any)?.id || school_id;
+  const result = await createMiscFeeCollectionService(school_id, created_by, {
     student_id:       Number(student_id),
     enrollment_id:    enrollment_id ? Number(enrollment_id) : null,
     academic_year_id: Number(academic_year_id),
@@ -157,6 +159,14 @@ export const waiveFeeCollection = catchAsync(async (req: Request, res: Response,
   sendResponse(res, 200, true, 'Fee collection waived successfully', result);
 });
 
+export const cancelFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req.user);
+  const { reason } = req.body;
+  const result = await cancelFeeCollectionService(Number(req.params.id), school_id, reason || 'Cancelled by admin');
+  invalidateDashboardCache(school_id);
+  sendResponse(res, 200, true, 'Fee collection cancelled successfully', result);
+});
+
 export const updateFeeCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const school_id = resolveSchoolId(req.user);
   const result = await updateFeeCollectionService(Number(req.params.id), school_id, req.body);
@@ -171,6 +181,13 @@ export const createFeePayment = catchAsync(async (req: Request, res: Response, n
   const result = await createFeePaymentService(school_id, school_id, req.body);
   invalidateDashboardCache(school_id);
   sendResponse(res, 201, true, 'Payment recorded successfully', result);
+});
+
+export const createBulkFeePayment = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req.user);
+  const result = await createBulkFeePaymentService(school_id, school_id, req.body);
+  invalidateDashboardCache(school_id);
+  sendResponse(res, 201, true, 'Bulk payment recorded successfully', result);
 });
 
 export const getPaymentsByCollection = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -188,6 +205,24 @@ export const getStudentPayments = catchAsync(async (req: Request, res: Response,
     academic_year_id ? Number(academic_year_id) : undefined
   );
   sendResponse(res, 200, true, 'Student payments fetched successfully', result);
+});
+
+export const getFeePayments = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req.user);
+  const { academic_year_id, search, class_id, section_id, payment_method, page, limit } = req.query;
+
+  const result = await getFeePaymentsService(
+    school_id,
+    academic_year_id ? Number(academic_year_id) : undefined,
+    search           ? String(search)           : undefined,
+    class_id         ? Number(class_id)         : undefined,
+    section_id       ? Number(section_id)       : undefined,
+    payment_method   ? String(payment_method)   : undefined,
+    page             ? Number(page)             : undefined,
+    limit            ? Number(limit)            : undefined,
+  );
+
+  sendResponse(res, 200, true, 'Fee payments fetched successfully', result);
 });
 
 // ── SELF-SERVICE CONTROLLERS (STUDENT) ────────────────────────────────────
@@ -422,4 +457,32 @@ export const getUnbilledStudentsController = catchAsync(async (req: Request, res
     school_id, Number(academic_year_id), months, String(fee_type)
   );
   sendResponse(res, 200, true, 'Unbilled students fetched', result);
+});
+
+// ── SYNC / GENERATE MISSING DUES FOR STUDENT ──────────────────────────────
+export const syncStudentDuesController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const school_id = resolveSchoolId(req.user);
+  const created_by = (req.user as any)?.id || school_id;
+  const student_id = Number(req.params.id);
+  const { billing_start_choice, academic_year_id } = req.body;
+
+  if (!student_id) {
+    return sendResponse(res, 400, false, 'Valid student ID is required', null);
+  }
+
+  const result = await syncStudentDuesService(
+    school_id,
+    created_by,
+    student_id,
+    billing_start_choice || 'admission_month',
+    academic_year_id ? Number(academic_year_id) : undefined
+  );
+
+  sendResponse(
+    res,
+    200,
+    true,
+    `Dues synchronized successfully. Generated ${result.generatedCount} fee bill(s) (${result.monthlyCount} monthly, ${result.oneTimeCount} one-time).`,
+    result
+  );
 });

@@ -5,13 +5,14 @@ import styles from "@/components/admin/calendar/calendar.module.css";
 import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { adToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { adToBS, bsToISO, daysInBSMonth, BS_MONTH_NAMES, todayLocalISO } from "@/lib/bs-ad";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type EventType   = "off" | "holiday" | "event" | "exam" | "early_closing" | "working";
+type EventType   = "off" | "holiday" | "event" | "early_closing" | "working";
 type WeekendType = "sunday_only" | "saturday_only" | "saturday_sunday";
 
 type WeeklyOffRow = {
@@ -21,11 +22,12 @@ type WeeklyOffRow = {
 };
 
 type CalendarDay = {
-  date:   Date;
-  day:    number;   // BS day number for BS schools, AD day number for AD schools
-  muted?: boolean;
-  type?:  EventType;
-  label?: string;
+  date:         Date;
+  day:          number;   // BS day number for BS schools, AD day number for AD schools
+  muted?:       boolean;
+  type?:        EventType;
+  label?:       string;
+  description?: string;
 };
 
 type MonthOption = {
@@ -66,16 +68,16 @@ const isWeeklyOff = (date: Date, dayOfMonth: number, offs: WeeklyOffRow[], fallb
 
 // ── Props ──────────────────────────────────────────────────────────────────
 interface Props {
-  role: "teacher" | "student";
+  role?: "teacher" | "student" | "admin" | "finance" | string;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function SharedCalendarView({ role: _role }: Props) {
   const { formatDate, isBS } = useDateFormat();
+  const { activeYear } = useAcademicYear();
 
-  const { data: activeYear } = useApi<any>("/academic-years/active");
   const { data: calendarData, loading: calLoading } = useApi<any>(
-    activeYear ? `/calendar?academic_year_id=${activeYear.id}` : null
+    activeYear?.id ? `/calendar?academic_year_id=${activeYear.id}` : null
   );
 
   const calendarId: number | null = calendarData?.id ?? null;
@@ -84,13 +86,19 @@ export default function SharedCalendarView({ role: _role }: Props) {
   const { data: eventsRaw  } = useApi<any[]>(calendarId ? `/calendar/${calendarId}/events` : null);
   const { data: weeklyOffs } = useApi<WeeklyOffRow[]>(calendarId ? `/calendar/${calendarId}/weekly-offs` : null);
 
+  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+
   // ── Month options ─────────────────────────────────────────────────────────
   const monthOptions = useMemo((): MonthOption[] => {
-    if (!activeYear) return [];
+    if (!activeYear?.start_date || !activeYear?.end_date) return [];
+
+    const startStr = String(activeYear.start_date).slice(0, 10);
+    const endStr   = String(activeYear.end_date).slice(0, 10);
+    if (!startStr || !endStr) return [];
 
     if (!isBS) {
-      const start = new Date(activeYear.start_date);
-      const end   = new Date(activeYear.end_date);
+      const start = new Date(startStr + "T00:00:00");
+      const end   = new Date(endStr   + "T00:00:00");
       const opts: MonthOption[] = [];
       const d = new Date(start.getFullYear(), start.getMonth(), 1);
       while (d <= end) {
@@ -107,8 +115,8 @@ export default function SharedCalendarView({ role: _role }: Props) {
       return opts;
     }
 
-    const startBS = adToBS(new Date(activeYear.start_date));
-    const endBS   = adToBS(new Date(activeYear.end_date));
+    const startBS = adToBS(new Date(startStr + "T00:00:00"));
+    const endBS   = adToBS(new Date(endStr   + "T00:00:00"));
     const opts: MonthOption[] = [];
     let curYear  = startBS.year;
     let curMonth = startBS.month;
@@ -165,13 +173,20 @@ export default function SharedCalendarView({ role: _role }: Props) {
 
   // ── Event map: AD ISO date → event ────────────────────────────────────────
   const eventMap = useMemo(() => {
-    const map: Record<string, { type: EventType; label: string }> = {};
+    const map: Record<string, { type: EventType; label: string; description?: string }> = {};
     (eventsRaw ?? []).filter((ev) => ev.event_type !== "exam").forEach((ev) => {
-      const start = new Date(ev.event_date + "T00:00:00");
-      const end   = ev.end_date ? new Date(ev.end_date + "T00:00:00") : new Date(ev.event_date + "T00:00:00");
-      const d     = new Date(start);
+      const startStr = String(ev.event_date || "").slice(0, 10);
+      if (!startStr) return;
+      const endStr = ev.end_date ? String(ev.end_date).slice(0, 10) : startStr;
+      const start  = new Date(startStr + "T00:00:00");
+      const end    = new Date(endStr   + "T00:00:00");
+      const d      = new Date(start);
       while (d <= end) {
-        map[fmt(d)] = { type: ev.event_type as EventType, label: ev.title };
+        map[fmt(d)] = {
+          type: ev.event_type as EventType,
+          label: ev.title,
+          description: ev.description,
+        };
         d.setDate(d.getDate() + 1);
       }
     });
@@ -201,6 +216,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
           day: d,
           type: entry?.type ?? (off ? "off" : undefined),
           label: entry?.label ?? (off ? "Weekly Off" : undefined),
+          description: entry?.description,
         });
       }
       const trail = days.length % 7 === 0 ? 0 : 7 - (days.length % 7);
@@ -239,6 +255,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
         day: bsDay,
         type: entry?.type ?? (off ? "off" : undefined),
         label: entry?.label ?? (off ? "Weekly Off" : undefined),
+        description: entry?.description,
       });
     }
 
@@ -265,7 +282,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
 
   // ── Month Events (grouped) ────────────────────────────────────────────────
   const monthEvents = useMemo(() => {
-    type Group = { label: string; type: EventType; startDate: Date; endDate: Date };
+    type Group = { label: string; type: EventType; startDate: Date; endDate: Date; description?: string };
     const groups: Group[] = [];
     for (const cell of grid) {
       if (cell.muted || !cell.type || cell.type === "off") continue;
@@ -278,7 +295,13 @@ export default function SharedCalendarView({ role: _role }: Props) {
       ) {
         last.endDate = cell.date;
       } else {
-        groups.push({ label: cell.label ?? "", type: cell.type, startDate: cell.date, endDate: cell.date });
+        groups.push({
+          label: cell.label ?? "",
+          type: cell.type,
+          startDate: cell.date,
+          endDate: cell.date,
+          description: cell.description,
+        });
       }
     }
     return groups;
@@ -317,15 +340,16 @@ export default function SharedCalendarView({ role: _role }: Props) {
     if (next) setSelectedMonth(next.value);
   };
 
+
   return (
-    <div className={s("page")}>
-      <main className={s("content")}>
+    <div className={s("page")} style={{ background: "transparent", minHeight: "auto" }}>
+      <main className={s("content")} style={{ padding: "16px 20px 36px" }}>
         
         {/* ── Page Header ── */}
-        <section className={s("head")}>
+        <section className={s("head")} style={{ marginBottom: 20 }}>
           <div>
             <h1>Academic Calendar</h1>
-            <p>{moLabel} — school events, holidays, and schedule.</p>
+            <p>{moLabel} — school schedule, holidays, and events.</p>
           </div>
         </section>
 
@@ -369,7 +393,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
                 <h2>{moLabel}</h2>
                 <div className={s("legendRow")}>
                   <span style={{ color: "#6a7882", fontSize: 11.5, fontWeight: 700 }}>
-                    Attendance counts only working days:
+                    Calendar Key:
                   </span>
                   <span className={s("legendItem")}>
                     <span style={{ background: "#b42318" }} />
@@ -377,7 +401,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
                   </span>
                   <span className={s("legendItem")}>
                     <span style={{ background: "#3b5bdb" }} />
-                    Event
+                    School Event
                   </span>
                   <span className={s("legendItem")}>
                     <span style={{ background: "#7c3aed" }} />
@@ -391,6 +415,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
                   onClick={() => goToMonth(-1)}
                   disabled={selIdx <= 0}
                   aria-label="Previous Month"
+                  title="Previous Month"
                 >
                   <i className="fa-solid fa-chevron-left" />
                 </button>
@@ -406,6 +431,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
                   onClick={() => goToMonth(1)}
                   disabled={selIdx === monthOptions.length - 1}
                   aria-label="Next Month"
+                  title="Next Month"
                 >
                   <i className="fa-solid fa-chevron-right" />
                 </button>
@@ -428,6 +454,8 @@ export default function SharedCalendarView({ role: _role }: Props) {
                   return (
                     <div
                       key={`${fmt(item.date)}-${i}`}
+                      onClick={() => !item.muted && setSelectedDay(item)}
+                      style={{ cursor: item.muted ? "default" : "pointer" }}
                       className={cx(
                         s("day"),
                         item.muted && s("muted"),
@@ -452,7 +480,7 @@ export default function SharedCalendarView({ role: _role }: Props) {
               <div className={s("cardHead")}>
                 <div>
                   <h2>Weekly Off Days</h2>
-                  <p>Set which days — and which weeks — are off for your school.</p>
+                  <p>Weekly schedule set for your school.</p>
                 </div>
               </div>
               <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -470,17 +498,33 @@ export default function SharedCalendarView({ role: _role }: Props) {
               <div className={s("cardHead")}>
                 <div>
                   <h2>{moLabel} Entries</h2>
-                  <p>Holidays and events.</p>
+                  <p>Holidays and school activities.</p>
                 </div>
               </div>
               <div className={s("eventList")}>
                 {monthEvents.length ? (
                   monthEvents.map((group, i) => (
-                    <div className={s("eventItem")} key={i}>
+                    <div
+                      className={s("eventItem")}
+                      key={i}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        setSelectedDay({
+                          date: group.startDate,
+                          day: group.startDate.getDate(),
+                          type: group.type,
+                          label: group.label,
+                          description: group.description,
+                        });
+                      }}
+                      title="Click to view details"
+                    >
                       <i className={s(group.type ?? "event")} />
-                      <div style={{ flex: 1 }}>
-                        <strong>{group.label}</strong>
-                        <span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {group.label}
+                        </strong>
+                        <span style={{ fontSize: 11, color: "#6a7882" }}>
                           {formatDate(fmt(group.startDate))}
                           {fmt(group.startDate) !== fmt(group.endDate) ? ` – ${formatDate(fmt(group.endDate))}` : ""}
                         </span>
@@ -499,6 +543,145 @@ export default function SharedCalendarView({ role: _role }: Props) {
 
           </aside>
         </section>
+
+        {/* ── Day Details Modal ── */}
+        {selectedDay && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(3px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: 16,
+            }}
+            onClick={() => setSelectedDay(null)}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: 16,
+                padding: "22px 24px",
+                maxWidth: 440,
+                width: "100%",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a" }}>
+                    {formatDate(fmt(selectedDay.date))}
+                  </h3>
+                  <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+                    {selectedDay.date.toLocaleDateString("en-US", { weekday: "long" })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDay(null)}
+                  style={{
+                    border: "none",
+                    background: "#f1f5f9",
+                    color: "#64748b",
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Close"
+                >
+                  <i className="fa-solid fa-xmark" />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background:
+                    selectedDay.type === "holiday" || selectedDay.type === "off"
+                      ? "#fee2e2"
+                      : selectedDay.type === "early_closing"
+                      ? "#f3e8ff"
+                      : selectedDay.type === "event"
+                      ? "#e0e7ff"
+                      : "#ecfdf5",
+                  color:
+                    selectedDay.type === "holiday" || selectedDay.type === "off"
+                      ? "#991b1b"
+                      : selectedDay.type === "early_closing"
+                      ? "#6b21a8"
+                      : selectedDay.type === "event"
+                      ? "#3730a3"
+                      : "#065f46",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                <i
+                  className={
+                    selectedDay.type === "holiday" || selectedDay.type === "off"
+                      ? "fa-solid fa-umbrella-beach"
+                      : selectedDay.type === "early_closing"
+                      ? "fa-solid fa-clock"
+                      : selectedDay.type === "event"
+                      ? "fa-solid fa-bullhorn"
+                      : "fa-solid fa-circle-check"
+                  }
+                />
+                <span>
+                  {selectedDay.type === "holiday" || selectedDay.type === "off"
+                    ? "School Closed (Holiday / Off Day)"
+                    : selectedDay.type === "early_closing"
+                    ? "Early Closing Day"
+                    : selectedDay.type === "event"
+                    ? "Special School Event / Activity"
+                    : "Regular School Working Day"}
+                </span>
+              </div>
+
+              {selectedDay.label && (
+                <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#64748b", marginBottom: 4 }}>
+                    Event / Entry
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>
+                    {selectedDay.label}
+                  </div>
+                  {selectedDay.description && (
+                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.45 }}>
+                      {selectedDay.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDay(null)}
+                  className={cx(s("btn"), s("btnPrimary"))}
+                  style={{ minHeight: 34, padding: "6px 18px", fontSize: 13, cursor: "pointer" }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>

@@ -10,9 +10,13 @@ import {
   calculateWorkingDays,
 } from '../Service/calendar.service';
 
-// Helper — resolves school_id from any JWT shape
-const resolveSchoolId = (user: any): number =>
-  'school_id' in user ? user.school_id : user.id;
+// Helper — resolves school_id from any JWT shape (admin, faculty, student)
+const resolveSchoolId = (user: any): number => {
+  if (user && 'school_id' in user && user.school_id) {
+    return Number(user.school_id);
+  }
+  return Number(user?.id || 0);
+};
 
 // ── CALENDAR CONTROLLERS ──
 

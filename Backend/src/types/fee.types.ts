@@ -1,9 +1,9 @@
 // Enums
 export type FeeFrequency = 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'one_time';
 export type DueDateType = 'fixed_day' | 'admission_date';
-export type FeeCollectionStatus = 'unpaid' | 'partial' | 'paid' | 'waived';
+export type FeeCollectionStatus = 'unpaid' | 'partial' | 'paid' | 'waived' | 'cancelled';
 export type FeePaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'online';
-export type FeeType = 'academic' | 'transport' | 'hostel';
+export type FeeType = 'academic' | 'transport' | 'hostel' | 'store';
 export type BillingStartRule = 'next_month' | 'skip_two_months' | 'academic_year';
 
 // ── FEE STRUCTURE ──
@@ -122,3 +122,17 @@ export type ICreateFeePayment = Pick<
   transaction_id?: string;
   remarks?: string;
 };
+
+export interface ICreateBulkFeePaymentItem {
+  collection_id: number;
+  paid_amount:   number;
+}
+
+export interface ICreateBulkFeePayment {
+  student_id:     number;
+  payment_date:   string;
+  payment_method: FeePaymentMethod;
+  transaction_id?: string;
+  remarks?:        string;
+  items:          ICreateBulkFeePaymentItem[];
+}

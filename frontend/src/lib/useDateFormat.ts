@@ -221,8 +221,8 @@ export function useDateFormat() {
 
       // 1. Multi-month interval: (YYYY-MM to YYYY-MM · N Months) or (YYYY-MM to YYYY-MM)
       name = name.replace(/\((\d{4}-\d{2})\s+to\s+(\d{4}-\d{2})(?:\s*·\s*(\d+)\s*Months?)?\)/gi, (match, fM, tM, count) => {
-        const bsFrom = isoToBS(`${fM}-18`);
-        const bsTo   = isoToBS(`${tM}-18`);
+        const bsFrom = isoToBS(`${fM}-25`);
+        const bsTo   = isoToBS(`${tM}-25`);
         const fromName = BS_MONTH_NAMES[bsFrom.month - 1];
         const toName   = BS_MONTH_NAMES[bsTo.month - 1];
         const bsMonthDiff = (bsTo.year - bsFrom.year) * 12 + (bsTo.month - bsFrom.month) + 1;
@@ -236,7 +236,7 @@ export function useDateFormat() {
 
       // 2. Single month interval: (YYYY-MM)
       name = name.replace(/\((\d{4}-\d{2})\)/g, (match, ym) => {
-        const bs = isoToBS(`${ym}-18`);
+        const bs = isoToBS(`${ym}-25`);
         return `(${BS_MONTH_NAMES[bs.month - 1]} ${bs.year})`;
       });
 

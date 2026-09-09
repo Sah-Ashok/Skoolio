@@ -46,16 +46,18 @@ export const createStudent = async (
 export const searchStudentsBySchool = async (
   school_id: number,
   q: string
-): Promise<(Pick<IStudent, 'id' | 'full_name' | 'admission_number' | 'email' | 'phone' | 'scholarship_type' | 'scholarship_percent' | 'scholarship_remarks'> & { class_name?: string; section_name?: string; roll_number?: string | number })[]> => {
+): Promise<(Pick<IStudent, 'id' | 'full_name' | 'admission_number' | 'email' | 'phone' | 'scholarship_type' | 'scholarship_percent' | 'scholarship_remarks'> & { class_name?: string; section_name?: string; roll_number?: string | number; enrollment_id?: number; academic_year_id?: number })[]> => {
   const result = await pool.query(
     `SELECT s.id, s.full_name, s.admission_number, s.email, s.phone,
             s.scholarship_type, s.scholarship_percent, s.scholarship_remarks,
+            se.id AS enrollment_id,
+            se.academic_year_id,
             se.roll_number,
             cl.name AS class_name,
             sec.name AS section_name
      FROM students s
      LEFT JOIN LATERAL (
-       SELECT class_id, section_id, roll_number
+       SELECT id, class_id, section_id, academic_year_id, roll_number
        FROM student_enrollments
        WHERE student_id = s.id AND school_id = s.school_id
        ORDER BY (status = 'active') DESC, created_at DESC

@@ -61,6 +61,8 @@ const adminNav: NavSection[] = [
     label: 'Finance',
     items: [
       { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Status',       exact: true },
+      { href: '/fees/collect',          icon: 'fa-hand-holding-dollar', label: 'Collect Fee',      exact: true },
+      { href: '/fees/history',          icon: 'fa-clock-rotate-left',   label: 'Fee History' },
       { href: '/expenses',              icon: 'fa-receipt',             label: 'Expenses' },
     ],
   },
@@ -130,15 +132,15 @@ const financeNav: NavSection[] = [
     label: 'Main',
     items: [
       { href: '/finance/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/finance/calendar',  icon: 'fa-calendar-days', label: 'Calendar' },
     ],
   },
   {
     label: 'Fee Management',
     items: [
       { href: '/finance/fees/collect',          icon: 'fa-hand-holding-dollar',   label: 'Collect Fee',      exact: true },
-      { href: '/finance/fees/monthly-billing',  icon: 'fa-calendar-plus',         label: 'Monthly Billing',  exact: true },
-      { href: '/finance/fees/records',          icon: 'fa-table-list',            label: 'Fee Records',      exact: true },
       { href: '/finance/fees/history',          icon: 'fa-clock-rotate-left',     label: 'Fee History' },
+      { href: '/finance/fees/records',          icon: 'fa-table-list',            label: 'Fee Records',      exact: true },
       { href: '/finance/fees/structures',       icon: 'fa-layer-group',           label: 'Fee Structures' },
       { href: '/finance/fees/bank-accounts',    icon: 'fa-building-columns',      label: 'Bank Accounts & QR' },
       { href: '/finance/fees/payment-requests', icon: 'fa-receipt',               label: 'Online Requests' },

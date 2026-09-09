@@ -219,24 +219,71 @@ function generateReceiptPDF(r: ReceiptData): Promise<Buffer> {
     const particularW = tableW - srW - amountW;
     const rowH = 26;
 
+    // Build rows from items or single receipt
+    interface PdfRow {
+      sr: number;
+      particular: string;
+      amount: number;
+    }
+    const tableRows: PdfRow[] = [];
+    const itemsList = (r as any).items && (r as any).items.length > 0 ? (r as any).items : null;
+
+    if (itemsList && itemsList.length > 1) {
+      const map = new Map<string, any[]>();
+      for (const it of itemsList) {
+        const raw = it.fee_name || 'Fee';
+        const base = raw.replace(/\s*\([^)]*\)$/, '').trim() || raw;
+        const k = it.fee_structure_id ? `s_${it.fee_structure_id}` : `b_${base.toLowerCase()}`;
+        if (!map.has(k)) map.set(k, []);
+        map.get(k)!.push(it);
+      }
+      let sr = 1;
+      for (const [, list] of map.entries()) {
+        const first = list[0];
+        const base = (first.fee_name || 'Fee').replace(/\s*\([^)]*\)$/, '').trim() || first.fee_name;
+        const paid = list.reduce((s, it) => s + Number(it.paid_amount || 0), 0);
+        if (list.length === 1) {
+          tableRows.push({
+            sr: sr++,
+            particular: first.fee_name || 'Fee',
+            amount: paid,
+          });
+        } else {
+          tableRows.push({
+            sr: sr++,
+            particular: `${base} (${list.length} Months)`,
+            amount: paid,
+          });
+        }
+      }
+    } else {
+      tableRows.push({
+        sr: 1,
+        particular: `${r.fee_name || 'School Fee'} (${period})`,
+        amount: paidAmount,
+      });
+    }
+
+    const totalRowsCount = tableRows.length + 1; // data rows + total row
     doc.rect(tableX, y, tableW, rowH).fillAndStroke(LIGHT, BLACK);
     doc.fillColor(BLACK).font('Helvetica-Bold').fontSize(9);
     doc.text('Sr. No.', tableX, y + 8, { width: srW, align: 'center' });
     doc.text('Particulars', tableX + srW, y + 8, { width: particularW, align: 'center' });
     doc.text('Amount', tableX + srW + particularW, y + 8, { width: amountW, align: 'center' });
-    doc.moveTo(tableX + srW, y).lineTo(tableX + srW, y + rowH * 3).stroke();
-    doc.moveTo(tableX + srW + particularW, y).lineTo(tableX + srW + particularW, y + rowH * 3).stroke();
+    doc.moveTo(tableX + srW, y).lineTo(tableX + srW, y + rowH * (totalRowsCount + 1)).stroke();
+    doc.moveTo(tableX + srW + particularW, y).lineTo(tableX + srW + particularW, y + rowH * (totalRowsCount + 1)).stroke();
     y += rowH;
 
-    const particular = `${r.fee_name || 'School Fee'} (${period})`;
-    doc.rect(tableX, y, tableW, rowH).strokeColor(BLACK).lineWidth(1).stroke();
-    doc.font('Helvetica').fontSize(9).text('1', tableX, y + 8, { width: srW, align: 'center' });
-    doc.text(particular, tableX + srW + 6, y + 8, { width: particularW - 12 });
-    doc.font('Helvetica-Bold').text(fmtAmount(paidAmount), tableX + srW + particularW, y + 8, {
-      width: amountW,
-      align: 'center',
-    });
-    y += rowH;
+    for (const row of tableRows) {
+      doc.rect(tableX, y, tableW, rowH).strokeColor(BLACK).lineWidth(1).stroke();
+      doc.font('Helvetica').fontSize(9).text(String(row.sr), tableX, y + 8, { width: srW, align: 'center' });
+      doc.text(row.particular, tableX + srW + 6, y + 8, { width: particularW - 12 });
+      doc.font('Helvetica-Bold').text(fmtAmount(row.amount), tableX + srW + particularW, y + 8, {
+        width: amountW,
+        align: 'center',
+      });
+      y += rowH;
+    }
 
     doc.rect(tableX, y, tableW, rowH).strokeColor(BLACK).lineWidth(1).stroke();
     doc.font('Helvetica-Bold').fontSize(9).text('Total', tableX + srW, y + 8, {

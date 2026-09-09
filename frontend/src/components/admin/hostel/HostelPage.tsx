@@ -630,14 +630,14 @@ export default function HostelPage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Link
-              href="/fees/monthly-billing"
+              href="/fees/collect"
               style={{
                 height: 38, padding: "0 14px", borderRadius: 8, border: `1.5px solid ${col.border}`,
                 background: "#fff", color: col.navy, fontWeight: 800, fontSize: 12.5,
                 display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
               }}
             >
-              <i className="fa-solid fa-file-invoice-dollar" style={{ color: col.purple }} /> Monthly Billing
+              <i className="fa-solid fa-hand-holding-dollar" style={{ color: col.green }} /> Collect Fee
             </Link>
 
             <button

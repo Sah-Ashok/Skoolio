@@ -125,6 +125,7 @@ export type ICreateEnrollment = Pick<
   transport_fee?: number;
   transport_fee_type?: TransportFeeType;
   remarks?: string;
+  billing_start_choice?: 'admission_month' | 'session_start';
 };
 
 export type IUpdateEnrollment = Partial<ICreateEnrollment> & {

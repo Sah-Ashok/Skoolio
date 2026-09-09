@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
@@ -56,6 +56,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; 
   academic:  { label: "Academic",  icon: "fa-graduation-cap", color: col.blue,   bg: col.blueBg,   border: col.blueBrd },
   transport: { label: "Transport", icon: "fa-bus-simple",     color: col.amber,  bg: col.amberBg,  border: col.amberBrd },
   hostel:    { label: "Hostel",    icon: "fa-building",       color: col.purple, bg: col.purpleBg, border: col.purpleBrd },
+  store:     { label: "Store",     icon: "fa-bag-shopping",   color: col.green,  bg: col.greenBg,  border: col.greenBrd },
   misc:      { label: "One-Time",  icon: "fa-receipt",        color: col.slate,  bg: "#f1f5f9",    border: col.border },
 };
 
@@ -102,54 +103,27 @@ type GroupedBill = {
 };
 
 function groupBills(bills: any[], lockedIds: Set<number>, lockedByStructure: Map<number, string>): GroupedBill[] {
-  const map = new Map<string, GroupedBill>();
-  for (const b of bills) {
-    const genDate = b.created_at ? String(b.created_at).slice(0, 10) : "";
-    const key = b.fee_structure_id
-      ? `struct-${b.fee_structure_id}-${genDate}`
-      : `name-${b.fee_name}-${b.fee_type}-${genDate}`;
-    const cleanFeeName = (b.fee_name || "").replace(/\s*-\s*\d{4}-\d{2}$/, "");
-    if (!map.has(key)) {
-      map.set(key, {
-        ids: [],
-        fee_name: cleanFeeName,
-        fee_type: b.fee_type || "academic",
-        fee_structure_id: b.fee_structure_id || null,
-        bills: [],
-        total_amount: 0,
-        paid_amount: 0,
-        remaining_amount: 0,
-        earliest_due: b.due_date,
-        latest_due: b.due_date,
-        status: b.status,
-        created_at: b.created_at,
-        allLocked: true,
-        anyLocked: false,
-        lockedMsg: null,
-      });
-    }
-    const g = map.get(key)!;
-    g.ids.push(b.id);
-    g.bills.push(b);
-    g.total_amount     += Number(b.net_amount || b.total_amount || 0);
-    g.paid_amount      += Number(b.paid_amount || 0);
-    g.remaining_amount += Number(b.remaining_amount || 0);
-    if (b.due_date && b.due_date < g.earliest_due) g.earliest_due = b.due_date;
-    if (b.due_date && b.due_date > g.latest_due)   g.latest_due   = b.due_date;
-
+  return bills.map(b => {
     const isLocked = lockedIds.has(b.id);
-    if (!isLocked) g.allLocked = false;
-    if (isLocked) {
-      g.anyLocked = true;
-      if (!g.lockedMsg && b.fee_structure_id) {
-        g.lockedMsg = lockedByStructure.get(b.fee_structure_id) || "an earlier bill";
-      }
-    }
-
-    if (b.status === "unpaid" || g.status === "unpaid") g.status = "unpaid";
-    else if (b.status === "partial" || g.status === "partial") g.status = "partial";
-  }
-  return Array.from(map.values());
+    const lockedMsg = isLocked ? (lockedByStructure.get(b.id) || "an earlier bill") : null;
+    return {
+      ids: [b.id],
+      fee_name: b.fee_name || "Fee",
+      fee_type: b.fee_type || "academic",
+      fee_structure_id: b.fee_structure_id || null,
+      bills: [b],
+      total_amount: Number(b.net_amount ?? b.total_amount ?? 0),
+      paid_amount: Number(b.paid_amount ?? 0),
+      remaining_amount: Number(b.remaining_amount ?? 0),
+      earliest_due: b.due_date,
+      latest_due: b.due_date,
+      status: b.status,
+      created_at: b.created_at,
+      allLocked: isLocked,
+      anyLocked: isLocked,
+      lockedMsg,
+    };
+  });
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -164,13 +138,15 @@ const INPUT_STYLE: React.CSSProperties = {
 ═══════════════════════════════════════════════════════════════════════════════ */
 export default function CollectFeePage() {
   const dispatch = useAppDispatch();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialId = searchParams.get("student_id") || searchParams.get("studentId");
   const initialCollectionId = searchParams.get("collection_id") || searchParams.get("collectionId");
   const { academicYearId } = useAcademicYear();
-  const { formatDate, formatFeeName, isBS } = useDateFormat();
+  const { formatDate, formatFeeName, isBS, billingGroupKey } = useDateFormat();
 
   const { fmt, symbol: currencySymbol } = useCurrency();
+  const receiptBaseUrl = pathname?.startsWith("/finance") ? "/finance/fees/receipt" : "/fees/receipt";
 
   // Search state
   const [query, setSearchQuery]               = useState("");
@@ -178,6 +154,7 @@ export default function CollectFeePage() {
   const [searching, setSearching]             = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSelectedRef = useRef<string | null>(null);
 
   // Preload from URL param
   useEffect(() => {
@@ -221,12 +198,17 @@ export default function CollectFeePage() {
   }, [query, selectedStudent]);
 
   const selectStudent = (st: any) => {
-    setSelectedStudent(st);
+    const activeEnrollment = st.enrollments?.find((e: any) => e.status === "active") || st.enrollments?.[0];
+    setSelectedStudent({
+      ...st,
+      enrollment_id: st.enrollment_id || activeEnrollment?.id || null,
+    });
     setSearchQuery(st.full_name || "");
     setSearchResults([]);
     setSelectedIds(new Set());
     setBulkAmounts({});
     setLastReceipts([]);
+    autoSelectedRef.current = null;
   };
 
   const clearStudent = () => {
@@ -236,6 +218,7 @@ export default function CollectFeePage() {
     setSelectedIds(new Set());
     setBulkAmounts({});
     setLastReceipts([]);
+    autoSelectedRef.current = null;
   };
 
   // Student Facilities (Hostel & Transport)
@@ -271,12 +254,28 @@ export default function CollectFeePage() {
   );
   const allCollections = useMemo(() => rawCollections || [], [rawCollections]);
 
-  // Sequential Locking Logic
+  // Selection & Bulk Payment State
+  const [selectedIds, setSelectedIds]   = useState<Set<number>>(new Set());
+  const [bulkAmounts, setBulkAmounts]   = useState<Record<number, string>>({});
+  const [groupInputOverrides, setGroupInputOverrides] = useState<Record<string, string>>({});
+  const [paymentMode, setPaymentMode]   = useState("cash");
+  const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [referenceNo, setReferenceNo]   = useState("");
+  const [remarks, setRemarks]           = useState("");
+  const [isPaying, setIsPaying]         = useState(false);
+  const [lastReceipts, setLastReceipts] = useState<Array<{ payment_id: number; receipt_number: string }>>([]);
+  const needsRef = paymentMode !== "cash";
+
+  // Sequential Locking Logic with Dynamic Unlocking
   const { lockedIds, lockedByStructure } = useMemo(() => {
     const locked = new Set<number>();
     const byStruct = new Map<number, string>();
     const recurring = allCollections.filter(
-      (c: any) => c.fee_structure_id && c.status !== "paid" && c.status !== "waived"
+      (c: any) =>
+        c.fee_structure_id &&
+        c.status !== "paid" &&
+        c.status !== "waived" &&
+        (c.fee_type || "academic") === "academic"
     );
 
     const groups = new Map<number, any[]>();
@@ -285,16 +284,34 @@ export default function CollectFeePage() {
       groups.get(c.fee_structure_id)!.push(c);
     }
 
-    for (const [structId, list] of groups) {
-      list.sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
-      const oldestUnpaid = list[0];
+    for (const [, list] of groups) {
+      list.sort((a, b) => {
+        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+        if (periodA !== periodB) return periodA.localeCompare(periodB);
+        const dueA = a.due_date ? String(a.due_date) : "";
+        const dueB = b.due_date ? String(b.due_date) : "";
+        if (dueA !== dueB) return dueA.localeCompare(dueB);
+        return a.id - b.id;
+      });
+
+      // Sequential lock:
+      // Item 0 is always unlocked.
+      // Item i is unlocked if all preceding unpaid bills 0..i-1 are selected in selectedIds.
+      let chainIntact = true;
       for (let i = 1; i < list.length; i++) {
-        locked.add(list[i].id);
-        byStruct.set(structId, oldestUnpaid.fee_name || "Fee");
+        const prev = list[i - 1];
+        if (!selectedIds.has(prev.id)) {
+          chainIntact = false;
+        }
+        if (!chainIntact) {
+          locked.add(list[i].id);
+          byStruct.set(list[i].id, prev.fee_name || "earlier month");
+        }
       }
     }
     return { lockedIds: locked, lockedByStructure: byStruct };
-  }, [allCollections]);
+  }, [allCollections, selectedIds]);
 
   // Filter and Category state
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -310,13 +327,21 @@ export default function CollectFeePage() {
 
   const filteredPending = useMemo(() => {
     if (typeFilter === "all") return pendingCollections;
+    if (typeFilter === "misc") return pendingCollections.filter((c: any) => c.fee_type === "misc" || c.fee_type === "store");
     return pendingCollections.filter((c: any) => (c.fee_type || "academic") === typeFilter);
   }, [pendingCollections, typeFilter]);
 
-  const groupedPending = useMemo(
-    () => groupBills(filteredPending, lockedIds, lockedByStructure),
-    [filteredPending, lockedIds, lockedByStructure]
-  );
+  const groupedPending = useMemo(() => {
+    const grouped = groupBills(filteredPending, lockedIds, lockedByStructure);
+    return grouped.sort((a, b) => {
+      const billA = a.bills[0] || {};
+      const billB = b.bills[0] || {};
+      const periodA = billA.billing_from_month || (billA.due_date ? String(billA.due_date).slice(0, 7) : "") || String(billA.id || 0);
+      const periodB = billB.billing_from_month || (billB.due_date ? String(billB.due_date).slice(0, 7) : "") || String(billB.id || 0);
+      if (periodA !== periodB) return periodA.localeCompare(periodB);
+      return (billA.id || 0) - (billB.id || 0);
+    });
+  }, [filteredPending, lockedIds, lockedByStructure]);
 
   // Financial Stats
   const totalDue = useMemo(
@@ -332,27 +357,51 @@ export default function CollectFeePage() {
   const isOverdueFn = (dueDate: string, status: string) =>
     dueDate && dueDate < todayStr && status !== "paid" && status !== "waived";
 
-  // Selection & Bulk Payment State
-  const [selectedIds, setSelectedIds]   = useState<Set<number>>(new Set());
-  const [bulkAmounts, setBulkAmounts]   = useState<Record<number, string>>({});
-  const [paymentMode, setPaymentMode]   = useState("cash");
-  const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().slice(0, 10));
-  const [referenceNo, setReferenceNo]   = useState("");
-  const [remarks, setRemarks]           = useState("");
-  const [isPaying, setIsPaying]         = useState(false);
-  const [lastReceipts, setLastReceipts] = useState<Array<{ payment_id: number; receipt_number: string }>>([]);
-  const needsRef = paymentMode !== "cash";
-
   // Auto-select specific bill when collection_id is provided in URL
   useEffect(() => {
     if (!initialCollectionId || pendingCollections.length === 0) return;
+    if (autoSelectedRef.current === initialCollectionId) return;
+
     const targetId = Number(initialCollectionId);
     const target = pendingCollections.find((c: any) => c.id === targetId);
-    if (target && !lockedIds.has(target.id)) {
-      setSelectedIds(new Set([target.id]));
-      setBulkAmounts({ [target.id]: String(target.remaining_amount || "0") });
+    if (!target) return;
+
+    autoSelectedRef.current = initialCollectionId;
+
+    // If target is recurring academic tuition, auto-select preceding unpaid months so chain is intact
+    const toSelect: any[] = [];
+    if (target.fee_structure_id && (target.fee_type || "academic") === "academic") {
+      const sameGroup = pendingCollections.filter(
+        (c: any) => c.fee_structure_id === target.fee_structure_id
+      );
+      sameGroup.sort((a, b) => {
+        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+        if (periodA !== periodB) return periodA.localeCompare(periodB);
+        return a.id - b.id;
+      });
+      const targetIdx = sameGroup.findIndex((c: any) => c.id === targetId);
+      if (targetIdx >= 0) {
+        for (let i = 0; i <= targetIdx; i++) {
+          toSelect.push(sameGroup[i]);
+        }
+      } else {
+        toSelect.push(target);
+      }
+    } else {
+      toSelect.push(target);
     }
-  }, [initialCollectionId, pendingCollections, lockedIds]);
+
+    const nextIds = new Set<number>();
+    const nextAmts: Record<number, string> = {};
+    for (const item of toSelect) {
+      nextIds.add(item.id);
+      nextAmts[item.id] = String(item.remaining_amount || "0");
+    }
+
+    setSelectedIds(nextIds);
+    setBulkAmounts(nextAmts);
+  }, [initialCollectionId, pendingCollections]);
 
   const selectedCollections = useMemo(
     () => pendingCollections.filter((c: any) => selectedIds.has(c.id)),
@@ -366,24 +415,201 @@ export default function CollectFeePage() {
     }, 0);
   }, [selectedCollections, bulkAmounts]);
 
+  // Group selected items: consolidate multi-month tuition into a single period card (Start – End Month)
+  const selectedGroups = useMemo(() => {
+    const sorted = [...selectedCollections].sort((a, b) => {
+      const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+      const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+      if (periodA !== periodB) return periodA.localeCompare(periodB);
+      return a.id - b.id;
+    });
+
+    const groupMap = new Map<string, any[]>();
+    for (const c of sorted) {
+      const baseName = (c.fee_name || "Fee").replace(/\s*\([^)]*\)$/, "").trim() || c.fee_name || "Fee";
+      const key = c.fee_structure_id
+        ? `struct_${c.fee_structure_id}`
+        : `name_${baseName.toLowerCase()}_${c.fee_type || "academic"}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(c);
+    }
+
+    const result: Array<{
+      groupKey: string;
+      isMultiMonth: boolean;
+      baseFeeName: string;
+      formattedTitle: string;
+      feeType: string;
+      bills: any[];
+      totalDue: number;
+      ratePerMonth: number;
+      monthCount: number;
+      startMonthLabel: string;
+      endMonthLabel: string;
+    }> = [];
+
+    for (const [key, bills] of groupMap.entries()) {
+      const first = bills[0];
+      const last = bills[bills.length - 1];
+      const baseFeeName = (first.fee_name || "Fee").replace(/\s*\([^)]*\)$/, "").trim() || first.fee_name || "Fee";
+      const totalDue = bills.reduce((sum, b) => sum + parseFloat(b.remaining_amount || "0"), 0);
+      const isMultiMonth = bills.length > 1;
+
+      if (!isMultiMonth) {
+        result.push({
+          groupKey: key,
+          isMultiMonth: false,
+          baseFeeName,
+          formattedTitle: formatFeeName(first.fee_name),
+          feeType: first.fee_type || "academic",
+          bills,
+          totalDue,
+          ratePerMonth: totalDue,
+          monthCount: 1,
+          startMonthLabel: "",
+          endMonthLabel: "",
+        });
+      } else {
+        const getPeriod = (bill: any) => {
+          const formatted = formatFeeName(bill.fee_name);
+          const match = formatted.match(/\(([^)]+)\)$/);
+          if (match) return match[1].trim();
+          if (bill.due_date) return billingGroupKey(bill.due_date).label;
+          return "";
+        };
+
+        const pStart = getPeriod(first);
+        const pEnd   = getPeriod(last);
+
+        const startMatch = pStart.match(/^([A-Za-z]+)\s+(\d{4})$/);
+        const endMatch   = pEnd.match(/^([A-Za-z]+)\s+(\d{4})$/);
+
+        let rangeLabel = "";
+        if (startMatch && endMatch) {
+          const [, m1, y1] = startMatch;
+          const [, m2, y2] = endMatch;
+          if (y1 === y2) {
+            rangeLabel = `${m1} – ${m2} ${y1}`;
+          } else {
+            rangeLabel = `${m1} ${y1} – ${m2} ${y2}`;
+          }
+        } else if (pStart && pEnd && pStart !== pEnd) {
+          rangeLabel = `${pStart} – ${pEnd}`;
+        } else if (pStart) {
+          rangeLabel = pStart;
+        } else {
+          rangeLabel = `${bills.length} Months`;
+        }
+
+        const formattedTitle = `${baseFeeName} (${rangeLabel} · ${bills.length} Months)`;
+        const ratePerMonth = bills.length > 0 ? (totalDue / bills.length) : totalDue;
+
+        result.push({
+          groupKey: key,
+          isMultiMonth: true,
+          baseFeeName,
+          formattedTitle,
+          feeType: first.fee_type || "academic",
+          bills,
+          totalDue,
+          ratePerMonth,
+          monthCount: bills.length,
+          startMonthLabel: pStart,
+          endMonthLabel: pEnd,
+        });
+      }
+    }
+    return result;
+  }, [selectedCollections, formatFeeName, billingGroupKey]);
+
+  // Group amount change: distributes input value sequentially (FIFO) to underlying bills
+  const handleGroupAmountChange = (group: any, rawValue: string) => {
+    setGroupInputOverrides(prev => ({ ...prev, [group.groupKey]: rawValue }));
+
+    const totalEntered = parseFloat(rawValue);
+    let budget = isNaN(totalEntered) ? 0 : Math.max(0, totalEntered);
+
+    setBulkAmounts(prev => {
+      const next = { ...prev };
+      for (const b of group.bills) {
+        const due = parseFloat(b.remaining_amount || "0");
+        if (budget >= due) {
+          next[b.id] = String(due);
+          budget -= due;
+        } else if (budget > 0) {
+          next[b.id] = String(Number(budget.toFixed(2)));
+          budget = 0;
+        } else {
+          next[b.id] = "0";
+        }
+      }
+      return next;
+    });
+  };
+
+  // Group full settlement: sets all underlying bills to 100% remaining amount
+  const handleGroupSetFull = (group: any) => {
+    setGroupInputOverrides(prev => {
+      const next = { ...prev };
+      delete next[group.groupKey];
+      return next;
+    });
+    setBulkAmounts(prev => {
+      const next = { ...prev };
+      for (const b of group.bills) {
+        next[b.id] = String(b.remaining_amount || "0");
+      }
+      return next;
+    });
+  };
+
   const toggleSelect = (ids: number[], remainingAmounts: any[]) => {
+    setGroupInputOverrides({});
     setSelectedIds(prev => {
       const next = new Set(prev);
       const allIn = ids.every(id => next.has(id));
-      ids.forEach((id, idx) => {
-        if (allIn) {
+      if (allIn) {
+        // Deselecting these items
+        ids.forEach(id => {
           next.delete(id);
           setBulkAmounts(a => { const copy = { ...a }; delete copy[id]; return copy; });
-        } else {
+        });
+
+        // Also deselect any subsequent dependent bills in the same structure
+        for (const deselectedId of ids) {
+          const deselectedBill = allCollections.find((c: any) => c.id === deselectedId);
+          if (deselectedBill && deselectedBill.fee_structure_id) {
+            const sameGroup = allCollections.filter(
+              (c: any) => c.fee_structure_id === deselectedBill.fee_structure_id && c.status !== "paid" && c.status !== "waived"
+            );
+            sameGroup.sort((a, b) => {
+              const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+              const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+              if (periodA !== periodB) return periodA.localeCompare(periodB);
+              return a.id - b.id;
+            });
+            const idx = sameGroup.findIndex((c: any) => c.id === deselectedId);
+            if (idx >= 0) {
+              for (let j = idx + 1; j < sameGroup.length; j++) {
+                next.delete(sameGroup[j].id);
+                setBulkAmounts(a => { const copy = { ...a }; delete copy[sameGroup[j].id]; return copy; });
+              }
+            }
+          }
+        }
+      } else {
+        // Selecting these items
+        ids.forEach((id, idx) => {
           next.add(id);
           setBulkAmounts(a => ({ ...a, [id]: String(remainingAmounts[idx] || "0") }));
-        }
-      });
+        });
+      }
       return next;
     });
   };
 
   const toggleAll = () => {
+    setGroupInputOverrides({});
     const selectable = filteredPending.filter((c: any) => !lockedIds.has(c.id));
     if (selectedIds.size >= selectable.length && selectable.length > 0) {
       setSelectedIds(new Set());
@@ -400,7 +626,52 @@ export default function CollectFeePage() {
     }
   };
 
-  // Submit Payment
+  // Quick 1-Click Multi-Month Selection Helpers
+  const selectNMonths = (n: number) => {
+    setGroupInputOverrides({});
+    const candidates = filteredPending.filter((c: any) => c.status !== "paid" && c.status !== "waived");
+    const groups = new Map<string, any[]>();
+    for (const c of candidates) {
+      const key = c.fee_structure_id ? `struct-${c.fee_structure_id}` : `type-${c.fee_type}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(c);
+    }
+
+    const nextSelected = new Set<number>();
+    const nextAmounts: Record<number, string> = {};
+
+    for (const [, list] of groups) {
+      list.sort((a, b) => {
+        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
+        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
+        if (periodA !== periodB) return periodA.localeCompare(periodB);
+        return a.id - b.id;
+      });
+
+      const toPick = list.slice(0, n);
+      for (const item of toPick) {
+        nextSelected.add(item.id);
+        nextAmounts[item.id] = String(item.remaining_amount || "0");
+      }
+    }
+
+    setSelectedIds(nextSelected);
+    setBulkAmounts(nextAmounts);
+  };
+
+  const selectAllContiguous = () => {
+    setGroupInputOverrides({});
+    const nextSelected = new Set<number>();
+    const nextAmounts: Record<number, string> = {};
+    for (const c of filteredPending) {
+      nextSelected.add(c.id);
+      nextAmounts[c.id] = String(c.remaining_amount || "0");
+    }
+    setSelectedIds(nextSelected);
+    setBulkAmounts(nextAmounts);
+  };
+
+  // Submit Payment in Chronological Sequence
   const handleBulkPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) return;
@@ -422,49 +693,60 @@ export default function CollectFeePage() {
       }))
       .filter(item => item.amount > 0);
 
-    const settledResults = await Promise.allSettled(
-      validItems.map(async ({ colItem, amount }) => {
-        const res: any = await apiRequest("/fees/payments", {
-          method: "POST",
-          body: JSON.stringify({
-            collection_id:  colItem.id,
-            student_id:     selectedStudent.id,
-            paid_amount:    amount,
-            payment_date:   paymentDate,
-            payment_method: paymentMode,
-            transaction_id: referenceNo || undefined,
-            remarks:        remarks     || undefined,
-          }),
-        });
-        return { colItem, res };
-      })
-    );
-
-    const receipts: Array<{ payment_id: number; receipt_number: string }> = [];
-    let ok = 0;
-
-    settledResults.forEach((r, idx) => {
-      const { colItem } = validItems[idx];
-      if (r.status === "fulfilled") {
-        const res = r.value.res;
-        if (res?.payment?.id) receipts.push({ payment_id: res.payment.id, receipt_number: res.receipt_number || res.payment?.receipt_number });
-        else if (res?.id)    receipts.push({ payment_id: res.id, receipt_number: res.receipt_number });
-        ok++;
-      } else {
-        dispatch(showToast({ type: "error", title: `Failed: ${colItem.fee_name}`, message: r.reason?.message || "Payment error" }));
-      }
+    // Sort validItems chronologically so older bills commit before newer ones
+    validItems.sort((a, b) => {
+      const periodA = a.colItem.billing_from_month || (a.colItem.due_date ? String(a.colItem.due_date).slice(0, 7) : "") || String(a.colItem.id);
+      const periodB = b.colItem.billing_from_month || (b.colItem.due_date ? String(b.colItem.due_date).slice(0, 7) : "") || String(b.colItem.id);
+      if (periodA !== periodB) return periodA.localeCompare(periodB);
+      return a.colItem.id - b.colItem.id;
     });
 
-    if (ok > 0) {
-      setLastReceipts(receipts);
-      dispatch(showToast({ type: "success", title: `${ok} Payment${ok > 1 ? "s" : ""} Recorded`, message: "Fees cleared successfully." }));
+    if (validItems.length === 0) {
+      dispatch(showToast({ type: "error", title: "Invalid Amounts", message: "Please enter a valid payment amount greater than 0." }));
+      setIsPaying(false);
+      return;
+    }
+
+    try {
+      const res: any = await apiRequest("/fees/payments/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          student_id:     selectedStudent.id,
+          payment_date:   paymentDate,
+          payment_method: paymentMode,
+          transaction_id: referenceNo || undefined,
+          remarks:        remarks     || undefined,
+          items: validItems.map(it => ({
+            collection_id: it.colItem.id,
+            paid_amount:   it.amount,
+          })),
+        }),
+      });
+
+      const resData = res?.data || res;
+      const receiptNo = resData?.receipt_number || res?.receipt_number || "—";
+      const paymentId = resData?.payment_id || resData?.payments?.[0]?.id || res?.payment_id;
+
+      if (paymentId) {
+        setLastReceipts([{ payment_id: paymentId, receipt_number: receiptNo }]);
+      }
+
+      dispatch(showToast({
+        type: "success",
+        title: `Payment Recorded (${receiptNo})`,
+        message: `${validItems.length} fee item${validItems.length > 1 ? "s" : ""} cleared on single receipt ${receiptNo}.`,
+      }));
       refetchCollections();
       setSelectedIds(new Set());
       setBulkAmounts({});
+      setGroupInputOverrides({});
       setReferenceNo("");
       setRemarks("");
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Payment Failed", message: err.message || "Payment error" }));
+    } finally {
+      setIsPaying(false);
     }
-    setIsPaying(false);
   };
 
   // Instant Add Misc / One-time Fee
@@ -492,6 +774,7 @@ export default function CollectFeePage() {
         method: "POST",
         body: JSON.stringify({
           student_id: selectedStudent.id,
+          enrollment_id: selectedStudent.enrollment_id || selectedStudent.enrollments?.[0]?.id || null,
           academic_year_id: academicYearId,
           fee_name: miscFeeName.trim(),
           fee_type: miscType,
@@ -530,6 +813,7 @@ export default function CollectFeePage() {
         method: "POST",
         body: JSON.stringify({
           student_id: selectedStudent.id,
+          enrollment_id: selectedStudent.enrollment_id || selectedStudent.enrollments?.[0]?.id || null,
           academic_year_id: academicYearId,
           fee_name: title,
           fee_type: type,
@@ -559,6 +843,16 @@ export default function CollectFeePage() {
         body: JSON.stringify({ reason: waiveReason || "Waived by admin" }),
       });
       dispatch(showToast({ type: "success", title: "Fee Waived", message: `"${waiveTarget.fee_name}" has been waived.` }));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(waiveTarget.id);
+        return next;
+      });
+      setBulkAmounts(prev => {
+        const next = { ...prev };
+        delete next[waiveTarget.id];
+        return next;
+      });
       refetchCollections();
       setWaiveTarget(null);
       setWaiveReason("");
@@ -640,16 +934,6 @@ export default function CollectFeePage() {
               </Link>
             )}
             <Link
-              href="/fees/monthly-billing"
-              style={{
-                height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${col.border}`,
-                background: "#fff", color: col.navy, fontWeight: 600, fontSize: 12,
-                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
-              }}
-            >
-              <i className="fa-solid fa-file-invoice-dollar" style={{ color: col.purple, fontSize: 11 }} /> Monthly Billing
-            </Link>
-            <Link
               href="/fees/records"
               style={{
                 height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${col.border}`,
@@ -673,27 +957,27 @@ export default function CollectFeePage() {
               <i className="fa-solid fa-circle-check" style={{ fontSize: 20 }} />
               <div>
                 <strong style={{ fontSize: 13.5, color: "#166534", display: "block" }}>
-                  {lastReceipts.length} Payment{lastReceipts.length > 1 ? "s" : ""} Recorded Successfully
+                  Payment Recorded Successfully
                 </strong>
                 <span style={{ fontSize: 12, color: "#15803d" }}>
-                  Receipts generated: {lastReceipts.map(r => r.receipt_number).filter(Boolean).join(", ")}
+                  Receipt Number: <strong>{lastReceipts.map(r => r.receipt_number).filter(Boolean).join(", ")}</strong>
                 </span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {lastReceipts.slice(0, 3).map(r => (
+              {lastReceipts.map(r => (
                 <a
                   key={r.payment_id}
-                  href={`/fees/receipt/${r.payment_id}`}
+                  href={`${receiptBaseUrl}/${r.payment_id}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{
-                    padding: "6px 12px", borderRadius: 6, background: col.green, color: "#fff",
+                    padding: "6px 14px", borderRadius: 6, background: col.green, color: "#fff",
                     fontSize: 12, fontWeight: 700, textDecoration: "none", display: "inline-flex",
                     alignItems: "center", gap: 6,
                   }}
                 >
-                  <i className="fa-solid fa-print" style={{ fontSize: 11 }} /> Print Receipt
+                  <i className="fa-solid fa-print" style={{ fontSize: 11 }} /> Print Receipt ({r.receipt_number})
                 </a>
               ))}
               <button
@@ -967,10 +1251,11 @@ export default function CollectFeePage() {
                 }}>
                   <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
                     {[
-                      { id: "all",       label: "All Fees",   count: pendingCollections.length },
+                      { id: "all",       label: "All Dues",   count: pendingCollections.length },
                       { id: "academic",  label: "Academic",   count: pendingCollections.filter(c => (c.fee_type || "academic") === "academic").length },
                       { id: "hostel",    label: "Hostel",     count: pendingCollections.filter(c => c.fee_type === "hostel").length },
                       { id: "transport", label: "Transport",  count: pendingCollections.filter(c => c.fee_type === "transport").length },
+                      { id: "misc",      label: "One-Time / Misc", count: pendingCollections.filter(c => c.fee_type === "misc" || c.fee_type === "store").length },
                     ].map(f => {
                       const active = typeFilter === f.id;
                       return (
@@ -998,15 +1283,72 @@ export default function CollectFeePage() {
                     })}
                   </div>
 
-                  <button
-                    onClick={toggleAll}
-                    style={{
-                      padding: "4px 10px", borderRadius: 6, border: `1px solid ${col.border}`,
-                      background: "#fff", color: col.slate, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-                    }}
-                  >
-                    Select All
-                  </button>
+                  {/* 1-Click Quick Select Shortcuts */}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                      <i className="fa-solid fa-bolt" style={{ color: col.orange, marginRight: 4 }} />
+                      Quick:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => selectNMonths(1)}
+                      style={{
+                        padding: "4px 8px", borderRadius: 6, border: `1px solid ${col.border}`,
+                        background: "#fff", color: col.navy, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        transition: "all 0.12s",
+                      }}
+                      title="Select earliest unpaid month"
+                    >
+                      1 Mo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectNMonths(2)}
+                      style={{
+                        padding: "4px 8px", borderRadius: 6, border: `1px solid ${col.border}`,
+                        background: "#fff", color: col.navy, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        transition: "all 0.12s",
+                      }}
+                      title="Select 2 consecutive unpaid months"
+                    >
+                      2 Mos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectNMonths(3)}
+                      style={{
+                        padding: "4px 8px", borderRadius: 6, border: `1px solid ${col.border}`,
+                        background: "#fff", color: col.navy, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        transition: "all 0.12s",
+                      }}
+                      title="Select 3 consecutive months (Quarterly)"
+                    >
+                      3 Mos (Quarter)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectAllContiguous}
+                      style={{
+                        padding: "4px 9px", borderRadius: 6, border: `1px solid ${col.orangeBrd}`,
+                        background: col.orangeBg, color: col.orange, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                      }}
+                      title="Select all pending dues"
+                    >
+                      Pay All Due
+                    </button>
+                    {selectedIds.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedIds(new Set()); setBulkAmounts({}); }}
+                        style={{
+                          padding: "4px 8px", borderRadius: 6, border: `1px solid ${col.redBrd}`,
+                          background: col.redBg, color: col.red, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Bills Table */}
@@ -1176,6 +1518,45 @@ export default function CollectFeePage() {
 
                 {showMisc && (
                   <form onSubmit={handleAddMiscFee} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid #f1f5f9` }}>
+                    {/* Quick Presets */}
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, display: "block", marginBottom: 6 }}>
+                        <i className="fa-solid fa-wand-magic-sparkles" style={{ color: col.orange, marginRight: 5 }} />
+                        1-Click Quick Presets:
+                      </span>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {[
+                          { name: "Uniform / Dress", icon: "fa-shirt", type: "misc" },
+                          { name: "Books & Stationery", icon: "fa-book", type: "misc" },
+                          { name: "School Tie & Belt", icon: "fa-ribbon", type: "misc" },
+                          { name: "Student ID Card", icon: "fa-id-card", type: "misc" },
+                          { name: "Late Fine", icon: "fa-triangle-exclamation", type: "misc" },
+                          { name: "Exam / Admit Card Fee", icon: "fa-file-invoice", type: "academic" },
+                        ].map(p => (
+                          <button
+                            key={p.name}
+                            type="button"
+                            onClick={() => {
+                              setMiscFeeName(p.name);
+                              setMiscType(p.type);
+                            }}
+                            style={{
+                              padding: "4px 10px", borderRadius: 6,
+                              border: miscFeeName === p.name ? `1.5px solid ${col.orange}` : `1px solid ${col.border}`,
+                              background: miscFeeName === p.name ? col.orangeBg : "#f8fafc",
+                              color: miscFeeName === p.name ? col.orange : col.navy,
+                              fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              transition: "all 0.12s",
+                            }}
+                          >
+                            <i className={`fa-solid ${p.icon}`} style={{ fontSize: 10 }} />
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 8 }}>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Fee Name *</label>
@@ -1304,18 +1685,42 @@ export default function CollectFeePage() {
                   </div>
                 </div>
 
-                {/* Selected Bills List for Payment with Partial Payment Cards */}
-                {selectedCollections.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 280, overflowY: "auto", paddingRight: 2 }}>
-                    {selectedCollections.map((c: any) => {
-                      const totalDueForFee = parseFloat(c.remaining_amount || "0");
-                      const payingAmt = parseFloat(bulkAmounts[c.id] ?? c.remaining_amount ?? "0");
-                      const remainingAfter = Math.max(0, totalDueForFee - (isNaN(payingAmt) ? 0 : payingAmt));
-                      const isPartial = payingAmt < totalDueForFee && payingAmt > 0;
+                {/* Selected Bills List for Payment with Consolidated Multi-Month Cards */}
+                {selectedGroups.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto", paddingRight: 2 }}>
+                    {selectedGroups.map((group) => {
+                      const isMulti = group.isMultiMonth;
+                      const singleBill = group.bills[0];
+                      const groupTotalDue = group.totalDue;
+
+                      const groupPayingAmt = group.bills.reduce((sum, b) => {
+                        const val = parseFloat(bulkAmounts[b.id] ?? b.remaining_amount ?? "0");
+                        return sum + (isNaN(val) ? 0 : val);
+                      }, 0);
+
+                      const inputValue = groupInputOverrides[group.groupKey] !== undefined
+                        ? groupInputOverrides[group.groupKey]
+                        : (isMulti ? (groupPayingAmt > 0 ? String(groupPayingAmt) : "") : (bulkAmounts[singleBill.id] ?? singleBill.remaining_amount));
+
+                      const remainingAfter = Math.max(0, groupTotalDue - (isNaN(groupPayingAmt) ? 0 : groupPayingAmt));
+                      const isPartial = groupPayingAmt < groupTotalDue && groupPayingAmt > 0;
+                      const isFull = groupPayingAmt >= groupTotalDue;
+
+                      // Multi-month partial breakdown:
+                      const clearedBills = group.bills.filter(b => {
+                        const paid = parseFloat(bulkAmounts[b.id] || "0");
+                        const due = parseFloat(b.remaining_amount || "0");
+                        return paid >= due && due > 0;
+                      });
+                      const partialBill = group.bills.find(b => {
+                        const paid = parseFloat(bulkAmounts[b.id] || "0");
+                        const due = parseFloat(b.remaining_amount || "0");
+                        return paid > 0 && paid < due;
+                      });
 
                       return (
                         <div
-                          key={c.id}
+                          key={group.groupKey}
                           style={{
                             padding: "10px 12px", borderRadius: 8, background: "#fff",
                             border: `1px solid ${col.border}`, boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -1325,16 +1730,29 @@ export default function CollectFeePage() {
                           {/* Fee Title and Full Due */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                                <TypeBadge type={c.fee_type} />
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+                                <TypeBadge type={group.feeType} />
+                                {isMulti && (
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 800, color: col.blue, background: col.blueBg,
+                                    padding: "1px 6px", borderRadius: 4, border: `1px solid ${col.blueBrd}`,
+                                  }}>
+                                    {group.monthCount} Months
+                                  </span>
+                                )}
                               </div>
                               <strong style={{ fontSize: 12.5, fontWeight: 700, color: col.navy, display: "block", wordBreak: "break-word" }}>
-                                {formatFeeName(c.fee_name)}
+                                {group.formattedTitle}
                               </strong>
+                              {isMulti && (
+                                <span style={{ fontSize: 11, color: col.muted, fontWeight: 600, display: "block", marginTop: 2 }}>
+                                  Rate: {fmt(group.ratePerMonth)} / mo × {group.monthCount} Months
+                                </span>
+                              )}
                             </div>
                             <div style={{ textAlign: "right", flexShrink: 0 }}>
                               <span style={{ fontSize: 10, color: col.muted, fontWeight: 600, display: "block" }}>Total Due</span>
-                              <strong style={{ fontSize: 13, fontWeight: 800, color: col.navy }}>{fmt(totalDueForFee)}</strong>
+                              <strong style={{ fontSize: 13, fontWeight: 800, color: col.navy }}>{fmt(groupTotalDue)}</strong>
                             </div>
                           </div>
 
@@ -1345,10 +1763,16 @@ export default function CollectFeePage() {
                             </span>
                             <input
                               type="number"
-                              value={bulkAmounts[c.id] ?? c.remaining_amount}
-                              onChange={ev => setBulkAmounts(a => ({ ...a, [c.id]: ev.target.value }))}
+                              value={inputValue}
+                              onChange={ev => {
+                                if (isMulti) {
+                                  handleGroupAmountChange(group, ev.target.value);
+                                } else {
+                                  setBulkAmounts(a => ({ ...a, [singleBill.id]: ev.target.value }));
+                                }
+                              }}
                               min="0.01"
-                              max={totalDueForFee}
+                              max={groupTotalDue}
                               step="0.01"
                               required
                               style={{
@@ -1359,7 +1783,13 @@ export default function CollectFeePage() {
                             />
                             <button
                               type="button"
-                              onClick={() => setBulkAmounts(a => ({ ...a, [c.id]: String(totalDueForFee) }))}
+                              onClick={() => {
+                                if (isMulti) {
+                                  handleGroupSetFull(group);
+                                } else {
+                                  setBulkAmounts(a => ({ ...a, [singleBill.id]: String(groupTotalDue) }));
+                                }
+                              }}
                               style={{
                                 height: 26, padding: "0 8px", borderRadius: 4, border: `1px solid ${col.border}`,
                                 background: "#fff", color: col.blue, fontSize: 10.5, fontWeight: 700, cursor: "pointer",
@@ -1376,12 +1806,16 @@ export default function CollectFeePage() {
                             {isPartial ? (
                               <span style={{ color: col.amber, fontWeight: 700 }}>
                                 <i className="fa-solid fa-circle-half-stroke" style={{ marginRight: 4 }} />
-                                Partial: Leaves {fmt(remainingAfter)} due
+                                {isMulti ? (
+                                  `Partial: Leaves ${fmt(remainingAfter)} due (${clearedBills.length} of ${group.monthCount} mos cleared${partialBill ? ` + partial ${formatFeeName(partialBill.fee_name).replace(/^.*\(|\)$/g, "")}` : ""})`
+                                ) : (
+                                  `Partial: Leaves ${fmt(remainingAfter)} due`
+                                )}
                               </span>
-                            ) : payingAmt >= totalDueForFee ? (
+                            ) : isFull ? (
                               <span style={{ color: col.green, fontWeight: 700 }}>
                                 <i className="fa-solid fa-check" style={{ marginRight: 4 }} />
-                                Full Settlement
+                                {isMulti ? `Full Settlement (${group.monthCount} Months Cleared)` : "Full Settlement"}
                               </span>
                             ) : (
                               <span style={{ color: col.red, fontWeight: 700 }}>

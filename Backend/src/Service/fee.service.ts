@@ -4,24 +4,26 @@ import {
   updateFeeStructure, deleteFeeStructure,
   createFeeCollection, getFeeCollectionsByStudent, getFeeCollectionsBySchool,
   getFeeCollectionById, updateFeeCollection,
-  createFeePaymentAtomic, getPaymentsByCollection, getPaymentsByStudent,
+  createFeePaymentAtomic, createBulkFeePaymentAtomic, getPaymentsByCollection, getPaymentsByStudent,
   getTransportFeeForPeriod, getTransportFeeSummary,
   getHostelFeeForPeriod, getHostelFeeSummary,
   getAcademicFeeForPeriod,
   getPaymentWithDetails,
   waiveFeeCollection,
+  cancelFeeCollection,
   getYearlyFeeForAcademicYear,
   assignOneTimeFees,
   getMonthlyBillingStatus,
   voidMonthBilling,
   getUnbilledStudents,
+  getFeePaymentsBySchool,
 } from '../Repositories/fee.repository';
 import {
   ICreateFeeStructure, IUpdateFeeStructure,
-  ICreateFeeCollection, IUpdateFeeCollection, ICreateFeePayment,
+  ICreateFeeCollection, IUpdateFeeCollection, ICreateFeePayment, ICreateBulkFeePayment,
   FeeType,
 } from '../types/fee.types';
-import { getStudentById, getEnrollmentsBySchool } from '../Repositories/student.repository';
+import { getStudentById, getEnrollmentsBySchool, getEnrollmentByStudent } from '../Repositories/student.repository';
 import { IStudentEnrollmentWithStudent } from '../types/student.types';
 import { getAssignmentByStudent, getAssignmentsByRoute, getRoutesBySchool } from '../Repositories/transport.repository';
 import { getAssignmentByStudent as getHostelAssignmentByStudent, getAssignmentsByHostel, getHostelsBySchool } from '../Repositories/hostel.repository';
@@ -262,20 +264,270 @@ export const createMiscFeeCollectionService = async (
   const student = await getStudentById(data.student_id, school_id);
   if (!student) throw new AppError('Student not found.', 404);
 
+  let enrollment_id = data.enrollment_id;
+  let academic_year_id = data.academic_year_id;
+
+  if (!enrollment_id) {
+    const enrollments = await getEnrollmentByStudent(data.student_id, school_id);
+    const active = enrollments.find(e => (!academic_year_id || e.academic_year_id === academic_year_id) && e.status === 'active') || enrollments[0];
+    if (!active) {
+      throw new AppError('No enrollment found for this student. Please enroll the student first.', 400);
+    }
+    enrollment_id = active.id;
+    if (!academic_year_id) {
+      academic_year_id = active.academic_year_id;
+    }
+  }
+
   const discount   = data.discount_amount || 0;
   const net_amount = data.total_amount - discount;
 
   return await createFeeCollection(
     school_id, created_by,
     {
-      student_id: data.student_id, enrollment_id: data.enrollment_id,
-      fee_structure_id: null, academic_year_id: data.academic_year_id,
-      due_date: data.due_date, total_amount: data.total_amount,
+      student_id: data.student_id,
+      enrollment_id,
+      fee_structure_id: null,
+      academic_year_id,
+      due_date: data.due_date,
+      total_amount: data.total_amount,
       discount_amount: discount > 0 ? discount : undefined,
       discount_reason: discount > 0 ? data.discount_reason : undefined,
     },
     data.fee_name, net_amount, net_amount, data.fee_type || 'academic'
   );
+};
+
+export const initializeStudentDuesOnAdmission = async (params: {
+  school_id:             number;
+  created_by:            number;
+  student_id:            number;
+  enrollment_id:         number;
+  academic_year_id:      number;
+  class_id:              number;
+  admission_date:        string; // YYYY-MM-DD
+  billing_start_choice?: 'admission_month' | 'session_start';
+  scholarship_percent?:  number;
+  scholarship_type?:     string;
+}) => {
+  const {
+    school_id,
+    created_by,
+    student_id,
+    enrollment_id,
+    academic_year_id,
+    class_id,
+    admission_date,
+    billing_start_choice = 'admission_month',
+    scholarship_percent = 0,
+    scholarship_type = '',
+  } = params;
+
+  // 1. Assign One-Time & Yearly Fees (Annual Fee, Admission Fee, Exam Fee etc.)
+  const oneTimeFees = await assignOneTimeFees(
+    school_id,
+    created_by,
+    student_id,
+    enrollment_id,
+    academic_year_id,
+    class_id,
+    Number(scholarship_percent) || 0,
+    scholarship_type || '',
+    admission_date
+  );
+
+  // 2. Fetch Academic Year, Calendar System, and Fee Structures
+  const [academicYear, schoolRes, structures] = await Promise.all([
+    getAcademicYearById(academic_year_id, school_id),
+    pool.query('SELECT calendar_system FROM schools WHERE id = $1', [school_id]),
+    getFeeStructuresByClass(class_id, school_id, academic_year_id),
+  ]);
+
+  if (!academicYear) return { oneTimeFees, monthlyBills: [] };
+  const isBS = (schoolRes.rows[0]?.calendar_system ?? 'AD') === 'BS';
+
+  // Filter only active recurring structures (monthly, quarterly, etc.)
+  const recurringStructures = structures.filter(
+    s => s.is_active && s.frequency !== 'yearly' && s.frequency !== 'one_time'
+  );
+
+  if (!recurringStructures.length) {
+    return { oneTimeFees, monthlyBills: [] };
+  }
+
+  // 3. Determine Start Month and End Month
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const ayStartDateStr = String(academicYear.start_date).slice(0, 10);
+  const ayStartMonthStr = ayStartDateStr.slice(0, 7);
+  const admissionMonthStr = admission_date.slice(0, 7);
+
+  let startMonthStr = admissionMonthStr;
+  if (billing_start_choice === 'session_start') {
+    startMonthStr = ayStartMonthStr;
+  }
+
+  // Ensure startMonth is not before academic year start
+  if (startMonthStr < ayStartMonthStr) {
+    startMonthStr = ayStartMonthStr;
+  }
+
+  // If startMonth is later than currentMonth (e.g. advance admission for a future month),
+  // endMonth should be at least startMonth so that 1 month is generated.
+  let endMonthStr = currentMonthStr;
+  if (startMonthStr > currentMonthStr) {
+    endMonthStr = startMonthStr;
+  }
+
+  // Build list of months from startMonthStr to endMonthStr
+  const [sYStr, sMStr] = startMonthStr.split('-');
+  const [eYStr, eMStr] = endMonthStr.split('-');
+  let y = parseInt(sYStr, 10), m = parseInt(sMStr, 10) - 1;
+  const endY = parseInt(eYStr, 10), endM = parseInt(eMStr, 10) - 1;
+
+  const monthsToBill: string[] = [];
+  while (y < endY || (y === endY && m <= endM)) {
+    monthsToBill.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+
+  const createdMonthlyBills: any[] = [];
+
+  for (const structure of recurringStructures) {
+    const unitAmount = Number(structure.amount);
+    const scholarshipApplies =
+      structure.scholarship_applies !== false &&
+      (structure as any).scholarship_applies !== 'false';
+
+    let unitDiscount = 0;
+    let discount_reason: string | null = null;
+    if (scholarshipApplies && scholarship_percent && Number(scholarship_percent) > 0) {
+      unitDiscount = Math.round((unitAmount * Number(scholarship_percent)) / 100 * 100) / 100;
+      discount_reason = `${scholarship_type || 'Scholarship'}: ${scholarship_percent}% discount`;
+    }
+    const net_amount = Math.max(0, unitAmount - unitDiscount);
+
+    for (const monthStr of monthsToBill) {
+      // Idempotency check: ensure bill doesn't already exist for this structure & month
+      const exists = await pool.query(
+        `SELECT id FROM fee_collections
+         WHERE school_id = $1 AND student_id = $2 AND fee_structure_id = $3
+           AND (billing_from_month = $4 OR to_char(due_date, 'YYYY-MM') = $4)
+         LIMIT 1`,
+        [school_id, student_id, structure.id, monthStr]
+      );
+      if (exists.rows.length > 0) continue;
+
+      // Calculate due_date: Respect structure.due_date_type and structure.due_day policy
+      let targetDay = 10;
+      if (structure.due_date_type === 'fixed_day' && structure.due_day) {
+        targetDay = Math.min(Math.max(Number(structure.due_day), 1), 30);
+      } else if (structure.due_date_type === 'admission_date') {
+        const admissionBS = isBS ? isoToBS(admission_date.slice(0, 10)) : null;
+        const admDay = isBS ? (admissionBS?.day || 10) : new Date(admission_date).getDate();
+        targetDay = Math.min(Math.max(admDay, 1), 30);
+      } else if (structure.due_day) {
+        targetDay = Math.min(Math.max(Number(structure.due_day), 1), 30);
+      }
+
+      let due_date: string;
+      if (isBS) {
+        const bsMonthInfo = isoToBS(`${monthStr}-25`);
+        const maxDays = daysInBSMonth(bsMonthInfo.year, bsMonthInfo.month);
+        const day = Math.min(targetDay, maxDays);
+        due_date = bsToISO({
+          year: bsMonthInfo.year,
+          month: bsMonthInfo.month,
+          day,
+        });
+      } else {
+        const [mY, mM] = monthStr.split('-').map(Number);
+        const maxDays = new Date(mY, mM, 0).getDate();
+        const day = Math.min(targetDay, maxDays);
+        due_date = `${monthStr}-${String(day).padStart(2, '0')}`;
+      }
+
+      const pLabel = formatPeriodLabel(monthStr, monthStr, 1, isBS);
+      const fee_name = pLabel ? `${structure.fee_name} (${pLabel})` : structure.fee_name;
+
+      const bill = await createFeeCollection(
+        school_id,
+        created_by,
+        {
+          student_id,
+          enrollment_id,
+          fee_structure_id: structure.id,
+          academic_year_id,
+          due_date,
+          total_amount: unitAmount,
+          discount_amount: unitDiscount,
+          discount_reason: discount_reason || undefined,
+          billing_from_month: monthStr,
+          billing_to_month: monthStr,
+          months_count: 1,
+        },
+        fee_name,
+        net_amount,
+        net_amount,
+        'academic'
+      );
+      createdMonthlyBills.push(bill);
+    }
+  }
+
+  return { oneTimeFees, monthlyBills: createdMonthlyBills };
+};
+
+export const syncStudentDuesService = async (
+  school_id:             number,
+  created_by:            number,
+  student_id:            number,
+  billing_start_choice:  'admission_month' | 'session_start' = 'admission_month',
+  academic_year_id?:     number
+) => {
+  await assertFeeManagementEnabled(school_id);
+
+  const student = await getStudentById(student_id, school_id);
+  if (!student) throw new AppError('Student not found.', 404);
+
+  const enrollments = await getEnrollmentByStudent(student_id, school_id);
+  const activeEnrollment = enrollments.find(
+    e => (!academic_year_id || e.academic_year_id === academic_year_id) && e.status === 'active'
+  ) || enrollments[0];
+
+  if (!activeEnrollment) {
+    throw new AppError('Active student enrollment not found. Please enroll student first.', 400);
+  }
+
+  const admissionDateStr = student.admission_date
+    ? String(student.admission_date).slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
+  const result = await initializeStudentDuesOnAdmission({
+    school_id,
+    created_by,
+    student_id,
+    enrollment_id:        activeEnrollment.id,
+    academic_year_id:     activeEnrollment.academic_year_id,
+    class_id:             activeEnrollment.class_id,
+    admission_date:       admissionDateStr,
+    billing_start_choice,
+    scholarship_percent:  Number(student.scholarship_percent || 0),
+    scholarship_type:     student.scholarship_type || '',
+  });
+
+  const oneTimeCount = result.oneTimeFees?.created || 0;
+  const monthlyCount = result.monthlyBills?.length || 0;
+  const generatedCount = oneTimeCount + monthlyCount;
+
+  return {
+    generatedCount,
+    oneTimeCount,
+    monthlyCount,
+    oneTimeFees: result.oneTimeFees,
+    monthlyBills: result.monthlyBills,
+  };
 };
 
 export const getFeeCollectionsService = async (
@@ -301,6 +553,23 @@ export const getFeeCollectionsService = async (
   );
 };
 
+export const getFeePaymentsService = async (
+  school_id:        number,
+  academic_year_id?: number,
+  search?:           string,
+  class_id?:         number,
+  section_id?:       number,
+  payment_method?:   string,
+  page?:             number,
+  limit?:            number,
+) => {
+  return await getFeePaymentsBySchool(
+    school_id, academic_year_id,
+    search, class_id, section_id, payment_method,
+    page, limit,
+  );
+};
+
 export const getStudentFeeCollectionsService = async (
   student_id: number, school_id: number, academic_year_id?: number
 ) => {
@@ -318,11 +587,22 @@ export const waiveFeeCollectionService = async (id: number, school_id: number, r
   return waived;
 };
 
+export const cancelFeeCollectionService = async (id: number, school_id: number, reason: string) => {
+  const collection = await getFeeCollectionById(id, school_id);
+  if (!collection) throw new AppError('Fee collection not found.', 404);
+  if (collection.status === 'paid' || Number(collection.paid_amount || 0) > 0) {
+    throw new AppError('Cannot cancel a bill that has received payments. Please reverse or refund payments first.', 400);
+  }
+  const cancelled = await cancelFeeCollection(id, school_id, reason);
+  if (!cancelled) throw new AppError('Failed to cancel fee collection.', 500);
+  return cancelled;
+};
+
 export const updateFeeCollectionService = async (id: number, school_id: number, data: IUpdateFeeCollection) => {
   const collection = await getFeeCollectionById(id, school_id);
   if (!collection) throw new AppError('Fee collection not found.', 404);
-  if (collection.status === 'paid' || collection.status === 'waived') {
-    throw new AppError('Paid or waived fee collections cannot be adjusted.', 400);
+  if (collection.status === 'paid' || collection.status === 'waived' || collection.status === 'cancelled') {
+    throw new AppError('Paid, waived, or cancelled fee collections cannot be adjusted.', 400);
   }
   if (data.status !== undefined) {
     throw new AppError('Fee status is calculated from payments and cannot be changed directly.', 400);
@@ -441,6 +721,41 @@ export const createFeePaymentService = async (
   await assertSequentialPayment(school_id, collection);
 
   return await createFeePaymentAtomic(school_id, collected_by, data);
+};
+
+export const createBulkFeePaymentService = async (
+  school_id: number,
+  collected_by: number,
+  data: ICreateBulkFeePayment
+) => {
+  await assertFeeManagementEnabled(school_id);
+
+  if (!data.items || !data.items.length) {
+    throw new AppError('At least one fee item is required for payment.', 400);
+  }
+
+  // Pre-validate all items before executing atomic bulk insertion
+  for (const item of data.items) {
+    const collection = await getFeeCollectionById(item.collection_id, school_id);
+    if (!collection) throw new AppError(`Fee collection #${item.collection_id} not found.`, 404);
+    if (Number(collection.student_id) !== Number(data.student_id)) {
+      throw new AppError('Payment student does not match the fee collection.', 400);
+    }
+    if (collection.status === 'paid' || collection.status === 'waived') {
+      throw new AppError(`Fee "${collection.fee_name}" is already settled.`, 400);
+    }
+    if (item.paid_amount <= 0) {
+      throw new AppError('Payment amount must be greater than 0.', 400);
+    }
+    if (item.paid_amount > Number(collection.remaining_amount)) {
+      throw new AppError(
+        `Payment amount (${item.paid_amount}) cannot exceed remaining amount of ${collection.remaining_amount} for "${collection.fee_name}".`,
+        400
+      );
+    }
+  }
+
+  return await createBulkFeePaymentAtomic(school_id, collected_by, data);
 };
 
 export const getPaymentsByCollectionService = async (collection_id: number, school_id: number) => {
@@ -733,21 +1048,40 @@ export const generateMonthlyFeeBillsService = async (
         const fromMonth   = eligibleMonths[0];
         const toMonth     = eligibleMonths[monthsCount - 1];
 
-        // Due date calculation: uses admin custom_due_date if provided, else computed standard due date
+        // Due date calculation: uses admin custom_due_date if provided, else structure due policy
         let due_date: string;
         if (custom_due_date) {
           due_date = custom_due_date;
         } else {
-          const [dYStr, dMStr] = toMonth.split('-');
-          const dYear = parseInt(dYStr, 10);
-          const dMonth = parseInt(dMStr, 10);
-          let dueDay = 10;
+          let targetDay = 10;
           if (structure.due_date_type === 'fixed_day' && structure.due_day) {
-            dueDay = Math.min(Math.max(Number(structure.due_day), 1), 28);
-          } else if (en.admission_date) {
-            dueDay = Math.min(Math.max(new Date(en.admission_date).getDate(), 1), 28);
+            targetDay = Math.min(Math.max(Number(structure.due_day), 1), 30);
+          } else if (structure.due_date_type === 'admission_date' && en.admission_date) {
+            const admStr = String(en.admission_date).slice(0, 10);
+            const admissionBS = isBS ? isoToBS(admStr) : null;
+            const admDay = isBS ? (admissionBS?.day || 10) : new Date(admStr).getDate();
+            targetDay = Math.min(Math.max(admDay, 1), 30);
+          } else if (structure.due_day) {
+            targetDay = Math.min(Math.max(Number(structure.due_day), 1), 30);
           }
-          due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+          if (isBS) {
+            const bsMonthInfo = isoToBS(`${toMonth}-25`);
+            const maxDays = daysInBSMonth(bsMonthInfo.year, bsMonthInfo.month);
+            const day = Math.min(targetDay, maxDays);
+            due_date = bsToISO({
+              year: bsMonthInfo.year,
+              month: bsMonthInfo.month,
+              day,
+            });
+          } else {
+            const [dYStr, dMStr] = toMonth.split('-');
+            const dYear = parseInt(dYStr, 10);
+            const dMonth = parseInt(dMStr, 10);
+            const maxDays = new Date(dYear, dMonth, 0).getDate();
+            const day = Math.min(targetDay, maxDays);
+            due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          }
         }
 
         // Scholarship discount (computed per month × monthsCount)
@@ -932,7 +1266,11 @@ export const generateTransportBillsService = async (
     if (curM > 12) { curY++; curM = 1; }
   }
 
-  const routes = await getRoutesBySchool(school_id, academic_year_id);
+  const [routes, schoolRes] = await Promise.all([
+    getRoutesBySchool(school_id, academic_year_id),
+    pool.query('SELECT calendar_system FROM schools WHERE id = $1', [school_id]),
+  ]);
+  const isBS = (schoolRes.rows[0]?.calendar_system ?? 'AD') === 'BS';
   if (!routes.length) return { created: 0, skipped: 0, errors: [] };
 
   const enrollmentByStudent = new Map(
@@ -1013,12 +1351,18 @@ export const generateTransportBillsService = async (
         let due_date: string;
         if (custom_due_date) {
           due_date = custom_due_date;
+        } else if (isBS) {
+          const bsMonthInfo = isoToBS(`${toMonth}-25`);
+          due_date = bsToISO({
+            year: bsMonthInfo.year,
+            month: bsMonthInfo.month,
+            day: 2,
+          });
         } else {
           const [dYStr, dMStr] = toMonth.split('-');
           const dYear = parseInt(dYStr, 10);
           const dMonth = parseInt(dMStr, 10);
-          const dueDay = Math.min(Math.max(Number(due_day) || 10, 1), 28);
-          due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+          due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-02`;
         }
 
         const periodLabel = formatPeriodLabel(fromMonth, toMonth, monthsCount, true);
@@ -1201,7 +1545,11 @@ export const generateHostelBillsService = async (
     if (curM > 12) { curY++; curM = 1; }
   }
 
-  const hostels = await getHostelsBySchool(school_id);
+  const [hostels, schoolRes] = await Promise.all([
+    getHostelsBySchool(school_id),
+    pool.query('SELECT calendar_system FROM schools WHERE id = $1', [school_id]),
+  ]);
+  const isBS = (schoolRes.rows[0]?.calendar_system ?? 'AD') === 'BS';
   if (!hostels.length) return { created: 0, skipped: 0, errors: [] };
 
   const enrollmentByStudent = new Map(
@@ -1282,12 +1630,18 @@ export const generateHostelBillsService = async (
         let due_date: string;
         if (custom_due_date) {
           due_date = custom_due_date;
+        } else if (isBS) {
+          const bsMonthInfo = isoToBS(`${toMonth}-25`);
+          due_date = bsToISO({
+            year: bsMonthInfo.year,
+            month: bsMonthInfo.month,
+            day: 2,
+          });
         } else {
           const [dYStr, dMStr] = toMonth.split('-');
           const dYear = parseInt(dYStr, 10);
           const dMonth = parseInt(dMStr, 10);
-          const dueDay = Math.min(Math.max(Number(due_day) || 10, 1), 28);
-          due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+          due_date = `${dYear}-${String(dMonth).padStart(2, '0')}-02`;
         }
 
         const periodLabel = formatPeriodLabel(fromMonth, toMonth, monthsCount, true);

@@ -196,7 +196,7 @@ export const BS_MONTH_NAMES = [
 
 export function toBSMonthLabel(adYearMonth: string): string {
   if (!adYearMonth) return '';
-  const dateStr = adYearMonth.length === 7 ? `${adYearMonth}-15` : adYearMonth;
+  const dateStr = adYearMonth.length === 7 ? `${adYearMonth}-25` : adYearMonth;
   const bs = isoToBS(dateStr);
   return `${BS_MONTH_NAMES[bs.month - 1]} ${bs.year}`;
 }
@@ -204,8 +204,8 @@ export function toBSMonthLabel(adYearMonth: string): string {
 export function formatPeriodLabel(fromMonthStr: string, toMonthStr: string, monthsCount: number, isBS: boolean = true): string {
   if (!fromMonthStr || !toMonthStr) return '';
   if (isBS) {
-    const fromBS = isoToBS(fromMonthStr.length === 7 ? `${fromMonthStr}-15` : fromMonthStr);
-    const toBS   = isoToBS(toMonthStr.length === 7 ? `${toMonthStr}-15` : toMonthStr);
+    const fromBS = isoToBS(fromMonthStr.length === 7 ? `${fromMonthStr}-25` : fromMonthStr);
+    const toBS   = isoToBS(toMonthStr.length === 7 ? `${toMonthStr}-25` : toMonthStr);
     const fromName = BS_MONTH_NAMES[fromBS.month - 1];
     const toName   = BS_MONTH_NAMES[toBS.month - 1];
 

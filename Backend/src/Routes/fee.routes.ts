@@ -7,7 +7,9 @@ import {
   updateFeeStructure, deleteFeeStructure,
   createFeeCollection, createMiscFeeCollection,
   getFeeCollections, getStudentFeeCollections, updateFeeCollection, waiveFeeCollection,
-  createFeePayment, getPaymentsByCollection, getStudentPayments,
+  cancelFeeCollection,
+  createFeePayment, createBulkFeePayment, getPaymentsByCollection, getStudentPayments,
+  getFeePayments,
   getMyFeeCollections, getMyPayments,
   generateMonthlyFeeBills,
   generateMonthlyFeeBillsQueue,
@@ -20,6 +22,7 @@ import {
   voidMonthBillingController,
   getStudentBillingTimelineController,
   getUnbilledStudentsController,
+  syncStudentDuesController,
 } from '../Controllers/fee.controller';
 import { generateReceipt, getReceiptStatus } from '../Controllers/receipt.controller';
 
@@ -58,11 +61,15 @@ router.post('/collections/misc',          restrictTo('admin', 'super_admin', 'fi
 router.post('/collections',               restrictTo('admin', 'super_admin', 'finance'), createFeeCollection);
 router.get ('/collections',               restrictTo('admin', 'super_admin', 'finance'), getFeeCollections);
 router.get ('/collections/student/:id',   restrictTo('admin', 'super_admin', 'finance'), getStudentFeeCollections);
+router.post('/students/:id/sync-dues',        restrictTo('admin', 'super_admin', 'finance'), syncStudentDuesController);
 router.patch('/collections/:id',          restrictTo('admin', 'super_admin', 'finance'), updateFeeCollection);
 router.post ('/collections/:id/waive',    restrictTo('admin', 'super_admin', 'finance'), waiveFeeCollection);
+router.post ('/collections/:id/cancel',   restrictTo('admin', 'super_admin', 'finance'), cancelFeeCollection);
 
 // ── FEE PAYMENTS ──
 router.post('/payments',               restrictTo('admin', 'super_admin', 'finance'), createFeePayment);
+router.post('/payments/bulk',          restrictTo('admin', 'super_admin', 'finance'), createBulkFeePayment);
+router.get ('/payments',               restrictTo('admin', 'super_admin', 'finance'), getFeePayments);
 router.get ('/payments/collection/:id',restrictTo('admin', 'super_admin', 'finance'), getPaymentsByCollection);
 router.get ('/payments/student/:id',   restrictTo('admin', 'super_admin', 'finance'), getStudentPayments);
 
