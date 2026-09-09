@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import styles from "./fees.module.css";
 import { useApi } from "@/lib/useApi";
@@ -169,6 +169,14 @@ function getPaginationItems(current: number, total: number): (number | "...")[] 
   return items;
 }
 
+function formatClassSection(className?: string, sectionName?: string): string {
+  if (!className) return "—";
+  if (!sectionName) return className;
+  const cleanSec = sectionName.replace(/^sec(tion)?\s*/i, "").trim();
+  return `${className}-${cleanSec || sectionName}`;
+}
+
+
 interface FeeRecordsPageProps {
   basePath?: string;
 }
@@ -215,6 +223,24 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
   const [cancelReason, setCancelReason] = useState("Wrong billing entry");
   const [cancelling,   setCancelling]   = useState(false);
 
+  const [activeMenuColId, setActiveMenuColId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setActiveMenuColId(null);
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, []);
+
+  const handleResetFilters = () => {
+    setSearch("");
+    setClassFilter("all");
+    setSectionFilter("all");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setPaymentMethodFilter("all");
+    setCurrentPage(1);
+  };
+
   const cleanBase = (basePath || "").replace(/\/fees\/?$/, "");
   const receiptBase = isFinance || cleanBase === "/finance" ? "/finance/fees/receipt" : "/fees/receipt";
 
@@ -239,6 +265,13 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
     total_collected?: number;
     total_pending?: number;
     transport_bills_count?: number;
+    status_counts?: {
+      all: number;
+      paid: number;
+      unpaid: number;
+      cancelled: number;
+      waived: number;
+    };
   }>(
     collectionsUrl,
     [collectionsUrl]
@@ -475,332 +508,754 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
   const totalPaid      = apiResult?.total_collected ?? 0;
   const totalPending   = apiResult?.total_pending ?? 0;
   const transportBills = apiResult?.transport_bills_count ?? 0;
+  const collectionRate = (totalPaid + totalPending) > 0
+    ? Math.round((totalPaid / (totalPaid + totalPending)) * 100)
+    : 0;
+  const statusCounts   = apiResult?.status_counts || {
+    all: totalInvoices,
+    paid: 0,
+    unpaid: 0,
+    cancelled: 0,
+    waived: 0,
+  };
 
   return (
     <div className={s("feesPage")}>
       <main className={s("pageContent")}>
 
         {/* ── Page Header ── */}
-        <section className={s("pageHead")}>
-          <div className={s("headLeft")}>
-            <div className={s("headIcon")}>
-              <i className="fa-solid fa-table-list" />
+        <section style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 20,
+          gap: 16,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: "#ea580c",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#ffffff",
+              fontSize: 20,
+              flexShrink: 0,
+              boxShadow: "0 3px 10px rgba(234, 88, 12, 0.25)",
+            }}>
+              <i className="fa-solid fa-file-invoice" />
             </div>
             <div>
-              <h1>All Fee Records</h1>
-              <p>Track collected fees, pending student dues, and view payment receipts.</p>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.4px" }}>
+                All Fee Records
+              </h1>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+                Track collected fees, pending dues, and view complete payment history.
+              </p>
             </div>
           </div>
-          <div className={s("headActions")}>
-            <Link className={cx(s("btn"), s("btnOutline"))} href={overviewUrl}>
-              <i className="fa-solid fa-arrow-left" /> Fee Overview
+
+          {/* Breadcrumb Right */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "#64748b", paddingTop: 6 }}>
+            <Link href={overviewUrl} style={{ color: "#64748b", textDecoration: "none" }}>
+              Fee Management
             </Link>
-            <Link className={cx(s("btn"), s("btnPrimary"))} href={collectUrl}>
-              <i className="fa-solid fa-hand-holding-dollar" /> Collect Fee
-            </Link>
+            <i className="fa-solid fa-chevron-right" style={{ fontSize: 10, color: "#94a3b8" }} />
+            <span style={{ color: "#0f172a" }}>Fee Records</span>
           </div>
         </section>
 
-        {/* ── 4 Compact Stat Cards (~75px) ── */}
-        <section className={s("heroCards")}>
-          <article className={cx(s("heroCard"), s("c1"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Collected</span>
-              <strong className={s("hcValue")}>{formatCurrency(totalPaid)}</strong>
-              <span className={s("hcSub")}>Active academic year</span>
+        {/* ── 4 Stat Cards with Sparklines & Mini Bar Charts ── */}
+        <section style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gap: 16,
+          marginBottom: 20,
+        }}>
+          {/* Card 1: Total Collected */}
+          <div style={{
+            background: "#ffffff",
+            borderRadius: 16,
+            border: "1px solid #e2e8f0",
+            padding: "18px 20px",
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+            overflow: "hidden",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, position: "relative", zIndex: 2 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "#ecfdf5",
+                border: "1.5px solid #d1fae5",
+                color: "#059669",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-coins" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Collected</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
+                  {formatCurrency(totalPaid)}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#059669" }}>This academic year</div>
+              </div>
             </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-wallet" /></div>
-          </article>
 
-          <article className={cx(s("heroCard"), s("c3"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Invoices</span>
-              <strong className={s("hcValue")}>{totalInvoices}</strong>
-              <span className={s("hcSub")}>Generated bills</span>
+            {/* Top Right Trend Badge */}
+            <div style={{
+              position: "absolute",
+              top: 14,
+              right: 16,
+              background: collectionRate >= 50 ? "#ecfdf5" : "#fff7ed",
+              border: collectionRate >= 50 ? "1px solid #a7f3d0" : "1px solid #fed7aa",
+              color: collectionRate >= 50 ? "#059669" : "#ea580c",
+              padding: "2px 8px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+            }}>
+              <i className={`fa-solid ${collectionRate >= 50 ? "fa-arrow-up" : "fa-arrow-down"}`} style={{ fontSize: 9.5 }} /> {collectionRate}%
             </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-file-invoice" /></div>
-          </article>
 
-          <article className={cx(s("heroCard"), s("c4"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Payment Receipts</span>
-              <strong className={s("hcValue")}>{totalReceiptsCount}</strong>
-              <span className={s("hcSub")}>Issued vouchers</span>
-            </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-receipt" /></div>
-          </article>
+            {/* Bottom Right Green Wave Sparkline */}
+            <svg width="65" height="24" viewBox="0 0 65 24" fill="none" style={{ position: "absolute", right: 14, bottom: 14, pointerEvents: "none" }}>
+              <path d="M 2 14 C 12 6, 22 20, 32 12 C 42 4, 52 18, 62 10" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
 
-          <article className={cx(s("heroCard"), s("c2"))}>
-            <div className={s("hcInfo")}>
-              <span className={s("hcLabel")}>Total Outstanding</span>
-              <strong className={s("hcValue")}>{formatCurrency(totalPending)}</strong>
-              <span className={s("hcSub")}>Pending student dues</span>
+          {/* Card 2: Total Invoices */}
+          <div
+            onClick={() => { setActiveTab("invoices"); setCurrentPage(1); }}
+            style={{
+              background: "#ffffff",
+              borderRadius: 16,
+              border: activeTab === "invoices" ? "1.5px solid #bfdbfe" : "1px solid #e2e8f0",
+              padding: "18px 20px",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+              overflow: "hidden",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "#eff6ff",
+                border: "1.5px solid #dbeafe",
+                color: "#2563eb",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-file-invoice" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Invoices</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
+                  {totalInvoices}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#2563eb" }}>Generated bills</div>
+              </div>
             </div>
-            <div className={s("hcIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
-          </article>
+
+            {/* Right Stepped Blue Mini Bars with trend curve */}
+            <svg width="85" height="44" viewBox="0 0 85 44" fill="none" style={{ position: "absolute", right: 14, bottom: 10, pointerEvents: "none" }}>
+              <rect x="12" y="28" width="5.5" height="16" rx="2" fill="#bfdbfe" />
+              <rect x="26" y="22" width="5.5" height="22" rx="2" fill="#93c5fd" />
+              <rect x="40" y="16" width="5.5" height="28" rx="2" fill="#60a5fa" />
+              <rect x="54" y="9" width="5.5" height="35" rx="2" fill="#3b82f6" />
+              <rect x="68" y="2" width="5.5" height="42" rx="2" fill="#2563eb" />
+              <path d="M4 36 C 20 32, 34 22, 50 16 C 62 12, 69 5, 74 2" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+
+          {/* Card 3: Payment Receipts */}
+          <div
+            onClick={() => { setActiveTab("receipts"); setCurrentPage(1); }}
+            style={{
+              background: "#ffffff",
+              borderRadius: 16,
+              border: activeTab === "receipts" ? "1.5px solid #d8b4fe" : "1px solid #e2e8f0",
+              padding: "18px 20px",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+              overflow: "hidden",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "#faf5ff",
+                border: "1.5px solid #f3e8ff",
+                color: "#9333ea",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-receipt" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Payment Receipts</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
+                  {totalReceiptsCount}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9333ea" }}>Issued vouchers</div>
+              </div>
+            </div>
+
+            {/* Right Stepped Purple Mini Bars */}
+            <svg width="85" height="44" viewBox="0 0 85 44" fill="none" style={{ position: "absolute", right: 14, bottom: 10, pointerEvents: "none" }}>
+              <rect x="14" y="30" width="5.5" height="14" rx="2" fill="#f3e8ff" />
+              <rect x="27" y="24" width="5.5" height="20" rx="2" fill="#e9d5ff" />
+              <rect x="40" y="18" width="5.5" height="26" rx="2" fill="#d8b4fe" />
+              <rect x="53" y="12" width="5.5" height="32" rx="2" fill="#c084fc" />
+              <rect x="66" y="5" width="5.5" height="39" rx="2" fill="#a855f7" />
+            </svg>
+          </div>
+
+          {/* Card 4: Total Outstanding */}
+          <div style={{
+            background: "#ffffff",
+            borderRadius: 16,
+            border: "1px solid #e2e8f0",
+            padding: "18px 20px",
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+            overflow: "hidden",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, position: "relative", zIndex: 2 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "#fff7ed",
+                border: "1.5px solid #fed7aa",
+                color: "#ea580c",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-clock-rotate-left" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Outstanding</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
+                  {formatCurrency(totalPending)}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#ea580c" }}>Pending student dues</div>
+              </div>
+            </div>
+
+            {/* Right Orange Wave Sparkline */}
+            <svg width="65" height="24" viewBox="0 0 65 24" fill="none" style={{ position: "absolute", right: 14, bottom: 14, pointerEvents: "none" }}>
+              <path d="M 2 14 C 12 6, 22 20, 32 12 C 42 4, 52 18, 62 10" fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
         </section>
 
-        {/* ── Toolbar (Search & Filter dropdowns) ── */}
-        <section className={s("subBar")} style={{ padding: "12px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, flexWrap: "wrap" }}>
-            <div className={s("searchField")} style={{ maxWidth: 300, minWidth: 200 }}>
-              <i className="fa-solid fa-magnifying-glass" />
-              <input
-                type="search"
-                placeholder={activeTab === "invoices" ? "Search by student, roll no, fee…" : "Search by receipt #, student, roll no…"}
-                value={search}
-                onChange={e => { setSearch(e.target.value); resetPage(); }}
-              />
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {/* Class Filter */}
-              <select
-                value={classFilter}
-                onChange={e => {
-                  setClassFilter(e.target.value);
-                  setSectionFilter("all");
-                  resetPage();
-                }}
-                style={{
-                  height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
-                  background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
-                }}
-              >
-                <option value="all">All Classes</option>
-                {classes?.map(c => (
-                  <option key={c.id} value={c.id.toString()}>{c.name}</option>
-                ))}
-              </select>
-
-              {/* Section Filter */}
-              <select
-                value={sectionFilter}
-                onChange={e => { setSectionFilter(e.target.value); resetPage(); }}
-                disabled={classFilter === "all" || !availableSections.length}
-                style={{
-                  height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
-                  background: classFilter === "all" || !availableSections.length ? "#f8fafc" : "#fff",
-                  color: classFilter === "all" || !availableSections.length ? "#94a3b8" : "#0f172a",
-                  fontSize: 12.5, fontWeight: 700, outline: "none",
-                  cursor: classFilter === "all" || !availableSections.length ? "not-allowed" : "pointer",
-                }}
-              >
-                <option value="all">All Sections</option>
-                {availableSections.map((sec: any) => (
-                  <option key={sec.id || sec.name} value={sec.name}>{sec.name}</option>
-                ))}
-              </select>
-
-              {/* Filters for Invoices Tab */}
-              {activeTab === "invoices" ? (
-                <>
-                  <select
-                    value={statusFilter}
-                    onChange={e => { setStatusFilter(e.target.value); resetPage(); }}
-                    style={{
-                      height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
-                      background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
-                    }}
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="paid">Paid</option>
-                    <option value="partial">Partial</option>
-                    <option value="unpaid">Unpaid</option>
-                    <option value="waived">Waived</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-
-                  <select
-                    value={typeFilter}
-                    onChange={e => { setTypeFilter(e.target.value); resetPage(); }}
-                    style={{
-                      height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
-                      background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
-                    }}
-                  >
-                    <option value="all">All Fee Types</option>
-                    <option value="academic">Academic Fees</option>
-                    <option value="transport">Transport</option>
-                    <option value="hostel">Hostel</option>
-                  </select>
-                </>
-              ) : (
-                /* Filter for Receipts Tab */
-                <select
-                  value={paymentMethodFilter}
-                  onChange={e => { setPaymentMethodFilter(e.target.value); resetPage(); }}
-                  style={{
-                    height: 38, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
-                    background: "#fff", color: "#0f172a", fontSize: 12.5, fontWeight: 700, outline: "none", cursor: "pointer",
-                  }}
-                >
-                  <option value="all">All Payment Modes</option>
-                  <option value="cash">Cash</option>
-                  <option value="online">Online</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cheque">Cheque</option>
-                </select>
-              )}
-            </div>
+        {/* ── Search & Filter Bar ── */}
+        <section style={{
+          background: "#ffffff",
+          borderRadius: 14,
+          border: "1px solid #e2e8f0",
+          padding: "12px 16px",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)",
+        }}>
+          {/* Search input */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flex: 1,
+            minWidth: 260,
+            height: 40,
+            padding: "0 14px",
+            background: "#ffffff",
+            border: "1.5px solid #e2e8f0",
+            borderRadius: 8,
+          }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: 14 }} />
+            <input
+              type="search"
+              placeholder={activeTab === "invoices" ? "Search by student name, roll no, admission no, fee title..." : "Search by receipt #, student name, roll no..."}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#0f172a",
+                background: "transparent",
+              }}
+            />
           </div>
 
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#64748b" }}>
-            Showing <strong>{currentTotal}</strong> {activeTab === "invoices" ? "invoice" : "receipt"}{currentTotal !== 1 ? "s" : ""}
-          </div>
+          {/* Classes Dropdown */}
+          <select
+            value={classFilter}
+            onChange={e => {
+              setClassFilter(e.target.value);
+              setSectionFilter("all");
+              setCurrentPage(1);
+            }}
+            style={{
+              height: 40,
+              padding: "0 12px",
+              borderRadius: 8,
+              border: "1.5px solid #e2e8f0",
+              background: "#ffffff",
+              color: "#0f172a",
+              fontSize: 12.5,
+              fontWeight: 700,
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value="all">All Classes</option>
+            {classes?.map(c => (
+              <option key={c.id} value={c.id.toString()}>{c.name}</option>
+            ))}
+          </select>
+
+          {/* Sections Dropdown */}
+          <select
+            value={sectionFilter}
+            onChange={e => { setSectionFilter(e.target.value); setCurrentPage(1); }}
+            disabled={classFilter === "all" || !availableSections.length}
+            style={{
+              height: 40,
+              padding: "0 12px",
+              borderRadius: 8,
+              border: "1.5px solid #e2e8f0",
+              background: classFilter === "all" || !availableSections.length ? "#f8fafc" : "#ffffff",
+              color: classFilter === "all" || !availableSections.length ? "#94a3b8" : "#0f172a",
+              fontSize: 12.5,
+              fontWeight: 700,
+              outline: "none",
+              cursor: classFilter === "all" || !availableSections.length ? "not-allowed" : "pointer",
+            }}
+          >
+            <option value="all">All Sections</option>
+            {availableSections.map((sec: any) => (
+              <option key={sec.id || sec.name} value={sec.name}>{sec.name}</option>
+            ))}
+          </select>
+
+          {activeTab === "invoices" ? (
+            <>
+              {/* Statuses Dropdown */}
+              <select
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                style={{
+                  height: 40,
+                  padding: "0 12px",
+                  borderRadius: 8,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partial</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="waived">Waived</option>
+              </select>
+
+              {/* Fee Types Dropdown */}
+              <select
+                value={typeFilter}
+                onChange={e => { setTypeFilter(e.target.value); setCurrentPage(1); }}
+                style={{
+                  height: 40,
+                  padding: "0 12px",
+                  borderRadius: 8,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="all">All Fee Types</option>
+                <option value="academic">Academic Fees</option>
+                <option value="transport">Transport</option>
+                <option value="hostel">Hostel</option>
+              </select>
+            </>
+          ) : (
+            <select
+              value={paymentMethodFilter}
+              onChange={e => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
+              style={{
+                height: 40,
+                padding: "0 12px",
+                borderRadius: 8,
+                border: "1.5px solid #e2e8f0",
+                background: "#ffffff",
+                color: "#0f172a",
+                fontSize: 12.5,
+                fontWeight: 700,
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Payment Modes</option>
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          )}
+
+          {/* Reset Button */}
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            style={{
+              height: 40,
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "1.5px solid #e2e8f0",
+              background: "#ffffff",
+              color: "#334155",
+              fontSize: 12.5,
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
+            <i className="fa-solid fa-rotate-right" style={{ fontSize: 13 }} /> Reset
+          </button>
         </section>
 
         {/* ── Table Card ── */}
-        <section className={s("card")}>
-          <div className={s("cardHead")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-            <div>
+        <section style={{
+          background: "#ffffff",
+          borderRadius: 16,
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 1px 4px rgba(15, 23, 42, 0.04)",
+          overflow: "hidden",
+        }}>
+          {/* Top Bar with Status Pills & Actions */}
+          <div style={{
+            padding: "16px 20px",
+            borderBottom: "1px solid #f1f5f9",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 14,
+            flexWrap: "wrap",
+          }}>
+            {activeTab === "invoices" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {/* All Records Pill */}
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "7px 15px",
+                    borderRadius: 8,
+                    border: statusFilter === "all" ? "none" : "1.5px solid #e2e8f0",
+                    background: statusFilter === "all" ? "#ea580c" : "#ffffff",
+                    color: statusFilter === "all" ? "#ffffff" : "#475569",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    boxShadow: statusFilter === "all" ? "0 2px 6px rgba(234, 88, 12, 0.25)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <i className="fa-solid fa-bars" style={{ fontSize: 11 }} />
+                  <span>All Records ({statusCounts.all})</span>
+                </button>
+
+                {/* Paid Pill */}
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter("paid"); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "7px 15px",
+                    borderRadius: 8,
+                    border: statusFilter === "paid" ? "1.5px solid #a7f3d0" : "1.5px solid #e2e8f0",
+                    background: statusFilter === "paid" ? "#ecfdf5" : "#ffffff",
+                    color: statusFilter === "paid" ? "#059669" : "#475569",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                  <span>Paid ({statusCounts.paid})</span>
+                </button>
+
+                {/* Unpaid Pill */}
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter("unpaid"); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "7px 15px",
+                    borderRadius: 8,
+                    border: statusFilter === "unpaid" ? "1.5px solid #fecaca" : "1.5px solid #e2e8f0",
+                    background: statusFilter === "unpaid" ? "#fef2f2" : "#ffffff",
+                    color: statusFilter === "unpaid" ? "#dc2626" : "#475569",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
+                  <span>Unpaid ({statusCounts.unpaid})</span>
+                </button>
+
+                {/* Cancelled Pill */}
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter("cancelled"); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "7px 15px",
+                    borderRadius: 8,
+                    border: statusFilter === "cancelled" ? "1.5px solid #cbd5e1" : "1.5px solid #e2e8f0",
+                    background: statusFilter === "cancelled" ? "#f1f5f9" : "#ffffff",
+                    color: statusFilter === "cancelled" ? "#334155" : "#475569",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#64748b", display: "inline-block" }} />
+                  <span>Cancelled ({statusCounts.cancelled})</span>
+                </button>
+
+                {/* Waived Pill */}
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter("waived"); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "7px 15px",
+                    borderRadius: 8,
+                    border: statusFilter === "waived" ? "1.5px solid #e9d5ff" : "1.5px solid #e2e8f0",
+                    background: statusFilter === "waived" ? "#faf5ff" : "#ffffff",
+                    color: statusFilter === "waived" ? "#7c3aed" : "#475569",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#8b5cf6", display: "inline-block" }} />
+                  <span>Waived ({statusCounts.waived})</span>
+                </button>
+              </div>
+            ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <h3 style={{ margin: 0 }}>
-                  <i className={activeTab === "invoices" ? "fa-solid fa-file-invoice" : "fa-solid fa-receipt"} />{" "}
-                  {activeTab === "invoices" ? "Collection Records" : "Payment Receipts"}
-                </h3>
-              </div>
-              <p style={{ margin: "3px 0 0" }}>
-                {activeTab === "invoices"
-                  ? "Detailed breakdown of fee payments, dues, and transaction histories"
-                  : "Cashier register of all issued payment receipts and settled student vouchers"}
-              </p>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              {/* Tab Switcher Pills */}
-              <div style={{
-                display: "inline-flex",
-                background: "#f1f5f9",
-                padding: "3px",
-                borderRadius: "10px",
-                border: "1.5px solid #e2e8f0",
-              }}>
                 <button
                   type="button"
-                  onClick={() => { setActiveTab("invoices"); resetPage(); }}
+                  onClick={() => { setActiveTab("invoices"); setCurrentPage(1); }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    padding: "6px 14px",
-                    borderRadius: "7px",
-                    border: "none",
-                    fontSize: "12.5px",
+                    padding: "7px 14px",
+                    borderRadius: 8,
+                    border: "1.5px solid #e2e8f0",
+                    background: "#ffffff",
+                    color: "#334155",
+                    fontSize: 12.5,
                     fontWeight: 800,
                     cursor: "pointer",
-                    background: activeTab === "invoices" ? "#ffffff" : "transparent",
-                    color: activeTab === "invoices" ? "#0f172a" : "#64748b",
-                    boxShadow: activeTab === "invoices" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                    transition: "all 0.15s ease",
                   }}
                 >
-                  <i className="fa-solid fa-file-invoice" style={{ color: activeTab === "invoices" ? "#2563eb" : "#94a3b8" }} />
-                  <span>Billed Invoices</span>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: 900,
-                    background: activeTab === "invoices" ? "#eff6ff" : "#e2e8f0",
-                    color: activeTab === "invoices" ? "#1e40af" : "#64748b",
-                    padding: "1px 7px",
-                    borderRadius: "999px",
-                  }}>
-                    {totalInvoices}
-                  </span>
+                  <i className="fa-solid fa-arrow-left" style={{ fontSize: 11 }} />
+                  <span>All Fee Records</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setActiveTab("receipts"); resetPage(); }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 14px",
-                    borderRadius: "7px",
-                    border: "none",
-                    fontSize: "12.5px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    background: activeTab === "receipts" ? "#ffffff" : "transparent",
-                    color: activeTab === "receipts" ? "#0f172a" : "#64748b",
-                    boxShadow: activeTab === "receipts" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <i className="fa-solid fa-receipt" style={{ color: activeTab === "receipts" ? "#059669" : "#94a3b8" }} />
-                  <span>Payment Receipts</span>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: 900,
-                    background: activeTab === "receipts" ? "#ecfdf5" : "#e2e8f0",
-                    color: activeTab === "receipts" ? "#065f46" : "#64748b",
-                    padding: "1px 7px",
-                    borderRadius: "999px",
-                  }}>
-                    {totalReceiptsCount}
-                  </span>
-                </button>
+                <span style={{ fontSize: 14, fontWeight: 900, color: "#0f172a" }}>
+                  <i className="fa-solid fa-receipt" style={{ color: "#9333ea", marginRight: 8 }} />
+                  Payment Receipts Register ({totalReceiptsCount})
+                </span>
               </div>
+            )}
 
-              {/* Export Button */}
+            {/* Right Action Buttons */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* Export CSV Button */}
               <button
                 type="button"
                 onClick={activeTab === "invoices" ? handleExportCSV : handleExportReceiptsCSV}
                 disabled={exporting || (activeTab === "invoices" ? loading : paymentsLoading)}
-                className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                title={activeTab === "invoices" ? "Download Invoices CSV report" : "Download Payment Receipts CSV"}
+                style={{
+                  height: 38,
+                  padding: "0 16px",
+                  borderRadius: 8,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#334155",
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)",
+                }}
               >
                 {exporting ? (
-                  <>
-                    <Spinner size={12} color="#059669" /> Exporting…
-                  </>
+                  <><Spinner size={12} color="#059669" /> Exporting…</>
                 ) : (
-                  <>
-                    <i className="fa-solid fa-file-csv" style={{ color: "#059669" }} /> Export CSV
-                  </>
+                  <><i className="fa-solid fa-download" style={{ fontSize: 13 }} /> Export CSV</>
                 )}
               </button>
+
+              {/* Collect Fee Button */}
+              <Link
+                href={collectUrl}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 8,
+                  background: "#ea580c",
+                  color: "#ffffff",
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  textDecoration: "none",
+                  boxShadow: "0 2px 6px rgba(234, 88, 12, 0.25)",
+                }}
+              >
+                <i className="fa-solid fa-plus" style={{ fontSize: 12 }} /> Collect Fee
+              </Link>
             </div>
           </div>
 
-          <div className={s("tableWrap")}>
+          {/* Table Container */}
+          <div style={{ width: "100%", overflowX: "auto" }}>
             {currentLoading ? (
-              <Loader fullScreen={false} size="md" text={activeTab === "invoices" ? "Loading fee records…" : "Loading payment receipts…"} />
+              <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
+                <Loader fullScreen={false} size="md" text={activeTab === "invoices" ? "Loading fee records…" : "Loading payment receipts…"} />
+              </div>
             ) : currentError ? (
               <div style={{ padding: "2.5rem", color: "#dc2626", textAlign: "center", fontWeight: 700 }}>{currentError}</div>
             ) : activeTab === "invoices" ? (
               collections.length === 0 ? (
-                <div className={s("emptyState")}>
-                  <div className={s("emptyIcon")}><i className="fa-solid fa-inbox" /></div>
-                  <p>No fee records match the selected search or filters.</p>
+                <div style={{ textAlign: "center", padding: "3.5rem 1rem", color: "#64748b" }}>
+                  <i className="fa-solid fa-file-invoice" style={{ fontSize: 36, color: "#cbd5e1", marginBottom: 10, display: "block" }} />
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>No fee records match the selected search or filters.</p>
                 </div>
               ) : (
-                <table className={s("table")}>
+                <table style={{ width: "100%", minWidth: 1100, borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Class & Section</th>
-                      <th>Fee Title</th>
-                      <th>Due &amp; Billed Date</th>
-                      <th>Amount (Due / Total)</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: "right" }}>Actions</th>
+                    <tr style={{ background: "#ffffff", borderBottom: "1.5px solid #e2e8f0" }}>
+                      <th style={{ padding: "12px 14px", width: 50, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>#</th>
+                      <th style={{ padding: "12px 14px", width: 210, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>STUDENT</th>
+                      <th style={{ padding: "12px 14px", width: 140, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>CLASS &amp; SECTION</th>
+                      <th style={{ padding: "12px 14px", width: 180, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>FEE TITLE</th>
+                      <th style={{ padding: "12px 14px", width: 170, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>DUE DATE</th>
+                      <th style={{ padding: "12px 14px", width: 180, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>AMOUNT</th>
+                      <th style={{ padding: "12px 14px", width: 120, textAlign: "center", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>STATUS</th>
+                      <th style={{ padding: "12px 14px", width: 130, textAlign: "right", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {collections.map(col => {
+                    {collections.map((col, idx) => {
                       const totalAmt    = parseFloat(col.total_amount || 0);
                       const discountAmt = parseFloat(col.discount_amount || 0);
                       const netAmt      = parseFloat(col.net_amount ?? (totalAmt - discountAmt));
                       const paidAmt     = parseFloat(col.paid_amount || 0);
                       const remAmt      = parseFloat(col.remaining_amount ?? (netAmt - paidAmt));
                       const hasDiscount = discountAmt > 0;
-                      const isOverdue   = col.status !== "paid" && col.status !== "waived" && col.status !== "cancelled" && Boolean(col.due_date) && new Date(col.due_date) < new Date();
-                      const hasPaid     = col.status === "paid" || col.status === "partial" || paidAmt > 0;
+
+                      // Overdue is calculated from the billed date:
+                      // If the bill's due_date is in the past relative to when the bill was created (back-dated billing e.g. billed on 25 Bhadra for 10 Bhadra),
+                      // effective due date gives 15 days grace from the billed date.
+                      const billedDate = col.created_at ? new Date(col.created_at) : null;
+                      const dueDate = col.due_date ? new Date(col.due_date) : null;
+                      const today = new Date();
+                      let effectiveDueDate = dueDate;
+                      if (dueDate && billedDate) {
+                        const dDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+                        const bDate = new Date(billedDate.getFullYear(), billedDate.getMonth(), billedDate.getDate());
+                        if (dDate <= bDate) {
+                          effectiveDueDate = new Date(bDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+                        }
+                      }
+                      const isOverdue   = col.status !== "paid" && col.status !== "waived" && col.status !== "cancelled" && Boolean(effectiveDueDate) && effectiveDueDate! < today;
                       const isFullyPaid = col.status === "paid";
                       const isWaived    = col.status === "waived";
                       const isCancelled = col.status === "cancelled";
+                      const isUnpaid    = col.status === "unpaid";
+                      const isPartial   = col.status === "partial";
 
                       // Parse Fee Title and Month Range Period
                       let rawFee = col.fee_name || "Fee";
@@ -819,292 +1274,444 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
                           const y1 = rangeMatch[2];
                           const m2 = rangeMatch[3];
                           const y2 = rangeMatch[4];
-                          if (y1 && y1 !== y2) {
-                            feePeriod = `${m1} ${y1} – ${m2} ${y2}`;
-                          } else {
-                            feePeriod = `${m1} – ${m2} ${y2}`;
-                          }
+                          feePeriod = (y1 && y1 !== y2) ? `${m1} ${y1} – ${m2} ${y2}` : `${m1} – ${m2} ${y2}`;
                         } else {
                           feePeriod = inner;
                         }
                       }
 
+                      const firstReceipt = col.payments?.[0];
+
                       return (
-                        <tr key={col.id} style={isOverdue ? { background: "#fffaf5" } : undefined}>
-                          <td>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              <span className={s("studentName")}>
+                        <tr
+                          key={col.id}
+                          style={{
+                            borderBottom: "1px solid #f1f5f9",
+                            background: isOverdue ? "#fffcfb" : "#ffffff",
+                            transition: "background 0.12s ease",
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = isOverdue ? "#fff7f5" : "#fafbfc"}
+                          onMouseLeave={e => e.currentTarget.style.background = isOverdue ? "#fffcfb" : "#ffffff"}
+                        >
+                          {/* 1. Row number */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", fontSize: 13, fontWeight: 600, color: "#64748b" }}>
+                            {(currentPage - 1) * pageSize + idx + 1}
+                          </td>
+
+                          {/* 2. STUDENT */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: 13.5,
+                                  fontWeight: 800,
+                                  color: "#0f172a",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                                title={col.full_name}
+                              >
                                 {col.full_name || `Student #${col.student_id}`}
                               </span>
-                              <span className={s("studentCode")}>
+                              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#94a3b8" }}>
                                 {col.admission_number || col.student_roll || "—"}
                               </span>
                             </div>
                           </td>
-                          <td>
-                            {col.class_name ? (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                                <span style={{
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  color: "#1e40af",
-                                  background: "#eff6ff",
-                                  border: "1px solid #bfdbfe",
-                                  padding: "2px 7px",
-                                  borderRadius: 6,
-                                  whiteSpace: "nowrap",
-                                }}>
-                                  {col.class_name}
-                                </span>
-                                {col.section_name && (
-                                  <span style={{
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    color: "#7c3aed",
-                                    background: "#faf5ff",
-                                    border: "1px solid #e9d5ff",
-                                    padding: "2px 6px",
-                                    borderRadius: 6,
-                                    whiteSpace: "nowrap",
-                                  }}>
-                                    Sec {col.section_name}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
-                            )}
+
+                          {/* 3. CLASS & SECTION */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "3.5px 10px",
+                              borderRadius: 6,
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              color: "#1d4ed8",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {formatClassSection(col.class_name, col.section_name)}
+                            </span>
                           </td>
-                          <td>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              <span className={s("feeTitle")} style={{ fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}>
+
+                          {/* 4. FEE TITLE */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start", minWidth: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  color: "#0f172a",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  maxWidth: "100%",
+                                }}
+                                title={cleanTitle}
+                              >
                                 {cleanTitle}
                               </span>
-                              {feePeriod && (
+                              {feePeriod ? (
                                 <span style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: "#b45309",
-                                  background: "#fffbeb",
-                                  border: "1px solid #fde68a",
-                                  padding: "1.5px 7px",
-                                  borderRadius: 5,
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: 4,
-                                  width: "fit-content",
+                                  padding: "2px 7px",
+                                  borderRadius: 4,
+                                  background: "#fffbeb",
+                                  border: "1px solid #fde68a",
+                                  color: "#b45309",
+                                  fontSize: 11,
+                                  fontWeight: 700,
                                   whiteSpace: "nowrap",
                                 }}>
-                                  <i className="fa-regular fa-calendar" style={{ fontSize: 10, color: "#d97706" }} />
+                                  <i className="fa-regular fa-calendar" style={{ fontSize: 9.5, color: "#d97706" }} />
                                   {feePeriod}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </td>
-                          <td>
+
+                          {/* 5. DUE DATE */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              {/* Primary: Due Date */}
                               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                <span className={s("dateCell")} style={{ fontWeight: 800, color: isOverdue ? "#dc2626" : "#0f172a" }}>
+                                <span style={{ fontSize: 12.5, fontWeight: 800, color: isOverdue ? "#dc2626" : "#0f172a", whiteSpace: "nowrap" }}>
                                   {col.due_date ? formatDate(col.due_date.slice(0, 10)) : "—"}
                                 </span>
                                 {isOverdue && (
                                   <span style={{
                                     display: "inline-block",
                                     fontSize: 9,
+                                    fontWeight: 900,
                                     color: "#dc2626",
                                     background: "#fef2f2",
                                     border: "1px solid #fecaca",
                                     padding: "1px 5px",
                                     borderRadius: 4,
-                                    fontWeight: 900,
-                                    letterSpacing: "0.02em",
+                                    letterSpacing: "0.5px",
                                   }}>
                                     OVERDUE
                                   </span>
                                 )}
                               </div>
-
-                              {/* Secondary: Bill Generated Date */}
                               {col.created_at && (
-                                <div style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                  fontSize: 11,
-                                  color: "#64748b",
-                                  fontWeight: 600,
-                                }}>
-                                  <i className="fa-solid fa-file-lines" style={{ fontSize: 9.5, color: "#94a3b8" }} />
-                                  <span>Billed: {formatDate(String(col.created_at).slice(0, 10))}</span>
-                                </div>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8", whiteSpace: "nowrap" }}>
+                                  Billed: {formatDate(String(col.created_at).slice(0, 10))}
+                                </span>
                               )}
                             </div>
                           </td>
-                          <td>
+
+                          {/* 6. AMOUNT */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                                {isFullyPaid ? (
-                                  <>
-                                    <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#059669" }}>
-                                      {formatCurrency(paidAmt > 0 ? paidAmt : netAmt)}
-                                    </strong>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: "#059669" }}>· Paid</span>
-                                  </>
-                                ) : isWaived ? (
-                                  <>
-                                    <strong style={{ fontSize: 13.5, fontWeight: 900, color: paidAmt > 0 ? "#059669" : "#7c3aed" }}>
-                                      {paidAmt > 0 ? formatCurrency(paidAmt) : formatCurrency(netAmt)}
-                                    </strong>
-                                    {paidAmt > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>/ {formatCurrency(netAmt)}</span>}
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed" }}>· Waived</span>
-                                  </>
-                                ) : isCancelled ? (
-                                  <>
-                                    <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#dc2626" }}>
-                                      {formatCurrency(netAmt)}
-                                    </strong>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: "#dc2626" }}>· Voided</span>
-                                  </>
-                                ) : paidAmt > 0 ? (
-                                  <>
-                                    <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#ea580c" }}>{formatCurrency(remAmt)}</strong>
-                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>/ {formatCurrency(netAmt)}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#0f172a" }}>{formatCurrency(remAmt)}</strong>
-                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>Due</span>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Waived note */}
-                              {isWaived && col.fine_reason && (
-                                <div style={{ fontSize: 10.5, color: "#7c3aed", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3.5 }}>
-                                  <i className="fa-solid fa-award" style={{ fontSize: 9 }} />
-                                  <span>{col.fine_reason}</span>
+                              {isCancelled ? (
+                                <span style={{ fontSize: 13.5, fontWeight: 800, color: "#dc2626" }}>
+                                  {formatCurrency(netAmt)}
+                                </span>
+                              ) : isFullyPaid ? (
+                                <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
+                                  <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#16a34a" }}>
+                                    {formatCurrency(paidAmt > 0 ? paidAmt : netAmt)}
+                                  </strong>
+                                  {hasDiscount && (
+                                    <>
+                                      <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11, fontWeight: 600 }}>
+                                        {formatCurrency(totalAmt)}
+                                      </span>
+                                      <span style={{
+                                        background: "#ecfdf5",
+                                        border: "1px solid #a7f3d0",
+                                        color: "#059669",
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        padding: "1px 5px",
+                                        borderRadius: 4,
+                                      }}>
+                                        {col.discount_reason || `10% disc.`}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
-                              )}
-
-                              {/* Cancelled note */}
-                              {isCancelled && col.fine_reason && (
-                                <div style={{ fontSize: 10.5, color: "#dc2626", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3.5 }}>
-                                  <i className="fa-solid fa-ban" style={{ fontSize: 9 }} />
-                                  <span>{col.fine_reason}</span>
+                              ) : isWaived ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  {paidAmt > 0 ? (
+                                    <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
+                                      <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#16a34a" }}>
+                                        {formatCurrency(paidAmt)}
+                                      </strong>
+                                      <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11, fontWeight: 600 }}>
+                                        {formatCurrency(totalAmt)}
+                                      </span>
+                                      <span style={{
+                                        background: "#ecfdf5",
+                                        border: "1px solid #a7f3d0",
+                                        color: "#059669",
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        padding: "1px 5px",
+                                        borderRadius: 4,
+                                      }}>
+                                        {col.discount_reason || `10% disc.`}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span style={{ fontSize: 13.5, fontWeight: 800, color: "#7c3aed" }}>
+                                        {formatCurrency(netAmt)} · Waived
+                                      </span>
+                                      {col.fine_reason && (
+                                        <span style={{ fontSize: 10.5, fontWeight: 600, color: "#7c3aed", display: "flex", alignItems: "center", gap: 3.5 }}>
+                                          <i className="fa-solid fa-award" style={{ fontSize: 9 }} /> {col.fine_reason}
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
-                              )}
-
-                              {/* Scholarship / Concession Indicator */}
-                              {hasDiscount && (
-                                <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 1, flexWrap: "wrap" }}>
-                                  <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: 11, fontWeight: 600 }}>
-                                    {formatCurrency(totalAmt)}
-                                  </span>
-                                  <span style={{
-                                    fontSize: 10, fontWeight: 800, color: "#166534", background: "#dcfce7",
-                                    padding: "1px 5px", borderRadius: 4, border: "1px solid #bbf7d0",
-                                  }}>
-                                    {col.discount_reason || `-${formatCurrency(discountAmt)} Concession`}
-                                  </span>
+                              ) : isPartial ? (
+                                <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                                  <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#ea580c" }}>{formatCurrency(remAmt)}</strong>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>/ {formatCurrency(netAmt)}</span>
                                 </div>
+                              ) : (
+                                <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#0f172a" }}>
+                                  {formatCurrency(remAmt)}
+                                </strong>
                               )}
                             </div>
                           </td>
-                          <td>
-                            <span className={cx(s("badge"), s(STATUS_BADGE[col.status] || "badgeGray"))}>
+
+                          {/* 7. STATUS */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", textAlign: "center" }}>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "3px 10px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.4px",
+                              background: isFullyPaid ? "#ecfdf5" : (isCancelled || isUnpaid) ? "#fef2f2" : isWaived ? "#f5f3ff" : "#fffbeb",
+                              border: isFullyPaid ? "1px solid #a7f3d0" : (isCancelled || isUnpaid) ? "1px solid #fecaca" : isWaived ? "1px solid #ddd6fe" : "1px solid #fde68a",
+                              color: isFullyPaid ? "#059669" : (isCancelled || isUnpaid) ? "#dc2626" : isWaived ? "#7c3aed" : "#d97706",
+                            }}>
                               {col.status}
                             </span>
                           </td>
-                          <td style={{ textAlign: "right" }}>
-                            <div style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                              {/* Receipt Badges */}
-                              {col.payments && col.payments.length > 0 ? (
-                                <div style={{ display: "inline-flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
-                                  {col.payments.map((p: any) => (
-                                    <Link
-                                      key={p.id}
-                                      href={`${receiptBase}/${p.id}`}
-                                      target="_blank"
-                                      title={`View Receipt ${p.receipt_number} (${formatCurrency(p.paid_amount)})`}
-                                      style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 4.5,
-                                        padding: "4px 9px",
-                                        borderRadius: 6,
-                                        background: "#0f172a",
-                                        color: "#ffffff",
-                                        fontSize: 11,
-                                        fontWeight: 800,
-                                        textDecoration: "none",
-                                        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
-                                      }}
-                                    >
-                                      <i className="fa-solid fa-receipt" style={{ fontSize: 9.5, color: "#38bdf8" }} />
-                                      <span>{p.receipt_number}</span>
-                                    </Link>
-                                  ))}
-                                </div>
-                              ) : hasPaid ? (
-                                <button
-                                  onClick={() => setModalCol(col)}
-                                  title="View Receipts"
+
+                          {/* 8. ACTIONS */}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", textAlign: "right" }}>
+                            <div style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              gap: 8,
+                              position: "relative",
+                            }}>
+                              {/* Main Action Button */}
+                              {isUnpaid || isPartial ? (
+                                <Link
+                                  href={`${collectUrl}?student_id=${col.student_id}`}
                                   style={{
-                                    display: "inline-flex", alignItems: "center", gap: 5,
-                                    padding: "5px 10px", borderRadius: 7, border: "none",
-                                    background: "#0f172a", color: "#fff", fontWeight: 800, fontSize: 11, cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "5px 12px",
+                                    borderRadius: 6,
+                                    background: "#ea580c",
+                                    color: "#ffffff",
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    textDecoration: "none",
+                                    boxShadow: "0 1px 3px rgba(234, 88, 12, 0.25)",
+                                    whiteSpace: "nowrap",
                                   }}
                                 >
-                                  <i className="fa-solid fa-receipt" style={{ fontSize: 10 }} /> Receipts
+                                  <i className="fa-solid fa-arrow-down-to-bracket" style={{ fontSize: 11 }} /> Collect
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalCol(col);
+                                  }}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "5px 12px",
+                                    borderRadius: 6,
+                                    background: "#ffffff",
+                                    border: "1.5px solid #e2e8f0",
+                                    color: "#334155",
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <i className="fa-regular fa-eye" style={{ fontSize: 11 }} /> View
                                 </button>
-                              ) : null}
+                              )}
 
-                              {/* 3. Operational Actions for Unpaid/Partial bills */}
-                              {col.status !== "paid" && col.status !== "waived" && col.status !== "cancelled" && (
-                                <>
-                                  <Link
-                                    className={cx(s("btn"), s("btnSoft"), s("btnSm"))}
-                                    href={`${collectUrl}?student_id=${col.student_id}`}
-                                  >
-                                    <i className="fa-solid fa-hand-holding-dollar" /> Collect
-                                  </Link>
+                              {/* Three dots menu button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuColId(activeMenuColId === col.id ? null : col.id);
+                                }}
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: activeMenuColId === col.id ? "#f1f5f9" : "transparent",
+                                  color: "#64748b",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  fontSize: 14,
+                                }}
+                              >
+                                <i className="fa-solid fa-ellipsis-vertical" />
+                              </button>
 
-                                  {/* Cancel / Void Mistaken Bill (only if zero payments) */}
-                                  {paidAmt === 0 && (
+                              {/* Dropdown Menu */}
+                              {activeMenuColId === col.id && (
+                                <div
+                                  onClick={e => e.stopPropagation()}
+                                  style={{
+                                    position: "absolute",
+                                    top: "100%",
+                                    right: 0,
+                                    zIndex: 90,
+                                    marginTop: 4,
+                                    background: "#ffffff",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 10,
+                                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                                    minWidth: 175,
+                                    padding: 4,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 2,
+                                  }}
+                                >
+                                  {col.payments && col.payments.length > 0 && (
                                     <button
-                                      onClick={() => { setCancelTarget(col); setCancelReason("Wrong billing entry"); }}
-                                      disabled={cancelling}
-                                      title="Void / Cancel this mistaken bill"
-                                      className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                                      style={{ color: "#dc2626", borderColor: "#fecaca" }}
+                                      type="button"
+                                      onClick={() => { setModalCol(col); setActiveMenuColId(null); }}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "7px 10px",
+                                        border: "none",
+                                        background: "transparent",
+                                        width: "100%",
+                                        textAlign: "left",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: "#0f172a",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                                     >
-                                      <i className="fa-solid fa-ban" /> Cancel
+                                      <i className="fa-solid fa-receipt" style={{ color: "#059669", width: 14 }} />
+                                      <span>View Receipts ({col.payments.length})</span>
                                     </button>
                                   )}
 
-                                  {/* Waive for genuine scholarship / concession */}
-                                  <button
-                                    onClick={() => { setWaiveTarget(col); setWaiveReason("Waived by admin"); }}
-                                    disabled={waiving === col.id}
-                                    title="Waive fee (scholarship / concession)"
-                                    className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                                    style={{ color: "#d97706", borderColor: "#fde68a" }}
-                                  >
-                                    {waiving === col.id ? <Spinner size={10} /> : <i className="fa-solid fa-award" />} Waive
-                                  </button>
-
-                                  {isOverdue && (
+                                  {isOverdue && !isFullyPaid && !isWaived && !isCancelled && (
                                     <button
-                                      onClick={() => { setFineTarget(col); setFineAmount(''); setFineReason(''); }}
-                                      title="Apply late fine"
-                                      className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                                      style={{ color: "#dc2626", borderColor: "#fecaca" }}
+                                      type="button"
+                                      onClick={() => { setFineTarget(col); setFineAmount(""); setFineReason(""); setActiveMenuColId(null); }}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "7px 10px",
+                                        border: "none",
+                                        background: "transparent",
+                                        width: "100%",
+                                        textAlign: "left",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: "#dc2626",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.background = "#fef2f2"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                                     >
-                                      <i className="fa-solid fa-bolt" /> Fine
+                                      <i className="fa-solid fa-bolt" style={{ color: "#dc2626", width: 14 }} />
+                                      <span>Apply Late Fine</span>
                                     </button>
                                   )}
-                                </>
+
+                                  {!isFullyPaid && !isWaived && !isCancelled && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setWaiveTarget(col); setWaiveReason("Waived by admin"); setActiveMenuColId(null); }}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "7px 10px",
+                                        border: "none",
+                                        background: "transparent",
+                                        width: "100%",
+                                        textAlign: "left",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: "#d97706",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.background = "#fffbeb"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                    >
+                                      <i className="fa-solid fa-award" style={{ color: "#d97706", width: 14 }} />
+                                      <span>Waive Fee</span>
+                                    </button>
+                                  )}
+
+                                  {paidAmt === 0 && !isCancelled && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setCancelTarget(col); setCancelReason("Wrong billing entry"); setActiveMenuColId(null); }}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        padding: "7px 10px",
+                                        border: "none",
+                                        background: "transparent",
+                                        width: "100%",
+                                        textAlign: "left",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: "#dc2626",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.background = "#fef2f2"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                    >
+                                      <i className="fa-solid fa-ban" style={{ color: "#dc2626", width: 14 }} />
+                                      <span>Cancel / Void Bill</span>
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>
@@ -1116,22 +1723,22 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
               )
             ) : (
               paymentsList.length === 0 ? (
-                <div className={s("emptyState")}>
-                  <div className={s("emptyIcon")}><i className="fa-solid fa-receipt" /></div>
-                  <p>No payment receipts match the selected search or filters.</p>
+                <div style={{ textAlign: "center", padding: "3.5rem 1rem", color: "#64748b" }}>
+                  <i className="fa-solid fa-receipt" style={{ fontSize: 36, color: "#cbd5e1", marginBottom: 10, display: "block" }} />
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>No payment receipts match the selected search or filters.</p>
                 </div>
               ) : (
-                <table className={s("table")}>
+                <table style={{ width: "100%", minWidth: 1240, borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <thead>
-                    <tr>
-                      <th>Receipt #</th>
-                      <th>Date</th>
-                      <th>Student</th>
-                      <th>Class & Section</th>
-                      <th>Settled Fee Items</th>
-                      <th>Payment Mode</th>
-                      <th>Total Paid</th>
-                      <th style={{ textAlign: "right" }}>Action</th>
+                    <tr style={{ background: "#ffffff", borderBottom: "1.5px solid #e2e8f0" }}>
+                      <th style={{ padding: "12px 14px", width: 160, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Receipt #</th>
+                      <th style={{ padding: "12px 14px", width: 140, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date</th>
+                      <th style={{ padding: "12px 14px", width: 200, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Student</th>
+                      <th style={{ padding: "12px 14px", width: 140, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Class &amp; Section</th>
+                      <th style={{ padding: "12px 14px", width: 260, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Settled Fee Items</th>
+                      <th style={{ padding: "12px 14px", width: 130, textAlign: "left", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment Mode</th>
+                      <th style={{ padding: "12px 14px", width: 130, textAlign: "right", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total Paid</th>
+                      <th style={{ padding: "12px 14px", width: 120, textAlign: "right", fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1151,85 +1758,65 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
                       }
 
                       return (
-                        <tr key={voucher.receipt_number}>
-                          <td>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              <span style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 5,
-                                fontWeight: 900,
-                                fontSize: 12.5,
-                                color: "#0f172a",
-                                background: "#f1f5f9",
-                                padding: "3px 8px",
-                                borderRadius: 6,
-                                border: "1px solid #e2e8f0",
-                                width: "fit-content",
-                              }}>
-                                <i className="fa-solid fa-receipt" style={{ color: "#059669", fontSize: 11 }} />
-                                {voucher.receipt_number}
-                              </span>
-                              <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>
-                                {voucher.items_count} item{voucher.items_count !== 1 ? "s" : ""} settled
-                              </span>
-                            </div>
+                        <tr
+                          key={voucher.receipt_number}
+                          style={{ borderBottom: "1px solid #f1f5f9", background: "#ffffff", transition: "background 0.12s ease" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "#fafbfc"}
+                          onMouseLeave={e => e.currentTarget.style.background = "#ffffff"}
+                        >
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              fontWeight: 800,
+                              fontSize: 12.5,
+                              color: "#0f172a",
+                              background: "#f1f5f9",
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              border: "1px solid #e2e8f0",
+                              width: "fit-content",
+                              whiteSpace: "nowrap",
+                            }}>
+                              <i className="fa-solid fa-receipt" style={{ color: "#059669", fontSize: 11 }} />
+                              {voucher.receipt_number}
+                            </span>
                           </td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: "#0f172a" }}>
-                              <i className="fa-regular fa-calendar" style={{ fontSize: 11, color: "#64748b" }} />
-                              <span>{voucher.payment_date ? formatDate(String(voucher.payment_date).slice(0, 10)) : "—"}</span>
-                            </div>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", fontSize: 12.5, fontWeight: 700, color: "#0f172a", whiteSpace: "nowrap" }}>
+                            {voucher.payment_date ? formatDate(String(voucher.payment_date).slice(0, 10)) : "—"}
                           </td>
-                          <td>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              <span className={s("studentName")}>
+                              <span style={{ fontSize: 13.5, fontWeight: 800, color: "#0f172a" }}>
                                 {voucher.student_name || `Student #${voucher.student_id}`}
                               </span>
-                              <span className={s("studentCode")}>
+                              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#94a3b8" }}>
                                 {voucher.admission_number || "—"}
                               </span>
                             </div>
                           </td>
-                          <td>
-                            {voucher.class_name ? (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                                <span style={{
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  color: "#1e40af",
-                                  background: "#eff6ff",
-                                  border: "1px solid #bfdbfe",
-                                  padding: "2px 7px",
-                                  borderRadius: 6,
-                                  whiteSpace: "nowrap",
-                                }}>
-                                  {voucher.class_name}
-                                </span>
-                                {voucher.section_name && (
-                                  <span style={{
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    color: "#7c3aed",
-                                    background: "#faf5ff",
-                                    border: "1px solid #e9d5ff",
-                                    padding: "2px 6px",
-                                    borderRadius: 6,
-                                    whiteSpace: "nowrap",
-                                  }}>
-                                    Sec {voucher.section_name}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
-                            )}
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "3.5px 10px",
+                              borderRadius: 6,
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              color: "#1d4ed8",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {formatClassSection(voucher.class_name, voucher.section_name)}
+                            </span>
                           </td>
-                          <td>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               {voucher.settled_items && voucher.settled_items.length > 0 ? (
-                                voucher.settled_items.map((it: any, idx: number) => (
-                                  <div key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                                voucher.settled_items.map((it: any, i: number) => (
+                                  <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
                                     <span style={{ color: "#059669", fontWeight: 900 }}>•</span>
                                     <span style={{ color: "#334155", fontWeight: 600 }}>{formatFeeName(it.fee_name)}:</span>
                                     <strong style={{ color: "#0f172a" }}>{formatCurrency(it.paid_amount)}</strong>
@@ -1240,7 +1827,7 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
                               )}
                             </div>
                           </td>
-                          <td>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle" }}>
                             <span style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -1253,38 +1840,38 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
                               background: modeBg,
                               color: modeFg,
                               border: `1px solid ${modeBorder}`,
+                              whiteSpace: "nowrap",
                             }}>
                               <i className={modeIcon} style={{ fontSize: 10 }} />
                               {mode.replace('_', ' ')}
                             </span>
                           </td>
-                          <td>
-                            <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#059669" }}>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", textAlign: "right" }}>
+                            <strong style={{ fontSize: 13.5, fontWeight: 900, color: "#059669", whiteSpace: "nowrap" }}>
                               {formatCurrency(voucher.total_paid)}
                             </strong>
                           </td>
-                          <td style={{ textAlign: "right" }}>
+                          <td style={{ padding: "14px 14px", verticalAlign: "middle", textAlign: "right" }}>
                             <Link
                               href={`${receiptBase}/${voucher.payment_id}`}
                               target="_blank"
-                              className={cx(s("btn"), s("btnSm"))}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: 5,
-                                padding: "5px 11px",
-                                borderRadius: 7,
-                                background: "#0f172a",
-                                color: "#ffffff",
+                                padding: "5px 12px",
+                                borderRadius: 6,
+                                background: "#ffffff",
+                                border: "1.5px solid #e2e8f0",
+                                color: "#334155",
                                 fontWeight: 800,
                                 fontSize: 11.5,
                                 textDecoration: "none",
-                                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
                               }}
-                              title={`View and print receipt voucher ${voucher.receipt_number}`}
+                              title={`View receipt voucher ${voucher.receipt_number}`}
                             >
-                              <i className="fa-solid fa-print" style={{ fontSize: 11, color: "#38bdf8" }} />
-                              <span>Print Receipt</span>
+                              <i className="fa-regular fa-eye" style={{ fontSize: 11 }} />
+                              <span>View</span>
                             </Link>
                           </td>
                         </tr>
@@ -1296,98 +1883,128 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
             )}
           </div>
 
-          {/* ── Table Pagination Footer ── */}
-          {currentTotal > pageSize && (
-            <div style={{
-              padding: "14px 20px",
-              borderTop: "1px solid #f1f5f9",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              background: "#ffffff",
-            }}>
-              <div style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 10 }}>
-                <span>
-                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong>–<strong>{Math.min(currentPage * pageSize, currentTotal)}</strong> of <strong>{currentTotal}</strong> {activeTab === "invoices" ? "invoices" : "receipts"}
-                </span>
-                <select
-                  value={pageSize}
-                  onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                  style={{
-                    height: 30, padding: "0 8px", borderRadius: 6, border: "1.5px solid #e2e8f0",
-                    background: "#fff", color: "#475569", fontSize: 12, fontWeight: 700, outline: "none", cursor: "pointer",
-                  }}
-                >
-                  <option value={10}>10 / page</option>
-                  <option value={20}>20 / page</option>
-                  <option value={50}>50 / page</option>
-                  <option value={100}>100 / page</option>
-                </select>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(1)}
-                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                  style={{ padding: "0 8px" }}
-                  title="First Page"
-                >
-                  <i className="fa-solid fa-angles-left" />
-                </button>
-
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                  style={{ padding: "0 10px" }}
-                >
-                  <i className="fa-solid fa-chevron-left" /> Prev
-                </button>
-
-                {getPaginationItems(currentPage, totalPages).map((item, idx) => {
-                  if (item === "...") {
-                    return (
-                      <span key={`ellipsis-${idx}`} style={{ minWidth: 28, textAlign: "center", color: "#94a3b8", fontWeight: 800 }}>
-                        …
-                      </span>
-                    );
-                  }
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => setCurrentPage(item)}
-                      className={cx(s("btn"), currentPage === item ? s("btnPrimary") : s("btnOutline"), s("btnSm"))}
-                      style={{ minWidth: 32, padding: 0 }}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-
-                <button
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                  style={{ padding: "0 10px" }}
-                >
-                  Next <i className="fa-solid fa-chevron-right" />
-                </button>
-
-                <button
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(totalPages)}
-                  className={cx(s("btn"), s("btnOutline"), s("btnSm"))}
-                  style={{ padding: "0 8px" }}
-                  title="Last Page"
-                >
-                  <i className="fa-solid fa-angles-right" />
-                </button>
-              </div>
+          {/* ── Table Footer ── */}
+          <div style={{
+            padding: "14px 20px",
+            borderTop: "1px solid #f1f5f9",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            background: "#ffffff",
+          }}>
+            {/* Showing records count and page size dropdown */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>
+                Showing {currentTotal > 0 ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, currentTotal)} of {currentTotal} records
+              </span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                style={{
+                  height: 32,
+                  padding: "0 8px",
+                  borderRadius: 6,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: "#334155",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+              </select>
             </div>
-          )}
+
+            {/* Pagination Controls */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Prev Button */}
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: currentPage === 1 ? "#cbd5e1" : "#334155",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontSize: 12,
+                }}
+              >
+                <i className="fa-solid fa-chevron-left" />
+              </button>
+
+              {/* Page Numbers */}
+              {getPaginationItems(currentPage, totalPages).map((item, i) => {
+                if (item === "...") {
+                  return (
+                    <span key={`ellip-${i}`} style={{ width: 28, textAlign: "center", color: "#94a3b8", fontWeight: 800, fontSize: 12 }}>
+                      …
+                    </span>
+                  );
+                }
+                const isActive = item === currentPage;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCurrentPage(item)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 6,
+                      border: isActive ? "none" : "1.5px solid #e2e8f0",
+                      background: isActive ? "#ea580c" : "#ffffff",
+                      color: isActive ? "#ffffff" : "#334155",
+                      fontWeight: 800,
+                      fontSize: 12.5,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      boxShadow: isActive ? "0 2px 5px rgba(234, 88, 12, 0.25)" : "none",
+                    }}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+
+              {/* Next Button */}
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#ffffff",
+                  color: currentPage >= totalPages ? "#cbd5e1" : "#334155",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                  fontSize: 12,
+                }}
+              >
+                <i className="fa-solid fa-chevron-right" />
+              </button>
+            </div>
+          </div>
         </section>
       </main>
 

@@ -282,6 +282,13 @@ export const getFeeCollectionsBySchool = async (
   total_collected: number;
   total_pending: number;
   transport_bills_count: number;
+  status_counts?: {
+    all: number;
+    paid: number;
+    unpaid: number;
+    cancelled: number;
+    waived: number;
+  };
 }> => {
   const params: Array<number | string | string[]> = [school_id, academic_year_id];
 
@@ -338,13 +345,6 @@ export const getFeeCollectionsBySchool = async (
     sectionFilter = `AND sec.id = $${idx}`;
   }
 
-  // status filter
-  let statusFilter = '';
-  if (status && status !== 'all') {
-    const idx = params.push(status);
-    statusFilter = `AND fc.status = $${idx}`;
-  }
-
   // fee_type filter
   let feeTypeFilter = '';
   if (fee_type && fee_type !== 'all') {
@@ -352,7 +352,7 @@ export const getFeeCollectionsBySchool = async (
     feeTypeFilter = `AND COALESCE(fc.fee_type, 'academic') = $${idx}`;
   }
 
-  const joinAndWhere = `
+  const joinAndWhereBase = `
     FROM fee_collections fc
     INNER JOIN students s ON s.id = fc.student_id
     LEFT JOIN student_enrollments se
@@ -368,8 +368,39 @@ export const getFeeCollectionsBySchool = async (
     ${searchFilter}
     ${classFilter}
     ${sectionFilter}
-    ${statusFilter}
     ${feeTypeFilter}
+  `;
+
+  // Status breakdown counts (across all statuses) for UI status filter pills
+  const baseParams = [...params];
+  const statusCountsResult = await pool.query(
+    `SELECT 
+       COUNT(*)::int AS count_all,
+       COUNT(*) FILTER (WHERE fc.status = 'paid')::int AS count_paid,
+       COUNT(*) FILTER (WHERE fc.status IN ('unpaid', 'partial'))::int AS count_unpaid,
+       COUNT(*) FILTER (WHERE fc.status = 'cancelled')::int AS count_cancelled,
+       COUNT(*) FILTER (WHERE fc.status = 'waived')::int AS count_waived
+     ${joinAndWhereBase}`,
+    baseParams
+  );
+  const status_counts = {
+    all: Number(statusCountsResult.rows[0]?.count_all ?? 0),
+    paid: Number(statusCountsResult.rows[0]?.count_paid ?? 0),
+    unpaid: Number(statusCountsResult.rows[0]?.count_unpaid ?? 0),
+    cancelled: Number(statusCountsResult.rows[0]?.count_cancelled ?? 0),
+    waived: Number(statusCountsResult.rows[0]?.count_waived ?? 0),
+  };
+
+  // status filter for the actual list query
+  let statusFilter = '';
+  if (status && status !== 'all') {
+    const idx = params.push(status);
+    statusFilter = `AND fc.status = $${idx}`;
+  }
+
+  const joinAndWhere = `
+    ${joinAndWhereBase}
+    ${statusFilter}
   `;
 
   // total count & server aggregates for frontend hero cards & pagination
@@ -422,6 +453,7 @@ export const getFeeCollectionsBySchool = async (
     total_collected,
     total_pending,
     transport_bills_count,
+    status_counts,
   };
 };
 
@@ -795,19 +827,55 @@ export const getPaymentWithDetails = async (
       [school_id, payment.receipt_number]
     );
 
-    if (siblingResult.rows.length > 1) {
+    if (siblingResult.rows.length > 0) {
       payment.items = siblingResult.rows;
-      payment.total_amount     = siblingResult.rows.reduce((s, r) => s + Number(r.total_amount || 0), 0);
-      payment.discount_amount  = siblingResult.rows.reduce((s, r) => s + Number(r.discount_amount || 0), 0);
-      payment.fine_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.fine_amount || 0), 0);
-      payment.net_amount       = siblingResult.rows.reduce((s, r) => s + Number(r.net_amount || 0), 0);
-      payment.paid_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
-      payment.remaining_amount = siblingResult.rows.reduce((s, r) => s + Number(r.remaining_amount || 0), 0);
+      if (siblingResult.rows.length > 1) {
+        payment.total_amount     = siblingResult.rows.reduce((s, r) => s + Number(r.total_amount || 0), 0);
+        payment.discount_amount  = siblingResult.rows.reduce((s, r) => s + Number(r.discount_amount || 0), 0);
+        payment.fine_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.fine_amount || 0), 0);
+        payment.net_amount       = siblingResult.rows.reduce((s, r) => s + Number(r.net_amount || 0), 0);
+        payment.paid_amount      = siblingResult.rows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+        payment.remaining_amount = siblingResult.rows.reduce((s, r) => s + Number(r.remaining_amount || 0), 0);
+      }
     } else {
-      payment.items = [payment];
+      payment.items = [{
+        payment_id: payment.payment_id,
+        paid_amount: payment.paid_amount,
+        collection_id: payment.collection_id,
+        fee_name: payment.fee_name,
+        fee_type: payment.fee_type,
+        collection_status: payment.collection_status,
+        total_amount: payment.total_amount,
+        discount_amount: payment.discount_amount,
+        discount_reason: payment.discount_reason,
+        fine_amount: payment.fine_amount,
+        fine_reason: payment.fine_reason,
+        net_amount: payment.net_amount,
+        remaining_amount: payment.remaining_amount,
+        due_date: payment.due_date,
+        structure_frequency: payment.structure_frequency,
+        structure_amount: payment.structure_amount,
+      }];
     }
   } else {
-    payment.items = [payment];
+    payment.items = [{
+      payment_id: payment.payment_id,
+      paid_amount: payment.paid_amount,
+      collection_id: payment.collection_id,
+      fee_name: payment.fee_name,
+      fee_type: payment.fee_type,
+      collection_status: payment.collection_status,
+      total_amount: payment.total_amount,
+      discount_amount: payment.discount_amount,
+      discount_reason: payment.discount_reason,
+      fine_amount: payment.fine_amount,
+      fine_reason: payment.fine_reason,
+      net_amount: payment.net_amount,
+      remaining_amount: payment.remaining_amount,
+      due_date: payment.due_date,
+      structure_frequency: payment.structure_frequency,
+      structure_amount: payment.structure_amount,
+    }];
   }
 
   return payment;

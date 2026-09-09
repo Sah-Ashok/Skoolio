@@ -8,7 +8,7 @@ const errorHandler = (
   next: NextFunction
 ): void => {
   let statusCode = 500;
-  let message = 'Internal Server Error';
+  let message = 'Something went wrong';
 
   if (err instanceof AppError) {
     statusCode = err.statusCode;
