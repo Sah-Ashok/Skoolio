@@ -237,6 +237,84 @@ export const send2FAEnabledEmail = async (to: string, schoolName: string): Promi
   });
 };
 
+// Cooldown tracker to prevent email flooding (max 1 email per 10 mins)
+let lastErrorEmailSentAt = 0;
+const ERROR_EMAIL_COOLDOWN_MS = 10 * 60 * 1000;
+
+export const sendCriticalErrorAlert = async (
+  errorType: string,
+  errorMessage: string,
+  errorStack?: string,
+  context?: string
+): Promise<void> => {
+  const now = Date.now();
+  if (now - lastErrorEmailSentAt < ERROR_EMAIL_COOLDOWN_MS) {
+    console.log('[Email Alert] Throttled: error alert sent less than 10 minutes ago.');
+    return;
+  }
+  lastErrorEmailSentAt = now;
+
+  const recipient = process.env.SUPER_ADMIN_ALERT_EMAIL || process.env.SMTP_USER || 'wd0ashok@gmail.com';
+  const timestamp = new Date().toISOString();
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${GOOGLE_FONTS_HEAD}
+</head>
+<body style="margin:0;padding:24px 16px;font-family:${FONT_FAMILY};color:#0f172a;background:#f8fafc;line-height:1.6;">
+  <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #fee2e2;padding:24px;box-shadow:0 4px 12px rgba(239,68,68,0.08);">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <span style="background:#ef4444;color:#ffffff;font-size:12px;font-weight:800;padding:4px 10px;border-radius:6px;text-transform:uppercase;">Critical System Alert</span>
+      <span style="font-size:12px;color:#64748b;">${timestamp}</span>
+    </div>
+
+    <h2 style="margin:0 0 12px 0;font-size:18px;font-weight:800;color:#991b1b;">
+      ⚠️ Server Incident: ${errorType}
+    </h2>
+
+    ${context ? `<p style="margin:0 0 12px 0;font-size:13px;color:#475569;"><strong>Endpoint / Context:</strong> <code>${context}</code></p>` : ''}
+
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+      <p style="margin:0;font-family:monospace;font-size:13px;color:#b91c1c;font-weight:700;word-break:break-word;">
+        ${errorMessage}
+      </p>
+    </div>
+
+    ${errorStack ? `
+    <div style="margin-bottom:16px;">
+      <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;">Stack Trace:</p>
+      <pre style="background:#0f172a;color:#f8fafc;padding:14px;border-radius:8px;font-size:11px;overflow-x:auto;max-height:260px;line-height:1.5;">${errorStack}</pre>
+    </div>` : ''}
+
+    <p style="margin:0 0 16px 0;font-size:13px;color:#64748b;">
+      You can inspect live error and crash logs in the <strong>Super Admin Portal &gt; System Logs</strong>.
+    </p>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px;font-size:12px;color:#94a3b8;">
+      Skoolio Autonomous Monitoring Engine
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    await getTransporter().sendMail({
+      from: `"Skoolio Alerts" <${process.env.SMTP_USER}>`,
+      to: recipient,
+      subject: `🚨 [CRITICAL ALERT] ${errorType}: ${errorMessage.slice(0, 60)}`,
+      text: `[CRITICAL ALERT] ${errorType}\nTime: ${timestamp}\nContext: ${context || 'N/A'}\nError: ${errorMessage}\n\nStack:\n${errorStack || 'None'}`,
+      html,
+    });
+    console.log(`[Email Alert] Critical error alert delivered to ${recipient}`);
+  } catch (mailErr: any) {
+    console.error('[Email Alert Error] Failed to send critical error email:', mailErr.message);
+  }
+};
+
+
 
 
 

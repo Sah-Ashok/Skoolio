@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import AppError from '../utils/AppError';
+import logger from '../utils/logger';
 
 const errorHandler = (
   err: Error | AppError,
@@ -22,7 +23,8 @@ const errorHandler = (
   const isUnexpected  = !(err instanceof AppError);
 
   if (isServerError || isUnexpected) {
-    console.error('ERROR:', err);
+    const errorContext = `${req.method} ${req.originalUrl || req.url} [Status: ${statusCode}]`;
+    logger.error(errorContext, err);
   }
 
   res.status(statusCode).json({

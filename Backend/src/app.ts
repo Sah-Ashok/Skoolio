@@ -36,6 +36,7 @@ import { ipBanAndMaintenanceMiddleware } from './middlewares/ipBan.middleware';
 import { globalApiLimiter } from './middlewares/rateLimiter.middleware';
 import { activeUserMiddleware } from './middlewares/activeUser.middleware';
 import { syncBlockedSchools } from './Service/redis.service';
+import logger from './utils/logger';
 
 const app:Application = express();
 
@@ -59,6 +60,18 @@ app.use('/api', globalApiLimiter);
 
 // Live active user heartbeat tracker (fire-and-forget to Redis)
 app.use(activeUserMiddleware);
+
+// HTTP Request logging (writes to combined.log asynchronously)
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    // Avoid spamming health check pings in logs
+    if (req.originalUrl === '/api/health') return;
+    const duration = Date.now() - start;
+    logger.info(`${req.method} ${req.originalUrl || req.url} ${res.statusCode} ${duration}ms`);
+  });
+  next();
+});
 
 // Global activity logger — fire-and-forget, never blocks main loop
 // Logs all successful POST/PUT/PATCH/DELETE requests for authenticated users

@@ -165,6 +165,9 @@ export default function SuperAdminSidebar() {
           </Link>
 
           <div className="sa-nav-label">System</div>
+          <Link href="/super-admin/logs" className={isActive('/super-admin/logs')}>
+            <i className="fa-solid fa-terminal" /> System Logs
+          </Link>
           <Link href="/super-admin/settings" className={isActive('/super-admin/settings')}>
             <i className="fa-solid fa-sliders" /> Settings
           </Link>

@@ -23,8 +23,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     networks:
       - skoolio_net
     healthcheck:
@@ -42,8 +40,6 @@ services:
     container_name: skoolio_redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -80,6 +76,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - AZURE_SCHOOL_DATA_CONTAINER=school-data
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
