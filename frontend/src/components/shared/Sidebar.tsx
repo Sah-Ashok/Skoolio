@@ -144,7 +144,8 @@ const financeNav: NavSection[] = [
   {
     label: 'Main',
     items: [
-      { href: '/finance/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
+      { href: '/finance/dashboard', icon: 'fa-gauge-high',    label: 'Dashboard' },
+      { href: '/finance/notices',   icon: 'fa-bullhorn',      label: 'Notices' },
       { href: '/finance/calendar',  icon: 'fa-calendar-days', label: 'Calendar' },
     ],
   },
@@ -168,8 +169,16 @@ const financeNav: NavSection[] = [
   {
     label: 'Accounting',
     items: [
-      { href: '/finance/expenses',             icon: 'fa-file-invoice-dollar',   label: 'Expenses' },
-      { href: '/finance/salary',               icon: 'fa-money-bill-wave',       label: 'Payroll & Salary' },
+      { href: '/finance/staff/attendance/register', icon: 'fa-table-list',            label: 'Staff Register' },
+      { href: '/finance/salary',                   icon: 'fa-money-bill-wave',       label: 'Payroll & Salary' },
+      { href: '/finance/expenses',                 icon: 'fa-file-invoice-dollar',   label: 'Expenses' },
+    ],
+  },
+  {
+    label: 'Facilities',
+    items: [
+      { href: '/finance/transport', icon: 'fa-bus',      label: 'Transport' },
+      { href: '/finance/hostel',    icon: 'fa-building', label: 'Hostel' },
     ],
   },
 ];
@@ -273,14 +282,16 @@ export default function Sidebar({ role }: SidebarProps) {
       return baseSections;
     }
 
-    // When finance account exists, remove operational fee links from admin sidebar
-    return baseSections.map((section) => {
-      if (section.label !== 'Finance') return section;
-      return {
-        ...section,
-        items: section.items.filter((item) => !HIDDEN_WHEN_FINANCE_ACTIVE.has(item.href)),
-      };
-    });
+    // When finance account exists, remove operational fee links and Facilities from admin sidebar
+    return baseSections
+      .filter((section) => section.label !== 'Facilities')
+      .map((section) => {
+        if (section.label !== 'Finance') return section;
+        return {
+          ...section,
+          items: section.items.filter((item) => !HIDDEN_WHEN_FINANCE_ACTIVE.has(item.href)),
+        };
+      });
   }, [role, hasActiveFinanceAccount]);
 
   const activeRole = role as SidebarRole;

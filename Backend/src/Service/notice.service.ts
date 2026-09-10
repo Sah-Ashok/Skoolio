@@ -26,16 +26,18 @@ const getTeacherName = async (teacher_id: number, school_id: number): Promise<st
 
 export const createNoticeAdminService = async (
   school_id: number,
-  admin_name: string,
-  data: ICreateNotice
+  author_name: string,
+  data: ICreateNotice,
+  created_by_role: 'admin' | 'finance' = 'admin',
+  created_by_id: number = school_id
 ): Promise<INotice> => {
-  // Admin notices are always school-wide (no section targeting)
+  // Admin & Finance notices are school-wide (no section targeting)
   const noticeData: ICreateNotice = {
     ...data,
     target_type: null,
     target_section_id: null,
   };
-  return createNotice(school_id, 'admin', school_id, admin_name, noticeData);
+  return createNotice(school_id, created_by_role, created_by_id, author_name, noticeData);
 };
 
 // ── TEACHER: Create notice (section-scoped) ───────────────────
@@ -84,7 +86,7 @@ export const getNoticesTeacherService = async (
 export const updateNoticeService = async (
   id: number,
   school_id: number,
-  requester_role: 'admin' | 'faculty',
+  requester_role: 'admin' | 'faculty' | 'finance',
   requester_id: number,
   data: IUpdateNotice
 ): Promise<INotice> => {
@@ -119,7 +121,7 @@ export const updateNoticeService = async (
 export const deleteNoticeService = async (
   id: number,
   school_id: number,
-  requester_role: 'admin' | 'faculty',
+  requester_role: 'admin' | 'faculty' | 'finance',
   requester_id: number
 ): Promise<void> => {
   const notice = await getNoticeById(id, school_id);

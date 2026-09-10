@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useApi, useMutation } from "@/lib/useApi";
+import { useAppSelector } from "@/store/hooks";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { apiRequest } from "@/lib/api";
@@ -607,6 +609,8 @@ function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; 
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export function StaffSalaryPage() {
+  const user = useAppSelector((state) => state.auth.user);
+  const isFinance = user?.role === 'finance';
   const { isBS } = useDateFormat();
   const { data: staff }    = useApi<Staff[]>("/staff");
   const { data: allPay, loading, refetch: refetchAll } = useApi<SalaryPayment[]>("/staff/salary/payments");
@@ -659,11 +663,57 @@ export function StaffSalaryPage() {
             <p>Attendance-based deductions auto-calculated. Click any row for the detailed slip.</p>
           </div>
           <div className={s("actions")}>
+            <Link
+              className={cx(s("btn"), s("btnOutline"))}
+              href={isFinance ? "/finance/staff/attendance/register" : "/staff/attendance/register"}
+            >
+              <i className="fa-solid fa-table-list" /> Staff Register
+            </Link>
             <button className={cx(s("btn"), s("btnPrimary"))} onClick={() => setModal("pay")}>
               <i className="fa-solid fa-money-bill-wave" /> Pay Salary
             </button>
           </div>
         </section>
+
+        {/* ── Tabs (Teaching vs Non-Teaching) ── */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <Link
+            href={isFinance ? "/finance/salary" : "/salary"}
+            style={{
+              padding: "9px 18px",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#4a5a65",
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: "none",
+              border: "1px solid #c6d0d7",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
+            <i className="fa-solid fa-chalkboard-user" /> Teaching Faculty
+          </Link>
+          <Link
+            href={isFinance ? "/finance/staff/salary" : "/staff/salary"}
+            style={{
+              padding: "9px 18px",
+              borderRadius: 8,
+              background: "#3b5bdb",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              boxShadow: "0 2px 6px rgba(59,91,219,0.25)",
+            }}
+          >
+            <i className="fa-solid fa-user-tie" /> Non-Teaching Staff
+          </Link>
+        </div>
 
         <section className={s("stats")}>
           {[

@@ -17,11 +17,25 @@ import {
 const getSchoolId = (user: any): number =>
   'school_id' in user ? user.school_id : user.id;
 
-// ── ADMIN: Create school-wide notice ─────────────────────────
+// ── ADMIN & FINANCE: Create school-wide notice ───────────────
 
 export const createNoticeAdmin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const admin = req.user as IJwtAdminPayload;
-  const notice = await createNoticeAdminService(admin.id, admin.school_name, req.body);
+  const user = req.user as any;
+  const school_id = getSchoolId(user);
+  const isFinance = user.role === 'finance';
+  const author_name = isFinance
+    ? (user.full_name || 'Finance Manager')
+    : (user.school_name || user.owner_full_name || 'School Admin');
+  const role: 'admin' | 'finance' = isFinance ? 'finance' : 'admin';
+  const author_id = isFinance ? user.id : school_id;
+
+  const notice = await createNoticeAdminService(
+    school_id,
+    author_name,
+    req.body,
+    role,
+    author_id
+  );
   sendResponse(res, 201, true, 'Notice created successfully', notice);
 });
 
@@ -37,11 +51,12 @@ export const createNoticeTeacher = catchAsync(async (req: Request, res: Response
   sendResponse(res, 201, true, 'Notice created successfully', notice);
 });
 
-// ── ADMIN: Get all school notices ────────────────────────────
+// ── ADMIN & FINANCE: Get all school notices ──────────────────
 
 export const getNoticesAdmin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const admin = req.user as IJwtAdminPayload;
-  const notices = await getNoticesAdminService(admin.id);
+  const user = req.user as any;
+  const school_id = getSchoolId(user);
+  const notices = await getNoticesAdminService(school_id);
   sendResponse(res, 200, true, 'Notices fetched successfully', notices);
 });
 
@@ -58,7 +73,8 @@ export const getNoticesTeacher = catchAsync(async (req: Request, res: Response, 
 export const updateNotice = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as any;
   const school_id = getSchoolId(user);
-  const role: 'admin' | 'faculty' = user.role === 'faculty' ? 'faculty' : 'admin';
+  const role: 'admin' | 'faculty' | 'finance' =
+    user.role === 'faculty' ? 'faculty' : user.role === 'finance' ? 'finance' : 'admin';
   const requester_id = role === 'admin' ? school_id : user.id;
 
   const notice = await updateNoticeService(
@@ -76,7 +92,8 @@ export const updateNotice = catchAsync(async (req: Request, res: Response, next:
 export const deleteNotice = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as any;
   const school_id = getSchoolId(user);
-  const role: 'admin' | 'faculty' = user.role === 'faculty' ? 'faculty' : 'admin';
+  const role: 'admin' | 'faculty' | 'finance' =
+    user.role === 'faculty' ? 'faculty' : user.role === 'finance' ? 'finance' : 'admin';
   const requester_id = role === 'admin' ? school_id : user.id;
 
   await deleteNoticeService(Number(req.params.id), school_id, role, requester_id);

@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styles from "./transport.module.css";
-import { useApi } from "@/lib/useApi";
+import { useApi, clearApiCache } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -34,6 +36,29 @@ export default function TransportPage() {
   const { isBS } = useDateFormat();
   const { fmt: fmtCur } = useCurrency();
   const [tab, setTab] = useState<Tab>("overview");
+
+  const pathname = usePathname();
+  const isFinance = pathname?.startsWith("/finance");
+
+  const [financeTick, setFinanceTick] = useState(0);
+  useEffect(() => {
+    const handleAccountChange = () => {
+      clearApiCache("/school/finance-account");
+      setFinanceTick((t) => t + 1);
+    };
+    window.addEventListener("finance-account-changed", handleAccountChange);
+    return () => window.removeEventListener("finance-account-changed", handleAccountChange);
+  }, []);
+
+  const { data: financeAccount } = useApi<any>(
+    !isFinance ? "/school/finance-account" : null,
+    [financeTick]
+  );
+  const hasActiveFinanceAccount = Boolean(
+    financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
+  );
+
+  const collectUrl = isFinance ? "/finance/fees/collect" : "/fees/collect";
 
   const { activeYear } = useAcademicYear();
   const { data: summary, refetch: refetchSummary } = useApi<any>(
@@ -384,6 +409,121 @@ export default function TransportPage() {
     { key:"assignments", icon:"fa-users", label:"Assignments" },
   ];
 
+  if (!isFinance && hasActiveFinanceAccount) {
+    return (
+      <div style={{ minHeight: "80vh", background: "#f8faff", display: "grid", placeItems: "center", padding: "40px 20px" }}>
+        <div style={{
+          background: "#fff",
+          border: "1.5px solid #e2e8f0",
+          borderRadius: 16,
+          maxWidth: 560,
+          width: "100%",
+          padding: "36px 32px",
+          textAlign: "center",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            background: "#ecfdf5",
+            color: "#059669",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 24,
+            margin: "0 auto 18px",
+            border: "1px solid #a7f3d0",
+          }}>
+            <i className="fa-solid fa-bus" />
+          </div>
+
+          <span style={{
+            padding: "3px 10px",
+            borderRadius: 999,
+            background: "#ecfdf5",
+            color: "#047857",
+            fontSize: 11.5,
+            fontWeight: 800,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            display: "inline-block",
+            marginBottom: 10,
+          }}>
+            Facilities Delegated
+          </span>
+
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: "#0f172a", margin: "0 0 10px" }}>
+            Transport Facility Managed by Finance Department
+          </h2>
+
+          <p style={{ fontSize: 13.5, color: "#64748b", lineHeight: 1.6, margin: "0 0 20px" }}>
+            Your school has configured an active <strong>Finance Manager</strong> ({financeAccount?.full_name || "Finance Officer"} &bull; {financeAccount?.email}).
+            School transport routes, vehicle allocations, and transport fee billing are currently delegated to the <strong>Finance Portal</strong>.
+          </p>
+
+          <div style={{
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            padding: "14px 18px",
+            textAlign: "left",
+            fontSize: 12.5,
+            color: "#64748b",
+            marginBottom: 24,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>
+              <i className="fa-solid fa-circle-info" style={{ color: "#2563eb" }} />
+              Admin Access &amp; Fallback
+            </div>
+            <div>
+              If the Finance Manager access is revoked, complete control over transport facilities will immediately return to the School Admin dashboard.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            <Link
+              href="/dashboard"
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                background: "#0f172a",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-gauge-high" /> Return to Dashboard
+            </Link>
+            <Link
+              href="/settings?tab=finance-account"
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                border: "1.5px solid #e2e8f0",
+                background: "#fff",
+                color: "#0f172a",
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-user-shield" /> Manage Finance Access
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={s("page")}>
       <main className={s("content")}>
@@ -396,6 +536,13 @@ export default function TransportPage() {
             <p>Manage vehicles, plan routes, add stops and assign students to transport.</p>
           </div>
           <div className={s("hero-actions")}>
+            <Link
+              href={collectUrl}
+              className={cx(s("btn"), s("btn-secondary"))}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", minHeight: 34, padding: "0 14px", fontSize: 12.5 }}
+            >
+              <i className="fa-solid fa-hand-holding-dollar" style={{ color: "#16a34a" }} /> Collect Fee
+            </Link>
             {tab === "overview" && (
               <div className={s("billing-group")}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 6, color: "#64748b", fontSize: 13 }}>
@@ -902,13 +1049,25 @@ export default function TransportPage() {
                             <td style={{fontSize:13}}>{a.stop_name}</td>
                             <td style={{fontWeight:800,color:"#ff9b51",fontSize:13}}>{fmtCur(a.monthly_fee||0)}</td>
                             <td>
-                              {confirmAId===a.id ? (
-                                <div className={s("confirm-row")}>
-                                  <span style={{fontSize:11,fontWeight:700,color:"#f43f5e"}}>End?</span>
-                                  <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>endAssignment(a.id)}>Yes</button>
-                                  <button className={cx(s("btn"),s("btn-sm"))} onClick={()=>setConfirmAId(null)}>No</button>
-                                </div>
-                              ) : <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>setConfirmAId(a.id)}><i className="fa-solid fa-xmark"/></button>}
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <Link
+                                  href={`${collectUrl}?student_id=${a.student_id}`}
+                                  style={{
+                                    padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0",
+                                    background: "#fff", color: "#2563eb", fontSize: 11, fontWeight: 800,
+                                    textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4,
+                                  }}
+                                >
+                                  <i className="fa-solid fa-hand-holding-dollar" /> Collect
+                                </Link>
+                                {confirmAId===a.id ? (
+                                  <div className={s("confirm-row")}>
+                                    <span style={{fontSize:11,fontWeight:700,color:"#f43f5e"}}>End?</span>
+                                    <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>endAssignment(a.id)}>Yes</button>
+                                    <button className={cx(s("btn"),s("btn-sm"))} onClick={()=>setConfirmAId(null)}>No</button>
+                                  </div>
+                                ) : <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>setConfirmAId(a.id)}><i className="fa-solid fa-xmark"/></button>}
+                              </div>
                             </td>
                           </tr>
                         ))}

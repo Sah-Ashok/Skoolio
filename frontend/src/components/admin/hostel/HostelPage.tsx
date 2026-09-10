@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useApi } from "@/lib/useApi";
+import { usePathname } from "next/navigation";
+import { useApi, clearApiCache } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -150,6 +151,29 @@ export default function HostelPage() {
   const dispatch = useAppDispatch();
   const { isBS, formatDate } = useDateFormat();
   const { activeYear, academicYearId } = useAcademicYear();
+
+  const pathname = usePathname();
+  const isFinance = pathname?.startsWith("/finance");
+
+  const [financeTick, setFinanceTick] = useState(0);
+  useEffect(() => {
+    const handleAccountChange = () => {
+      clearApiCache("/school/finance-account");
+      setFinanceTick((t) => t + 1);
+    };
+    window.addEventListener("finance-account-changed", handleAccountChange);
+    return () => window.removeEventListener("finance-account-changed", handleAccountChange);
+  }, []);
+
+  const { data: financeAccount } = useApi<any>(
+    !isFinance ? "/school/finance-account" : null,
+    [financeTick]
+  );
+  const hasActiveFinanceAccount = Boolean(
+    financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
+  );
+
+  const collectUrl = isFinance ? "/finance/fees/collect" : "/fees/collect";
 
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -579,6 +603,121 @@ export default function HostelPage() {
     }
   };
 
+  if (!isFinance && hasActiveFinanceAccount) {
+    return (
+      <div style={{ minHeight: "80vh", background: col.bg, display: "grid", placeItems: "center", padding: "40px 20px" }}>
+        <div style={{
+          background: "#fff",
+          border: `1.5px solid ${col.border}`,
+          borderRadius: 16,
+          maxWidth: 560,
+          width: "100%",
+          padding: "36px 32px",
+          textAlign: "center",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            background: "#ecfdf5",
+            color: "#059669",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 24,
+            margin: "0 auto 18px",
+            border: "1px solid #a7f3d0",
+          }}>
+            <i className="fa-solid fa-building" />
+          </div>
+
+          <span style={{
+            padding: "3px 10px",
+            borderRadius: 999,
+            background: "#ecfdf5",
+            color: "#047857",
+            fontSize: 11.5,
+            fontWeight: 800,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            display: "inline-block",
+            marginBottom: 10,
+          }}>
+            Facilities Delegated
+          </span>
+
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: col.navy, margin: "0 0 10px" }}>
+            Hostel Facility Managed by Finance Department
+          </h2>
+
+          <p style={{ fontSize: 13.5, color: col.muted, lineHeight: 1.6, margin: "0 0 20px" }}>
+            Your school has configured an active <strong>Finance Manager</strong> ({financeAccount?.full_name || "Finance Officer"} &bull; {financeAccount?.email}).
+            Hostel allocations, room management, and boarding fee dues are currently delegated to the <strong>Finance Portal</strong>.
+          </p>
+
+          <div style={{
+            background: "#f8fafc",
+            border: `1px solid ${col.border}`,
+            borderRadius: 10,
+            padding: "14px 18px",
+            textAlign: "left",
+            fontSize: 12.5,
+            color: col.muted,
+            marginBottom: 24,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: col.navy, marginBottom: 4 }}>
+              <i className="fa-solid fa-circle-info" style={{ color: col.blue }} />
+              Admin Access &amp; Fallback
+            </div>
+            <div>
+              If the Finance Manager access is revoked, complete control over hostel facilities will immediately return to the School Admin dashboard.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            <Link
+              href="/dashboard"
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                background: col.navy,
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-gauge-high" /> Return to Dashboard
+            </Link>
+            <Link
+              href="/settings?tab=finance-account"
+              style={{
+                height: 40,
+                padding: "0 18px",
+                borderRadius: 9,
+                border: `1.5px solid ${col.border}`,
+                background: "#fff",
+                color: col.navy,
+                fontWeight: 700,
+                fontSize: 13,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className="fa-solid fa-user-shield" /> Manage Finance Access
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#f8faff", display: "flex", flexDirection: "column" }}>
       <style>{`
@@ -630,7 +769,7 @@ export default function HostelPage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Link
-              href="/fees/collect"
+              href={collectUrl}
               style={{
                 height: 38, padding: "0 14px", borderRadius: 8, border: `1.5px solid ${col.border}`,
                 background: "#fff", color: col.navy, fontWeight: 800, fontSize: 12.5,
@@ -1264,7 +1403,7 @@ export default function HostelPage() {
                             <td style={{ textAlign: "right" }}>
                               <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                                 <Link
-                                  href={`/fees/collect?student_id=${a.student_id}`}
+                                  href={`${collectUrl}?student_id=${a.student_id}`}
                                   style={{
                                     padding: "4px 8px", borderRadius: 6, border: `1px solid ${col.border}`,
                                     background: "#fff", color: col.blue, fontSize: 11, fontWeight: 800,

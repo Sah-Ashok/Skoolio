@@ -20,7 +20,7 @@ const JOIN_FRAGMENT = `
 
 export const createNotice = async (
   school_id: number,
-  created_by_role: 'admin' | 'faculty',
+  created_by_role: 'admin' | 'faculty' | 'finance',
   created_by_id: number,
   created_by_name: string,
   data: ICreateNotice

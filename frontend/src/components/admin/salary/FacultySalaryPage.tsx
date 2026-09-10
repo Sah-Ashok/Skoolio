@@ -76,7 +76,13 @@ export default function FacultySalaryPage() {
             <h1>Payroll &amp; Salary</h1>
             <p>View payment status for teaching faculty and non-teaching staff, and process monthly payroll.</p>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link
+              className={cx(s("btn"), s("btnOutline"))}
+              href={isFinance ? "/finance/staff/attendance/register" : "/staff/attendance/register"}
+            >
+              <i className="fa-solid fa-table-list" /> Staff Register
+            </Link>
             {!isFinance && (
               <Link className={cx(s("btn"), s("btnOutline"))} href="/settings?tab=payroll">
                 <i className="fa-solid fa-gear" /> Payroll Policy
@@ -91,7 +97,7 @@ export default function FacultySalaryPage() {
         {/* ── Tabs (Teaching vs Non-Teaching) ── */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <Link
-            href="/salary"
+            href={isFinance ? "/finance/salary" : "/salary"}
             style={{
               padding: "9px 18px",
               borderRadius: 8,
@@ -109,7 +115,7 @@ export default function FacultySalaryPage() {
             <i className="fa-solid fa-chalkboard-user" /> Teaching Faculty
           </Link>
           <Link
-            href="/staff/salary"
+            href={isFinance ? "/finance/staff/salary" : "/staff/salary"}
             style={{
               padding: "9px 18px",
               borderRadius: 8,

@@ -17,7 +17,7 @@ interface Notice {
   id: number;
   title: string;
   content: string;
-  created_by_role: "admin" | "faculty";
+  created_by_role: "admin" | "faculty" | "finance";
   created_by_name: string;
   target_type: "section" | null;
   target_section_id: number | null;

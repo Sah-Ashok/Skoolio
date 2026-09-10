@@ -13,12 +13,12 @@ import {
 
 const router = Router();
 
-// ── Admin routes ──────────────────────────────────────────────
-// Admin: create school-wide notice
-router.post('/admin',  protect, restrictTo('admin', 'super_admin'), createNoticeAdmin);
+// ── Admin & Finance routes ────────────────────────────────────
+// Admin & Finance: create school-wide notice
+router.post('/admin',  protect, restrictTo('admin', 'super_admin', 'finance'), createNoticeAdmin);
 
-// Admin: get all notices for the school
-router.get('/admin',   protect, restrictTo('admin', 'super_admin'), getNoticesAdmin);
+// Admin & Finance: get all notices for the school
+router.get('/admin',   protect, restrictTo('admin', 'super_admin', 'finance'), getNoticesAdmin);
 
 // ── Teacher routes ────────────────────────────────────────────
 // Teacher: create section-scoped notice
@@ -31,8 +31,8 @@ router.get('/teacher',   protect, restrictTo('faculty'), getNoticesTeacher);
 // Student: get notices visible to them (school-wide + own section)
 router.get('/student',   protect, restrictTo('student'), getNoticesStudent);
 
-// ── Shared routes (admin or teacher, with ownership check) ────
-router.patch('/:id',  protect, restrictTo('admin', 'super_admin', 'faculty'), updateNotice);
-router.delete('/:id', protect, restrictTo('admin', 'super_admin', 'faculty'), deleteNotice);
+// ── Shared routes (admin, teacher, or finance, with ownership check) ────
+router.patch('/:id',  protect, restrictTo('admin', 'super_admin', 'faculty', 'finance'), updateNotice);
+router.delete('/:id', protect, restrictTo('admin', 'super_admin', 'faculty', 'finance'), deleteNotice);
 
 export default router;

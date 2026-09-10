@@ -13,34 +13,34 @@ const router = Router();
 router.use(protect);
 
 // ── Summary ──
-router.get('/summary', restrictTo('admin', 'super_admin'), getSummary);
+router.get('/summary', restrictTo('admin', 'super_admin', 'finance'), getSummary);
 
 // ── Vehicles ──
-router.get   ('/vehicles',     restrictTo('admin', 'super_admin'), getVehicles);
-router.post  ('/vehicles',     restrictTo('admin', 'super_admin'), createVehicle);
-router.get   ('/vehicles/:id', restrictTo('admin', 'super_admin'), getVehicleById);
-router.patch ('/vehicles/:id', restrictTo('admin', 'super_admin'), updateVehicle);
-router.delete('/vehicles/:id', restrictTo('admin', 'super_admin'), deleteVehicle);
+router.get   ('/vehicles',     restrictTo('admin', 'super_admin', 'finance'), getVehicles);
+router.post  ('/vehicles',     restrictTo('admin', 'super_admin', 'finance'), createVehicle);
+router.get   ('/vehicles/:id', restrictTo('admin', 'super_admin', 'finance'), getVehicleById);
+router.patch ('/vehicles/:id', restrictTo('admin', 'super_admin', 'finance'), updateVehicle);
+router.delete('/vehicles/:id', restrictTo('admin', 'super_admin', 'finance'), deleteVehicle);
 
 // ── Routes ──
-router.get   ('/routes',     restrictTo('admin', 'super_admin'), getRoutes);
-router.post  ('/routes',     restrictTo('admin', 'super_admin'), createRoute);
-router.get   ('/routes/:id', restrictTo('admin', 'super_admin', 'faculty', 'student'), getRouteById);
-router.patch ('/routes/:id', restrictTo('admin', 'super_admin'), updateRoute);
-router.delete('/routes/:id', restrictTo('admin', 'super_admin'), deleteRoute);
+router.get   ('/routes',     restrictTo('admin', 'super_admin', 'finance'), getRoutes);
+router.post  ('/routes',     restrictTo('admin', 'super_admin', 'finance'), createRoute);
+router.get   ('/routes/:id', restrictTo('admin', 'super_admin', 'faculty', 'student', 'finance'), getRouteById);
+router.patch ('/routes/:id', restrictTo('admin', 'super_admin', 'finance'), updateRoute);
+router.delete('/routes/:id', restrictTo('admin', 'super_admin', 'finance'), deleteRoute);
 
 // ── Stops ──
-router.get   ('/routes/:routeId/stops', restrictTo('admin', 'super_admin', 'faculty', 'student'), getStops);
-router.post  ('/stops',     restrictTo('admin', 'super_admin'), createStop);
-router.patch ('/stops/:id', restrictTo('admin', 'super_admin'), updateStop);
-router.delete('/stops/:id', restrictTo('admin', 'super_admin'), deleteStop);
+router.get   ('/routes/:routeId/stops', restrictTo('admin', 'super_admin', 'faculty', 'student', 'finance'), getStops);
+router.post  ('/stops',     restrictTo('admin', 'super_admin', 'finance'), createStop);
+router.patch ('/stops/:id', restrictTo('admin', 'super_admin', 'finance'), updateStop);
+router.delete('/stops/:id', restrictTo('admin', 'super_admin', 'finance'), deleteStop);
 
 // ── Assignments ──
-router.post  ('/assignments',              restrictTo('admin', 'super_admin'), assignStudent);
-router.get   ('/routes/:routeId/students', restrictTo('admin', 'super_admin'), getRouteAssignments);
-router.patch ('/assignments/:id',          restrictTo('admin', 'super_admin'), updateAssignment);
+router.post  ('/assignments',              restrictTo('admin', 'super_admin', 'finance'), assignStudent);
+router.get   ('/routes/:routeId/students', restrictTo('admin', 'super_admin', 'finance'), getRouteAssignments);
+router.patch ('/assignments/:id',          restrictTo('admin', 'super_admin', 'finance'), updateAssignment);
 
 // ── Student self-service ──
-router.get('/students/:studentId', restrictTo('admin', 'super_admin', 'student'), getStudentTransport);
+router.get('/students/:studentId', restrictTo('admin', 'super_admin', 'student', 'finance'), getStudentTransport);
 
 export default router;
