@@ -7,7 +7,9 @@ import { getDashboardSummary } from '../Repositories/dashboard.repository';
 export const getAdminDashboard = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const admin = req.user as IJwtAdminPayload;
-    const data = await getDashboardSummary(admin.id);
+    const academicYearId = req.query.academic_year_id ? Number(req.query.academic_year_id) : undefined;
+    const data = await getDashboardSummary(admin.id, academicYearId);
     sendResponse(res, 200, true, 'Dashboard data fetched successfully', data);
   }
 );
+

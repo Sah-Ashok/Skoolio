@@ -6,11 +6,9 @@ import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null;
-
 const cap = (s?: string | null) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null;
 
@@ -95,6 +93,8 @@ interface Props {
 export default function StudentProfilePage({ studentId }: Props = {}) {
   const isTeacherView = !!studentId;
   const { user }              = useAppSelector(s => s.auth);
+  const { formatDate }        = useDateFormat();
+  const fmtDate               = (d?: string | null) => d ? formatDate(d) : null;
 
   // Student's own view — uses /auth/me
   const { data: me,       loading: meLoading }   = useApi<any>(isTeacherView ? "" : "/auth/me");

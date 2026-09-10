@@ -7,6 +7,7 @@ import Topbar from "@/components/shared/Topbar";
 import styles from "./attendance.module.css";
 import { useApi } from "@/lib/useApi";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { Loader } from "@/components/shared/Loader";
 
 const s  = (n: string) => styles[n] || n;
@@ -39,6 +40,7 @@ const statusBg: Record<string, string> = {
 export default function StudentAttendancePage() {
   const params   = useParams();
   const pathname = usePathname();
+  const { formatDate } = useDateFormat();
   const studentId = params.studentId as string;
   const backHref  = pathname?.startsWith("/teacher") ? "/teacher/attendance" : "/attendance";
 
@@ -284,9 +286,7 @@ export default function StudentAttendancePage() {
                       <tr key={r.id}>
                         <td>
                           <strong>
-                            {parseLocalDate(r.date).toLocaleDateString("en-IN", {
-                              day: "2-digit", month: "short", year: "numeric",
-                            })}
+                            {formatDate(r.date)}
                           </strong>
                         </td>
                         <td>

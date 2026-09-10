@@ -10,6 +10,7 @@ import { showToast } from "@/store/toastSlice";
 import { Loader } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { isoToBS, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -178,7 +179,7 @@ export default function HostelPage() {
   const [tab, setTab] = useState<Tab>("overview");
 
   // Currency
-  const currencySymbol = isBS ? "रू" : "₹";
+  const { symbol: currencySymbol } = useCurrency();
 
   // Data queries
   const { data: summary,  refetch: refetchSummary }                  = useApi<any>("/hostel/summary");

@@ -32,7 +32,8 @@ export const createSchoolFinanceAccountService = async (
   );
 
   const planName = planCheck.rows[0]?.plan_name?.toLowerCase() || '';
-  if (planName && planName.includes('pro') && !planName.includes('plus') && !planName.includes('ultra')) {
+  const isEligible = planName.includes('plus') || planName.includes('ultra');
+  if (!isEligible) {
     throw new AppError(
       'The dedicated Finance Role is only available on Plus and Ultra plans. Please upgrade your subscription.',
       403
@@ -135,8 +136,6 @@ export const loginFinanceService = async (credentials: { email: string; password
     throw new AppError('Invalid email or password.', 401);
   }
 
-  console.log(financeUser)
-
   if (financeUser.status === 'inactive') {
     throw new AppError('Your finance account has been deactivated. Please contact your school administrator.', 403);
   }
@@ -145,11 +144,12 @@ export const loginFinanceService = async (credentials: { email: string; password
     throw new AppError('Your school account is currently blocked. Please contact support.', 423);
   }
 
-  // Plan gating check
+  // Plan gating check — Finance role requires Plus or Ultra plan
   const planName = financeUser.plan_name?.toLowerCase() || ''; 
-  if (planName.includes('pro') && !planName.includes('plus') && !planName.includes('ultra')) {
+  const isEligible = planName.includes('plus') || planName.includes('ultra');
+  if (!isEligible) {
     throw new AppError(
-      'Your school is on the Pro plan, which does not include Finance Role access. Please ask your administrator to upgrade to Plus or Ultra.',
+      'Your school plan does not include Finance Role access. Please ask your administrator to upgrade to Plus or Ultra.',
       403
     );
   }

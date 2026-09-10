@@ -5,6 +5,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Loader, Spinner } from "@/components/shared/Loader";
+import { useCurrency } from "@/lib/useCurrency";
 import styles from "./settings.module.css";
 
 const s  = (c: string) => styles[c] || c;
@@ -35,6 +36,7 @@ function InfoNote({ children }: { children: React.ReactNode }) {
 
 export default function PayrollPolicyTab() {
   const dispatch = useAppDispatch();
+  const { symbol, fmt } = useCurrency();
 
   const { data: policy, loading, refetch } = useApi<any>("/payroll-policy");
   const { execute: savePolicy, loading: saving } = useMutation("/payroll-policy", "PUT");
@@ -96,8 +98,6 @@ export default function PayrollPolicyTab() {
   const tax                = previewBasic * taxPct;
   const pf                 = previewBasic * pfPct;
   const net                = Math.max(0, previewBasic - attendanceDeduct - tax - pf);
-
-  const fmt = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
   if (loading) {
     return (
@@ -261,7 +261,7 @@ export default function PayrollPolicyTab() {
         </div>
 
         <InfoNote>
-          Setting Tax to 15% on a ₹30,000 salary pre-fills ₹4,500 in the Tax field.
+          Setting Tax to 15% on a {symbol}30,000 salary pre-fills {symbol}4,500 in the Tax field.
           The admin can adjust it before finalizing payment.
         </InfoNote>
       </div>
@@ -297,18 +297,18 @@ export default function PayrollPolicyTab() {
           padding: "18px 20px",
         }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: "#6a7882", marginBottom: 14 }}>
-            Example: Basic ₹30,000 · 26 working days · 2 absent · 1 half-day · 1 leave taken
+            Example: Basic {symbol}30,000 · 26 working days · 2 absent · 1 half-day · 1 leave taken
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
             {[
-              { label: "Basic Salary",            value: `₹${fmt(previewBasic)}`,                              color: "#25343f" },
-              { label: "Per-day Rate",             value: `₹${perDay.toFixed(2)}`,                             color: "#25343f" },
-              { label: `Absent Deduction (×${previewAbsent})`, value: `-₹${fmt(absentDeduction)}`,             color: "#b42318" },
-              { label: `Half-Day Deduction (×${previewHalf})`, value: `-₹${fmt(halfDeduction)}`,               color: "#c46a14" },
-              { label: `Leave Deduction (${unpaidLeave} unpaid of ${previewLeave})`, value: `-₹${fmt(leaveDeduction)}`, color: unpaidLeave > 0 ? "#b42318" : "#16a34a" },
-              { label: "Tax Deduction",            value: `-₹${fmt(tax)}`,                                     color: "#b42318" },
-              { label: "PF Deduction",             value: `-₹${fmt(pf)}`,                                      color: "#b42318" },
+              { label: "Basic Salary",            value: fmt(previewBasic),                                   color: "#25343f" },
+              { label: "Per-day Rate",             value: `${symbol}${perDay.toFixed(2)}`,                    color: "#25343f" },
+              { label: `Absent Deduction (×${previewAbsent})`, value: `-${fmt(absentDeduction)}`,             color: "#b42318" },
+              { label: `Half-Day Deduction (×${previewHalf})`, value: `-${fmt(halfDeduction)}`,               color: "#c46a14" },
+              { label: `Leave Deduction (${unpaidLeave} unpaid of ${previewLeave})`, value: `-${fmt(leaveDeduction)}`, color: unpaidLeave > 0 ? "#b42318" : "#16a34a" },
+              { label: "Tax Deduction",            value: `-${fmt(tax)}`,                                     color: "#b42318" },
+              { label: "PF Deduction",             value: `-${fmt(pf)}`,                                      color: "#b42318" },
             ].map((row) => (
               <div key={row.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, paddingBottom: 6, borderBottom: "1px solid #eef2f5" }}>
                 <span style={{ color: "#6a7882" }}>{row.label}</span>
@@ -331,7 +331,7 @@ export default function PayrollPolicyTab() {
               <i className="fa-solid fa-circle-check" style={{ marginRight: 8 }} />
               Net Pay
             </span>
-            <strong style={{ fontSize: 18, color: "#059669" }}>₹{fmt(net)}</strong>
+            <strong style={{ fontSize: 18, color: "#059669" }}>{fmt(net)}</strong>
           </div>
         </div>
       </div>

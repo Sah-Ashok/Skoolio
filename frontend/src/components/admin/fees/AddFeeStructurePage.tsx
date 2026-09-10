@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
+import { useCurrency } from "@/lib/useCurrency";
 
 const s  = (cn: string) => styles[cn] || cn;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -73,6 +74,7 @@ export default function AddFeeStructurePage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const dispatch     = useAppDispatch();
+  const { symbol, fmt } = useCurrency();
   const user         = useAppSelector((state) => state.auth.user);
   const structuresUrl = user?.role === 'finance' ? '/finance/fees/structures' : '/fees/structures';
   const { activeYear, academicYearId } = useAcademicYear();
@@ -426,7 +428,7 @@ export default function AddFeeStructurePage() {
                           )}
 
                           <label className={s("field")}>
-                            <span>Amount (₹) <b>*</b></span>
+                            <span>Amount ({symbol}) <b>*</b></span>
                             <input
                               type="number"
                               min={1}
@@ -574,7 +576,7 @@ export default function AddFeeStructurePage() {
                 <div className={s("summaryLine")} style={{ borderTop: "1.5px dashed #e2e8f0", marginTop: 6, paddingTop: 10 }}>
                   <b style={{ fontSize: 13, color: "#0f172a", fontWeight: 800 }}>Est. Annual Total</b>
                   <strong style={{ fontSize: 15, color: "#0f172a", fontWeight: 900 }}>
-                    ₹{estimatedTotal.toLocaleString("en-IN")} <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>/ student</span>
+                    {fmt(estimatedTotal)} <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>/ student</span>
                   </strong>
                 </div>
               </div>

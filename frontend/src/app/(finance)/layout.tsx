@@ -10,20 +10,29 @@ import { useAppSelector } from "@/store/hooks";
 import Loader from "@/components/shared/Loader";
 import Link from "next/link";
 import styles from "@/components/shared/no-active-year.module.css";
+import NoActiveYearGuard from "@/components/shared/NoActiveYearGuard";
 
 function FinancePlanGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAppSelector((s) => s.auth);
-  const { data: status, loading } = useApi<any>("/subscriptions/me/status");
+  const isAdminOrSuperAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  // Short-circuit immediately for admins: no plan blocking or redundant API calls
+  const shouldCheckPlan = !isAdminOrSuperAdmin;
+  const { data: status, loading } = useApi<any>(shouldCheckPlan ? "/subscriptions/me/status" : "");
+
+  if (isAdminOrSuperAdmin) {
+    return <>{children}</>;
+  }
 
   if (loading && !status) {
     return <Loader fullScreen={false} size="md" text="Checking plan permissions..." />;
   }
 
   const planName = status?.plan?.name?.toLowerCase() || '';
-  // Finance role is exclusive to Plus and Ultra plans (not Pro)
-  const isProPlan = planName.includes('pro') && !planName.includes('plus') && !planName.includes('ultra');
+  // Finance role is exclusive to Plus and Ultra plans (whitelisted to match backend)
+  const isEligible = planName.includes('plus') || planName.includes('ultra');
 
-  if (status && isProPlan) {
+  if (status && !isEligible) {
     return (
       <div className={styles.container}>
         <div className={styles.card}>
@@ -34,16 +43,9 @@ function FinancePlanGuard({ children }: { children: React.ReactNode }) {
           <p className={styles.desc}>
             The dedicated Finance Portal is an exclusive feature available on <strong>Plus</strong> and <strong>Ultra</strong> plans. Your school is currently on the <strong>{status.plan?.name || 'Pro'}</strong> plan.
           </p>
-
-          {user?.role === 'admin' || user?.role === 'super_admin' ? (
-            <Link href="/upgrade" className={styles.btn} style={{ background: 'linear-gradient(135deg, #ff5e1e, #ff8c42)' }}>
-              <i className="fa-solid fa-arrow-up-right-from-square" /> Upgrade to Plus / Ultra
-            </Link>
-          ) : (
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
-              Please contact your school administrator to upgrade the subscription plan.
-            </p>
-          )}
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
+            Please contact your school administrator to upgrade the subscription plan.
+          </p>
         </div>
       </div>
     );
@@ -61,7 +63,9 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
           <div className="app-page">
             <OfflineGuard>
               <FinancePlanGuard>
-                {children}
+                <NoActiveYearGuard role="finance">
+                  {children}
+                </NoActiveYearGuard>
               </FinancePlanGuard>
             </OfflineGuard>
           </div>

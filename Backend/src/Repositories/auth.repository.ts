@@ -6,7 +6,7 @@ import { getCache, setCache, deleteCache } from '../utils/redisCache';
 const SAFE_COLS = `
   id, school_name, school_code, city, state, country, pincode, phone, email, owner_full_name,
   logo, established_year, school_type, role, is_account, is_verified, timezone, calendar_system,
-  two_fa_enabled, subscription_id,
+  two_fa_enabled, subscription_id, storage_folder,
   created_at, updated_at
 `;
 
@@ -152,13 +152,17 @@ export const toggleSchoolTwoFA = async (
 };
 
 export const verifySchool = async (
-  schoolId: number
+  schoolId: number,
+  storageFolder?: string
 ): Promise<Omit<ISchool, 'password'> | null> => {
   const result = await pool.query(
-    `UPDATE schools SET is_verified = TRUE, updated_at = NOW()
+    `UPDATE schools 
+     SET is_verified = TRUE, 
+         storage_folder = COALESCE($2, storage_folder), 
+         updated_at = NOW()
      WHERE id = $1
-     RETURNING id, school_name, is_verified`,
-    [schoolId]
+     RETURNING id, school_name, is_verified, storage_folder`,
+    [schoolId, storageFolder || null]
   );
   return result.rows[0] || null;
 };

@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApi } from '@/lib/useApi';
+import { useAcademicYear } from '@/hooks/useAcademicYear';
+import { useCurrency } from '@/lib/useCurrency';
 import Loader from '@/components/shared/Loader';
 import styles from './fees-report.module.css';
 
 interface ClassReportItem {
   class_name: string;
-  expected: string;
-  collected: string;
-  outstanding: string;
+  expected: number | string;
+  collected: number | string;
+  outstanding: number | string;
   rate: string;
   defaulters: number;
 }
@@ -17,44 +19,47 @@ interface ClassReportItem {
 interface FeeTypeReportItem {
   fee_type: string;
   total_students: number;
-  collected: string;
-  outstanding: string;
+  collected: number | string;
+  outstanding: number | string;
 }
 
 export default function FinanceFeeReportPage() {
-  const [selectedSession, setSelectedSession] = useState('2026-2027');
+  const { activeYear } = useAcademicYear();
+  const { fmt } = useCurrency();
+
+  const { data: yearsData } = useApi<any[]>('/academic-years');
+  const yearsList = useMemo(() => {
+    if (Array.isArray(yearsData)) return yearsData;
+    if (Array.isArray((yearsData as any)?.data)) return (yearsData as any).data;
+    return [];
+  }, [yearsData]);
+
+  const [selectedYearId, setSelectedYearId] = useState<string>(
+    activeYear?.id ? String(activeYear.id) : ''
+  );
+
+  useEffect(() => {
+    if (!selectedYearId && activeYear?.id) {
+      setSelectedYearId(String(activeYear.id));
+    }
+  }, [activeYear, selectedYearId]);
+
+  const currentYearId = selectedYearId || (activeYear?.id ? String(activeYear.id) : '');
 
   const { data, loading } = useApi<{
     summary?: {
-      total_expected?: string;
-      total_collected?: string;
-      total_outstanding?: string;
+      total_expected?: number;
+      total_collected?: number;
+      total_outstanding?: number;
       collection_rate?: number;
     };
     class_wise?: ClassReportItem[];
     type_wise?: FeeTypeReportItem[];
-  }>(`/finance/reports/fees?session=${selectedSession}`);
+  }>(currentYearId ? `/finance/reports/fees?academic_year_id=${currentYearId}` : '');
 
-  const defaultClasses: ClassReportItem[] = [
-    { class_name: 'Class 10', expected: '₹ 4,08,000', collected: '₹ 3,74,000', outstanding: '₹ 34,000', rate: '91.7%', defaulters: 4 },
-    { class_name: 'Class 9', expected: '₹ 3,58,800', collected: '₹ 3,12,000', outstanding: '₹ 46,800', rate: '87.0%', defaulters: 6 },
-    { class_name: 'Class 8', expected: '₹ 2,72,800', collected: '₹ 2,48,000', outstanding: '₹ 24,800', rate: '90.9%', defaulters: 3 },
-    { class_name: 'Class 7', expected: '₹ 2,52,000', collected: '₹ 2,10,000', outstanding: '₹ 42,000', rate: '83.3%', defaulters: 7 },
-    { class_name: 'Class 6', expected: '₹ 2,11,680', collected: '₹ 1,94,400', outstanding: '₹ 17,280', rate: '91.8%', defaulters: 2 },
-    { class_name: 'Class 11', expected: '₹ 4,08,000', collected: '₹ 3,36,000', outstanding: '₹ 72,000', rate: '82.4%', defaulters: 8 },
-    { class_name: 'Class 12', expected: '₹ 3,84,000', collected: '₹ 3,48,000', outstanding: '₹ 36,000', rate: '90.6%', defaulters: 4 },
-  ];
-
-  const defaultFeeTypes: FeeTypeReportItem[] = [
-    { fee_type: 'Tuition Fee (Quarterly)', total_students: 708, collected: '₹ 16,80,000', outstanding: '₹ 1,84,000' },
-    { fee_type: 'Annual Development / Admission', total_students: 142, collected: '₹ 3,50,000', outstanding: '₹ 25,000' },
-    { fee_type: 'Bus / Fleet Transport Fee', total_students: 280, collected: '₹ 1,80,000', outstanding: '₹ 32,000' },
-    { fee_type: 'Board & Examination Fees', total_students: 708, collected: '₹ 76,000', outstanding: '₹ 12,000' },
-  ];
-
-  const classList = data?.class_wise && data.class_wise.length > 0 ? data.class_wise : defaultClasses;
-  const typeList = data?.type_wise && data.type_wise.length > 0 ? data.type_wise : defaultFeeTypes;
-  const overallRate = data?.summary?.collection_rate ?? 88.6;
+  const classList = data?.class_wise || [];
+  const typeList = data?.type_wise || [];
+  const overallRate = data?.summary?.collection_rate ?? 0;
 
   return (
     <div className={styles.pageWrap}>
@@ -77,11 +82,18 @@ export default function FinanceFeeReportPage() {
               color: '#334155',
               background: '#ffffff',
             }}
-            value={selectedSession}
-            onChange={(e) => setSelectedSession(e.target.value)}
+            value={currentYearId}
+            onChange={(e) => setSelectedYearId(e.target.value)}
           >
-            <option value="2026-2027">Session 2026 - 2027</option>
-            <option value="2025-2026">Session 2025 - 2026</option>
+            {yearsList.length > 0 ? (
+              yearsList.map((y: any) => (
+                <option key={y.id} value={String(y.id)}>
+                  {y.year_name || y.name} {y.is_active ? '(Current)' : ''}
+                </option>
+              ))
+            ) : (
+              <option value="">{activeYear?.year_name || 'Active Session'}</option>
+            )}
           </select>
 
           <button
@@ -93,15 +105,21 @@ export default function FinanceFeeReportPage() {
         </div>
       </div>
 
-      {/* ── 4 KPI Stats ── */}
-      <div className={styles.statsRow}>
+      {(!currentYearId || (loading && !data)) ? (
+        <div style={{ padding: '60px 0' }}>
+          <Loader fullScreen={false} size="md" text="Generating financial statement..." />
+        </div>
+      ) : (
+        <>
+          {/* ── 4 KPI Stats ── */}
+          <div className={styles.statsRow}>
         <div className={styles.statPill}>
           <div className={styles.statPillIcon} style={{ background: '#eff6ff', color: '#2563eb' }}>
             <i className="fa-solid fa-bullseye" />
           </div>
           <div>
             <div className={styles.statPillLabel}>Gross Expected Receivables</div>
-            <div className={styles.statPillVal}>{data?.summary?.total_expected ?? '₹ 22,94,480'}</div>
+            <div className={styles.statPillVal}>{fmt(data?.summary?.total_expected ?? 0)}</div>
           </div>
         </div>
 
@@ -112,7 +130,7 @@ export default function FinanceFeeReportPage() {
           <div>
             <div className={styles.statPillLabel}>Total Recovered / Collected</div>
             <div className={styles.statPillVal} style={{ color: '#059669' }}>
-              {data?.summary?.total_collected ?? '₹ 20,32,400'}
+              {fmt(data?.summary?.total_collected ?? 0)}
             </div>
           </div>
         </div>
@@ -124,7 +142,7 @@ export default function FinanceFeeReportPage() {
           <div>
             <div className={styles.statPillLabel}>Overdue Uncollected Balance</div>
             <div className={styles.statPillVal} style={{ color: '#dc2626' }}>
-              {data?.summary?.total_outstanding ?? '₹ 2,62,080'}
+              {fmt(data?.summary?.total_outstanding ?? 0)}
             </div>
           </div>
         </div>
@@ -149,7 +167,7 @@ export default function FinanceFeeReportPage() {
           <span className={styles.ratePercentage}>{overallRate}% Recovered</span>
         </div>
         <div className={styles.rateTrack}>
-          <div className={styles.rateBar} style={{ width: `${overallRate}%` }} />
+          <div className={styles.rateBar} style={{ width: `${Math.min(100, Math.max(0, overallRate))}%` }} />
         </div>
       </div>
 
@@ -161,6 +179,11 @@ export default function FinanceFeeReportPage() {
         {loading && !data ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
             <Loader fullScreen={false} size="md" text="Loading class-wise recovery..." />
+          </div>
+        ) : classList.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+            <i className="fa-solid fa-folder-open" style={{ fontSize: 28, color: '#94a3b8', marginBottom: 10, display: 'block' }} />
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5 }}>No class-wise records found for this academic session.</p>
           </div>
         ) : (
           <div className={styles.tableWrap}>
@@ -179,9 +202,9 @@ export default function FinanceFeeReportPage() {
                 {classList.map((c) => (
                   <tr key={c.class_name}>
                     <td><strong>{c.class_name}</strong></td>
-                    <td>{c.expected}</td>
-                    <td style={{ color: '#059669' }}><strong>{c.collected}</strong></td>
-                    <td style={{ color: '#dc2626' }}><strong>{c.outstanding}</strong></td>
+                    <td>{typeof c.expected === 'number' ? fmt(c.expected) : c.expected}</td>
+                    <td style={{ color: '#059669' }}><strong>{typeof c.collected === 'number' ? fmt(c.collected) : c.collected}</strong></td>
+                    <td style={{ color: '#dc2626' }}><strong>{typeof c.outstanding === 'number' ? fmt(c.outstanding) : c.outstanding}</strong></td>
                     <td>
                       <span
                         style={{
@@ -220,29 +243,38 @@ export default function FinanceFeeReportPage() {
         <div className={styles.tableCardHeader}>
           <h2 className={styles.cardTitle}>Fee Head Category Ledger</h2>
         </div>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Fee Head Category</th>
-                <th>Enrolled Students</th>
-                <th>Collected Amount</th>
-                <th>Overdue Outstanding</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typeList.map((t) => (
-                <tr key={t.fee_type}>
-                  <td><strong>{t.fee_type}</strong></td>
-                  <td>{t.total_students} Students</td>
-                  <td style={{ color: '#059669' }}><strong>{t.collected}</strong></td>
-                  <td style={{ color: '#dc2626' }}><strong>{t.outstanding}</strong></td>
+        {typeList.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+            <i className="fa-solid fa-layer-group" style={{ fontSize: 28, color: '#94a3b8', marginBottom: 10, display: 'block' }} />
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5 }}>No fee head category records recorded yet.</p>
+          </div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Fee Head Category</th>
+                  <th>Enrolled Students</th>
+                  <th>Collected Amount</th>
+                  <th>Overdue Outstanding</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {typeList.map((t) => (
+                  <tr key={t.fee_type}>
+                    <td><strong>{t.fee_type}</strong></td>
+                    <td>{t.total_students} Students</td>
+                    <td style={{ color: '#059669' }}><strong>{typeof t.collected === 'number' ? fmt(t.collected) : t.collected}</strong></td>
+                    <td style={{ color: '#dc2626' }}><strong>{typeof t.outstanding === 'number' ? fmt(t.outstanding) : t.outstanding}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+      </>
+      )}
 
     </div>
   );

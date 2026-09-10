@@ -9,14 +9,18 @@ interface DashboardCacheEntry {
   data: any;
   cachedAt: number;
 }
-const dashboardCache = new Map<number, DashboardCacheEntry>();
+const dashboardCache = new Map<string, DashboardCacheEntry>();
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
 const schoolSettingsCache = new Map<number, { country: string; calendar_system: string }>();
 
 export const invalidateDashboardCache = (school_id?: number) => {
   if (school_id) {
-    dashboardCache.delete(school_id);
+    for (const key of dashboardCache.keys()) {
+      if (key.startsWith(`${school_id}_`) || key === String(school_id)) {
+        dashboardCache.delete(key);
+      }
+    }
     schoolSettingsCache.delete(school_id);
   } else {
     dashboardCache.clear();
@@ -28,9 +32,10 @@ export const invalidateDashboardCache = (school_id?: number) => {
  * Aggregated query for the admin dashboard.
  * Parallelized with Promise.all and cached for fast sub-second loads.
  */
-export const getDashboardSummary = async (school_id: number) => {
+export const getDashboardSummary = async (school_id: number, academic_year_id?: number) => {
   // Return cached result if within 3 minutes
-  const cached = dashboardCache.get(school_id);
+  const cacheKey = `${school_id}_${academic_year_id || 'active'}`;
+  const cached = dashboardCache.get(cacheKey);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
     return cached.data;
   }
@@ -163,23 +168,36 @@ export const getDashboardSummary = async (school_id: number) => {
       [school_id]
     ),
 
-    // 4. Fee summary (current academic year)
+    // 4. Fee summary (academic year)
     pool.query(
-      `SELECT
-         COALESCE(SUM(fc.net_amount),       0)::numeric AS total_assigned,
-         COALESCE(SUM(fc.paid_amount),      0)::numeric AS total_collected,
-         COALESCE(SUM(fc.remaining_amount), 0)::numeric AS total_pending,
-         COALESCE(SUM(CASE
-           WHEN fc.status != 'paid' AND fc.due_date < CURRENT_DATE - INTERVAL '30 days'
-           THEN fc.remaining_amount ELSE 0 END), 0)::numeric AS overdue_amount,
-         COUNT(DISTINCT fc.student_id) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_students,
-         COUNT(*) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_bills
-       FROM fee_collections fc
-       INNER JOIN academic_years ay
-         ON ay.school_id = $1 AND ay.status = 'active'
-       WHERE fc.school_id      = $1
-         AND fc.academic_year_id = ay.id`,
-      [school_id]
+      academic_year_id
+        ? `SELECT
+             COALESCE(SUM(fc.net_amount),       0)::numeric AS total_assigned,
+             COALESCE(SUM(fc.paid_amount),      0)::numeric AS total_collected,
+             COALESCE(SUM(fc.remaining_amount), 0)::numeric AS total_pending,
+             COALESCE(SUM(CASE
+               WHEN fc.status != 'paid' AND fc.due_date < CURRENT_DATE - INTERVAL '30 days'
+               THEN fc.remaining_amount ELSE 0 END), 0)::numeric AS overdue_amount,
+             COUNT(DISTINCT fc.student_id) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_students,
+             COUNT(*) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_bills
+           FROM fee_collections fc
+           WHERE fc.school_id      = $1
+             AND fc.academic_year_id = $2`
+        : `SELECT
+             COALESCE(SUM(fc.net_amount),       0)::numeric AS total_assigned,
+             COALESCE(SUM(fc.paid_amount),      0)::numeric AS total_collected,
+             COALESCE(SUM(fc.remaining_amount), 0)::numeric AS total_pending,
+             COALESCE(SUM(CASE
+               WHEN fc.status != 'paid' AND fc.due_date < CURRENT_DATE - INTERVAL '30 days'
+               THEN fc.remaining_amount ELSE 0 END), 0)::numeric AS overdue_amount,
+             COUNT(DISTINCT fc.student_id) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_students,
+             COUNT(*) FILTER (WHERE fc.status != 'paid' AND fc.status != 'waived' AND fc.remaining_amount > 0)::int AS pending_bills
+           FROM fee_collections fc
+           INNER JOIN academic_years ay
+             ON ay.school_id = $1 AND ay.status = 'active'
+           WHERE fc.school_id      = $1
+             AND fc.academic_year_id = ay.id`,
+      academic_year_id ? [school_id, academic_year_id] : [school_id]
     ),
 
     // 5. Expenses — current month
@@ -442,7 +460,7 @@ export const getDashboardSummary = async (school_id: number) => {
   };
 
   // Cache summary for 3 minutes
-  dashboardCache.set(school_id, { data: summary, cachedAt: Date.now() });
+  dashboardCache.set(cacheKey, { data: summary, cachedAt: Date.now() });
 
   return summary;
 };

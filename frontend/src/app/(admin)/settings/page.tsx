@@ -13,6 +13,7 @@ import PayrollPolicyTab from '@/components/admin/settings/PayrollPolicyTab';
 import FeeBillingPolicyTab from '@/components/admin/settings/FeeBillingPolicyTab';
 import FinanceAccountTab from '@/components/admin/settings/FinanceAccountTab';
 import ConfirmModal from '@/components/shared/ConfirmModal';
+import { useDateFormat } from '@/lib/useDateFormat';
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(' ');
@@ -119,6 +120,7 @@ function BankAccountCard({ account, region, onToggle, onDelete, onEdit }: {
 
 export default function AdminSettingsPage() {
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const [tab, setTab] = useState<Tab>('school');
 
   // School profile
@@ -944,7 +946,7 @@ export default function AdminSettingsPage() {
                 <div className={s('infoCard')}>
                   <span className={s('infoCardLabel')}>Joined Date</span>
                   <span className={s('infoCardValue')}>
-                    {school?.created_at ? new Date(school.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    {school?.created_at ? formatDate(school.created_at) : '—'}
                   </span>
                 </div>
                 <div className={s('infoCard')}>

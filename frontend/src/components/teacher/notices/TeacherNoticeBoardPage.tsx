@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import styles from "@/components/admin/notices/notices.module.css";
 import ConfirmModal from "@/components/shared/ConfirmModal";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(" ");
@@ -35,15 +36,13 @@ interface Section {
   class_name?: string;
 }
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-
 const isExpired = (expires_at: string | null) =>
   expires_at ? new Date(expires_at) < new Date() : false;
 
 export default function TeacherNoticeBoardPage() {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector(s => s.auth);
+  const { formatDate } = useDateFormat();
 
   const { data: notices, loading, refetch } = useApi<Notice[]>("/notices/teacher");
   // Teacher's coordinator sections — for posting notices

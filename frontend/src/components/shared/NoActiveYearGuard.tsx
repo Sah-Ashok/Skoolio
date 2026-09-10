@@ -26,7 +26,7 @@ export default function NoActiveYearGuard({
   role = 'admin',
 }: {
   children: React.ReactNode;
-  role?: 'admin' | 'teacher' | 'student';
+  role?: 'admin' | 'teacher' | 'student' | 'finance';
 }) {
   const { activeYear, bootstrapped, loading } = useAcademicYear();
   const authBootstrapped = useAppSelector((s) => s.auth.bootstrapped);
@@ -48,6 +48,7 @@ export default function NoActiveYearGuard({
     admin:   'Please go to Academic Years and set one year as active to continue.',
     teacher: 'Please contact your school administrator to set an active academic year.',
     student: 'Please contact your school administrator to set an active academic year.',
+    finance: 'Please contact your school administrator to set an active academic year.',
   };
 
   return (

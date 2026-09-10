@@ -5,11 +5,8 @@ import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import Link from "next/link";
 
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n || 0));
-
-const fmtDate = (v: string) =>
-  new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
   pending:  { bg: "#fff1df", color: "#a85f12", label: "Pending Verification" },
@@ -18,6 +15,8 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
 };
 
 export default function StudentMySubmissionsPage() {
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   const { data: myRequests, loading, refetch } = useApi<any[]>("/online-payments/my-requests");
 
   return (
@@ -82,7 +81,7 @@ export default function StudentMySubmissionsPage() {
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>{r.fee_name || "Fee Payment"}</div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "#6a7882", marginTop: 2 }}>
-                              {r.bank_name} · Submitted {fmtDate(r.created_at || r.payment_date)}
+                              {r.bank_name} · Submitted {formatDate(r.created_at || r.payment_date)}
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

@@ -2042,7 +2042,7 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
             </div>
             <form onSubmit={handleAddFine} style={{ padding: '18px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <label className={s("field")}>
-                <span>Fine Amount (₹) <b>*</b></span>
+                <span>Fine Amount ({currSymbol}) <b>*</b></span>
                 <input
                   value={fineAmount}
                   onChange={e => setFineAmount(e.target.value)}

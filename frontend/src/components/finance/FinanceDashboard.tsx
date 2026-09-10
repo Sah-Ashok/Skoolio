@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import styles from "./finance-dashboard.module.css";
 import { useApi } from "@/lib/useApi";
+import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useCurrency } from "@/lib/useCurrency";
@@ -77,8 +78,8 @@ export default function FinanceDashboard() {
     : "";
   const { data: paymentsApiResult, loading: paymentsLoading } = useApi<any>(paymentsUrl, [paymentsUrl]);
 
-  // ── Fetch Current User / School Profile ──
-  const { data: me } = useApi<any>("/auth/me");
+  // ── Fetch Current User / School Profile (Skip if user is already present in Redux) ──
+  const { data: me } = useApi<any>(user?.school_name && user?.full_name ? "" : "/auth/me");
 
   const schoolName = me?.school_name || user?.school_name || "Nepal Test School";
   const personName = me?.full_name || user?.full_name || "Finance Manager";
@@ -107,482 +108,20 @@ export default function FinanceDashboard() {
   const totalBillVolume = totalPaid + totalPending;
   const collectionRate = totalBillVolume > 0 ? Math.round((totalPaid / totalBillVolume) * 100) : 0;
 
-  const distinctStudentsWithDues = useMemo(() => {
-    const s = new Set<number>();
-    for (const c of collections) {
-      if (c.status !== "paid" && c.status !== "waived" && c.status !== "cancelled") {
-        const rem = parseFloat(c.remaining_amount ?? 0);
-        if (rem > 0 && c.student_id) {
-          s.add(c.student_id);
-        }
-      }
-    }
-    return s.size;
-  }, [collections]);
-
-  // ── Month-over-Month & Card Trend Calculations ──
+  // ── Unified Single-Pass Dashboard Aggregation (P1, P2, L2, L3, L4, L5) ──
   const {
+    distinctStudentsWithDues,
     card1Badge,
     card2Badge,
     card3Badge,
     card4Badge,
     activeMonthName,
+    overviewBarData,
+    statusDonutData,
+    categoryBreakdown,
+    dailyTrendData,
+    topClasses,
   } = useMemo(() => {
-    const todayIso = todayLocalISO();
-    let curM = new Date().getMonth() + 1;
-    let curY = new Date().getFullYear();
-    if (isBS) {
-      try {
-        const bs = isoToBS(todayIso);
-        curM = bs.month;
-        curY = bs.year;
-      } catch {}
-    }
-    const prevM = curM === 1 ? 12 : curM - 1;
-    const prevY = curM === 1 ? curY - 1 : curY;
-
-    // 1. Gather all payments
-    const allPmts: Array<{ amount: number; month: number; year: number; date: string }> = [];
-
-    // Check payments from collections
-    for (const c of collections) {
-      if (Array.isArray(c.payments)) {
-        for (const p of c.payments) {
-          const amt = parseFloat(p.paid_amount || 0);
-          if (amt <= 0 || !p.payment_date) continue;
-          const pDate = String(p.payment_date).slice(0, 10);
-          let m = new Date(pDate).getMonth() + 1;
-          let y = new Date(pDate).getFullYear();
-          if (isBS) {
-            try {
-              const bs = isoToBS(pDate);
-              m = bs.month;
-              y = bs.year;
-            } catch {}
-          }
-          allPmts.push({ amount: amt, month: m, year: y, date: pDate });
-        }
-      }
-    }
-
-    // Check payments from recentPayments
-    for (const p of recentPayments) {
-      const amt = parseFloat(p.paid_amount || 0);
-      if (amt <= 0 || !p.payment_date) continue;
-      const pDate = String(p.payment_date).slice(0, 10);
-      let m = new Date(pDate).getMonth() + 1;
-      let y = new Date(pDate).getFullYear();
-      if (isBS) {
-        try {
-          const bs = isoToBS(pDate);
-          m = bs.month;
-          y = bs.year;
-        } catch {}
-      }
-      if (!allPmts.some((x) => x.date === pDate && Math.abs(x.amount - amt) < 0.01)) {
-        allPmts.push({ amount: amt, month: m, year: y, date: pDate });
-      }
-    }
-
-    let thisMonthPaid = 0;
-    let lastMonthPaid = 0;
-
-    for (const p of allPmts) {
-      if (p.year === curY && p.month === curM) {
-        thisMonthPaid += p.amount;
-      } else if (p.year === prevY && p.month === prevM) {
-        lastMonthPaid += p.amount;
-      }
-    }
-
-    let thisMonthPending = 0;
-    let lastMonthPending = 0;
-    const thisMonthDuesStudents = new Set<number>();
-    const lastMonthDuesStudents = new Set<number>();
-
-    for (const c of collections) {
-      let m = 0;
-      let y = 0;
-      if (isBS) {
-        // Direct month match in fee_name
-        if (c.fee_name) {
-          for (let bIdx = 0; bIdx < BS_MONTH_NAMES.length; bIdx++) {
-            if (new RegExp(`\\b${BS_MONTH_NAMES[bIdx]}\\b`, "i").test(c.fee_name)) {
-              m = bIdx + 1;
-              break;
-            }
-          }
-        }
-        if (!m && c.billing_from_month) {
-          try {
-            const bs = isoToBS(`${c.billing_from_month.slice(0, 7)}-15`);
-            y = bs.year;
-            m = bs.month;
-          } catch {}
-        }
-        if (!m && (c.due_date || c.created_at)) {
-          try {
-            const bs = isoToBS(String(c.due_date || c.created_at).slice(0, 10));
-            y = bs.year;
-            m = bs.month;
-          } catch {}
-        }
-      } else {
-        const d = new Date(c.due_date || c.created_at);
-        y = d.getFullYear();
-        m = d.getMonth() + 1;
-      }
-
-      const p = parseFloat(c.paid_amount || 0);
-      const rem = (c.status !== "paid" && c.status !== "waived" && c.status !== "cancelled")
-        ? parseFloat(c.remaining_amount ?? (parseFloat(c.net_amount || c.total_amount || 0) - p))
-        : 0;
-
-      // If allPmts was empty, fallback paid from collections billing month
-      if (allPmts.length === 0) {
-        if (y === curY && m === curM) thisMonthPaid += p;
-        if (y === prevY && m === prevM) lastMonthPaid += p;
-      }
-
-      if (y === curY && m === curM) {
-        thisMonthPending += Math.max(0, rem);
-        if (rem > 0 && c.student_id) thisMonthDuesStudents.add(c.student_id);
-      } else if (y === prevY && m === prevM) {
-        lastMonthPending += Math.max(0, rem);
-        if (rem > 0 && c.student_id) lastMonthDuesStudents.add(c.student_id);
-      }
-    }
-
-    // ── Card 1: Collected Trend ──
-    let card1Badge = { text: "0%", sub: "No collections yet", isPositive: true, icon: "fa-arrow-up" };
-    if (lastMonthPaid > 0) {
-      const cPct = Math.round(((thisMonthPaid - lastMonthPaid) / lastMonthPaid) * 100);
-      card1Badge = {
-        text: `${cPct >= 0 ? `+${cPct}%` : `${cPct}%`}`,
-        sub: "vs last month",
-        isPositive: cPct >= 0,
-        icon: cPct >= 0 ? "fa-arrow-up" : "fa-arrow-down",
-      };
-    } else if (totalPaid > 0 && totalPending === 0) {
-      card1Badge = {
-        text: "100%",
-        sub: "Fully realized",
-        isPositive: true,
-        icon: "fa-check",
-      };
-    } else if (totalPaid > 0) {
-      card1Badge = {
-        text: `${collectionRate}%`,
-        sub: "Realized to date",
-        isPositive: true,
-        icon: "fa-arrow-trend-up",
-      };
-    } else {
-      card1Badge = {
-        text: "0%",
-        sub: "No collections yet",
-        isPositive: false,
-        icon: "fa-minus",
-      };
-    }
-
-    // ── Card 2: Pending Dues Trend ──
-    let card2Badge = { text: "0%", sub: "All fees cleared", isPositive: true, icon: "fa-check" };
-    if (totalPending === 0) {
-      card2Badge = {
-        text: "0%",
-        sub: "All fees cleared",
-        isPositive: true,
-        icon: "fa-check",
-      };
-    } else if (lastMonthPending > 0) {
-      const pPct = Math.round(((thisMonthPending - lastMonthPending) / lastMonthPending) * 100);
-      card2Badge = {
-        text: `${pPct >= 0 ? `+${pPct}%` : `${pPct}%`}`,
-        sub: "vs last month",
-        isPositive: pPct <= 0,
-        icon: pPct >= 0 ? "fa-arrow-up" : "fa-arrow-down",
-      };
-    } else {
-      const duesPct = totalBillVolume > 0 ? Math.round((totalPending / totalBillVolume) * 100) : 0;
-      card2Badge = {
-        text: `${duesPct}%`,
-        sub: "of billed amount",
-        isPositive: false,
-        icon: "fa-clock",
-      };
-    }
-
-    // ── Card 3: Collection Rate Trend ──
-    let card3Badge = { text: `${collectionRate}%`, sub: "Overall realization", isPositive: true, icon: "fa-check" };
-    if (collectionRate === 100) {
-      card3Badge = {
-        text: "100%",
-        sub: "Target reached",
-        isPositive: true,
-        icon: "fa-circle-check",
-      };
-    } else if (lastMonthPaid + lastMonthPending > 0 && thisMonthPaid + thisMonthPending > 0) {
-      const thisRate = Math.round((thisMonthPaid / (thisMonthPaid + thisMonthPending)) * 100);
-      const lastRate = Math.round((lastMonthPaid / (lastMonthPaid + lastMonthPending)) * 100);
-      const rDiff = thisRate - lastRate;
-      card3Badge = {
-        text: `${rDiff >= 0 ? `+${rDiff}%` : `${rDiff}%`}`,
-        sub: "vs last month",
-        isPositive: rDiff >= 0,
-        icon: rDiff >= 0 ? "fa-arrow-up" : "fa-arrow-down",
-      };
-    } else {
-      card3Badge = {
-        text: `${collectionRate}%`,
-        sub: "Realization rate",
-        isPositive: collectionRate >= 75,
-        icon: collectionRate >= 75 ? "fa-arrow-trend-up" : "fa-arrow-trend-down",
-      };
-    }
-
-    // ── Card 4: Students with Dues Trend ──
-    let card4Badge = { text: "0 dues", sub: "Zero defaulters", isPositive: true, icon: "fa-check" };
-    if (distinctStudentsWithDues === 0) {
-      card4Badge = {
-        text: "0 dues",
-        sub: "Zero defaulters",
-        isPositive: true,
-        icon: "fa-check",
-      };
-    } else if (lastMonthDuesStudents.size > 0 && thisMonthDuesStudents.size > 0) {
-      const dDiff = thisMonthDuesStudents.size - lastMonthDuesStudents.size;
-      card4Badge = {
-        text: `${dDiff >= 0 ? `+${dDiff}` : `${dDiff}`}`,
-        sub: "vs last month",
-        isPositive: dDiff <= 0,
-        icon: dDiff >= 0 ? "fa-arrow-up" : "fa-arrow-down",
-      };
-    } else {
-      card4Badge = {
-        text: `${distinctStudentsWithDues} due`,
-        sub: "Require follow-up",
-        isPositive: false,
-        icon: "fa-users",
-      };
-    }
-
-    const mName = isBS ? (BS_MONTH_NAMES[curM - 1] || "This Month") : "This Month";
-
-    return {
-      card1Badge,
-      card2Badge,
-      card3Badge,
-      card4Badge,
-      activeMonthName: mName,
-    };
-  }, [collections, recentPayments, isBS, totalPaid, totalPending, collectionRate, distinctStudentsWithDues, totalBillVolume]);
-
-  // ── 2. Fee Collection Overview (Double Grouped Bar Chart) ──
-  const overviewBarData = useMemo(() => {
-    let monthLabels: string[];
-    if (isBS) {
-      monthLabels = collectionOverviewPeriod === "year"
-        ? [...BS_MONTH_NAMES]
-        : ["Baishakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashwin"];
-    } else {
-      monthLabels = collectionOverviewPeriod === "year"
-        ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        : ["Apr", "May", "Jun", "Jul", "Aug", "Sep"];
-    }
-
-    const monthMap: Record<string, { collected: number; pending: number }> = {};
-    for (const m of monthLabels) {
-      monthMap[m] = { collected: 0, pending: 0 };
-    }
-
-    let hasRealData = false;
-    for (const c of collections) {
-      let label: string | null = null;
-      if (isBS) {
-        // 1. First priority: match BS month directly from fee_name (e.g. "Tuition Fee (Jestha 2083)")
-        if (c.fee_name) {
-          for (const mName of BS_MONTH_NAMES) {
-            if (new RegExp(`\\b${mName}\\b`, "i").test(c.fee_name)) {
-              label = mName;
-              break;
-            }
-          }
-        }
-        // 2. Second priority: convert AD billing_from_month (e.g. "2026-08") to BS month
-        if (!label && c.billing_from_month) {
-          try {
-            const ym = String(c.billing_from_month).slice(0, 7);
-            const bs = isoToBS(`${ym}-15`);
-            label = BS_MONTH_NAMES[bs.month - 1];
-          } catch {}
-        }
-        // 3. Third priority: fallback to due_date or created_at
-        if (!label && (c.due_date || c.created_at)) {
-          try {
-            const bs = isoToBS(String(c.due_date || c.created_at).slice(0, 10));
-            label = BS_MONTH_NAMES[bs.month - 1];
-          } catch {}
-        }
-      } else {
-        const dateStr = c.due_date || c.created_at;
-        if (dateStr) {
-          const d = new Date(dateStr);
-          const mIdx = d.getMonth();
-          const adMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-          label = adMonths[mIdx];
-        }
-      }
-
-      if (label && monthMap[label]) {
-        const p = parseFloat(c.paid_amount || 0);
-        const r = (c.status !== "paid" && c.status !== "waived" && c.status !== "cancelled")
-          ? parseFloat(c.remaining_amount ?? (parseFloat(c.net_amount || c.total_amount || 0) - p))
-          : 0;
-
-        monthMap[label].collected += p;
-        monthMap[label].pending += Math.max(0, r);
-        if (p > 0 || r > 0) hasRealData = true;
-      }
-    }
-
-    if (!hasRealData && totalPaid === 0 && totalPending === 0) {
-      if (isBS) {
-        return [
-          { name: "Baishakh", collected: 32000, pending: 78000 },
-          { name: "Jestha", collected: 52000, pending: 98000 },
-          { name: "Ashadh", collected: 45000, pending: 68000 },
-          { name: "Shrawan", collected: 54000, pending: 76000 },
-          { name: "Bhadra", collected: 48000, pending: 72000 },
-          { name: "Ashwin", collected: 40000, pending: 65000 },
-        ];
-      }
-      return [
-        { name: "Apr", collected: 32000, pending: 78000 },
-        { name: "May", collected: 52000, pending: 98000 },
-        { name: "Jun", collected: 45000, pending: 68000 },
-        { name: "Jul", collected: 54000, pending: 76000 },
-        { name: "Aug", collected: 48000, pending: 72000 },
-        { name: "Sep", collected: 40000, pending: 65000 },
-      ];
-    }
-
-    return monthLabels.map((m) => ({
-      name: m,
-      collected: monthMap[m].collected,
-      pending: monthMap[m].pending,
-    }));
-  }, [collections, totalPaid, totalPending, isBS, collectionOverviewPeriod]);
-
-  // ── 3. Fee Status Distribution (Donut Chart) ──
-  const statusCounts = apiResult?.status_counts || {
-    all: collections.length,
-    paid: 0,
-    unpaid: 0,
-    cancelled: 0,
-    waived: 0,
-  };
-
-  const statusDonutData = useMemo(() => {
-    let paid = statusCounts.paid;
-    let partial = 0;
-    let unpaid = statusCounts.unpaid;
-    let waived = statusCounts.waived;
-
-    if (!statusCounts.paid && !statusCounts.unpaid && collections.length > 0) {
-      paid = collections.filter((c) => c.status === "paid").length;
-      partial = collections.filter((c) => c.status === "partial").length;
-      unpaid = collections.filter((c) => c.status === "unpaid").length;
-      waived = collections.filter((c) => c.status === "waived").length;
-    }
-
-    const total = paid + partial + unpaid + waived;
-    if (total === 0) {
-      return {
-        total: 22,
-        chartData: [
-          { name: "Paid Invoices", value: 5, color: "#10b981", percent: 23 },
-          { name: "Partial Invoices", value: 0, color: "#f59e0b", percent: 0 },
-          { name: "Unpaid Invoices", value: 15, color: "#ef4444", percent: 68 },
-          { name: "Waived Invoices", value: 2, color: "#3b82f6", percent: 9 },
-        ],
-      };
-    }
-
-    const pPaid = Math.round((paid / total) * 100);
-    const pPartial = Math.round((partial / total) * 100);
-    const pUnpaid = Math.round((unpaid / total) * 100);
-    const pWaived = Math.max(0, 100 - pPaid - pPartial - pUnpaid);
-
-    return {
-      total,
-      chartData: [
-        { name: "Paid Invoices", value: paid, color: "#10b981", percent: pPaid },
-        { name: "Partial Invoices", value: partial, color: "#f59e0b", percent: pPartial },
-        { name: "Unpaid Invoices", value: unpaid, color: "#ef4444", percent: pUnpaid },
-        { name: "Waived Invoices", value: waived, color: "#3b82f6", percent: pWaived },
-      ],
-    };
-  }, [statusCounts, collections]);
-
-  // ── 4. Revenue Breakdown (Category Donut Chart) ──
-  const categoryBreakdown = useMemo(() => {
-    const catMap: Record<string, number> = {};
-    let totalCatAmt = 0;
-
-    for (const c of collections) {
-      const p = parseFloat(c.paid_amount || 0);
-      if (p <= 0) continue;
-      let rawFee = c.fee_name || "Tuition Fee";
-      let clean = rawFee.replace(/\s*\([^)]*\)/g, "").trim();
-      if (/tuition/i.test(clean)) clean = "Tuition Fee";
-      else if (/computer/i.test(clean)) clean = "Computer Fee";
-      else if (/admission/i.test(clean)) clean = "Admission Fee";
-      else if (/library/i.test(clean)) clean = "Library Fee";
-      else if (/exam/i.test(clean)) clean = "Exam Fee";
-      else clean = "Others";
-
-      catMap[clean] = (catMap[clean] || 0) + p;
-      totalCatAmt += p;
-    }
-
-    if (totalCatAmt === 0) {
-      // Mockup default baseline
-      return {
-        total: 17900,
-        items: [
-          { name: "Tuition Fee", amount: 11100, percent: 62, color: "#3b82f6" },
-          { name: "Computer Fee", amount: 3000, percent: 17, color: "#a855f7" },
-          { name: "Admission Fee", amount: 2000, percent: 11, color: "#14b8a6" },
-          { name: "Library Fee", amount: 1200, percent: 6, color: "#f59e0b" },
-          { name: "Others", amount: 600, percent: 4, color: "#94a3b8" },
-        ],
-      };
-    }
-
-    const colors: Record<string, string> = {
-      "Tuition Fee": "#3b82f6",
-      "Computer Fee": "#a855f7",
-      "Admission Fee": "#14b8a6",
-      "Library Fee": "#f59e0b",
-      "Exam Fee": "#ec4899",
-      Others: "#94a3b8",
-    };
-
-    const items = Object.entries(catMap)
-      .map(([name, amount]) => ({
-        name,
-        amount,
-        percent: Math.round((amount / totalCatAmt) * 100),
-        color: colors[name] || "#94a3b8",
-      }))
-      .sort((a, b) => b.amount - a.amount);
-
-    return { total: totalCatAmt, items };
-  }, [collections]);
-
-  // ── 5. Collection Trend (Daily Trend Line/Area) ──
-  const dailyTrendData = useMemo(() => {
     const todayIso = todayLocalISO();
     let curM = new Date().getMonth() + 1;
     let curY = new Date().getFullYear();
@@ -602,132 +141,368 @@ export default function FinanceDashboard() {
     } else {
       maxDays = new Date(curY, curM, 0).getDate();
     }
+    const prevM = curM === 1 ? 12 : curM - 1;
+    const prevY = curM === 1 ? curY - 1 : curY;
 
-    // Cap at today's day (e.g. Day 25) so future days in the month are NOT rendered
+    // 1. Setup Rolling Months for Overview Bar Chart (L3)
+    const overviewMonthLabels: string[] = [];
+    if (collectionOverviewPeriod === "year") {
+      overviewMonthLabels.push(...(isBS ? [...BS_MONTH_NAMES] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]));
+    } else {
+      for (let i = 5; i >= 0; i--) {
+        let m = curM - i;
+        while (m < 1) m += 12;
+        overviewMonthLabels.push(isBS ? BS_MONTH_NAMES[m - 1] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1]);
+      }
+    }
+    const overviewMonthMap: Record<string, { collected: number; pending: number }> = {};
+    for (const m of overviewMonthLabels) {
+      overviewMonthMap[m] = { collected: 0, pending: 0 };
+    }
+
+    // 2. Track Deduplicated Payments (L2)
+    const seenPaymentKeys = new Set<string>();
+    const allPmts: Array<{ amount: number; month: number; year: number; day: number; date: string }> = [];
+
+    const addPayment = (p: any, collectionId?: number) => {
+      const amt = parseFloat(p.paid_amount || 0);
+      if (amt <= 0 || !p.payment_date) return;
+      const pDate = String(p.payment_date).slice(0, 10);
+      const colId = collectionId ?? p.collection_id ?? 0;
+      const pKey = p.id ? `id_${p.id}` : `${colId}_${pDate}_${amt}_${p.receipt_number || ''}`;
+      if (seenPaymentKeys.has(pKey)) return;
+      seenPaymentKeys.add(pKey);
+
+      let pDay = 1;
+      let m = 1;
+      let y = 2026;
+      if (isBS) {
+        try {
+          const bs = isoToBS(pDate);
+          pDay = bs.day;
+          m = bs.month;
+          y = bs.year;
+        } catch {
+          const d = new Date(pDate);
+          pDay = d.getDate();
+          m = d.getMonth() + 1;
+          y = d.getFullYear();
+        }
+      } else {
+        const d = new Date(pDate);
+        pDay = d.getDate();
+        m = d.getMonth() + 1;
+        y = d.getFullYear();
+      }
+      allPmts.push({ amount: amt, month: m, year: y, day: pDay, date: pDate });
+    };
+
+    // 3. Single-Pass Iteration over Collections
+    const duesStudentsSet = new Set<number>();
+    const thisMonthDuesStudents = new Set<number>();
+    const lastMonthDuesStudents = new Set<number>();
+    let thisMonthPending = 0;
+    let lastMonthPending = 0;
+    let thisMonthPaidFallback = 0;
+    let lastMonthPaidFallback = 0;
+    const catMap: Record<string, number> = {};
+    let totalCatAmt = 0;
+    const classMap: Record<string, number> = {};
+    const fallbackStatusCounts = { paid: 0, partial: 0, unpaid: 0, waived: 0, cancelled: 0 };
+    let hasRealOverviewData = false;
+
+    for (const c of collections) {
+      const p = parseFloat(c.paid_amount || 0);
+      const rem = (c.status !== "paid" && c.status !== "waived" && c.status !== "cancelled")
+        ? parseFloat(c.remaining_amount ?? (parseFloat(c.net_amount || c.total_amount || 0) - p))
+        : 0;
+
+      // Status count fallback
+      if (c.status === "paid") fallbackStatusCounts.paid++;
+      else if (c.status === "partial") fallbackStatusCounts.partial++;
+      else if (c.status === "unpaid") fallbackStatusCounts.unpaid++;
+      else if (c.status === "waived") fallbackStatusCounts.waived++;
+      else if (c.status === "cancelled") fallbackStatusCounts.cancelled++;
+
+      // Dues tracking
+      if (rem > 0 && c.student_id && c.status !== "paid" && c.status !== "waived" && c.status !== "cancelled") {
+        duesStudentsSet.add(c.student_id);
+      }
+
+      // Payments from collection
+      if (Array.isArray(c.payments)) {
+        for (const pmt of c.payments) {
+          addPayment(pmt, c.id);
+        }
+      }
+
+      // Category breakdown (Revenue)
+      if (p > 0) {
+        let rawFee = c.fee_name || "Tuition Fee";
+        let clean = rawFee.replace(/\s*\([^)]*\)/g, "").trim();
+        if (/tuition/i.test(clean)) clean = "Tuition Fee";
+        else if (/computer/i.test(clean)) clean = "Computer Fee";
+        else if (/admission/i.test(clean)) clean = "Admission Fee";
+        else if (/library/i.test(clean)) clean = "Library Fee";
+        else if (/exam/i.test(clean)) clean = "Exam Fee";
+        else clean = "Others";
+
+        catMap[clean] = (catMap[clean] || 0) + p;
+        totalCatAmt += p;
+
+        // Top classes
+        const cName = c.class_name ? `${c.class_name}${c.section_name ? ` - Sec ${c.section_name}` : ""}` : "Class 1";
+        classMap[cName] = (classMap[cName] || 0) + p;
+      }
+
+      // Month matching for collections
+      let cMonth = 0;
+      let cYear = 0;
+      let overviewLabel: string | null = null;
+
+      if (isBS) {
+        if (c.fee_name) {
+          for (let bIdx = 0; bIdx < BS_MONTH_NAMES.length; bIdx++) {
+            if (new RegExp(`\\b${BS_MONTH_NAMES[bIdx]}\\b`, "i").test(c.fee_name)) {
+              cMonth = bIdx + 1;
+              overviewLabel = BS_MONTH_NAMES[bIdx];
+              break;
+            }
+          }
+        }
+        if (!overviewLabel && c.billing_from_month) {
+          try {
+            const ym = String(c.billing_from_month).slice(0, 7);
+            const bs = isoToBS(`${ym}-15`);
+            cYear = bs.year;
+            cMonth = bs.month;
+            overviewLabel = BS_MONTH_NAMES[bs.month - 1];
+          } catch {}
+        }
+        if (!overviewLabel && (c.due_date || c.created_at)) {
+          try {
+            const bs = isoToBS(String(c.due_date || c.created_at).slice(0, 10));
+            cYear = bs.year;
+            cMonth = bs.month;
+            overviewLabel = BS_MONTH_NAMES[bs.month - 1];
+          } catch {}
+        }
+      } else {
+        const dateStr = c.due_date || c.created_at;
+        if (dateStr) {
+          const d = new Date(dateStr);
+          cYear = d.getFullYear();
+          cMonth = d.getMonth() + 1;
+          const adMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          overviewLabel = adMonths[d.getMonth()];
+        }
+      }
+
+      if (overviewLabel && overviewMonthMap[overviewLabel]) {
+        overviewMonthMap[overviewLabel].collected += p;
+        overviewMonthMap[overviewLabel].pending += Math.max(0, rem);
+        if (p > 0 || rem > 0) hasRealOverviewData = true;
+      }
+
+      if (cYear === curY && cMonth === curM) {
+        thisMonthPending += Math.max(0, rem);
+        thisMonthPaidFallback += p;
+        if (rem > 0 && c.student_id) thisMonthDuesStudents.add(c.student_id);
+      } else if (cYear === prevY && cMonth === prevM) {
+        lastMonthPending += Math.max(0, rem);
+        lastMonthPaidFallback += p;
+        if (rem > 0 && c.student_id) lastMonthDuesStudents.add(c.student_id);
+      }
+    }
+
+    // Add payments from recentPayments (Deduplicated with collections payments)
+    for (const pmt of recentPayments) {
+      addPayment(pmt);
+    }
+
+    // 4. Compute Month-over-Month Payments
+    let thisMonthPaid = 0;
+    let lastMonthPaid = 0;
+    for (const p of allPmts) {
+      if (p.year === curY && p.month === curM) {
+        thisMonthPaid += p.amount;
+      } else if (p.year === prevY && p.month === prevM) {
+        lastMonthPaid += p.amount;
+      }
+    }
+    if (allPmts.length === 0) {
+      thisMonthPaid = thisMonthPaidFallback;
+      lastMonthPaid = lastMonthPaidFallback;
+    }
+
+    // 5. Card Badges Calculation
+    let card1Badge = { text: "0%", sub: "No collections yet", isPositive: true, icon: "fa-arrow-up" };
+    if (lastMonthPaid > 0) {
+      const cPct = Math.round(((thisMonthPaid - lastMonthPaid) / lastMonthPaid) * 100);
+      card1Badge = {
+        text: `${cPct >= 0 ? `+${cPct}%` : `${cPct}%`}`,
+        sub: "vs last month",
+        isPositive: cPct >= 0,
+        icon: cPct >= 0 ? "fa-arrow-up" : "fa-arrow-down",
+      };
+    } else if (totalPaid > 0 && totalPending === 0) {
+      card1Badge = { text: "100%", sub: "Fully realized", isPositive: true, icon: "fa-check" };
+    } else if (totalPaid > 0) {
+      card1Badge = { text: `${collectionRate}%`, sub: "Realized to date", isPositive: true, icon: "fa-arrow-trend-up" };
+    } else {
+      card1Badge = { text: "0%", sub: "No collections yet", isPositive: false, icon: "fa-minus" };
+    }
+
+    let card2Badge = { text: "0%", sub: "All fees cleared", isPositive: true, icon: "fa-check" };
+    if (totalPending === 0) {
+      card2Badge = { text: "0%", sub: "All fees cleared", isPositive: true, icon: "fa-check" };
+    } else if (lastMonthPending > 0) {
+      const pPct = Math.round(((thisMonthPending - lastMonthPending) / lastMonthPending) * 100);
+      card2Badge = {
+        text: `${pPct >= 0 ? `+${pPct}%` : `${pPct}%`}`,
+        sub: "vs last month",
+        isPositive: pPct <= 0,
+        icon: pPct >= 0 ? "fa-arrow-up" : "fa-arrow-down",
+      };
+    } else {
+      const duesPct = totalBillVolume > 0 ? Math.round((totalPending / totalBillVolume) * 100) : 0;
+      card2Badge = { text: `${duesPct}%`, sub: "of billed amount", isPositive: false, icon: "fa-clock" };
+    }
+
+    let card3Badge = { text: `${collectionRate}%`, sub: "Overall realization", isPositive: true, icon: "fa-check" };
+    if (collectionRate === 100) {
+      card3Badge = { text: "100%", sub: "Target reached", isPositive: true, icon: "fa-circle-check" };
+    } else if (lastMonthPaid + lastMonthPending > 0 && thisMonthPaid + thisMonthPending > 0) {
+      const thisRate = Math.round((thisMonthPaid / (thisMonthPaid + thisMonthPending)) * 100);
+      const lastRate = Math.round((lastMonthPaid / (lastMonthPaid + lastMonthPending)) * 100);
+      const rDiff = thisRate - lastRate;
+      card3Badge = {
+        text: `${rDiff >= 0 ? `+${rDiff}%` : `${rDiff}%`}`,
+        sub: "vs last month",
+        isPositive: rDiff >= 0,
+        icon: rDiff >= 0 ? "fa-arrow-up" : "fa-arrow-down",
+      };
+    } else {
+      card3Badge = {
+        text: `${collectionRate}%`,
+        sub: "Realization rate",
+        isPositive: collectionRate >= 75,
+        icon: collectionRate >= 75 ? "fa-arrow-trend-up" : "fa-arrow-trend-down",
+      };
+    }
+
+    let card4Badge = { text: "0 dues", sub: "Zero defaulters", isPositive: true, icon: "fa-check" };
+    if (duesStudentsSet.size === 0) {
+      card4Badge = { text: "0 dues", sub: "Zero defaulters", isPositive: true, icon: "fa-check" };
+    } else if (lastMonthDuesStudents.size > 0 && thisMonthDuesStudents.size > 0) {
+      const dDiff = thisMonthDuesStudents.size - lastMonthDuesStudents.size;
+      card4Badge = {
+        text: `${dDiff >= 0 ? `+${dDiff}` : `${dDiff}`}`,
+        sub: "vs last month",
+        isPositive: dDiff <= 0,
+        icon: dDiff >= 0 ? "fa-arrow-up" : "fa-arrow-down",
+      };
+    } else {
+      card4Badge = { text: `${duesStudentsSet.size} due`, sub: "Require follow-up", isPositive: false, icon: "fa-users" };
+    }
+
+    const mName = isBS ? (BS_MONTH_NAMES[curM - 1] || "This Month") : "This Month";
+
+    // 6. Overview Bar Data
+    const overviewBarData = overviewMonthLabels.map((m) => ({
+      name: m,
+      collected: overviewMonthMap[m]?.collected || 0,
+      pending: overviewMonthMap[m]?.pending || 0,
+    }));
+
+    // 7. Status Donut Data (L5)
+    const rawCounts = apiResult?.status_counts;
+    let paidCount = rawCounts?.paid ?? fallbackStatusCounts.paid;
+    let partialCount = rawCounts?.partial ?? fallbackStatusCounts.partial;
+    let unpaidCount = rawCounts?.unpaid ?? fallbackStatusCounts.unpaid;
+    let waivedCount = rawCounts?.waived ?? fallbackStatusCounts.waived;
+
+    const totalStatusCount = paidCount + partialCount + unpaidCount + waivedCount;
+    let statusDonutData;
+    if (totalStatusCount === 0) {
+      statusDonutData = {
+        total: 0,
+        chartData: [
+          { name: "Paid Invoices", value: 0, color: "#10b981", percent: 0 },
+          { name: "Partial Invoices", value: 0, color: "#f59e0b", percent: 0 },
+          { name: "Unpaid Invoices", value: 0, color: "#ef4444", percent: 0 },
+          { name: "Waived Invoices", value: 0, color: "#3b82f6", percent: 0 },
+        ],
+      };
+    } else {
+      const pPaid = Math.round((paidCount / totalStatusCount) * 100);
+      const pPartial = Math.round((partialCount / totalStatusCount) * 100);
+      const pUnpaid = Math.round((unpaidCount / totalStatusCount) * 100);
+      const pWaived = Math.max(0, 100 - pPaid - pPartial - pUnpaid);
+      statusDonutData = {
+        total: totalStatusCount,
+        chartData: [
+          { name: "Paid Invoices", value: paidCount, color: "#10b981", percent: pPaid },
+          { name: "Partial Invoices", value: partialCount, color: "#f59e0b", percent: pPartial },
+          { name: "Unpaid Invoices", value: unpaidCount, color: "#ef4444", percent: pUnpaid },
+          { name: "Waived Invoices", value: waivedCount, color: "#3b82f6", percent: pWaived },
+        ],
+      };
+    }
+
+    // 8. Category Breakdown
+    const catColors: Record<string, string> = {
+      "Tuition Fee": "#3b82f6",
+      "Computer Fee": "#a855f7",
+      "Admission Fee": "#14b8a6",
+      "Library Fee": "#f59e0b",
+      "Exam Fee": "#ec4899",
+      Others: "#94a3b8",
+    };
+    const categoryBreakdown = {
+      total: totalCatAmt,
+      items: Object.entries(catMap)
+        .map(([name, amount]) => ({
+          name,
+          amount,
+          percent: totalCatAmt > 0 ? Math.round((amount / totalCatAmt) * 100) : 0,
+          color: catColors[name] || "#94a3b8",
+        }))
+        .sort((a, b) => b.amount - a.amount),
+    };
+
+    // 9. Daily Trend Data (L4 - No synthetic slopes)
     const endDay = Math.max(1, Math.min(todayDay, maxDays));
     const candidateDays = [1, 5, 10, 15, 20, 25, 30];
     const days = candidateDays.filter((d) => d < endDay);
     if (!days.includes(endDay)) {
       days.push(endDay);
     }
-
-    const paymentsList: Array<{ day: number; amount: number; month: number; year: number }> = [];
-
-    for (const c of collections) {
-      if (Array.isArray(c.payments)) {
-        for (const p of c.payments) {
-          const amt = parseFloat(p.paid_amount || 0);
-          if (amt <= 0 || !p.payment_date) continue;
-          const pDate = String(p.payment_date).slice(0, 10);
-          let pDay = 1;
-          let pMonth = 1;
-          let pYear = 2026;
-          if (isBS) {
-            try {
-              const bs = isoToBS(pDate);
-              pDay = bs.day;
-              pMonth = bs.month;
-              pYear = bs.year;
-            } catch {
-              continue;
-            }
-          } else {
-            const d = new Date(pDate);
-            pDay = d.getDate();
-            pMonth = d.getMonth() + 1;
-            pYear = d.getFullYear();
-          }
-          paymentsList.push({ day: pDay, amount: amt, month: pMonth, year: pYear });
-        }
+    const currentMonthPayments = allPmts.filter((p) => p.year === curY && p.month === curM);
+    let dailyTrendData;
+    if (currentMonthPayments.length === 0) {
+      dailyTrendData = days.map((d) => ({ day: d, amount: 0 }));
+    } else {
+      let runningTotal = 0;
+      const dayMap: Record<number, number> = {};
+      for (let d = 1; d <= endDay; d++) {
+        const dayAmt = currentMonthPayments
+          .filter((p) => p.day === d)
+          .reduce((sum, p) => sum + p.amount, 0);
+        runningTotal += dayAmt;
+        dayMap[d] = runningTotal;
       }
+      dailyTrendData = days.map((d) => ({
+        day: d,
+        amount: dayMap[d] ?? 0,
+      }));
     }
 
-    for (const p of recentPayments) {
-      const amt = parseFloat(p.paid_amount || 0);
-      if (amt <= 0 || !p.payment_date) continue;
-      const pDate = String(p.payment_date).slice(0, 10);
-      let pDay = 1;
-      let pMonth = 1;
-      let pYear = 2026;
-      if (isBS) {
-        try {
-          const bs = isoToBS(pDate);
-          pDay = bs.day;
-          pMonth = bs.month;
-          pYear = bs.year;
-        } catch {
-          continue;
-        }
-      } else {
-        const d = new Date(pDate);
-        pDay = d.getDate();
-        pMonth = d.getMonth() + 1;
-        pYear = d.getFullYear();
-      }
-      paymentsList.push({ day: pDay, amount: amt, month: pMonth, year: pYear });
-    }
-
-    let targetPayments = paymentsList.filter((p) => p.year === curY && p.month === curM);
-
-    if (targetPayments.length === 0 && paymentsList.length > 0) {
-      const sorted = [...paymentsList].sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
-      const latestY = sorted[0].year;
-      const latestM = sorted[0].month;
-      targetPayments = paymentsList.filter((p) => p.year === latestY && p.month === latestM);
-    }
-
-    // Cumulative sum up to endDay
-    let runningTotal = 0;
-    const dayMap: Record<number, number> = {};
-    for (let d = 1; d <= endDay; d++) {
-      const dayAmt = targetPayments
-        .filter((p) => p.day === d)
-        .reduce((sum, p) => sum + p.amount, 0);
-      runningTotal += dayAmt;
-      dayMap[d] = runningTotal;
-    }
-
-    if (targetPayments.length === 0) {
-      if (totalPaid > 0) {
-        return days.map((d, i) => ({
-          day: d,
-          amount: Math.round(totalPaid * ((i + 1) / days.length)),
-        }));
-      }
-      return days.map((d) => ({ day: d, amount: 0 }));
-    }
-
-    return days.map((d) => ({
-      day: d,
-      amount: dayMap[d] ?? 0,
-    }));
-  }, [collections, recentPayments, isBS, totalPaid]);
-
-  // ── 6. Top Classes by Collection ──
-  const topClasses = useMemo(() => {
-    const classMap: Record<string, number> = {};
-    for (const c of collections) {
-      const p = parseFloat(c.paid_amount || 0);
-      if (p <= 0) continue;
-      const cName = c.class_name ? `${c.class_name}${c.section_name ? ` - Sec ${c.section_name}` : ""}` : "Class 1";
-      classMap[cName] = (classMap[cName] || 0) + p;
-    }
-
-    const classEntries = Object.entries(classMap);
-    if (!classEntries.length) {
-      return [
-        { name: "Class 1 - Sec A", amount: 6800, percent: 38, color: "#3b82f6" },
-        { name: "Class 2 - Sec A", amount: 4600, percent: 26, color: "#a855f7" },
-        { name: "Class 3 - Sec A", amount: 3500, percent: 20, color: "#10b981" },
-        { name: "Class 4 - Sec A", amount: 2000, percent: 11, color: "#f59e0b" },
-        { name: "Class 5 - Sec A", amount: 1000, percent: 6, color: "#ef4444" },
-      ];
-    }
-
+    // 10. Top Classes
     const rankColors = ["#3b82f6", "#a855f7", "#10b981", "#f59e0b", "#ef4444"];
+    const classEntries = Object.entries(classMap);
     const totalTop = classEntries.reduce((acc, [, val]) => acc + val, 0);
-
-    return classEntries
+    const topClasses = classEntries
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name, amount], idx) => ({
@@ -736,10 +511,24 @@ export default function FinanceDashboard() {
         percent: totalTop > 0 ? Math.round((amount / totalTop) * 100) : 0,
         color: rankColors[idx] || "#94a3b8",
       }));
-  }, [collections]);
 
-  // ── 7. Handle Send Fee Reminders ──
-  const handleSendReminders = () => {
+    return {
+      distinctStudentsWithDues: duesStudentsSet.size,
+      card1Badge,
+      card2Badge,
+      card3Badge,
+      card4Badge,
+      activeMonthName: mName,
+      overviewBarData,
+      statusDonutData,
+      categoryBreakdown,
+      dailyTrendData,
+      topClasses,
+    };
+  }, [collections, recentPayments, apiResult, isBS, collectionOverviewPeriod, totalPaid, totalPending, collectionRate, totalBillVolume]);
+
+  // ── 7. Handle Send Fee Reminders (L6 / N6) ──
+  const handleSendReminders = async () => {
     if (distinctStudentsWithDues === 0) {
       return dispatch(
         showToast({
@@ -749,17 +538,34 @@ export default function FinanceDashboard() {
         })
       );
     }
-    setSendingReminders(true);
-    setTimeout(() => {
-      setSendingReminders(false);
+    try {
+      setSendingReminders(true);
+      await apiRequest('/notices/admin', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `Fee Due Reminder - ${activeMonthName}`,
+          content: `Important notice for students and parents: Fee collections for the current academic session are ongoing. There are currently outstanding balances for ${distinctStudentsWithDues} student accounts. Please ensure timely fee settlement at the school finance counter or online.`,
+          is_pinned: true,
+        }),
+      });
       dispatch(
         showToast({
           type: "success",
-          title: "Reminders Queued",
-          message: `Fee due reminder notifications dispatched to ${distinctStudentsWithDues} students.`,
+          title: "Announcement Published",
+          message: `Official fee reminder announcement posted to the notice board for students and parents regarding ${distinctStudentsWithDues} accounts with pending dues.`,
         })
       );
-    }, 800);
+    } catch (err: any) {
+      dispatch(
+        showToast({
+          type: "error",
+          title: "Failed to publish notice",
+          message: err?.message || "Could not post fee reminder announcement.",
+        })
+      );
+    } finally {
+      setSendingReminders(false);
+    }
   };
 
   return (
@@ -798,6 +604,29 @@ export default function FinanceDashboard() {
           </div>
         }
       />
+
+      {/* ── Large Ledger Transparency Notice (N5) ── */}
+      {collections.length >= 2000 && (
+        <div
+          style={{
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: 10,
+            padding: "10px 16px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            fontSize: 13,
+            color: "#1e40af",
+          }}
+        >
+          <i className="fa-solid fa-circle-info" style={{ color: "#3b82f6" }} />
+          <span>
+            <strong>Large Session Ledger:</strong> Breakdown charts reflect the latest 2,000 collections. Aggregate summary metrics at the top account for the entire academic session.
+          </span>
+        </div>
+      )}
 
       {/* ── Top 4 Metric Cards Grid ── */}
       <section className={styles.metricsGrid}>
@@ -1390,9 +1219,9 @@ export default function FinanceDashboard() {
             <i className="fa-solid fa-lightbulb" />
           </div>
           <div>
-            <h4 className={styles.calloutTitle}>Reduce Pending Dues</h4>
+            <h4 className={styles.calloutTitle}>Publish Fee Reminders Announcement</h4>
             <p className={styles.calloutDesc}>
-              Send reminders to {distinctStudentsWithDues} students with unpaid fees.
+              Post an official fee due notice to the school notice board for the {distinctStudentsWithDues} students with unpaid balances.
             </p>
           </div>
         </div>
@@ -1405,11 +1234,11 @@ export default function FinanceDashboard() {
         >
           {sendingReminders ? (
             <>
-              <i className="fa-solid fa-spinner fa-spin" /> Sending…
+              <i className="fa-solid fa-spinner fa-spin" /> Publishing…
             </>
           ) : (
             <>
-              <i className="fa-solid fa-paper-plane" /> Send Fee Reminders
+              <i className="fa-solid fa-bullhorn" /> Post Notice Board Reminder
             </>
           )}
         </button>

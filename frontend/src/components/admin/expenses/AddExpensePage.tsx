@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { useCurrency } from "@/lib/useCurrency";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -16,6 +17,7 @@ const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boo
 export default function AddExpensePage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { fmt } = useCurrency();
   const user = useAppSelector((state) => state.auth.user);
   const backUrl = user?.role === 'finance' ? '/finance/expenses' : '/expenses';
   const { data: activeYear } = useApi<any>('/academic-years/active');
@@ -229,7 +231,7 @@ export default function AddExpensePage() {
                 </div>
                 <div className={s("summaryTotalRow")}>
                   <b>Total Amount</b>
-                  <strong>₹{Number(amount || 0).toLocaleString("en-IN")}</strong>
+                  <strong>{fmt(amount)}</strong>
                 </div>
               </div>
             </div>

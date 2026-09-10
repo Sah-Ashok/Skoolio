@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 /* ─────────────────────────────── types ─── */
 interface Notice {
@@ -21,12 +22,6 @@ interface Notice {
 }
 
 /* ─────────────────────────────── helpers ─ */
-const fmt = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 
 const isExpired = (e: string | null) =>
   e ? new Date(e) < new Date() : false;
@@ -50,6 +45,7 @@ function DetailSheet({
   notice: Notice;
   onClose: () => void;
 }) {
+  const { formatDate } = useDateFormat();
   return (
     <>
       {/* Overlay */}
@@ -232,7 +228,7 @@ function DetailSheet({
             }}
           >
             <i className="fa-solid fa-calendar" style={{ fontSize: 10 }} />
-            {fmt(notice.created_at)}
+            {formatDate(notice.created_at)}
           </span>
 
           {/* Expiry */}
@@ -257,8 +253,8 @@ function DetailSheet({
                 style={{ fontSize: 10 }}
               />
               {isExpired(notice.expires_at)
-                ? `Expired ${fmt(notice.expires_at)}`
-                : `Expires ${fmt(notice.expires_at)}`}
+                ? `Expired ${formatDate(notice.expires_at)}`
+                : `Expires ${formatDate(notice.expires_at)}`}
             </span>
           )}
         </div>

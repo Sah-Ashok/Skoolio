@@ -7,14 +7,10 @@ import { apiRequest } from "@/lib/api";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n || 0));
-
-const fmtDate = (v: string) =>
-  new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
   pending:  { bg: "#fff1df", color: "#a85f12", label: "Pending Verification" },
@@ -120,6 +116,8 @@ function SubmitPaymentForm({
   onSuccess:   () => void;
 }) {
   const dispatch = useAppDispatch();
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   const [form, setForm] = useState({
     fee_collection_id: "",
     bank_account_id:   "",
@@ -224,7 +222,7 @@ function SubmitPaymentForm({
           <option value="">— Select fee —</option>
           {unpaidCollections.map(c => (
             <option key={c.id} value={c.id}>
-              {c.fee_name} · Due {fmtDate(c.due_date?.slice(0, 10))} · {fmt(c.remaining_amount)} remaining
+              {c.fee_name} · Due {formatDate(c.due_date?.slice(0, 10))} · {fmt(c.remaining_amount)} remaining
             </option>
           ))}
         </select>
@@ -359,6 +357,8 @@ function SubmitPaymentForm({
 
 // ── My Submissions ────────────────────────────────────────────────────────────
 function MySubmissions({ requests, loading, refetch }: { requests: any[]; loading: boolean; refetch: () => void }) {
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   if (loading) return <div style={{ padding: "2rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading submissions…" /></div>;
   if (!requests.length) return (
     <div style={{ padding: "2.5rem", textAlign: "center", color: "#94a3b8" }}>
@@ -377,7 +377,7 @@ function MySubmissions({ requests, loading, refetch }: { requests: any[]; loadin
               <div>
                 <div style={{ fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>{r.fee_name || "Fee Payment"}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#6a7882", marginTop: 2 }}>
-                  {r.bank_name} · Submitted {fmtDate(r.created_at || r.payment_date)}
+                  {r.bank_name} · Submitted {formatDate(r.created_at || r.payment_date)}
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

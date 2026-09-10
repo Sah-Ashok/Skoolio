@@ -8,6 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
 import Loader from "@/components/shared/Loader";
+import { useAcademicYear } from "@/hooks/useAcademicYear";
 import type { DashboardData } from "@/types/dashboard.types";
 
 const s = (className: string) => styles[className];
@@ -15,7 +16,9 @@ const s = (className: string) => styles[className];
 export default function AdminDashboardPage() {
   const { user } = useAppSelector((st) => st.auth);
   const { isBS, formatDate } = useDateFormat();
-  const { data, loading } = useApi<DashboardData>("/dashboard");
+  const { academicYearId } = useAcademicYear();
+  const dashboardUrl = academicYearId ? `/dashboard?academic_year_id=${academicYearId}` : "/dashboard";
+  const { data, loading } = useApi<DashboardData>(dashboardUrl);
 
   const now = new Date();
   const dateStr = isBS

@@ -7,17 +7,8 @@ import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
-
-function fmtCurrency(amount: number) {
-  return `₹ ${Math.round(amount).toLocaleString("en-IN")}`;
-}
-
-function formatDateLabel(value?: string) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -28,6 +19,8 @@ function getGreeting() {
 
 export default function StudentDashboardPage() {
   const { user } = useAppSelector((s) => s.auth);
+  const { fmt: fmtCurrency } = useCurrency();
+  const { formatDate: formatDateLabel } = useDateFormat();
   const { data: me, loading: meLoading } = useApi<any>("/auth/me");
   const { activeYear } = useAcademicYear();
   const { data: notices } = useApi<any[]>("/notices/student");

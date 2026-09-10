@@ -9,19 +9,17 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n || 0));
-
-const fmtDate = (v: string) =>
-  new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function StudentSubmitPaymentPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
 
   const { data: bankAccounts, loading: bankLoading } = useApi<any[]>("/online-payments/active-bank-accounts");
   const { data: collections,  loading: colLoading  } = useApi<any[]>("/fees/me/collections");
@@ -209,7 +207,7 @@ export default function StudentSubmitPaymentPage() {
                       <option value="">— Select fee —</option>
                       {unpaidCollections.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.fee_name} · Due {fmtDate(c.due_date?.slice(0, 10))} · {fmt(c.remaining_amount)} remaining
+                          {c.fee_name} · Due {formatDate(c.due_date?.slice(0, 10))} · {fmt(c.remaining_amount)} remaining
                         </option>
                       ))}
                     </select>

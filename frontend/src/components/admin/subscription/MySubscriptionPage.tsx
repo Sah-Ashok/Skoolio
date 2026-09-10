@@ -4,14 +4,12 @@ import Link from "next/link";
 import styles from "./subscription.module.css";
 import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-const fmt = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
-
 const STATUS_STYLE: Record<string, { bg: string; color: string; border: string; label: string }> = {
   active:       { bg: "#dcfce7", color: "#15803d", border: "#bbf7d0", label: "Active" },
   grace_period: { bg: "#fef3c7", color: "#b45309", border: "#fde68a", label: "Grace Period" },
@@ -40,6 +38,8 @@ function ProgressBar({ value, max }: { value: number; max: number | null }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MySubscriptionPage() {
+  const { formatDate } = useDateFormat();
+  const fmt = (d?: string | null) => (d ? formatDate(d) : "—");
   const { data: status,  loading: sL } = useApi<any>("/subscriptions/me/status");
   const { data: history, loading: hL } = useApi<any[]>("/subscriptions/me/history");
 

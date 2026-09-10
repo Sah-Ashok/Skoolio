@@ -285,6 +285,7 @@ export const getFeeCollectionsBySchool = async (
   status_counts?: {
     all: number;
     paid: number;
+    partial: number;
     unpaid: number;
     cancelled: number;
     waived: number;
@@ -377,7 +378,8 @@ export const getFeeCollectionsBySchool = async (
     `SELECT 
        COUNT(*)::int AS count_all,
        COUNT(*) FILTER (WHERE fc.status = 'paid')::int AS count_paid,
-       COUNT(*) FILTER (WHERE fc.status IN ('unpaid', 'partial'))::int AS count_unpaid,
+       COUNT(*) FILTER (WHERE fc.status = 'partial')::int AS count_partial,
+       COUNT(*) FILTER (WHERE fc.status = 'unpaid')::int AS count_unpaid,
        COUNT(*) FILTER (WHERE fc.status = 'cancelled')::int AS count_cancelled,
        COUNT(*) FILTER (WHERE fc.status = 'waived')::int AS count_waived
      ${joinAndWhereBase}`,
@@ -386,6 +388,7 @@ export const getFeeCollectionsBySchool = async (
   const status_counts = {
     all: Number(statusCountsResult.rows[0]?.count_all ?? 0),
     paid: Number(statusCountsResult.rows[0]?.count_paid ?? 0),
+    partial: Number(statusCountsResult.rows[0]?.count_partial ?? 0),
     unpaid: Number(statusCountsResult.rows[0]?.count_unpaid ?? 0),
     cancelled: Number(statusCountsResult.rows[0]?.count_cancelled ?? 0),
     waived: Number(statusCountsResult.rows[0]?.count_waived ?? 0),

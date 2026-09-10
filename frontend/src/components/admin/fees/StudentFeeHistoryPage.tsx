@@ -372,11 +372,17 @@ function StudentFeeSearchDirectory({ basePath = "" }: { basePath?: string }) {
     }
   }, []);
 
+  const isInitialMount = useRef(true);
+
   useEffect(() => {
     loadInitialStudents();
   }, [loadInitialStudents]);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (!query.trim()) {
       loadInitialStudents();
       return;
@@ -403,6 +409,10 @@ function StudentFeeSearchDirectory({ basePath = "" }: { basePath?: string }) {
         setLoading(false);
       }
     }, 200);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query, loadInitialStudents]);
 
   const studentList = Array.isArray(students) ? students : [];
@@ -658,14 +668,14 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
   const studentId = searchParams.get("student_id") || searchParams.get("studentId");
 
   const { fmt } = useCurrency();
-  const { formatDate, formatFeeName } = useDateFormat();
+  const { formatDate, formatFeeName, isBS } = useDateFormat();
   const { academicYearId } = useAcademicYear();
 
-  // Academic Year Switcher
-  const { data: allYearsData } = useApi<any[]>("/academic-years");
+  // Academic Year Switcher (guarded: only fetch if viewing student ledger)
+  const { data: allYearsData } = useApi<any[]>(studentId ? "/academic-years" : null);
 
   const { data: financeAccount } = useApi<any>(
-    basePath !== "/finance" ? "/school/finance-account" : null
+    studentId && basePath !== "/finance" ? "/school/finance-account" : null
   );
   const hasActiveFinanceAccount = Boolean(
     basePath !== "/finance" && financeAccount && (financeAccount.id || financeAccount.email) && financeAccount.status !== "inactive"
@@ -686,10 +696,48 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
     studentId ? `/students/${studentId}` : ""
   );
 
-  // Collections and payments
-  const [collections, setCollections] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Collections and payments via useApi with SWR caching
+  const collectionsUrl = studentId && selectedYearId
+    ? `/fees/collections/student/${studentId}?academic_year_id=${selectedYearId}`
+    : null;
+  const paymentsUrl = studentId && selectedYearId
+    ? `/fees/payments/student/${studentId}?academic_year_id=${selectedYearId}`
+    : null;
+
+  const {
+    data: colData,
+    loading: colLoading,
+    refetch: refetchCollections,
+  } = useApi<any>(collectionsUrl);
+
+  const {
+    data: payData,
+    loading: payLoading,
+    refetch: refetchPayments,
+  } = useApi<any>(paymentsUrl);
+
+  const collections = useMemo(() => {
+    if (!colData) return [];
+    if (Array.isArray(colData)) return colData;
+    if (Array.isArray(colData?.data)) return colData.data;
+    if (Array.isArray(colData?.data?.data)) return colData.data.data;
+    return [];
+  }, [colData]);
+
+  const payments = useMemo(() => {
+    if (!payData) return [];
+    if (Array.isArray(payData)) return payData;
+    if (Array.isArray(payData?.data)) return payData.data;
+    if (Array.isArray(payData?.data?.data)) return payData.data.data;
+    return [];
+  }, [payData]);
+
+  const loading = colLoading || payLoading;
+
+  const refetchData = useCallback(() => {
+    refetchCollections();
+    refetchPayments();
+  }, [refetchCollections, refetchPayments]);
 
   // Filter state
   const [viewFilter, setViewFilter] = useState<"all" | "invoices" | "payments">("all");
@@ -700,42 +748,6 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncChoice, setSyncChoice] = useState<"admission_month" | "session_start">("admission_month");
   const [syncing, setSyncing] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    if (!studentId || !selectedYearId) return;
-    setLoading(true);
-    const ayParam = `?academic_year_id=${selectedYearId}`;
-    try {
-      const [colRes, payRes] = await Promise.all([
-        apiRequest<any>(`/fees/collections/student/${studentId}${ayParam}`),
-        apiRequest<any>(`/fees/payments/student/${studentId}${ayParam}`),
-      ]);
-      const colList = Array.isArray(colRes?.data)
-        ? colRes.data
-        : Array.isArray((colRes as any)?.data?.data)
-        ? (colRes as any).data.data
-        : Array.isArray(colRes)
-        ? colRes
-        : [];
-      const payList = Array.isArray(payRes?.data)
-        ? payRes.data
-        : Array.isArray((payRes as any)?.data?.data)
-        ? (payRes as any).data.data
-        : Array.isArray(payRes)
-        ? payRes
-        : [];
-      setCollections(colList);
-      setPayments(payList);
-    } catch (err: any) {
-      dispatch(showToast({ type: "error", title: "Load Error", message: err.message || "Failed to load fee records." }));
-    } finally {
-      setLoading(false);
-    }
-  }, [studentId, selectedYearId, dispatch]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   // ── Sync Dues Handler ───────────────────────────────────────────────────────
   const handleSyncDues = async (e: React.FormEvent) => {
@@ -756,7 +768,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
         message: res.message || "Student dues generated successfully.",
       }));
       setShowSyncModal(false);
-      fetchData();
+      refetchData();
     } catch (err: any) {
       dispatch(showToast({
         type: "error",
@@ -942,7 +954,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
     });
 
     return items;
-  }, [collections, payments, formatFeeName]);
+  }, [collections, payments, isBS]);
 
   // ── Filtered Ledger Entries ────────────────────────────────────────────────
   const filteredEntries = useMemo(() => {
@@ -1103,9 +1115,18 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 16, fontWeight: 900, color: col.navy }}>{studentName}</strong>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: col.green, background: col.greenBg, border: `1px solid ${col.greenBrd}`, padding: "2px 7px", borderRadius: 999 }}>
-                  ACTIVE
-                </span>
+                {(() => {
+                  const s = (student?.status || "active").toLowerCase();
+                  const isAct = s === "active";
+                  const sBg = isAct ? col.greenBg : s === "graduated" ? col.blueBg : s === "transferred" ? col.amberBg : col.redBg;
+                  const sColor = isAct ? col.green : s === "graduated" ? col.blue : s === "transferred" ? col.amber : col.red;
+                  const sBrd = isAct ? col.greenBrd : s === "graduated" ? col.blueBrd : s === "transferred" ? col.amberBrd : col.redBrd;
+                  return (
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: sColor, background: sBg, border: `1px solid ${sBrd}`, padding: "2px 7px", borderRadius: 999, textTransform: "uppercase" }}>
+                      {s}
+                    </span>
+                  );
+                })()}
                 {admissionDateRaw && (
                   <span style={{ fontSize: 11.5, color: col.muted, fontWeight: 600 }}>
                     · Enrolled: {formatDate(admissionDateRaw)}

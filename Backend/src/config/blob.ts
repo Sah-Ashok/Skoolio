@@ -1,10 +1,9 @@
 // ── config/blob.ts ────────────────────────────────────────────────────────────
 // Azure Blob Storage client for receipt PDFs.
-// Container layout:  school-receipts / School-Receipt / <school_id> / <receipt_number>.pdf
+// Container layout: school-data / <storage_folder> / receipts / <receipt_number>.pdf
 // ─────────────────────────────────────────────────────────────────────────────
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
-
-const RECEIPTS_CONTAINER = process.env.AZURE_RECEIPTS_CONTAINER || 'school-receipts';
+import { SCHOOL_DATA_CONTAINER, resolveSchoolStorageFolder, getReceiptBlob } from '../utils/azureStorage';
 
 // Lazy — only created on first use so missing env var doesn't crash startup
 let _client:    BlobServiceClient | null  = null;
@@ -21,7 +20,7 @@ function getClient(): BlobServiceClient {
 
 async function getContainer(): Promise<ContainerClient> {
   if (_container && _ready) return _container;
-  _container = getClient().getContainerClient(RECEIPTS_CONTAINER);
+  _container = getClient().getContainerClient(SCHOOL_DATA_CONTAINER);
   if (!_ready) {
     await _container.createIfNotExists({ access: 'blob' });
     _ready = true;
@@ -31,7 +30,7 @@ async function getContainer(): Promise<ContainerClient> {
 
 /**
  * Upload a PDF buffer to:
- *   school-receipts/School-Receipt/<school_id>/<receipt_number>.pdf
+ *   school-data/<storage_folder>/receipts/<receipt_number>.pdf
  *
  * Idempotent — uploading again overwrites the same blob.
  * Returns the public URL of the uploaded blob.
@@ -42,7 +41,8 @@ export async function uploadReceiptPDF(
   pdfBuffer:      Buffer
 ): Promise<string> {
   const container = await getContainer();
-  const blobName  = `School-Receipt/${school_id}/${receipt_number}.pdf`;
+  const folder    = await resolveSchoolStorageFolder(school_id);
+  const blobName  = getReceiptBlob(folder, receipt_number);
   const blockBlob = container.getBlockBlobClient(blobName);
 
   await blockBlob.uploadData(pdfBuffer, {
@@ -63,7 +63,8 @@ export async function getReceiptURL(
   receipt_number: string
 ): Promise<string | null> {
   const container = await getContainer();
-  const blobName  = `School-Receipt/${school_id}/${receipt_number}.pdf`;
+  const folder    = await resolveSchoolStorageFolder(school_id);
+  const blobName  = getReceiptBlob(folder, receipt_number);
   const blockBlob = container.getBlockBlobClient(blobName);
   const exists    = await blockBlob.exists();
   return exists ? blockBlob.url : null;
@@ -79,7 +80,8 @@ export async function deleteReceiptPDF(
 ): Promise<void> {
   try {
     const container = await getContainer();
-    const blobName  = `School-Receipt/${school_id}/${receipt_number}.pdf`;
+    const folder    = await resolveSchoolStorageFolder(school_id);
+    const blobName  = getReceiptBlob(folder, receipt_number);
     await container.deleteBlob(blobName, { deleteSnapshots: 'include' });
   } catch {
     // Ignore — blob already deleted or doesn't exist

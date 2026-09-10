@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import styles from "@/components/admin/salary/salary.module.css";
 import { useApi } from "@/lib/useApi";
 import Loader, { Spinner } from "@/components/shared/Loader";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -12,9 +14,6 @@ const MONTHS = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ];
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const statusStyle: Record<string, { bg: string; color: string }> = {
   paid:      { bg: "#e2f6ee", color: "#12805c" },
@@ -45,6 +44,8 @@ type Salary = {
 
 // ── Salary Slip modal ─────────────────────────────────────────────────────────
 function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => void }) {
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   return (
     <div
       onClick={onClose}
@@ -90,34 +91,34 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
           <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: 1 }}>
             Earnings
           </p>
-          {[
-            { label: "Basic Salary",  value: salary.basic_salary, color: "#1f2d36" },
-            { label: "Bonus / Allow", value: salary.bonus,        color: "#12805c" },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #f0f4f6" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#6a7882" }}>{label}</span>
-              <strong style={{ fontSize: 13, fontWeight: 900, color }}>{fmt(value)}</strong>
-            </div>
-          ))}
-
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 900, color: "#1f2d36" }}>Gross Earnings</span>
-            <strong style={{ fontSize: 14, fontWeight: 900, color: "#3b5bdb" }}>
-              {fmt(Number(salary.basic_salary) + Number(salary.bonus))}
-            </strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {[
+              { label: "Basic Salary", amount: salary.basic_salary, pos: true },
+              { label: "Bonus / Allowances", amount: salary.bonus, pos: true },
+            ].map(({ label, amount, pos }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#6a7882", fontWeight: 700 }}>{label}</span>
+                <span style={{ fontWeight: 900, color: pos ? "#1f2d36" : "#b42318" }}>{fmt(amount)}</span>
+              </div>
+            ))}
           </div>
 
           {/* Deductions */}
           <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: 1 }}>
             Deductions
           </p>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #f0f4f6" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#6a7882" }}>Total Deduction</span>
-            <strong style={{ fontSize: 13, fontWeight: 900, color: "#b42318" }}>– {fmt(salary.deduction)}</strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+              <span style={{ color: "#6a7882", fontWeight: 700 }}>Total Deductions</span>
+              <span style={{ fontWeight: 900, color: "#b42318" }}>-{fmt(salary.deduction)}</span>
+            </div>
           </div>
 
-          {/* Net */}
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "14px 16px", marginTop: 14, borderRadius: 10, background: "#f6fdf9", border: "1px solid #bee8d6" }}>
+          {/* Net Total */}
+          <div style={{
+            padding: "14px 16px", borderRadius: 10, background: "#e2f6ee",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
             <span style={{ fontSize: 14, fontWeight: 900, color: "#12805c" }}>Net Salary</span>
             <strong style={{ fontSize: 18, fontWeight: 900, color: "#12805c" }}>{fmt(salary.net_salary)}</strong>
           </div>
@@ -126,7 +127,7 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
           {salary.status === "paid" && (
             <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: "Payment Date",   value: salary.payment_date ? new Date(salary.payment_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                { label: "Payment Date",   value: salary.payment_date ? formatDate(salary.payment_date) : "—" },
                 { label: "Payment Method", value: salary.payment_method ? methodLabel[salary.payment_method] ?? salary.payment_method : "—" },
               ].map(({ label, value }) => (
                 <div key={label} style={{ padding: "12px", border: "1px solid #dce5e9", borderRadius: 9, background: "#f8fbfc" }}>
@@ -166,6 +167,8 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function TeacherSalaryPage() {
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   const { data: salaries, loading } = useApi<Salary[]>("/teachers/me/salary");
   const [selected, setSelected] = useState<Salary | null>(null);
 
@@ -288,7 +291,7 @@ export default function TeacherSalaryPage() {
                       </td>
                       <td>
                         {sal.payment_date
-                          ? new Date(sal.payment_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          ? formatDate(sal.payment_date)
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>

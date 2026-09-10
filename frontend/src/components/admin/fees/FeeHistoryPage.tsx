@@ -47,7 +47,7 @@ function TypeBadge({ type }: { type: string }) {
 
 // ── Month grouping helper ─────────────────────────────────────────────────────
 
-function groupByMonth(collections: any[], payments: any[]) {
+function groupByMonth(collections: any[], payments: any[], billingGroupKey?: (iso: string) => { key: string; label: string }) {
   // Build a map of collection_id → payments
   const payMap: Record<number, any[]> = {};
   payments.forEach((p: any) => {
@@ -55,16 +55,19 @@ function groupByMonth(collections: any[], payments: any[]) {
     payMap[p.collection_id].push(p);
   });
 
-  // Group collections by "due_date YYYY-MM"
-  const months: Record<string, any[]> = {};
+  // Group collections by month
+  const months: Record<string, { label: string; cols: any[] }> = {};
   collections.forEach((c: any) => {
-    const key = (c.due_date || "").slice(0, 7) || "unknown";
-    if (!months[key]) months[key] = [];
-    months[key].push({ ...c, _payments: payMap[c.id] || [] });
+    const { key, label } = billingGroupKey
+      ? billingGroupKey(c.due_date)
+      : { key: (c.due_date || "").slice(0, 7) || "unknown", label: (c.due_date || "").slice(0, 7) || "No Due Date" };
+    if (!months[key]) months[key] = { label, cols: [] };
+    months[key].cols.push({ ...c, _payments: payMap[c.id] || [] });
   });
 
   return Object.entries(months)
-    .sort(([a], [b]) => b.localeCompare(a)); // newest first
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, data]) => [key, data.cols, data.label] as [string, any[], string]);
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -96,7 +99,7 @@ function StatCard({ label, value, accent, icon }: { label: string; value: string
 
 export default function FeeHistoryPage() {
   const searchParams       = useSearchParams();
-  const { formatDate, formatFeeName } = useDateFormat();
+  const { formatDate, formatFeeName, billingGroupKey } = useDateFormat();
   const studentId          = searchParams?.get("student_id");
   const { fmt }            = useCurrency();
   const { activeYear }     = useAcademicYear();
@@ -108,30 +111,44 @@ export default function FeeHistoryPage() {
   // Fetch student info
   const { data: student }    = useApi<any>(studentId ? `/students/${studentId}` : "");
 
-  // Fetch all collections (all years — no year filter so history is complete)
+  // Fetch collections (filtered by academic year if active)
+  const academicYearId = activeYear?.id;
+  const collectionsUrl = studentId
+    ? `/fees/collections/student/${studentId}${academicYearId ? `?academic_year_id=${academicYearId}` : ""}`
+    : "";
+  const paymentsUrl = studentId
+    ? `/fees/payments/student/${studentId}${academicYearId ? `?academic_year_id=${academicYearId}` : ""}`
+    : "";
+
   const { data: collectionsRaw, loading: collLoading } =
-    useApi<any[]>(
-      studentId ? `/fees/collections/student/${studentId}` : "",
-      [studentId]
-    );
+    useApi<any[]>(collectionsUrl, [studentId, academicYearId]);
 
   // Fetch all payments
   const { data: paymentsRaw, loading: payLoading } =
-    useApi<any[]>(
-      studentId ? `/fees/payments/student/${studentId}` : "",
-      [studentId]
-    );
+    useApi<any[]>(paymentsUrl, [studentId, academicYearId]);
 
   const collections = collectionsRaw || [];
   const payments    = paymentsRaw    || [];
 
-  // ── Summary stats ──────────────────────────────────────────────────────────
-  const totalBilled  = collections.reduce((a, c) => a + parseFloat(c.net_amount    || 0), 0);
-  const totalPaid    = collections.reduce((a, c) => a + parseFloat(c.paid_amount   || 0), 0);
-  const totalPending = collections.reduce((a, c) => a + parseFloat(c.remaining_amount || 0), 0);
-  const overdueCt    = collections.filter(c =>
-    c.status !== "paid" && c.status !== "waived" && new Date(c.due_date) < new Date()
-  ).length;
+  // ── Summary stats (single-pass memoized) ────────────────────────────────────
+  const { totalBilled, totalPaid, totalPending, overdueCt } = useMemo(() => {
+    let billed = 0;
+    let paid = 0;
+    let pending = 0;
+    let overdue = 0;
+    const now = new Date();
+
+    for (const c of collections) {
+      billed  += parseFloat(c.net_amount || 0) || 0;
+      paid    += parseFloat(c.paid_amount || 0) || 0;
+      pending += parseFloat(c.remaining_amount || 0) || 0;
+      if (c.status !== "paid" && c.status !== "waived" && c.due_date && new Date(c.due_date) < now) {
+        overdue += 1;
+      }
+    }
+
+    return { totalBilled: billed, totalPaid: paid, totalPending: pending, overdueCt: overdue };
+  }, [collections]);
 
   // ── Filtered collections ──────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -145,7 +162,10 @@ export default function FeeHistoryPage() {
   }, [collections, typeFilter, statusFilter, search]);
 
   // ── Group by month ────────────────────────────────────────────────────────
-  const monthGroups = useMemo(() => groupByMonth(filtered, payments), [filtered, payments]);
+  const monthGroups = useMemo(
+    () => groupByMonth(filtered, payments, billingGroupKey),
+    [filtered, payments, billingGroupKey]
+  );
 
   // ── Pending fees (across all years) ───────────────────────────────────────
   const pendingFees = useMemo(() =>
@@ -403,12 +423,12 @@ export default function FeeHistoryPage() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                {monthGroups.map(([monthKey, cols]) => {
+                {monthGroups.map(([monthKey, cols, groupLabel]) => {
                   const monthPaid    = cols.reduce((a, c) => a + parseFloat(c.paid_amount   || 0), 0);
                   const monthTotal   = cols.reduce((a, c) => a + parseFloat(c.net_amount    || 0), 0);
                   const monthPending = cols.reduce((a, c) => a + parseFloat(c.remaining_amount || 0), 0);
                   const allPaid      = monthPending === 0;
-                  const label        = monthKey === "unknown" ? "No Due Date" : monthKey;
+                  const label        = groupLabel || (monthKey === "unknown" ? "No Due Date" : monthKey);
 
                   return (
                     <div key={monthKey} style={{

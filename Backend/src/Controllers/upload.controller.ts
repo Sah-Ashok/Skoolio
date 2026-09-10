@@ -4,6 +4,8 @@ import catchAsync from '../utils/catchAsync';
 import sendResponse from '../utils/response';
 import {
   uploadToAzure,
+  SCHOOL_DATA_CONTAINER,
+  resolveSchoolStorageFolder,
   getLogoBlob,
   getTeacherBlob,
   getStudentBlob,
@@ -26,11 +28,6 @@ function scheduleCleanup(uploadId: string) {
   setTimeout(() => chunkStore.delete(uploadId), CHUNK_TTL_MS);
 }
 
-const LOGOS_CONTAINER       = process.env.AZURE_LOGOS_CONTAINER       || 'skoolio-logos';
-const PROFILES_CONTAINER    = process.env.AZURE_PROFILES_CONTAINER    || 'skoolio-profiles';
-const SCREENSHOTS_CONTAINER = process.env.AZURE_SCREENSHOTS_CONTAINER || 'skoolio-screenshots';
-const QR_CODES_CONTAINER    = process.env.AZURE_QR_CODES_CONTAINER    || 'bank-qr';
-
 const extFromMime = (mime: string): string => {
   const map: Record<string, string> = {
     'image/jpeg': 'jpg',
@@ -47,10 +44,11 @@ export const uploadLogo = catchAsync(async (req: Request, res: Response, next: N
   }
 
   const { id: school_id } = req.user as IJwtAdminPayload;
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
   const ext      = extFromMime(req.file.mimetype);
-  const blobName = getLogoBlob(school_id, ext);
+  const blobName = getLogoBlob(folder, ext);
 
-  const url = await uploadToAzure(LOGOS_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const url = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   await pool.query(
     `UPDATE schools SET logo = $1, updated_at = NOW() WHERE id = $2`,
@@ -82,8 +80,9 @@ export const uploadTeacherPhoto = catchAsync(async (req: Request, res: Response,
   }
 
   const ext      = extFromMime(req.file.mimetype);
-  const blobName = getTeacherBlob(school_id, teacher_id, ext);
-  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const blobName = getTeacherBlob(folder, teacher_id, ext);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   await pool.query(
     `UPDATE teachers SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -115,8 +114,9 @@ export const uploadStudentPhoto = catchAsync(async (req: Request, res: Response,
   }
 
   const ext      = extFromMime(req.file.mimetype);
-  const blobName = getStudentBlob(school_id, student_id, ext);
-  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const blobName = getStudentBlob(folder, student_id, ext);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   await pool.query(
     `UPDATE students SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -177,8 +177,9 @@ export const uploadStudentPhotoChunk = catchAsync(async (
   }
 
   const ext      = extFromMime(entry.mimeType);
-  const blobName = getStudentBlob(school_id, student_id, ext);
-  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, fullBuffer, entry.mimeType);
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const blobName = getStudentBlob(folder, student_id, ext);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, fullBuffer, entry.mimeType);
 
   await pool.query(
     `UPDATE students SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -239,8 +240,9 @@ export const uploadTeacherPhotoChunk = catchAsync(async (
   }
 
   const ext      = extFromMime(entry.mimeType);
-  const blobName = getTeacherBlob(school_id, teacher_id, ext);
-  const url      = await uploadToAzure(PROFILES_CONTAINER, blobName, fullBuffer, entry.mimeType);
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const blobName = getTeacherBlob(folder, teacher_id, ext);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, fullBuffer, entry.mimeType);
 
   await pool.query(
     `UPDATE teachers SET photo = $1, updated_at = NOW() WHERE id = $2 AND school_id = $3`,
@@ -263,11 +265,12 @@ export const uploadPaymentScreenshot = catchAsync(async (
   }
 
   const { id: student_id, school_id } = req.user as IJwtUserPayload;
+  const folder    = (req.user as IJwtUserPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
   const ext       = extFromMime(req.file.mimetype);
   const timestamp = Date.now();
-  const blobName  = getPaymentScreenshotBlob(school_id, student_id, timestamp, ext);
+  const blobName  = getPaymentScreenshotBlob(folder, student_id, timestamp, ext);
 
-  const url = await uploadToAzure(SCREENSHOTS_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const url = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   sendResponse(res, 200, true, 'Screenshot uploaded successfully.', { url });
 });
@@ -301,8 +304,9 @@ export const uploadQrCode = catchAsync(async (
   }
 
   const ext      = extFromMime(req.file.mimetype);
-  const blobName = getQrCodeBlob(school_id, account_id, ext);
-  const url      = await uploadToAzure(QR_CODES_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const blobName = getQrCodeBlob(folder, account_id, ext);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
 
   // Persist the URL back into the bank account row
   await pool.query(

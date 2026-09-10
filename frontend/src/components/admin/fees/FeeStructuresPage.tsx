@@ -44,7 +44,7 @@ export default function FeeStructuresPage() {
   const addUrl = isFinance ? '/finance/fees/structures/add' : '/fees/structures/add';
 
   const searchParams = useSearchParams();
-  const { fmt: formatCurrency } = useCurrency();
+  const { fmt: formatCurrency, symbol } = useCurrency();
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: classes } = useApi<any[]>(academicYearId ? `/classes?academic_year_id=${academicYearId}` : '', [academicYearId]);
   const { execute: deleteStructure } = useMutation('/fees/structures', 'DELETE');
@@ -416,7 +416,7 @@ export default function FeeStructuresPage() {
               )}
 
               <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
-                Amount (₹) *
+                Amount ({symbol}) *
                 <input
                   type="number"
                   min={1}

@@ -32,7 +32,7 @@ interface FeesPageProps {
 
 export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageProps = {}) {
   const user = useAppSelector((state) => state.auth.user);
-  const { data: me } = useApi<any>("/auth/me");
+  const { data: me } = useApi<any>(showHeroGreeting ? "/auth/me" : null);
   const currentMode = mode || (user?.role === 'finance' ? 'finance' : 'admin');
   const isFinance = currentMode === 'finance';
   const prefix = basePath || (isFinance ? '/finance/fees' : '/fees');
@@ -41,7 +41,7 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
   const { fmt: formatCurrency } = useCurrency();
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: rawCollections, loading } = useApi<any>(
-    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}&limit=2000` : "",
+    academicYearId ? `/fees/collections?academic_year_id=${academicYearId}&limit=200` : "",
     [academicYearId]
   );
   const { data: countData } = useApi<{ count: number }>("/online-payments/requests/pending-count");
@@ -57,7 +57,9 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
     return rawCollections.data ?? [];
   }, [rawCollections]);
 
-  const currentMonthIdx = new Date().getMonth();
+  const now = new Date();
+  const currentMonthIdx = now.getMonth();
+  const currentYear = now.getFullYear();
 
   // Single-pass computation for all dashboard statistics (P2 optimization)
   const {
@@ -109,11 +111,20 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
         else unpaidCount++;
       }
 
-      // This month collected
-      const dStr = c.paid_at || c.updated_at || c.created_at;
-      if (dStr) {
-        const d = new Date(dStr);
-        if (d.getMonth() === currentMonthIdx) {
+      // This month collected (accurately computed from payment dates)
+      if (Array.isArray(c.payments) && c.payments.length > 0) {
+        for (let pIdx = 0; pIdx < c.payments.length; pIdx++) {
+          const p = c.payments[pIdx];
+          if (p?.payment_date) {
+            const pDate = new Date(p.payment_date);
+            if (pDate.getMonth() === currentMonthIdx && pDate.getFullYear() === currentYear) {
+              thisMonth += parseFloat(p.paid_amount || "0");
+            }
+          }
+        }
+      } else if (paidAmt > 0 && c.created_at) {
+        const d = new Date(c.created_at);
+        if (d.getMonth() === currentMonthIdx && d.getFullYear() === currentYear) {
           thisMonth += paidAmt;
         }
       }
@@ -143,20 +154,29 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
         };
       });
 
+    const sc = rawCollections?.status_counts;
+    const computedFeeStatusData = sc && (sc.paid > 0 || sc.unpaid > 0 || sc.waived > 0)
+      ? [
+          { name: "Paid",    value: sc.paid ?? 0,      color: "#10B981" },
+          { name: "Unpaid",  value: sc.unpaid ?? 0,    color: "#EF4444" },
+          { name: "Waived",  value: sc.waived ?? 0,    color: "#3B82F6" },
+        ]
+      : [
+          { name: "Paid",    value: paidCount,    color: "#10B981" },
+          { name: "Partial", value: partialCount, color: "#F59E0B" },
+          { name: "Unpaid",  value: unpaidCount,  color: "#EF4444" },
+          { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
+        ];
+
     return {
-      totalCollected: rawCollections?.total_collected ?? collected,
-      totalPending: rawCollections?.total_pending ?? pending,
+      totalCollected: rawCollections?.total_collected != null ? Number(rawCollections.total_collected) : collected,
+      totalPending: rawCollections?.total_pending != null ? Number(rawCollections.total_pending) : pending,
       totalWaived: waived,
       pendingStudentsCount: pendingStudentsSet.size,
       thisMonthCollected: thisMonth,
       monthlyData: monthlyFormatted,
       pendingList: pendingRows,
-      feeStatusData: [
-        { name: "Paid",    value: paidCount,    color: "#10B981" },
-        { name: "Partial", value: partialCount, color: "#F59E0B" },
-        { name: "Unpaid",  value: unpaidCount,  color: "#EF4444" },
-        { name: "Waived",  value: waivedCount,  color: "#3B82F6" },
-      ],
+      feeStatusData: computedFeeStatusData,
     };
   }, [collections, rawCollections, formatCurrency]);
 

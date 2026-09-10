@@ -1,19 +1,134 @@
-﻿services:
+# =============================================================
+#  Skoolio – Docker Compose (Full Stack Production Setup)
+#
+#  Services:
+#    postgres  – PostgreSQL 16
+#    redis     – Redis 7
+#    backend   – Express / Node API
+#    frontend  – Next.js
+# =============================================================
+
+services:
+  # -----------------------------------------------------------
+  # PostgreSQL Container
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: skoolio_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-school_pos}
+      POSTGRES_USER: ${DB_USER:-ashok}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Abhisah@21}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ashok} -d ${DB_NAME:-school_pos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # -----------------------------------------------------------
+  # Redis Container
+  # -----------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: skoolio_redis
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - skoolio_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  # -----------------------------------------------------------
+  # Backend API
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: skoolio_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./Backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-ashok}
+      - DB_PASSWORD=${DB_PASSWORD:-Abhisah@21}
+      - DB_NAME=${DB_NAME:-school_pos}
+      - DB_SSL=false
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AZURE_SCHOOL_DATA_CONTAINER=school-data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # -----------------------------------------------------------
+  # Frontend Next.js
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=/api
+    container_name: skoolio_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - skoolio_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+networks:
+  skoolio_net:
+    driver: bridge
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
     driver: local
+

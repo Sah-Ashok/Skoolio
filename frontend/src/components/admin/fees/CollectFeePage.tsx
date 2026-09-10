@@ -84,6 +84,16 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+function compareFeeChronological(a: any, b: any): number {
+  const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id || 0);
+  const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id || 0);
+  if (periodA !== periodB) return periodA.localeCompare(periodB);
+  const dueA = a.due_date ? String(a.due_date) : "";
+  const dueB = b.due_date ? String(b.due_date) : "";
+  if (dueA !== dueB) return dueA.localeCompare(dueB);
+  return (a.id || 0) - (b.id || 0);
+}
+
 type GroupedBill = {
   ids: number[];
   fee_name: string;
@@ -293,15 +303,7 @@ export default function CollectFeePage() {
     }
 
     for (const [, list] of groups) {
-      list.sort((a, b) => {
-        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
-        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
-        if (periodA !== periodB) return periodA.localeCompare(periodB);
-        const dueA = a.due_date ? String(a.due_date) : "";
-        const dueB = b.due_date ? String(b.due_date) : "";
-        if (dueA !== dueB) return dueA.localeCompare(dueB);
-        return a.id - b.id;
-      });
+      list.sort(compareFeeChronological);
 
       // Sequential lock:
       // Item 0 is always unlocked.
@@ -382,12 +384,7 @@ export default function CollectFeePage() {
       const sameGroup = pendingCollections.filter(
         (c: any) => c.fee_structure_id === target.fee_structure_id
       );
-      sameGroup.sort((a, b) => {
-        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
-        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
-        if (periodA !== periodB) return periodA.localeCompare(periodB);
-        return a.id - b.id;
-      });
+      sameGroup.sort(compareFeeChronological);
       const targetIdx = sameGroup.findIndex((c: any) => c.id === targetId);
       if (targetIdx >= 0) {
         for (let i = 0; i <= targetIdx; i++) {
@@ -425,12 +422,7 @@ export default function CollectFeePage() {
 
   // Group selected items: consolidate multi-month tuition into a single period card (Start – End Month)
   const selectedGroups = useMemo(() => {
-    const sorted = [...selectedCollections].sort((a, b) => {
-      const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
-      const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
-      if (periodA !== periodB) return periodA.localeCompare(periodB);
-      return a.id - b.id;
-    });
+    const sorted = [...selectedCollections].sort(compareFeeChronological);
 
     const groupMap = new Map<string, any[]>();
     for (const c of sorted) {
@@ -573,47 +565,44 @@ export default function CollectFeePage() {
 
   const toggleSelect = (ids: number[], remainingAmounts: any[]) => {
     setGroupInputOverrides({});
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      const allIn = ids.every(id => next.has(id));
-      if (allIn) {
-        // Deselecting these items
-        ids.forEach(id => {
-          next.delete(id);
-          setBulkAmounts(a => { const copy = { ...a }; delete copy[id]; return copy; });
-        });
+    const allIn = ids.every(id => selectedIds.has(id));
+    const nextIds = new Set(selectedIds);
+    const nextBulk = { ...bulkAmounts };
 
-        // Also deselect any subsequent dependent bills in the same structure
-        for (const deselectedId of ids) {
-          const deselectedBill = allCollections.find((c: any) => c.id === deselectedId);
-          if (deselectedBill && deselectedBill.fee_structure_id) {
-            const sameGroup = allCollections.filter(
-              (c: any) => c.fee_structure_id === deselectedBill.fee_structure_id && c.status !== "paid" && c.status !== "waived"
-            );
-            sameGroup.sort((a, b) => {
-              const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
-              const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
-              if (periodA !== periodB) return periodA.localeCompare(periodB);
-              return a.id - b.id;
-            });
-            const idx = sameGroup.findIndex((c: any) => c.id === deselectedId);
-            if (idx >= 0) {
-              for (let j = idx + 1; j < sameGroup.length; j++) {
-                next.delete(sameGroup[j].id);
-                setBulkAmounts(a => { const copy = { ...a }; delete copy[sameGroup[j].id]; return copy; });
-              }
+    if (allIn) {
+      // Deselecting these items
+      ids.forEach(id => {
+        nextIds.delete(id);
+        delete nextBulk[id];
+      });
+
+      // Also deselect any subsequent dependent bills in the same structure
+      for (const deselectedId of ids) {
+        const deselectedBill = allCollections.find((c: any) => c.id === deselectedId);
+        if (deselectedBill && deselectedBill.fee_structure_id) {
+          const sameGroup = allCollections.filter(
+            (c: any) => c.fee_structure_id === deselectedBill.fee_structure_id && c.status !== "paid" && c.status !== "waived"
+          );
+          sameGroup.sort(compareFeeChronological);
+          const idx = sameGroup.findIndex((c: any) => c.id === deselectedId);
+          if (idx >= 0) {
+            for (let j = idx + 1; j < sameGroup.length; j++) {
+              nextIds.delete(sameGroup[j].id);
+              delete nextBulk[sameGroup[j].id];
             }
           }
         }
-      } else {
-        // Selecting these items
-        ids.forEach((id, idx) => {
-          next.add(id);
-          setBulkAmounts(a => ({ ...a, [id]: String(remainingAmounts[idx] || "0") }));
-        });
       }
-      return next;
-    });
+    } else {
+      // Selecting these items
+      ids.forEach((id, idx) => {
+        nextIds.add(id);
+        nextBulk[id] = String(remainingAmounts[idx] || "0");
+      });
+    }
+
+    setSelectedIds(nextIds);
+    setBulkAmounts(nextBulk);
   };
 
   const toggleAll = () => {
@@ -649,12 +638,7 @@ export default function CollectFeePage() {
     const nextAmounts: Record<number, string> = {};
 
     for (const [, list] of groups) {
-      list.sort((a, b) => {
-        const periodA = a.billing_from_month || (a.due_date ? String(a.due_date).slice(0, 7) : "") || String(a.id);
-        const periodB = b.billing_from_month || (b.due_date ? String(b.due_date).slice(0, 7) : "") || String(b.id);
-        if (periodA !== periodB) return periodA.localeCompare(periodB);
-        return a.id - b.id;
-      });
+      list.sort(compareFeeChronological);
 
       const toPick = list.slice(0, n);
       for (const item of toPick) {
@@ -702,12 +686,7 @@ export default function CollectFeePage() {
       .filter(item => item.amount > 0);
 
     // Sort validItems chronologically so older bills commit before newer ones
-    validItems.sort((a, b) => {
-      const periodA = a.colItem.billing_from_month || (a.colItem.due_date ? String(a.colItem.due_date).slice(0, 7) : "") || String(a.colItem.id);
-      const periodB = b.colItem.billing_from_month || (b.colItem.due_date ? String(b.colItem.due_date).slice(0, 7) : "") || String(b.colItem.id);
-      if (periodA !== periodB) return periodA.localeCompare(periodB);
-      return a.colItem.id - b.colItem.id;
-    });
+    validItems.sort((a, b) => compareFeeChronological(a.colItem, b.colItem));
 
     if (validItems.length === 0) {
       dispatch(showToast({ type: "error", title: "Invalid Amounts", message: "Please enter a valid payment amount greater than 0." }));
@@ -752,6 +731,7 @@ export default function CollectFeePage() {
       setRemarks("");
     } catch (err: any) {
       dispatch(showToast({ type: "error", title: "Payment Failed", message: err.message || "Payment error" }));
+      setGroupInputOverrides({});
     } finally {
       setIsPaying(false);
     }

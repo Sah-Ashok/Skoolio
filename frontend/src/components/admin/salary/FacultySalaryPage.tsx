@@ -9,6 +9,8 @@ import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 import { useAppSelector } from "@/store/hooks";
 
+import { useCurrency } from "@/lib/useCurrency";
+
 const s  = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
@@ -18,13 +20,6 @@ const AD_MONTH_NAMES = [
 ];
 
 // ── helpers ─────────────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number | string | null | undefined) {
-  const n = Number(amount) || 0;
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency", currency: "INR", maximumFractionDigits: 0,
-  }).format(n);
-}
 
 function monthLabel(month: number, year: number, isBS: boolean): string {
   if (!isBS) return `${AD_MONTH_NAMES[month - 1]} ${year}`;
@@ -46,6 +41,7 @@ export default function FacultySalaryPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "uptodate" | "no_salary">("all");
   const { isBS, formatDate } = useDateFormat();
+  const { fmt: formatCurrency } = useCurrency();
 
   const list = useMemo(() => {
     if (!summary) return [];

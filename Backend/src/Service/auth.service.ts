@@ -18,6 +18,7 @@ import { getStudentByIdService, getStudentProfileService } from './student.servi
 import { isMaintenanceModeActive }               from './platform.service';
 import { generateToken, generateShortToken, verifyToken } from '../config/jwt.config';
 import { sendOTPEmail, send2FAEnabledEmail }     from '../utils/emailService';
+import { generateSchoolStorageFolder, initializeSchoolStorage } from '../utils/azureStorage';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
 
@@ -85,8 +86,12 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
   try {
     const ps = await pool.query(`SELECT auto_verify_schools FROM platform_settings ORDER BY id ASC LIMIT 1`);
     if (ps.rows[0]?.auto_verify_schools === true) {
-      await verifySchool(school.id);
-      school = { ...school, is_verified: true };
+      const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
+      await initializeSchoolStorage(storageFolder, { id: school.id, school_name: school.school_name }).catch((err) => {
+        console.warn('[Storage] Auto-init storage folder failed:', err.message);
+      });
+      await verifySchool(school.id, storageFolder);
+      school = { ...school, is_verified: true, storage_folder: storageFolder };
     }
   } catch {
     // platform_settings may not exist yet — silently skip
@@ -407,7 +412,13 @@ export const verifySchoolService = async (schoolId: number): Promise<void> => {
   const school = await findSchoolById(schoolId);
   if (!school) throw new AppError('School not found.', 404);
   if (school.is_verified) throw new AppError('School is already verified.', 400);
-  await verifySchool(schoolId);
+
+  const storageFolder = school.storage_folder || generateSchoolStorageFolder(school.school_name, school.id);
+  await initializeSchoolStorage(storageFolder, { id: school.id, school_name: school.school_name }).catch((err) => {
+    console.warn('[Storage] Init storage folder failed during verification:', err.message);
+  });
+
+  await verifySchool(schoolId, storageFolder);
 };
 
 // ── BLOCK / UNBLOCK SCHOOL (super admin) ─────────────────────────────────────

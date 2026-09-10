@@ -2,7 +2,7 @@
 
 export {};
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -23,6 +23,8 @@ interface NavItem {
 
 interface NavSection {
   label: string;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
   items: NavItem[];
 }
 
@@ -54,6 +56,8 @@ const adminNav: NavSection[] = [
   },
   {
     label: 'Academics',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/timetable',                 icon: 'fa-calendar-week',   label: 'Timetable' },
       { href: '/attendance',                icon: 'fa-clipboard-check', label: 'Class Attendance',  exact: true },
@@ -68,6 +72,8 @@ const adminNav: NavSection[] = [
   },
   {
     label: 'Finance',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/fees',                  icon: 'fa-file-invoice-dollar', label: 'Fee Status',       exact: true },
       { href: '/fees/collect',          icon: 'fa-hand-holding-dollar', label: 'Collect Fee',      exact: true },
@@ -151,6 +157,8 @@ const financeNav: NavSection[] = [
   },
   {
     label: 'Fee Management',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/finance/fees/collect',          icon: 'fa-hand-holding-dollar',   label: 'Collect Fee',      exact: true },
       { href: '/finance/fees/history',          icon: 'fa-clock-rotate-left',     label: 'Fee History' },
@@ -162,12 +170,16 @@ const financeNav: NavSection[] = [
   },
   {
     label: 'Students',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/finance/students',              icon: 'fa-user-graduate',         label: 'Student Directory' },
     ],
   },
   {
     label: 'Accounting',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/finance/staff/attendance/register', icon: 'fa-table-list',            label: 'Staff Register' },
       { href: '/finance/salary',                   icon: 'fa-money-bill-wave',       label: 'Payroll & Salary' },
@@ -176,6 +188,8 @@ const financeNav: NavSection[] = [
   },
   {
     label: 'Facilities',
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       { href: '/finance/transport', icon: 'fa-bus',      label: 'Transport' },
       { href: '/finance/hostel',    icon: 'fa-building', label: 'Hostel' },
@@ -320,6 +334,35 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const allMobileItems = mobileNavMap[activeRole] || navSections.flatMap(s => s.items).slice(0, 6);
 
+  // Check if a section contains the currently active route
+  const isSectionActive = useCallback(
+    (section: NavSection) => {
+      return section.items.some(item => isNavItemActive(pathname, searchParams, item));
+    },
+    [pathname, searchParams]
+  );
+
+  // Track collapsed state per section: true = collapsed, false = open
+  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+
+  // Auto-expand section if it contains the currently active route
+  useEffect(() => {
+    navSections.forEach(section => {
+      if (section.collapsible && isSectionActive(section)) {
+        setCollapsedMap(prev => (prev[section.label] ? { ...prev, [section.label]: false } : prev));
+      }
+    });
+  }, [pathname, searchParams, navSections, isSectionActive]);
+
+  const toggleSection = (section: NavSection) => {
+    setCollapsedMap(prev => {
+      const isCurrentlyCollapsed = prev[section.label] !== undefined
+        ? prev[section.label]
+        : (!isSectionActive(section) && Boolean(section.defaultCollapsed));
+      return { ...prev, [section.label]: !isCurrentlyCollapsed };
+    });
+  };
+
   return (
     <>
       <aside className="sidebar">
@@ -355,25 +398,73 @@ export default function Sidebar({ role }: SidebarProps) {
         </div>
 
         <nav className="nav">
-          {navSections.map(section => (
-            <div key={section.label}>
-              <div className="nav-label">{section.label}</div>
-              {section.items.map(item => {
-                const isActive = isNavItemActive(pathname, searchParams, item);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`nav-item${isActive ? ' active' : ''}`}
+          {navSections.map(section => {
+            const hasActiveItem = isSectionActive(section);
+            const isCollapsed = section.collapsible
+              ? (collapsedMap[section.label] !== undefined
+                  ? collapsedMap[section.label]
+                  : (!hasActiveItem && Boolean(section.defaultCollapsed)))
+              : false;
+            const isOpen = !isCollapsed;
+
+            return (
+              <div key={section.label} className="nav-section-group">
+                {section.collapsible ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section)}
+                    className="nav-label-btn"
+                    aria-expanded={isOpen}
                   >
-                    <i className={`fa-solid ${item.icon}`} />
-                    <span>{item.label}</span>
-                    {item.badge && <span className="nav-badge">{item.badge}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+                    <span className="nav-label-title">
+                      <span>{section.label}</span>
+                      {!isOpen && (
+                        <span className="nav-label-count">
+                          {section.items.length}
+                        </span>
+                      )}
+                      {!isOpen && hasActiveItem && (
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: '#ea580c',
+                            display: 'inline-block',
+                          }}
+                        />
+                      )}
+                    </span>
+                    <i
+                      className="fa-solid fa-chevron-right nav-label-chevron"
+                      style={{
+                        transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                      }}
+                    />
+                  </button>
+                ) : (
+                  <div className="nav-label">{section.label}</div>
+                )}
+
+                <div className={`nav-section-items ${isOpen ? 'open' : 'collapsed'}`}>
+                  {section.items.map(item => {
+                    const isActive = isNavItemActive(pathname, searchParams, item);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`nav-item${isActive ? ' active' : ''}`}
+                      >
+                        <i className={`fa-solid ${item.icon}`} />
+                        <span>{item.label}</span>
+                        {item.badge && <span className="nav-badge">{item.badge}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer-wrap">

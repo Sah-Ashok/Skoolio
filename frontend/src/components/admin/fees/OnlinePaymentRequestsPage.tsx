@@ -8,15 +8,11 @@ import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n || 0));
-
-const fmtDate = (v: string) =>
-  new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 type Status = "pending" | "verified" | "rejected";
 
@@ -44,6 +40,8 @@ function RequestDetailModal({
   onVerify: (id: number, notes: string)             => Promise<void>;
   onReject: (id: number, rejection_reason: string)  => Promise<void>;
 }) {
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   const [notes,  setNotes]  = useState("");
   const [reason, setReason] = useState("");
   const [action, setAction] = useState<"verify" | "reject" | null>(null);
@@ -94,7 +92,7 @@ function RequestDetailModal({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
             {[
               ["Amount Submitted",  fmt(req.amount)],
-              ["Payment Date",      fmtDate(req.payment_date)],
+              ["Payment Date",      formatDate(req.payment_date)],
               ["Bank Account",      req.bank_name ?? "—"],
               ["Transaction Ref",   req.transaction_ref || "Not provided"],
               ["Fee Head",          req.fee_name || "—"],
@@ -237,6 +235,8 @@ function RequestDetailModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function OnlinePaymentRequestsPage() {
   const dispatch = useAppDispatch();
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
   const [tab,      setTab]      = useState<Status>("pending");
   const [selected, setSelected] = useState<any | null>(null);
   const [search,   setSearch]   = useState("");
@@ -381,7 +381,7 @@ export default function OnlinePaymentRequestsPage() {
                       <td style={{ fontWeight: 700 }}>{req.fee_name || "—"}</td>
                       <td><strong style={{ color: "#12805c", fontSize: 14 }}>{fmt(req.amount)}</strong></td>
                       <td style={{ fontSize: 12, color: "#6a7882", fontWeight: 700 }}>{req.transaction_ref || "—"}</td>
-                      <td style={{ fontSize: 12, color: "#6a7882" }}>{fmtDate(req.payment_date)}</td>
+                      <td style={{ fontSize: 12, color: "#6a7882" }}>{formatDate(req.payment_date)}</td>
                       <td>
                         {req.screenshot_url ? (
                           <img

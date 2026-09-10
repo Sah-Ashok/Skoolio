@@ -34,6 +34,7 @@ export interface ISchool {
   timezone: string;
   calendar_system: CalendarSystem;
   subscription_id?: number;
+  storage_folder?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -74,6 +75,7 @@ export type IJwtAdminPayload = {
   calendar_system: CalendarSystem;
   is_verified: boolean;
   is_account: AccountStatus;
+  storage_folder?: string;
 };
 
 // JWT Payload - Faculty/Student
@@ -87,6 +89,7 @@ export type IJwtUserPayload = {
   timezone: string;
   calendar_system: CalendarSystem;
   is_account: AccountStatus;
+  storage_folder?: string;
 };
 
 // Combined JWT Payload

@@ -8,6 +8,7 @@ import styles from "./exams.module.css";
 import { useApi, useMutation } from "@/lib/useApi";
 import { useAppDispatch } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
@@ -25,6 +26,7 @@ const EXAM_TYPES = [
 export default function AddExamPage() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
+  const { formatDate } = useDateFormat();
   const { activeYear, academicYearId } = useAcademicYear();
   const { execute: createExam, loading: saving } = useMutation("/exams", "POST");
 
@@ -209,11 +211,11 @@ export default function AddExamPage() {
                 </div>
                 <div className={s("summaryRow")}>
                   <span>Start</span>
-                  <strong>{startDate ? new Date(startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</strong>
+                  <strong>{formatDate(startDate)}</strong>
                 </div>
                 <div className={s("summaryRow")}>
                   <span>End</span>
-                  <strong>{endDate ? new Date(endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</strong>
+                  <strong>{formatDate(endDate)}</strong>
                 </div>
                 <div className={s("summaryRow")}>
                   <span>Academic Year</span>

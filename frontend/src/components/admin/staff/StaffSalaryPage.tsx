@@ -9,13 +9,11 @@ import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { apiRequest } from "@/lib/api";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
 import { BS_MONTH_NAMES, adToBS, isoToBS } from "@/lib/bs-ad";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "NPR", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -79,6 +77,7 @@ const DEDUCTION_TYPES = ["absent","advance","tax","provident_fund","other"];
 // ── Pay Salary Modal ──────────────────────────────────────────────────────────
 function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: () => void; onSaved: () => void }) {
   const { isBS } = useDateFormat();
+  const { fmt } = useCurrency();
   const monthNames = isBS ? BS_MONTH_NAMES : MONTHS;
   const now = new Date();
   const nowBS = adToBS(now);
@@ -422,6 +421,8 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
 
 // ── Salary Slip Modal ─────────────────────────────────────────────────────────
 function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose: () => void }) {
+  const { formatDate } = useDateFormat();
+  const { fmt } = useCurrency();
   const { data: detail } = useApi<any>(`/staff/salary/payments/${payment.id}`);
   const d = detail ?? payment;
 
@@ -512,7 +513,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
           {d.status === "paid" && (
             <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: "Paid On", value: (d.paid_on_str ?? d.paid_on) ? new Date(d.paid_on_str ?? d.paid_on).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                { label: "Paid On", value: (d.paid_on_str ?? d.paid_on) ? formatDate(d.paid_on_str ?? d.paid_on) : "—" },
                 { label: "Method",  value: d.payment_method?.replace("_", " ") ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} style={{ padding: 12, border: "1px solid #dce5e9", borderRadius: 9, background: "#f8fbfc" }}>
@@ -541,6 +542,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
 
 // ── Mark as Paid Modal ─────────────────────────────────────────────────────────
 function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; onClose: () => void; onSaved: () => void }) {
+  const { fmt } = useCurrency();
   const now = new Date();
   const [form, setForm] = useState({
     payment_method: "cash",
@@ -611,7 +613,8 @@ function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; 
 export function StaffSalaryPage() {
   const user = useAppSelector((state) => state.auth.user);
   const isFinance = user?.role === 'finance';
-  const { isBS } = useDateFormat();
+  const { isBS, formatDate } = useDateFormat();
+  const { fmt } = useCurrency();
   const { data: staff }    = useApi<Staff[]>("/staff");
   const { data: allPay, loading, refetch: refetchAll } = useApi<SalaryPayment[]>("/staff/salary/payments");
   const { data: pending, refetch: refetchPending }     = useApi<SalaryPayment[]>("/staff/salary/payments/pending");
@@ -819,7 +822,7 @@ export function StaffSalaryPage() {
                       </td>
                       <td>
                         {(p.paid_on_str ?? p.paid_on)
-                          ? new Date((p.paid_on_str ?? p.paid_on)!).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          ? formatDate((p.paid_on_str ?? p.paid_on)!)
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>

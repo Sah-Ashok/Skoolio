@@ -5,6 +5,7 @@ import { Loader } from "@/components/shared/Loader";
 import { useState } from "react";
 import { getPlanPrice } from "@/lib/currency";
 import { computeSavingText } from "@/components/super-admin/OfferModal";
+import { useDateFormat } from "@/lib/useDateFormat";
 import styles from "./subscription.module.css";
 
 const s = (n: string) => styles[n];
@@ -133,6 +134,7 @@ function CycleToggle({
 // Offer banner — with free_months price strikethrough
 // ─────────────────────────────────────────────────────────────────────────────
 function OfferBanner({ offer, plans }: { offer: any; plans: any[] }) {
+  const { formatDate } = useDateFormat();
   const dynamicSaving = computeSavingText(
     offer.discount_type, offer.discount_value,
     plans, offer.plan_name ?? null,
@@ -174,7 +176,7 @@ function OfferBanner({ offer, plans }: { offer: any; plans: any[] }) {
       {offer.valid_until && (
         <div style={{ padding: "4px 12px", borderRadius: 999, background: isExpiring ? "#fef3c7" : "#f1f5f9", color: isExpiring ? "#b45309" : "#6b7b86", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
           <i className="fa-solid fa-clock" style={{ fontSize: 10 }} />
-          Ends {new Date(offer.valid_until).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+          Ends {formatDate(offer.valid_until)}
         </div>
       )}
     </div>

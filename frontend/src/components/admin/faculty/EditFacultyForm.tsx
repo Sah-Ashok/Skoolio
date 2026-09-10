@@ -11,6 +11,8 @@ import { showToast } from "@/store/toastSlice";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import Topbar from "@/components/shared/Topbar";
 import DateInput from "@/components/shared/DateInput";
+import { useCurrency } from "@/lib/useCurrency";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -25,6 +27,8 @@ export default function EditFacultyForm() {
   const params   = useParams();
   const id       = params?.facultyId as string;
   const dispatch = useAppDispatch();
+  const { fmt } = useCurrency();
+  const { formatDate } = useDateFormat();
 
   const { data: teacher, loading: fetching } = useApi<any>(`/teachers/${id}`);
   const { execute: updateTeacher, loading: saving } = useMutation(`/teachers/${id}`, "PATCH");
@@ -232,7 +236,7 @@ export default function EditFacultyForm() {
               )}
               {form.monthly_salary && (
                 <b className={cx(s("badge"), s("chip-orange"))} style={{ background: "#fff1df", color: "#a85f12" }}>
-                  ₹{Number(form.monthly_salary).toLocaleString("en-IN")}/mo
+                  {fmt(form.monthly_salary)}/mo
                 </b>
               )}
             </div>
@@ -245,13 +249,13 @@ export default function EditFacultyForm() {
             <span>
               <b>Monthly Salary</b>
               <strong style={{ fontSize: 13, color: form.monthly_salary ? "#12805c" : "#b42318" }}>
-                {form.monthly_salary ? `₹${Number(form.monthly_salary).toLocaleString("en-IN")}` : "Not set"}
+                {form.monthly_salary ? `${fmt(form.monthly_salary)}/mo` : "Not set"}
               </strong>
             </span>
             <span>
               <b>Join Date</b>
               <strong style={{ fontSize: 13 }}>
-                {form.join_date ? new Date(form.join_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                {form.join_date ? formatDate(form.join_date) : "—"}
               </strong>
             </span>
           </div>

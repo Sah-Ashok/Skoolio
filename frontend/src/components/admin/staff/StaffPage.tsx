@@ -7,6 +7,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { useCurrency } from "@/lib/useCurrency";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -39,9 +40,6 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 const STATUS_LABELS: Record<string, string> = {
   active: "Active", on_leave: "On Leave", terminated: "Terminated",
 };
-
-const fmt = (n: number | string) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "NPR", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const initials = (name: string) =>
   name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
@@ -219,6 +217,7 @@ function EditStaffModal({ staff, roles, onClose, onSaved }: { staff: Staff; role
 // ── Staff Detail Panel ────────────────────────────────────────────────────────
 function StaffDetailPanel({ staff, onClose, onEdit }: { staff: Staff; onClose: () => void; onEdit: () => void }) {
   const { formatDate } = useDateFormat();
+  const { fmt } = useCurrency();
   return (
     <div className={s("overlay")} onClick={onClose}>
       <div className={s("modal")} style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
@@ -441,6 +440,7 @@ type ModalState =
 
 export function StaffPage() {
   const { formatDate } = useDateFormat();
+  const { fmt } = useCurrency();
   const { data: staff,  loading: loadingStaff, refetch: refetchStaff } = useApi<Staff[]>("/staff");
   const { data: roles,  loading: loadingRoles, refetch: refetchRoles } = useApi<StaffRole[]>("/staff/roles");
 

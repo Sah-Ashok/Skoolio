@@ -1,40 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApi } from '@/lib/useApi';
+import { useAcademicYear } from '@/hooks/useAcademicYear';
+import { useCurrency } from '@/lib/useCurrency';
 import Loader from '@/components/shared/Loader';
 import styles from './report.module.css';
 
 interface MonthlyReportRow {
   month: string;
-  income: string;
-  expense: string;
-  net: string;
+  income: number | string;
+  expense: number | string;
+  net: number | string;
   trend: 'up' | 'down';
 }
 
+interface CategoryBreakdownItem {
+  name: string;
+  amount: number | string;
+  percent: number;
+}
+
 export default function FinanceIncomeExpenseReportPage() {
-  const [yearFilter, setYearFilter] = useState('2026');
+  const { activeYear } = useAcademicYear();
+  const { fmt } = useCurrency();
+
+  const { data: yearsData } = useApi<any[]>('/academic-years');
+  const yearsList = useMemo(() => {
+    if (Array.isArray(yearsData)) return yearsData;
+    if (Array.isArray((yearsData as any)?.data)) return (yearsData as any).data;
+    return [];
+  }, [yearsData]);
+
+  const [selectedYearId, setSelectedYearId] = useState<string>(
+    activeYear?.id ? String(activeYear.id) : ''
+  );
+
+  useEffect(() => {
+    if (!selectedYearId && activeYear?.id) {
+      setSelectedYearId(String(activeYear.id));
+    }
+  }, [activeYear, selectedYearId]);
+
+  const currentYearId = selectedYearId || (activeYear?.id ? String(activeYear.id) : '');
 
   const { data, loading } = useApi<{
     summary?: {
-      total_income?: string;
-      total_expense?: string;
-      net_balance?: string;
+      total_income?: number | string;
+      total_expense?: number | string;
+      net_balance?: number | string;
       is_surplus?: boolean;
     };
     months?: MonthlyReportRow[];
-  }>(`/finance/reports/income-expense?year=${yearFilter}`);
+    income_categories?: CategoryBreakdownItem[];
+    expense_categories?: CategoryBreakdownItem[];
+  }>(currentYearId ? `/finance/reports/income-expense?academic_year_id=${currentYearId}` : '');
 
-  const defaultMonths: MonthlyReportRow[] = [
-    { month: 'August 2026', income: '₹ 5,84,000', expense: '₹ 2,12,000', net: '+ ₹ 3,72,000', trend: 'up' },
-    { month: 'July 2026', income: '₹ 6,10,000', expense: '₹ 2,45,000', net: '+ ₹ 3,65,000', trend: 'up' },
-    { month: 'June 2026', income: '₹ 4,92,000', expense: '₹ 2,30,000', net: '+ ₹ 2,62,000', trend: 'up' },
-    { month: 'May 2026', income: '₹ 3,20,000', expense: '₹ 1,95,000', net: '+ ₹ 1,25,000', trend: 'down' },
-    { month: 'April 2026 (New Session)', income: '₹ 8,40,000', expense: '₹ 3,10,000', net: '+ ₹ 5,30,000', trend: 'up' },
-  ];
-
-  const months = data?.months && data.months.length > 0 ? data.months : defaultMonths;
+  const months = data?.months || [];
+  const incomeCats = data?.income_categories || [];
+  const expenseCats = data?.expense_categories || [];
 
   return (
     <div className={styles.pageWrap}>
@@ -57,11 +81,18 @@ export default function FinanceIncomeExpenseReportPage() {
               color: '#334155',
               background: '#ffffff',
             }}
-            value={yearFilter}
-            onChange={(e) => setYearFilter(e.target.value)}
+            value={currentYearId}
+            onChange={(e) => setSelectedYearId(e.target.value)}
           >
-            <option value="2026">Financial Year 2026 - 2027</option>
-            <option value="2025">Financial Year 2025 - 2026</option>
+            {yearsList.length > 0 ? (
+              yearsList.map((y: any) => (
+                <option key={y.id} value={String(y.id)}>
+                  {y.year_name || y.name} {y.is_active ? '(Current)' : ''}
+                </option>
+              ))
+            ) : (
+              <option value="">{activeYear?.year_name || 'Active Session'}</option>
+            )}
           </select>
 
           <button
@@ -73,8 +104,14 @@ export default function FinanceIncomeExpenseReportPage() {
         </div>
       </div>
 
-      {/* ── 3 Summary KPI Cards ── */}
-      <div className={styles.statsRow}>
+      {(!currentYearId || (loading && !data)) ? (
+        <div style={{ padding: '60px 0' }}>
+          <Loader fullScreen={false} size="md" text="Loading income & expense statement..." />
+        </div>
+      ) : (
+        <>
+          {/* ── 3 Summary KPI Cards ── */}
+          <div className={styles.statsRow}>
         <div className={styles.statPill}>
           <div className={styles.statPillIcon} style={{ background: '#ecfdf5', color: '#059669' }}>
             <i className="fa-solid fa-arrow-trend-up" />
@@ -82,7 +119,7 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Gross Inflow / Receipts</div>
             <div className={styles.statPillVal} style={{ color: '#059669' }}>
-              {data?.summary?.total_income ?? '₹ 28,46,000'}
+              {typeof data?.summary?.total_income === 'number' ? fmt(data.summary.total_income) : (data?.summary?.total_income ?? fmt(0))}
             </div>
           </div>
         </div>
@@ -94,7 +131,7 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Gross Outflow / Expenses</div>
             <div className={styles.statPillVal} style={{ color: '#dc2626' }}>
-              {data?.summary?.total_expense ?? '₹ 11,92,000'}
+              {typeof data?.summary?.total_expense === 'number' ? fmt(data.summary.total_expense) : (data?.summary?.total_expense ?? fmt(0))}
             </div>
           </div>
         </div>
@@ -106,120 +143,71 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Net Institutional Surplus</div>
             <div className={styles.statPillVal} style={{ color: '#0d9488' }}>
-              {data?.summary?.net_balance ?? '+ ₹ 16,54,000'}
+              {typeof data?.summary?.net_balance === 'number' ? fmt(data.summary.net_balance) : (data?.summary?.net_balance ?? fmt(0))}
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Revenue & Expense Category Visual Breakdown ── */}
-      <div className={styles.breakdownGrid}>
-        
-        {/* Income Sources */}
-        <div className={styles.breakdownCard}>
-          <h2 className={styles.breakdownTitle}>
-            <i className="fa-solid fa-circle-arrow-down" style={{ color: '#059669' }} />
-            Income Streams Distribution
-          </h2>
-          <div className={styles.categoryList}>
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Tuition Fees</span>
-                <span>₹ 22,40,000 (78.7%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '78.7%', background: '#059669' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Admission &amp; Reg. Fees</span>
-                <span>₹ 3,50,000 (12.3%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '12.3%', background: '#10b981' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Transport Services</span>
-                <span>₹ 1,80,000 (6.3%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '6.3%', background: '#34d399' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Examination &amp; Others</span>
-                <span>₹ 76,000 (2.7%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '2.7%', background: '#6ee7b7' }} />
-              </div>
+      {(incomeCats.length > 0 || expenseCats.length > 0) && (
+        <div className={styles.breakdownGrid}>
+          
+          {/* Income Sources */}
+          <div className={styles.breakdownCard}>
+            <h2 className={styles.breakdownTitle}>
+              <i className="fa-solid fa-circle-arrow-down" style={{ color: '#059669' }} />
+              Income Streams Distribution
+            </h2>
+            <div className={styles.categoryList}>
+              {incomeCats.map(cat => (
+                <div key={cat.name} className={styles.categoryItem}>
+                  <div className={styles.categoryTop}>
+                    <span>{cat.name}</span>
+                    <span>{typeof cat.amount === 'number' ? fmt(cat.amount) : cat.amount} ({cat.percent}%)</span>
+                  </div>
+                  <div className={styles.progressTrack}>
+                    <div className={styles.progressBar} style={{ width: `${Math.min(100, Math.max(0, cat.percent))}%`, background: '#059669' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Expense Outflows */}
-        <div className={styles.breakdownCard}>
-          <h2 className={styles.breakdownTitle}>
-            <i className="fa-solid fa-circle-arrow-up" style={{ color: '#dc2626' }} />
-            Expenditure Outflows Distribution
-          </h2>
-          <div className={styles.categoryList}>
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Staff &amp; Faculty Compensation</span>
-                <span>₹ 8,42,000 (70.6%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '70.6%', background: '#dc2626' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Campus Utilities &amp; Tech</span>
-                <span>₹ 1,56,000 (13.1%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '13.1%', background: '#f87171' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Supplies &amp; Lab Materials</span>
-                <span>₹ 1,14,000 (9.6%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '9.6%', background: '#fb923c' }} />
-              </div>
-            </div>
-
-            <div className={styles.categoryItem}>
-              <div className={styles.categoryTop}>
-                <span>Estate Maintenance &amp; Repairs</span>
-                <span>₹ 80,000 (6.7%)</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: '6.7%', background: '#fbbf24' }} />
-              </div>
+          {/* Expense Outflows */}
+          <div className={styles.breakdownCard}>
+            <h2 className={styles.breakdownTitle}>
+              <i className="fa-solid fa-circle-arrow-up" style={{ color: '#dc2626' }} />
+              Expenditure Outflows Distribution
+            </h2>
+            <div className={styles.categoryList}>
+              {expenseCats.map(cat => (
+                <div key={cat.name} className={styles.categoryItem}>
+                  <div className={styles.categoryTop}>
+                    <span>{cat.name}</span>
+                    <span>{typeof cat.amount === 'number' ? fmt(cat.amount) : cat.amount} ({cat.percent}%)</span>
+                  </div>
+                  <div className={styles.progressTrack}>
+                    <div className={styles.progressBar} style={{ width: `${Math.min(100, Math.max(0, cat.percent))}%`, background: '#dc2626' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-      </div>
+        </div>
+      )}
 
       {/* ── Monthly Breakdown Ledger Table ── */}
       <div className={styles.tableCard}>
         {loading && !data ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
             <Loader fullScreen={false} size="md" text="Loading ledger history..." />
+          </div>
+        ) : months.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+            <i className="fa-solid fa-file-invoice-dollar" style={{ fontSize: 28, color: '#94a3b8', marginBottom: 10, display: 'block' }} />
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5 }}>No income or expense records found for this academic session.</p>
           </div>
         ) : (
           <div className={styles.tableWrap}>
@@ -237,9 +225,9 @@ export default function FinanceIncomeExpenseReportPage() {
                 {months.map((m) => (
                   <tr key={m.month}>
                     <td><strong>{m.month}</strong></td>
-                    <td style={{ color: '#059669' }}><strong>{m.income}</strong></td>
-                    <td style={{ color: '#dc2626' }}><strong>{m.expense}</strong></td>
-                    <td><strong>{m.net}</strong></td>
+                    <td style={{ color: '#059669' }}><strong>{typeof m.income === 'number' ? fmt(m.income) : m.income}</strong></td>
+                    <td style={{ color: '#dc2626' }}><strong>{typeof m.expense === 'number' ? fmt(m.expense) : m.expense}</strong></td>
+                    <td><strong>{typeof m.net === 'number' ? fmt(m.net) : m.net}</strong></td>
                     <td>
                       <span
                         style={{
@@ -248,13 +236,13 @@ export default function FinanceIncomeExpenseReportPage() {
                           gap: 4,
                           padding: '3px 10px',
                           borderRadius: 999,
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: 800,
                           background: m.trend === 'up' ? '#dcfce7' : '#fee2e2',
                           color: m.trend === 'up' ? '#15803d' : '#b91c1c',
                         }}
                       >
-                        <i className={`fa-solid fa-arrow-${m.trend}`} />
+                        <i className={`fa-solid fa-arrow-trend-${m.trend === 'up' ? 'up' : 'down'}`} />
                         {m.trend === 'up' ? 'Surplus' : 'Deficit'}
                       </span>
                     </td>
@@ -265,6 +253,8 @@ export default function FinanceIncomeExpenseReportPage() {
           </div>
         )}
       </div>
+      </>
+      )}
 
     </div>
   );

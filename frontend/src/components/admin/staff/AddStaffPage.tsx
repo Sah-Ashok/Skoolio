@@ -9,6 +9,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { useCurrency } from "@/lib/useCurrency";
 
 const s  = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -18,6 +19,7 @@ type StaffRole = { id: number; role_name: string };
 export default function AddStaffPage() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
+  const { symbol, fmt } = useCurrency();
 
   const { data: roles, loading: loadingRoles } = useApi<StaffRole[]>("/staff/roles");
 
@@ -112,7 +114,7 @@ export default function AddStaffPage() {
       dispatch(showToast({
         type: "success",
         title: "Staff Member Added",
-        message: `${form.full_name} has been registered successfully with a monthly salary of NPR ${Number(form.monthly_salary).toLocaleString("en-IN")}.`,
+        message: `${form.full_name} has been registered successfully with a monthly salary of ${fmt(form.monthly_salary)}.`,
       }));
       router.push("/staff");
     } catch (err: any) {
@@ -270,12 +272,12 @@ export default function AddStaffPage() {
                     <div>
                       <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>Monthly Salary</p>
                       <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#12805c" }}>
-                        NPR {Number(form.monthly_salary).toLocaleString("en-IN")}
+                        {fmt(form.monthly_salary)}
                       </p>
                       <p style={{ margin: 0, fontSize: 11, color: "#6a7882", fontWeight: 700 }}>
-                        ≈ NPR {Math.round(Number(form.monthly_salary) / 30).toLocaleString("en-IN")} / day
+                        ≈ {fmt(Math.round(Number(form.monthly_salary) / 30))} / day
                         &nbsp;·&nbsp;
-                        NPR {Math.round(Number(form.monthly_salary) * 12).toLocaleString("en-IN")} / year
+                        {fmt(Math.round(Number(form.monthly_salary) * 12))} / year
                       </p>
                     </div>
                   </div>

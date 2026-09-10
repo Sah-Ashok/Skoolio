@@ -54,6 +54,7 @@ function FacultyShell({
 
 // ── FACULTY LIST PAGE ──────────────────────────────────────────────────────────
 export function FacultyPage() {
+  const { formatDate } = useDateFormat();
   const { data: faculty, loading, error, refetch } = useApi<any[]>("/teachers");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -258,9 +259,7 @@ export function FacultyPage() {
                           {person.experience_years ? `${person.experience_years} yrs` : "—"}
                         </td>
                         <td style={{ color: "#6b7b86", fontSize: 13 }}>
-                          {person.join_date
-                            ? new Date(person.join_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                            : "—"}
+                          {person.join_date ? formatDate(person.join_date) : "—"}
                         </td>
                         <td>
                           <span

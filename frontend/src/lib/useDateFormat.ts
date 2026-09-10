@@ -39,6 +39,64 @@ function adMonthToBS(adYear: number, adMonth: number): BSDate {
   return isoToBS(iso);
 }
 
+/**
+ * Pure function to format fee names for BS calendar system without hook lifecycle overhead.
+ */
+export function formatFeeNamePure(rawFeeName: string | null | undefined, isBS: boolean = false): string {
+  if (!rawFeeName) return '—';
+  if (!isBS) return rawFeeName;
+
+  let name = rawFeeName;
+
+  // 1. Multi-month interval: (YYYY-MM to YYYY-MM · N Months) or (YYYY-MM to YYYY-MM)
+  name = name.replace(/\((\d{4}-\d{2})\s+to\s+(\d{4}-\d{2})(?:\s*·\s*(\d+)\s*Months?)?\)/gi, (match, fM, tM, count) => {
+    const bsFrom = isoToBS(`${fM}-25`);
+    const bsTo   = isoToBS(`${tM}-25`);
+    const fromName = BS_MONTH_NAMES[bsFrom.month - 1];
+    const toName   = BS_MONTH_NAMES[bsTo.month - 1];
+    const bsMonthDiff = (bsTo.year - bsFrom.year) * 12 + (bsTo.month - bsFrom.month) + 1;
+    const finalCount = bsMonthDiff > 0 ? bsMonthDiff : Number(count || 1);
+    const periodStr = bsFrom.year === bsTo.year
+      ? `${fromName} – ${toName} ${bsFrom.year}`
+      : `${fromName} ${bsFrom.year} – ${toName} ${bsTo.year}`;
+    const countStr = finalCount > 1 ? ` · ${finalCount} Months` : '';
+    return `(${periodStr}${countStr})`;
+  });
+
+  // 2. Single month interval: (YYYY-MM)
+  name = name.replace(/\((\d{4}-\d{2})\)/g, (match, ym) => {
+    const bs = isoToBS(`${ym}-25`);
+    return `(${BS_MONTH_NAMES[bs.month - 1]} ${bs.year})`;
+  });
+
+  // 3. AD academic year pattern: (AY 2026/27) or (AY 2026-2027) or (AY 2026)
+  name = name.replace(/\(AY\s+(\d{4})(?:[\/\-](\d{2,4}))?\)/gi, (match, y1, y2) => {
+    const adYear = parseInt(y1, 10);
+    if (adYear >= 2070 || adYear < 1990 || adYear > 2060) {
+      return match;
+    }
+    const bs = adToBS(new Date(adYear, 6, 18));
+    const prevYear = bs.year - 1;
+    return `(AY ${prevYear}-${bs.year})`;
+  });
+
+  // 4. Duplicate BS Year in range: "Jestha 2083 to Shrawan 2083" -> "Jestha to Shrawan 2083"
+  name = name.replace(/\b([A-Za-z]+)\s+(\d{4})\s+(?:to|-|–)\s+([A-Za-z]+)\s+\2\b/g, '$1 to $3 $2');
+
+  // 5. Existing BS month range with inaccurate month count: (Jestha to Shrawan 2083 · 4 Months) -> (Jestha to Shrawan 2083 · 3 Months)
+  name = name.replace(/\(([A-Za-z]+)\s+(?:to|–|-)\s+([A-Za-z]+)\s+(\d{4})\s*·\s*(\d+)\s*Months?\)/gi, (match, m1, m2, yr, oldCnt) => {
+    const idx1 = BS_MONTH_NAMES.findIndex(n => n.toLowerCase() === m1.toLowerCase());
+    const idx2 = BS_MONTH_NAMES.findIndex(n => n.toLowerCase() === m2.toLowerCase());
+    if (idx1 !== -1 && idx2 !== -1) {
+      const realCount = idx2 >= idx1 ? (idx2 - idx1 + 1) : (12 - idx1 + idx2 + 1);
+      return `(${m1} to ${m2} ${yr} · ${realCount} Months)`;
+    }
+    return match;
+  });
+
+  return name;
+}
+
 export function useDateFormat() {
   const user = useAppSelector(s => s.auth.user);
   const isBS = (user?.calendar_system ?? 'AD') === 'BS';
@@ -214,58 +272,7 @@ export function useDateFormat() {
      *   "Tuition Fee (2026-06)" -> "Tuition Fee (Ashadh 2083)"
      */
     function formatFeeName(rawFeeName: string | null | undefined): string {
-      if (!rawFeeName) return '—';
-      if (!isBS) return rawFeeName;
-
-      let name = rawFeeName;
-
-      // 1. Multi-month interval: (YYYY-MM to YYYY-MM · N Months) or (YYYY-MM to YYYY-MM)
-      name = name.replace(/\((\d{4}-\d{2})\s+to\s+(\d{4}-\d{2})(?:\s*·\s*(\d+)\s*Months?)?\)/gi, (match, fM, tM, count) => {
-        const bsFrom = isoToBS(`${fM}-25`);
-        const bsTo   = isoToBS(`${tM}-25`);
-        const fromName = BS_MONTH_NAMES[bsFrom.month - 1];
-        const toName   = BS_MONTH_NAMES[bsTo.month - 1];
-        const bsMonthDiff = (bsTo.year - bsFrom.year) * 12 + (bsTo.month - bsFrom.month) + 1;
-        const finalCount = bsMonthDiff > 0 ? bsMonthDiff : Number(count || 1);
-        const periodStr = bsFrom.year === bsTo.year
-          ? `${fromName} – ${toName} ${bsFrom.year}`
-          : `${fromName} ${bsFrom.year} – ${toName} ${bsTo.year}`;
-        const countStr = finalCount > 1 ? ` · ${finalCount} Months` : '';
-        return `(${periodStr}${countStr})`;
-      });
-
-      // 2. Single month interval: (YYYY-MM)
-      name = name.replace(/\((\d{4}-\d{2})\)/g, (match, ym) => {
-        const bs = isoToBS(`${ym}-25`);
-        return `(${BS_MONTH_NAMES[bs.month - 1]} ${bs.year})`;
-      });
-
-      // 3. AD academic year pattern: (AY 2026/27) or (AY 2026-2027) or (AY 2026)
-      name = name.replace(/\(AY\s+(\d{4})(?:[\/\-](\d{2,4}))?\)/gi, (match, y1, y2) => {
-        const adYear = parseInt(y1, 10);
-        if (adYear >= 2070 || adYear < 1990 || adYear > 2060) {
-          return match;
-        }
-        const bs = adToBS(new Date(adYear, 6, 18));
-        const prevYear = bs.year - 1;
-        return `(AY ${prevYear}-${bs.year})`;
-      });
-
-      // 4. Duplicate BS Year in range: "Jestha 2083 to Shrawan 2083" -> "Jestha to Shrawan 2083"
-      name = name.replace(/\b([A-Za-z]+)\s+(\d{4})\s+(?:to|-|–)\s+([A-Za-z]+)\s+\2\b/g, '$1 to $3 $2');
-
-      // 5. Existing BS month range with inaccurate month count: (Jestha to Shrawan 2083 · 4 Months) -> (Jestha to Shrawan 2083 · 3 Months)
-      name = name.replace(/\(([A-Za-z]+)\s+(?:to|–|-)\s+([A-Za-z]+)\s+(\d{4})\s*·\s*(\d+)\s*Months?\)/gi, (match, m1, m2, yr, oldCnt) => {
-        const idx1 = BS_MONTH_NAMES.findIndex(n => n.toLowerCase() === m1.toLowerCase());
-        const idx2 = BS_MONTH_NAMES.findIndex(n => n.toLowerCase() === m2.toLowerCase());
-        if (idx1 !== -1 && idx2 !== -1) {
-          const realCount = idx2 >= idx1 ? (idx2 - idx1 + 1) : (12 - idx1 + idx2 + 1);
-          return `(${m1} to ${m2} ${yr} · ${realCount} Months)`;
-        }
-        return match;
-      });
-
-      return name;
+      return formatFeeNamePure(rawFeeName, isBS);
     }
 
     return {

@@ -12,7 +12,9 @@ import {
 
 const getSchoolId = (req: Request): number => {
   const user = req.user as any;
-  return user?.school_id || user?.id;
+  const schoolId = user?.role === 'finance' ? user?.school_id : (user?.school_id || user?.id);
+  if (!schoolId) throw { message: 'School identification missing.', statusCode: 401 };
+  return Number(schoolId);
 };
 
 export const getFinanceAccount = catchAsync(async (req: Request, res: Response) => {
@@ -63,7 +65,7 @@ export const loginFinance = catchAsync(async (req: Request, res: Response) => {
 
   res.cookie('token', token, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

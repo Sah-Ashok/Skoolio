@@ -11,6 +11,7 @@ import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -27,6 +28,7 @@ const PAL: { key: AttendanceStatus; label: string; short: string; activeClass: s
 export default function MarkClassAttendancePage() {
   const dispatch   = useAppDispatch();
   const router     = useRouter();
+  const { formatDate } = useDateFormat();
   const { user }   = useAppSelector(s => s.auth);
   const isFaculty  = user?.role === "faculty";
 
@@ -268,7 +270,7 @@ export default function MarkClassAttendancePage() {
                 : `${selectedClass?.name || "Select class"}${selectedSection ? ` — Section ${selectedSection.name}` : ""}`
               }
               {" · "}
-              {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+              {formatDate(selectedDate)}
             </p>
           </div>
           <div className={s("actions")}>
@@ -376,7 +378,7 @@ export default function MarkClassAttendancePage() {
           }}>
             <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 16, flexShrink: 0 }} />
             <span>
-              This date is before <strong>{new Date(prevMonth1 + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</strong>.
+              This date is before <strong>{formatDate(prevMonth1)}</strong>.
               Attendance records this old are <strong>read-only</strong> and cannot be edited.
             </span>
           </div>
