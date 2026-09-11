@@ -463,7 +463,7 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
             </div>
             <div className={s("statusBox")}>
               <div className={s("donutWrap")}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={160} minHeight={160}>
                   <PieChart>
                     <Pie
                       data={feeStatusData}

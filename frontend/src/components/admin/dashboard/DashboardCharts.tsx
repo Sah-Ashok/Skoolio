@@ -78,7 +78,7 @@ export default function DashboardCharts({ data }: Props) {
           <div className={s("chart-body")}>
             <div className={s("chart-canvas")}>
               {feeMonthly.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                   <BarChart
                     data={feeMonthly}
                     barGap={6}
@@ -133,7 +133,7 @@ export default function DashboardCharts({ data }: Props) {
             {expenseBreakdown.length > 0 ? (
               <>
                 <div className={s("donut-wrap")}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={160} minHeight={160}>
                     <PieChart>
                       <Pie
                         data={expenseBreakdown}
@@ -206,7 +206,7 @@ export default function DashboardCharts({ data }: Props) {
           <div className={s("chart-body")}>
             <div className={s("chart-canvas")}>
               {admissionsMonthly.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                   <AreaChart data={admissionsMonthly} margin={{ top: 10, right: 24, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="admFill" x1="0" y1="0" x2="0" y2="1">

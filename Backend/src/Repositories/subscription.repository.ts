@@ -132,7 +132,18 @@ export const createSubscription = async (
       data.notes || null,
     ]
   );
-  return result.rows[0];
+  const sub = result.rows[0];
+  if (sub?.id) {
+    try {
+      await pool.query(
+        `UPDATE schools SET subscription_id = $1, updated_at = NOW() WHERE id = $2`,
+        [sub.id, data.school_id]
+      );
+    } catch (err: any) {
+      console.warn('[Subscription] Failed to update schools.subscription_id:', err.message);
+    }
+  }
+  return sub;
 };
 
 export const getLatestSubscription = async (

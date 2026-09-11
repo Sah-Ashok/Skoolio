@@ -19,6 +19,7 @@ import { isMaintenanceModeActive }               from './platform.service';
 import { generateToken, generateShortToken, verifyToken } from '../config/jwt.config';
 import { sendOTPEmail, send2FAEnabledEmail }     from '../utils/emailService';
 import { generateSchoolStorageFolder, initializeSchoolStorage } from '../utils/azureStorage';
+import { setupTrialSubscription } from './subscription.service';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
 
@@ -82,10 +83,21 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
 
   let school = await createSchool({ ...data, password: hashedPassword, school_code });
 
-  // Auto-verify if the platform setting is enabled
+  // Auto-setup 14-Day Free Trial on Plus plan
+  try {
+    const trialSub = await setupTrialSubscription(school.id, 'Plus', 14);
+    if (trialSub) {
+      school = { ...school, subscription_id: trialSub.id };
+    }
+  } catch (err: any) {
+    console.warn('[Subscription] Failed to auto-assign Plus trial on registration:', err.message);
+  }
+
+  // Auto-verify if the platform setting is enabled (defaults to true)
   try {
     const ps = await pool.query(`SELECT auto_verify_schools FROM platform_settings ORDER BY id ASC LIMIT 1`);
-    if (ps.rows[0]?.auto_verify_schools === true) {
+    const shouldAutoVerify = ps.rows.length === 0 || ps.rows[0]?.auto_verify_schools !== false;
+    if (shouldAutoVerify) {
       const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
       await initializeSchoolStorage(storageFolder, { id: school.id, school_name: school.school_name }).catch((err) => {
         console.warn('[Storage] Auto-init storage folder failed:', err.message);
@@ -94,7 +106,10 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
       school = { ...school, is_verified: true, storage_folder: storageFolder };
     }
   } catch {
-    // platform_settings may not exist yet — silently skip
+    // If query failed or table not yet migrated, still verify by default
+    const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
+    await verifySchool(school.id, storageFolder).catch(() => {});
+    school = { ...school, is_verified: true, storage_folder: storageFolder };
   }
 
   const payload: IJwtAdminPayload = {
@@ -123,13 +138,13 @@ export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoo
     const maintenanceActive = await isMaintenanceModeActive();
     if (maintenanceActive)
       throw new AppError('The platform is currently under maintenance. Please try again shortly.', 503);
+
+    if (!school.is_verified)
+      throw new AppError('Your account is not verified yet.', 403);
   }
 
   if (school.is_account === 'blocked')
     throw new AppError('Your account has been blocked. Contact support.', 423);
-
-  if (!school.is_verified)
-    throw new AppError('Your account is not verified yet.', 403);
 
   const isMatch = await bcrypt.compare(data.password, school.password);
   if (!isMatch) throw new AppError('Invalid email or password', 401);

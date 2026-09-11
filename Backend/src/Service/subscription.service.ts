@@ -89,25 +89,119 @@ export const deleteOfferService = async (id: number) => {
   await deleteOffer(id);
 };
 
+// ── DEFAULT PLANS SEEDER & TRIAL HELPER ────────────────────────────────────────
+
+export const seedDefaultSubscriptionPlans = async () => {
+  const defaultPlans: ICreatePlan[] = [
+    {
+      name: 'Free',
+      max_students: 50,
+      max_teachers: 5,
+      fee_management_enabled: false,
+      online_payment_enabled: false,
+      price_npr_monthly: 0,
+      price_npr_yearly: 0,
+      price_inr_monthly: 0,
+      price_inr_yearly: 0,
+      price_usd_monthly: 0,
+      price_usd_yearly: 0,
+    },
+    {
+      name: 'Pro',
+      max_students: 500,
+      max_teachers: 30,
+      fee_management_enabled: true,
+      online_payment_enabled: true,
+      price_npr_monthly: 2500,
+      price_npr_yearly: 25000,
+      price_inr_monthly: 1500,
+      price_inr_yearly: 15000,
+      price_usd_monthly: 25,
+      price_usd_yearly: 250,
+    },
+    {
+      name: 'Plus',
+      max_students: null,
+      max_teachers: null,
+      fee_management_enabled: true,
+      online_payment_enabled: true,
+      price_npr_monthly: 5000,
+      price_npr_yearly: 50000,
+      price_inr_monthly: 3000,
+      price_inr_yearly: 30000,
+      price_usd_monthly: 50,
+      price_usd_yearly: 500,
+    },
+    {
+      name: 'Ultra',
+      max_students: null,
+      max_teachers: null,
+      fee_management_enabled: true,
+      online_payment_enabled: true,
+      price_npr_monthly: 10000,
+      price_npr_yearly: 100000,
+      price_inr_monthly: 6000,
+      price_inr_yearly: 60000,
+      price_usd_monthly: 100,
+      price_usd_yearly: 1000,
+    },
+  ];
+
+  for (const p of defaultPlans) {
+    try {
+      const existing = await getPlanByName(p.name);
+      if (!existing) {
+        await createPlan(p);
+      }
+    } catch (err: any) {
+      console.warn(`[Subscription] Could not seed plan ${p.name}:`, err.message);
+    }
+  }
+};
+
+export const setupTrialSubscription = async (
+  school_id: number,
+  preferredPlan: string = 'Plus',
+  trialDays: number = 14
+) => {
+  let targetPlan = await getPlanByName(preferredPlan);
+  if (!targetPlan) targetPlan = await getPlanByName('Pro');
+  if (!targetPlan) {
+    await seedDefaultSubscriptionPlans();
+    targetPlan = (await getPlanByName(preferredPlan)) || (await getPlanByName('Pro'));
+  }
+
+  // Final fallback to any plan
+  if (!targetPlan) {
+    const all = await getAllPlans();
+    targetPlan = all[0] || null;
+  }
+
+  if (!targetPlan) {
+    console.error('[Subscription] Failed to find or seed plan for trial.');
+    return null;
+  }
+
+  const startDate = new Date();
+  const endDate = new Date(Date.now() + trialDays * 86400000);
+  return await createSubscription(school_id, {
+    school_id,
+    plan_id: targetPlan.id,
+    billing_cycle: 'monthly',
+    amount_paid: 0,
+    start_date: startDate.toISOString().split('T')[0],
+    end_date: endDate.toISOString().split('T')[0],
+    notes: `Initial ${trialDays}-Day Free Trial on ${targetPlan.name}`,
+  });
+};
+
 // ── CORE: RESOLVE A SCHOOL'S CURRENT PLAN STATUS ──────────────────────────────
 
 export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurrentPlanStatus> => {
   let latest = await getLatestSubscription(school_id);
 
   if (!latest) {
-    const proPlan = await getPlanByName('Pro');
-    if (!proPlan) throw new AppError('Pro plan not configured.', 500);
-    const startDate = new Date();
-    const endDate = new Date(Date.now() + 14 * 86400000);
-    await createSubscription(school_id, {
-      school_id,
-      plan_id: proPlan.id,
-      billing_cycle: 'monthly',
-      amount_paid: 0,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-      notes: 'Initial 14-Day Free Trial on Pro',
-    });
+    await setupTrialSubscription(school_id, 'Plus', 14);
     latest = await getLatestSubscription(school_id);
   }
 

@@ -56,3 +56,4 @@ temp/
 *.swo
 *.bak
 *.sql
+!Backend/migrations/*.sql
