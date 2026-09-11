@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
@@ -9,6 +10,7 @@ import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
 import { useCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
+import PendingFeesModal from "./PendingFeesModal";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -24,6 +26,7 @@ export default function StudentDashboardPage() {
   const { data: me, loading: meLoading } = useApi<any>("/auth/me");
   const { activeYear } = useAcademicYear();
   const { data: notices } = useApi<any[]>("/notices/student");
+  const { data: policyData } = useApi<any>("/fee-billing-policy");
 
   const { data: feeCollections } = useApi<any[]>(
     activeYear?.id ? `/fees/me/collections?academic_year_id=${activeYear.id}` : "",
@@ -38,6 +41,28 @@ export default function StudentDashboardPage() {
   // ── Fees ──
   const pendingFees = (feeCollections || []).filter((f) => f.status !== "paid" && f.status !== "waived" && Number(f.remaining_amount || 0) > 0);
   const totalDue = pendingFees.reduce((sum, f) => sum + Number(f.remaining_amount || 0), 0);
+
+  const [showFeePopup, setShowFeePopup] = useState(false);
+
+  useEffect(() => {
+    if (!feeCollections) return;
+    const policy = policyData?.data ?? policyData;
+    const isPolicyEnabled = policy?.show_pending_popup_on_login !== false;
+    const hasDismissed =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("pending_fees_popup_dismissed") === "true";
+
+    if (isPolicyEnabled && pendingFees.length > 0 && !hasDismissed) {
+      setShowFeePopup(true);
+    }
+  }, [feeCollections, policyData, pendingFees.length]);
+
+  const handleCloseFeePopup = () => {
+    setShowFeePopup(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("pending_fees_popup_dismissed", "true");
+    }
+  };
 
   const paidFees = (feeCollections || [])
     .filter((f) => f.status === "paid" || Number(f.paid_amount || f.amount_paid || 0) > 0)
@@ -606,6 +631,13 @@ export default function StudentDashboardPage() {
           </div>
         )}
       </div>
+
+      <PendingFeesModal
+        isOpen={showFeePopup}
+        onClose={handleCloseFeePopup}
+        pendingFees={pendingFees}
+        totalDue={totalDue}
+      />
     </>
   );
 }

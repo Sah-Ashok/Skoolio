@@ -159,6 +159,7 @@ export default function FeeBillingPolicyTab() {
     billing_start_from:  "academic_year",
     monthly_bill_window: "bill_current",
     overdue_grace_days:  "0",
+    show_pending_popup_on_login: true,
   });
 
   useEffect(() => {
@@ -166,9 +167,10 @@ export default function FeeBillingPolicyTab() {
     // API wraps in { data: ... } — unwrap
     const p = (policy as any).data ?? policy;
     setForm({
-      billing_start_from:  p.billing_start_from  ?? "academic_year",
-      monthly_bill_window: p.monthly_bill_window  ?? "bill_current",
-      overdue_grace_days:  String(p.overdue_grace_days ?? 0),
+      billing_start_from:          p.billing_start_from  ?? "academic_year",
+      monthly_bill_window:         p.monthly_bill_window  ?? "bill_current",
+      overdue_grace_days:          String(p.overdue_grace_days ?? 0),
+      show_pending_popup_on_login: p.show_pending_popup_on_login !== undefined ? Boolean(p.show_pending_popup_on_login) : true,
     });
   }, [policy]);
 
@@ -182,9 +184,10 @@ export default function FeeBillingPolicyTab() {
       return;
     }
     const res = await savePolicy({
-      billing_start_from:  form.billing_start_from,
-      monthly_bill_window: form.monthly_bill_window,
-      overdue_grace_days:  grace,
+      billing_start_from:          form.billing_start_from,
+      monthly_bill_window:         form.monthly_bill_window,
+      overdue_grace_days:          grace,
+      show_pending_popup_on_login: form.show_pending_popup_on_login,
     });
     if (res !== null) {
       dispatch(showToast({ type: "success", title: "Saved", message: "Fee billing policy updated." }));
@@ -309,6 +312,66 @@ export default function FeeBillingPolicyTab() {
           A bill due on the 10th with 5 grace days turns "overdue" only after the 15th.
           This affects the overdue badge shown in fee history — it does not extend the due date itself.
         </InfoNote>
+      </div>
+
+      {/* ── Student Portal Fee Popup Option ── */}
+      <div className={s("section-group")}>
+        <div className={s("section-label")}>
+          <i className="fa-solid fa-table-list" /> Student Portal Login Notification
+        </div>
+        <div
+          style={{
+            padding: "18px 20px",
+            borderRadius: 12,
+            border: "1px solid #dce5e9",
+            background: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div style={{ maxWidth: "80%" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#25343f", marginBottom: 4 }}>
+              <i className="fa-solid fa-bell" style={{ color: "#FF9B51", marginRight: 8 }} />
+              Show Pending Fee Table Popup on Student Login
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6a7882", lineHeight: 1.5 }}>
+              When enabled, students with outstanding dues will see an itemized table popup showing all pending fee heads, due dates, paid amounts, and remaining balances right after logging into the student portal.
+            </div>
+          </div>
+          <label style={{ position: "relative", display: "inline-block", width: 46, height: 26, cursor: "pointer", flexShrink: 0 }}>
+            <input
+              type="checkbox"
+              checked={form.show_pending_popup_on_login}
+              onChange={(e) => setForm((f) => ({ ...f, show_pending_popup_on_login: e.target.checked }))}
+              style={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: form.show_pending_popup_on_login ? "#FF9B51" : "#cbd5e1",
+                borderRadius: 26,
+                transition: "0.2s",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  height: 20,
+                  width: 20,
+                  left: form.show_pending_popup_on_login ? 23 : 3,
+                  bottom: 3,
+                  backgroundColor: "white",
+                  borderRadius: "50%",
+                  transition: "0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                }}
+              />
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* ── Live Scenario Preview ── */}

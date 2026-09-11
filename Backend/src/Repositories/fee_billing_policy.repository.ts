@@ -16,24 +16,30 @@ export const getFeeBillingPolicy = async (school_id: number): Promise<IFeeBillin
       updated_at: new Date(),
     };
   }
-  return result.rows[0];
+  const row = result.rows[0];
+  return {
+    ...row,
+    show_pending_popup_on_login: row.show_pending_popup_on_login ?? true,
+  };
 };
 
 export const upsertFeeBillingPolicy = async (
   school_id: number,
   data: IUpsertFeeBillingPolicy
 ): Promise<IFeeBillingPolicy> => {
+  const show_pending = data.show_pending_popup_on_login ?? true;
   const result = await pool.query<IFeeBillingPolicy>(
     `INSERT INTO fee_billing_policy
-       (school_id, billing_start_from, monthly_bill_window, overdue_grace_days)
-     VALUES ($1, $2, $3, $4)
+       (school_id, billing_start_from, monthly_bill_window, overdue_grace_days, show_pending_popup_on_login)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (school_id) DO UPDATE SET
-       billing_start_from  = EXCLUDED.billing_start_from,
-       monthly_bill_window = EXCLUDED.monthly_bill_window,
-       overdue_grace_days  = EXCLUDED.overdue_grace_days,
-       updated_at          = NOW()
+       billing_start_from          = EXCLUDED.billing_start_from,
+       monthly_bill_window         = EXCLUDED.monthly_bill_window,
+       overdue_grace_days          = EXCLUDED.overdue_grace_days,
+       show_pending_popup_on_login = EXCLUDED.show_pending_popup_on_login,
+       updated_at                  = NOW()
      RETURNING *`,
-    [school_id, data.billing_start_from, data.monthly_bill_window, data.overdue_grace_days]
+    [school_id, data.billing_start_from, data.monthly_bill_window, data.overdue_grace_days, show_pending]
   );
   return result.rows[0];
 };

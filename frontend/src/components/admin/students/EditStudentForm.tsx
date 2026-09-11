@@ -11,6 +11,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
+import { editStudentFormSchema, getTodayISO } from "@/lib/studentValidator";
 import { uploadChunked } from "@/lib/uploadChunked";
 
 const s  = (c: string) => styles[c] || c;
@@ -173,9 +174,14 @@ export default function EditStudentForm() {
     }
   };
 
+  const todayISO = getTodayISO();
+
   const handleSave = async () => {
-    if (!form.full_name || !form.admission_number) {
-      dispatch(showToast({ type: "error", title: "Required", message: "Full name and admission number are required." }));
+    // Validate with Zod
+    const valResult = editStudentFormSchema.safeParse(form);
+    if (!valResult.success) {
+      const errMsg = valResult.error.issues[0]?.message || "Validation error";
+      dispatch(showToast({ type: "error", title: "Validation Error", message: errMsg }));
       return;
     }
     setSaving(true);
@@ -451,7 +457,7 @@ export default function EditStudentForm() {
                 </label>
                 <label className={s("field")}>
                   <span>Date of Birth</span>
-                  <DateInput name="date_of_birth" value={form.date_of_birth} onChange={set} />
+                  <DateInput name="date_of_birth" value={form.date_of_birth} onChange={set} maxDate={todayISO} />
                 </label>
               </div>
               <div className={s("field-row")}>
@@ -498,7 +504,7 @@ export default function EditStudentForm() {
                 </label>
                 <label className={s("field")}>
                   <span>Admission Date</span>
-                  <DateInput name="admission_date" value={form.admission_date} onChange={set} />
+                  <DateInput name="admission_date" value={form.admission_date} onChange={set} maxDate={todayISO} />
                 </label>
               </div>
               <label className={s("field")}>

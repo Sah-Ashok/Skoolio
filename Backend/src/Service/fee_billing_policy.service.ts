@@ -26,8 +26,9 @@ export const upsertFeeBillingPolicyService = async (
   }
 
   return await upsertRepo(school_id, {
-    billing_start_from:  data.billing_start_from,
-    monthly_bill_window: data.monthly_bill_window,
-    overdue_grace_days:  Number(data.overdue_grace_days),
+    billing_start_from:          data.billing_start_from,
+    monthly_bill_window:         data.monthly_bill_window,
+    overdue_grace_days:          Number(data.overdue_grace_days),
+    show_pending_popup_on_login: data.show_pending_popup_on_login !== undefined ? Boolean(data.show_pending_popup_on_login) : true,
   });
 };

@@ -8,6 +8,9 @@ import {
   getMyProfile, getMyEnrollments, searchStudents,
 } from '../Controllers/student.controller';
 
+import { validateBody } from '../middlewares/validate.middleware';
+import { createStudentSchema, updateStudentSchema } from '../Validators/student.validator';
+
 const router = Router();
 
 router.use(protect);
@@ -23,11 +26,11 @@ router.patch('/enrollments/:id',      restrictTo('admin', 'super_admin'),       
 router.patch('/enrollments/:id/roll', restrictTo('faculty'),                                 updateEnrollmentRoll);
 
 // ── STUDENT CRUD ──
-router.post('/',              restrictTo('admin', 'super_admin'),                             createStudent);
+router.post('/',              restrictTo('admin', 'super_admin'), validateBody(createStudentSchema), createStudent);
 router.get('/',               restrictTo('admin', 'super_admin', 'finance'),                  getStudents);
 router.get('/search',         restrictTo('admin', 'super_admin', 'finance'),                  searchStudents);
 router.get('/:id',            restrictTo('admin', 'super_admin', 'faculty', 'finance'),          getStudentById);  // faculty: section-scoped in controller
-router.patch('/:id',          restrictTo('admin', 'super_admin'),                             updateStudent);
+router.patch('/:id',          restrictTo('admin', 'super_admin'), validateBody(updateStudentSchema), updateStudent);
 router.delete('/:id',         restrictTo('admin', 'super_admin'),                             deleteStudent);
 
 // ── STUDENT ENROLLMENT HISTORY ──

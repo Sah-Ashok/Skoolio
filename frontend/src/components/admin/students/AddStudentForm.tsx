@@ -11,6 +11,7 @@ import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useCurrency } from "@/lib/useCurrency";
+import { addStudentFormSchema, getTodayISO } from "@/lib/studentValidator";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -131,16 +132,19 @@ export default function AddStudentForm() {
     } finally { setPhotoUploading(false); }
   };
 
+  const todayISO = getTodayISO();
+
   const handleSaveDetails = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.admission_number || !form.full_name || !form.password || !form.date_of_birth || !form.admission_date) {
-      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please fill all required student fields." }));
+
+    // Zod validation check (prevents future admission date and birth date)
+    const valResult = addStudentFormSchema.safeParse(form);
+    if (!valResult.success) {
+      const errMsg = valResult.error.issues[0]?.message || "Validation error";
+      dispatch(showToast({ type: "error", title: "Validation Error", message: errMsg }));
       return;
     }
-    if (!form.guardian_name || !form.guardian_phone || !form.guardian_relation) {
-      dispatch(showToast({ type: "error", title: "Missing Fields", message: "Guardian name, phone and relation are required." }));
-      return;
-    }
+
     if (!enrollment.class_id || !enrollment.section_id) {
       dispatch(showToast({ type: "error", title: "Missing Fields", message: "Please select a class and section." }));
       return;
@@ -316,7 +320,7 @@ export default function AddStudentForm() {
                   </label>
                   <label className={s("field")}>
                     <span>Date of Birth *</span>
-                    <DateInput name="date_of_birth" required value={form.date_of_birth} onChange={handleChange} />
+                    <DateInput name="date_of_birth" required value={form.date_of_birth} onChange={handleChange} maxDate={todayISO} />
                   </label>
                 </div>
                 <div className={s("field-row")}>
@@ -347,7 +351,7 @@ export default function AddStudentForm() {
                   <label className={s("field")}><span>Country</span><input name="country" value={form.country} onChange={handleChange} /></label>
                   <label className={s("field")}>
                     <span>Admission Date *</span>
-                    <DateInput name="admission_date" required value={form.admission_date} onChange={handleChange} />
+                    <DateInput name="admission_date" required value={form.admission_date} onChange={handleChange} maxDate={todayISO} />
                   </label>
                 </div>
 

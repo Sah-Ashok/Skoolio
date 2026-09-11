@@ -65,7 +65,7 @@ export const loginFinance = catchAsync(async (req: Request, res: Response) => {
 
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // set to true only when HTTPS is enabled
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
