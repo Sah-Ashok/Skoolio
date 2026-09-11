@@ -62,39 +62,41 @@ export const updatePlan = async (
   id: number,
   data: IUpdatePlan
 ): Promise<ISubscriptionPlan | null> => {
-  const result = await pool.query(
-    `UPDATE subscription_plans SET
-      name                    = COALESCE($1,  name),
-      max_students            = COALESCE($2,  max_students),
-      max_teachers            = COALESCE($3,  max_teachers),
-      fee_management_enabled  = COALESCE($4,  fee_management_enabled),
-      online_payment_enabled  = COALESCE($5,  online_payment_enabled),
-      price_npr_monthly       = COALESCE($6,  price_npr_monthly),
-      price_npr_yearly        = COALESCE($7,  price_npr_yearly),
-      price_inr_monthly       = COALESCE($8,  price_inr_monthly),
-      price_inr_yearly        = COALESCE($9,  price_inr_yearly),
-      price_usd_monthly       = COALESCE($10, price_usd_monthly),
-      price_usd_yearly        = COALESCE($11, price_usd_yearly),
-      is_active               = COALESCE($12, is_active),
-      updated_at              = NOW()
-     WHERE id = $13
-     RETURNING *`,
-    [
-      data.name                  ?? null,
-      data.max_students          ?? null,
-      data.max_teachers          ?? null,
-      data.fee_management_enabled ?? null,
-      data.online_payment_enabled ?? null,
-      data.price_npr_monthly     ?? null,
-      data.price_npr_yearly      ?? null,
-      data.price_inr_monthly     ?? null,
-      data.price_inr_yearly      ?? null,
-      data.price_usd_monthly     ?? null,
-      data.price_usd_yearly      ?? null,
-      data.is_active             ?? null,
-      id,
-    ]
-  );
+  const allowedFields: (keyof IUpdatePlan)[] = [
+    'name',
+    'max_students',
+    'max_teachers',
+    'fee_management_enabled',
+    'online_payment_enabled',
+    'price_npr_monthly',
+    'price_npr_yearly',
+    'price_inr_monthly',
+    'price_inr_yearly',
+    'price_usd_monthly',
+    'price_usd_yearly',
+    'is_active',
+  ];
+
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  let paramIdx = 1;
+
+  for (const field of allowedFields) {
+    if (field in data) {
+      setClauses.push(`${field} = $${paramIdx++}`);
+      values.push((data as any)[field] ?? null);
+    }
+  }
+
+  if (setClauses.length === 0) {
+    return getPlanById(id);
+  }
+
+  setClauses.push('updated_at = NOW()');
+  values.push(id);
+
+  const query = `UPDATE subscription_plans SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`;
+  const result = await pool.query(query, values);
   return result.rows[0] || null;
 };
 
@@ -190,12 +192,18 @@ export const getStudentCount = async (school_id: number): Promise<number> => {
   return Number(result.rows[0].count);
 };
 
-export const getTeacherCount = async (school_id: number): Promise<number> => {
+export const getTotalStaffCount = async (school_id: number): Promise<number> => {
   const result = await pool.query(
-    `SELECT COUNT(*) as count FROM teachers WHERE school_id = $1`,
+    `SELECT 
+      (SELECT COUNT(*) FROM teachers WHERE school_id = $1 AND (status IS NULL OR status != 'inactive')) +
+      (SELECT COUNT(*) FROM staff WHERE school_id = $1 AND (status IS NULL OR status != 'inactive')) as count`,
     [school_id]
   );
   return Number(result.rows[0].count);
+};
+
+export const getTeacherCount = async (school_id: number): Promise<number> => {
+  return getTotalStaffCount(school_id);
 };
 
 export const downgradeToFreeTransaction = async (

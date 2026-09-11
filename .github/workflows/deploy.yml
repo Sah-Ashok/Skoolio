@@ -77,7 +77,7 @@ jobs:
 
             # ── Verify all containers are healthy ──
             echo ">>> Waiting for health checks..."
-            sleep 15
+            sleep 35
             UNHEALTHY=$(docker compose ps --format json | grep -c '"Health":"unhealthy"' || true)
             if [ "$UNHEALTHY" -gt "0" ]; then
               echo "!!! Containers unhealthy — rolling back to $PREVIOUS_COMMIT"

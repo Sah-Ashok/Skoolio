@@ -21,6 +21,7 @@ import {
 } from '../Repositories/staff.repository';
 import { getPayrollPolicyService } from './payroll_policy.service';
 import { bsToISO, daysInBSMonth, isoToBS } from '../utils/bs-ad';
+import { assertCanAddStaff } from './subscription.service';
 
 // ── STAFF ROLES ───────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export const deleteStaffRoleService = async (id: number, school_id: number) => {
 // ── STAFF MEMBERS ─────────────────────────────────────────────────────────────
 
 export const createStaffService = async (school_id: number, data: ICreateStaff) => {
+  await assertCanAddStaff(school_id);
   const role = await getStaffRoleById(data.staff_role_id, school_id);
   if (!role) throw new AppError('Staff role not found.', 404);
   return createStaff(school_id, data);

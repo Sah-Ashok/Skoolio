@@ -18,6 +18,7 @@ router.patch('/', updatePlatformSettings);
 
 // ── System Log Routes (Super Admin Only) ──
 router.get('/logs',          getSystemLogs);
+router.get('/system-logs',   getSystemLogs);
 router.get('/logs/download', downloadSystemLogs);
 router.delete('/logs',       clearSystemLogs);
 

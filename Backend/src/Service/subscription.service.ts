@@ -187,7 +187,7 @@ export const setupTrialSubscription = async (
   return await createSubscription(school_id, {
     school_id,
     plan_id: targetPlan.id,
-    billing_cycle: 'monthly',
+    billing_cycle: 'trial',
     amount_paid: 0,
     start_date: startDate.toISOString().split('T')[0],
     end_date: endDate.toISOString().split('T')[0],
@@ -302,7 +302,14 @@ export const activateSubscriptionService = async (
     if (!await consumeOffer(offer.id)) throw new AppError('This offer has just reached its usage limit.', 409);
   }
 
-  if (activation.billing_cycle !== 'free' && !activation.end_date) {
+  if (activation.billing_cycle === 'trial') {
+    if (!activation.end_date) {
+      const start = new Date(activation.start_date || new Date().toISOString().split('T')[0]);
+      start.setDate(start.getDate() + 14);
+      activation.end_date = start.toISOString().split('T')[0];
+    }
+    activation.amount_paid = activation.amount_paid ?? 0;
+  } else if (activation.billing_cycle !== 'free' && !activation.end_date) {
     throw new AppError('End date is required for paid subscriptions.', 400);
   }
 
@@ -325,20 +332,24 @@ export const assertCanAddStudent = async (school_id: number) => {
   const status = await resolveCurrentPlanStatus(school_id);
   if (!status.can_add_student) {
     throw new AppError(
-      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_students} students. Please upgrade to add more.`,
+      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_students} students. Current: ${status.student_count}. Please upgrade to add more.`,
+      403
+    );
+  }
+};
+
+export const assertCanAddStaff = async (school_id: number) => {
+  const status = await resolveCurrentPlanStatus(school_id);
+  if (!status.can_add_teacher) {
+    throw new AppError(
+      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_teachers} staff members (teaching & non-teaching). Current: ${status.teacher_count}. Please upgrade to add more.`,
       403
     );
   }
 };
 
 export const assertCanAddTeacher = async (school_id: number) => {
-  const status = await resolveCurrentPlanStatus(school_id);
-  if (!status.can_add_teacher) {
-    throw new AppError(
-      `Your ${status.plan.name} plan allows a maximum of ${status.plan.max_teachers} teachers. Please upgrade to add more.`,
-      403
-    );
-  }
+  return assertCanAddStaff(school_id);
 };
 
 export const assertFeeManagementEnabled = async (school_id: number) => {

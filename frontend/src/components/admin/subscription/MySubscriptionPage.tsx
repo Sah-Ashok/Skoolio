@@ -199,7 +199,7 @@ export default function MySubscriptionPage() {
                     <ProgressBar value={status?.teacher_count ?? 0} max={plan?.max_teachers ?? null} />
                     {!status?.can_add_teacher && (
                       <p style={{ fontSize: 11, color: "#ef4444", marginTop: 8, fontWeight: 800, margin: "8px 0 0" }}>
-                        <i className="fa-solid fa-lock" style={{ marginRight: 4 }} /> Faculty limit reached
+                        <i className="fa-solid fa-lock" style={{ marginRight: 4 }} /> Staff capacity reached
                       </p>
                     )}
                   </div>
@@ -316,7 +316,7 @@ export default function MySubscriptionPage() {
 
                     <div className={s("featureChip")}>
                       <i className={cx("fa-solid fa-circle-check", s("chipCheck"))} />
-                      <span>{plan?.max_teachers ? `Up to ${plan.max_teachers} Teachers` : "Unlimited Teachers"}</span>
+                      <span>{plan?.max_teachers ? `Up to ${plan.max_teachers} Teachers & Staff` : "Unlimited Teachers & Staff"}</span>
                     </div>
 
                     <div className={cx(s("featureChip"), !plan?.fee_management_enabled && s("featureChipLocked"))}>

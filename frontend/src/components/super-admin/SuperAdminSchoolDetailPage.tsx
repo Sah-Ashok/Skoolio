@@ -34,7 +34,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
   // Activate Plan Modal
   const [showPlanModal, setShowPlanModal]   = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<number | "">("");
-  const [billingCycle, setBillingCycle]     = useState<"yearly" | "monthly">("yearly");
+  const [billingCycle, setBillingCycle]     = useState<"yearly" | "monthly" | "trial" | "free">("yearly");
   const [customDays, setCustomDays]         = useState("365");
   const [customPrice, setCustomPrice]       = useState("");
   const [paymentMethod, setPaymentMethod]   = useState("bank_transfer");
@@ -82,7 +82,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
   const { school, metrics, plan, history, storage } = data;
 
   // Normalized Subscription Properties
-  const currentPlanName = plan?.plan_name || plan?.plan?.name || plan?.subscription?.plan_name || "Pro";
+  const currentPlanName = plan?.plan_name || plan?.plan?.name || plan?.subscription?.plan_name || "No Plan";
   const currentSubStatus = plan?.status || plan?.subscription?.status || "active";
   const currentBillingCycle = plan?.billing_cycle || plan?.subscription?.billing_cycle || "monthly";
   const currentEndDate = plan?.end_date || plan?.subscription?.end_date;
@@ -156,8 +156,9 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     setSubmittingPlan(true);
     try {
       const selectedPlan = (plans || []).find((p) => p.id === Number(selectedPlanId));
-      const isFree = selectedPlan?.name?.toLowerCase() === "free";
-      const days = Number(customDays) || (billingCycle === "yearly" ? 365 : 30);
+      const isFree = selectedPlan?.name?.toLowerCase() === "free" || billingCycle === "free";
+      const isTrial = billingCycle === "trial";
+      const days = Number(customDays) || (billingCycle === "yearly" ? 365 : billingCycle === "trial" ? 14 : 30);
       const startDate = new Date().toISOString().split("T")[0];
       const endDate = new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
 
@@ -166,14 +167,14 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
         body: JSON.stringify({
           school_id: schoolId,
           plan_id: Number(selectedPlanId),
-          billing_cycle: isFree ? "free" : billingCycle,
-          amount_paid: isFree ? 0 : Number(customPrice || 0),
-          currency: isFree ? undefined : (school.currency || "NPR"),
+          billing_cycle: isFree ? "free" : isTrial ? "trial" : billingCycle,
+          amount_paid: (isFree || isTrial) ? 0 : Number(customPrice || 0),
+          currency: (isFree || isTrial) ? undefined : (school.currency || "NPR"),
           start_date: startDate,
           end_date: isFree ? undefined : endDate,
-          payment_method: isFree ? undefined : paymentMethod,
-          payment_reference: paymentRef.trim() || "Manual Offline Activation",
-          notes: `Activated via Super Admin console for ${days} days`,
+          payment_method: (isFree || isTrial) ? undefined : paymentMethod,
+          payment_reference: (isFree || isTrial) ? undefined : paymentRef.trim() || "Manual Offline Activation",
+          notes: isTrial ? `${days}-Day Free Trial on ${selectedPlan?.name || "Plus"}` : `Activated via Super Admin console for ${days} days`,
         }),
       });
       dispatch(showToast({ type: "success", title: "Plan Activated", message: `${selectedPlan?.name || "Subscription"} plan successfully activated.` }));
@@ -1027,22 +1028,32 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                   <select
                     value={billingCycle}
                     onChange={(e) => {
-                      const newCycle = e.target.value as "yearly" | "monthly";
+                      const newCycle = e.target.value as "yearly" | "monthly" | "trial" | "free";
                       setBillingCycle(newCycle);
-                      setCustomDays(newCycle === "yearly" ? "365" : "30");
-                      const p = (plans || []).find((x) => x.id === Number(selectedPlanId));
-                      if (p) {
-                        const curr = (school.currency || "NPR").toLowerCase();
-                        const price = newCycle === "yearly"
-                          ? (p[`price_${curr}_yearly`] ?? p.price_npr_yearly ?? 0)
-                          : (p[`price_${curr}_monthly`] ?? p.price_npr_monthly ?? 0);
-                        setCustomPrice(price ? String(price) : "0");
+                      if (newCycle === "trial") {
+                        setCustomDays("14");
+                        setCustomPrice("0");
+                      } else if (newCycle === "free") {
+                        setCustomDays("365");
+                        setCustomPrice("0");
+                      } else {
+                        setCustomDays(newCycle === "yearly" ? "365" : "30");
+                        const p = (plans || []).find((x) => x.id === Number(selectedPlanId));
+                        if (p) {
+                          const curr = (school.currency || "NPR").toLowerCase();
+                          const price = newCycle === "yearly"
+                            ? (p[`price_${curr}_yearly`] ?? p.price_npr_yearly ?? 0)
+                            : (p[`price_${curr}_monthly`] ?? p.price_npr_monthly ?? 0);
+                          setCustomPrice(price ? String(price) : "0");
+                        }
                       }
                     }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }}
                   >
                     <option value="yearly">Yearly (Annual)</option>
                     <option value="monthly">Monthly</option>
+                    <option value="trial">Free Trial</option>
+                    <option value="free">Free Forever</option>
                   </select>
                 </div>
 
@@ -1060,6 +1071,36 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                   />
                 </div>
               </div>
+
+              {billingCycle === "trial" && (
+                <div style={{ marginBottom: 12, padding: "8px 10px", background: "#fef3c7", borderRadius: 8, border: "1px solid #fde68a" }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#92400e", display: "block", marginBottom: 6 }}>
+                    Quick Presets:
+                  </span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {["7", "14", "21", "30"].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setCustomDays(d)}
+                        style={{
+                          flex: 1,
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: customDays === d ? "1.5px solid #d97706" : "1px solid #d1d5db",
+                          background: customDays === d ? "#fef3c7" : "#fff",
+                          color: "#92400e",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>

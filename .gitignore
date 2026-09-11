@@ -27,8 +27,10 @@ coverage/
 .env.*
 
 # Logs
-logs/
+/logs/
+/Backend/logs/
 *.log
+!frontend/src/app/super-admin/logs/**
 pids/
 *.pid
 
