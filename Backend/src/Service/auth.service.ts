@@ -20,6 +20,7 @@ import { generateToken, generateShortToken, verifyToken } from '../config/jwt.co
 import { sendOTPEmail, send2FAEnabledEmail }     from '../utils/emailService';
 import { generateSchoolStorageFolder, initializeSchoolStorage } from '../utils/azureStorage';
 import { setupTrialSubscription } from './subscription.service';
+import { setupDefaultAcademicYear } from './academic.service';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
 
@@ -91,6 +92,13 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
     }
   } catch (err: any) {
     console.warn('[Subscription] Failed to auto-assign Plus trial on registration:', err.message);
+  }
+
+  // Auto-setup current active academic year (April-March for Indian/AD, Baishakh-Chaitra for BS)
+  try {
+    await setupDefaultAcademicYear(school.id, school.country, school.calendar_system);
+  } catch (err: any) {
+    console.warn('[AcademicYear] Failed to setup default academic year on registration:', err.message);
   }
 
   // Auto-verify if the platform setting is enabled (defaults to true)

@@ -4,8 +4,8 @@ export interface IAcademicYear {
     id: number;
     school_id: number ; 
     year_name: string;
-    start_date: Date;
-    end_date: Date;
+    start_date: Date | string;
+    end_date: Date | string;
     status: AcademicYearStatus;
     description?: string;
     created_at: Date;
