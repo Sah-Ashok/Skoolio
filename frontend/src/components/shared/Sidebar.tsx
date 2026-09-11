@@ -269,6 +269,11 @@ export default function Sidebar({ role }: SidebarProps) {
   const dispatch     = useAppDispatch();
   const { user }     = useAppSelector(s => s.auth);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [user?.logo]);
 
   // Check if school has an active finance account configured
   const [financeAccountTick, setFinanceAccountTick] = useState(0);
@@ -367,7 +372,7 @@ export default function Sidebar({ role }: SidebarProps) {
     <>
       <aside className="sidebar">
         <div className="sidebar-logo">
-          {user?.logo ? (
+          {user?.logo && !logoError ? (
             <Link href="/" className="school-brand">
               <div className="school-monogram">
                 <Image
@@ -375,11 +380,23 @@ export default function Sidebar({ role }: SidebarProps) {
                   alt={user.school_name || 'School'}
                   width={58}
                   height={58}
-                  style={{ objectFit: 'cover', borderRadius: 14, width: '100%', height: '100%' }}
+                  unoptimized
+                  style={{ objectFit: 'cover', borderRadius: 12, width: '100%', height: '100%' }}
+                  onError={() => setLogoError(true)}
                 />
               </div>
               <span className="school-brand-copy">
                 <strong>{user.school_name || 'School'}</strong>
+                <small>{roleLabel[activeRole]}</small>
+              </span>
+            </Link>
+          ) : user?.school_name ? (
+            <Link href="/" className="school-brand">
+              <div className="school-monogram">
+                {initials}
+              </div>
+              <span className="school-brand-copy">
+                <strong>{user.school_name}</strong>
                 <small>{roleLabel[activeRole]}</small>
               </span>
             </Link>

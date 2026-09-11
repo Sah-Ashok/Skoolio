@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { apiRequest } from "@/lib/api";
 import { Spinner } from "@/components/shared/Loader";
 
@@ -39,6 +39,10 @@ export default function ImageUpload({
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    setPreview(currentUrl || null);
+  }, [currentUrl]);
 
   const borderRadius = shape === "circle" ? "50%" : 14;
 
