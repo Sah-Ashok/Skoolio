@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ResponsiveContainer,
   BarChart,
@@ -811,50 +812,68 @@ export default function FinanceDashboard() {
 
           {/* Recharts Double Bar Chart */}
           <div style={{ width: "100%", height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={overviewBarData} barGap={6} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="name"
-                  stroke="#94a3b8"
-                  fontSize={collectionOverviewPeriod === "year" ? 10 : 11}
-                  interval={0}
-                  tickLine={false}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                  tickFormatter={(name) =>
-                    collectionOverviewPeriod === "year" ? name.slice(0, 3) : name
-                  }
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `${currSymbol}${formatCompactNumber(val)}`}
-                />
-                <RechartsTooltip
-                  cursor={{ fill: "rgba(241, 245, 249, 0.6)" }}
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div className={styles.darkTooltip}>
-                          <span className={styles.darkTooltipTitle}>{label}</span>
-                          <span className={styles.darkTooltipRow} style={{ color: "#34d399" }}>
-                            • Collected: {formatCurrency(Number(payload[0]?.value || 0))}
-                          </span>
-                          <span className={styles.darkTooltipRow} style={{ color: "#fb923c" }}>
-                            • Pending: {formatCurrency(Number(payload[1]?.value || 0))}
-                          </span>
-                        </div>
-                      );
+            {overviewBarData.some((item: any) => (Number(item.collected) || 0) > 0 || (Number(item.pending) || 0) > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={overviewBarData} barGap={6} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#94a3b8"
+                    fontSize={collectionOverviewPeriod === "year" ? 10 : 11}
+                    interval={0}
+                    tickLine={false}
+                    axisLine={{ stroke: "#e2e8f0" }}
+                    tickFormatter={(name) =>
+                      collectionOverviewPeriod === "year" ? name.slice(0, 3) : name
                     }
-                    return null;
-                  }}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val) => `${currSymbol}${formatCompactNumber(val)}`}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: "rgba(241, 245, 249, 0.6)" }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className={styles.darkTooltip}>
+                            <span className={styles.darkTooltipTitle}>{label}</span>
+                            <span className={styles.darkTooltipRow} style={{ color: "#34d399" }}>
+                              • Collected: {formatCurrency(Number(payload[0]?.value || 0))}
+                            </span>
+                            <span className={styles.darkTooltipRow} style={{ color: "#fb923c" }}>
+                              • Pending: {formatCurrency(Number(payload[1]?.value || 0))}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="collected" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  <Bar dataKey="pending" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: "16px", textAlign: "center" }}>
+                <Image
+                  src="/No-collection-overview.png"
+                  alt="No collection overview"
+                  width={200}
+                  height={135}
+                  style={{ objectFit: "contain", maxHeight: "150px", width: "auto" }}
                 />
-                <Bar dataKey="collected" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                <Bar dataKey="pending" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
+                <p style={{ color: "#475569", fontSize: "14px", fontWeight: 800, margin: "8px 0 2px" }}>
+                  No collection overview
+                </p>
+                <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0 }}>
+                  Fee collections and pending dues will appear here once recorded
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

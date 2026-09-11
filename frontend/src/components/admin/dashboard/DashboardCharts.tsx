@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell,
   Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -35,6 +36,13 @@ export default function DashboardCharts({ data }: Props) {
   const collectionRate   = data.collectionRate   ?? 0;
   const totalExpenses    = data.totalExpenses    ?? 0;
 
+  const hasFeeData =
+    feeMonthly.some((m: any) => (Number(m.collected) || 0) > 0 || (Number(m.pending) || 0) > 0) ||
+    totalCollected > 0 ||
+    totalPending > 0;
+
+  const hasExpenseData = expenseBreakdown.length > 0 && totalExpenses > 0;
+
   // Admissions chart metrics
   const admNums      = admissionsMonthly.map((r: any) => r.admissions as number);
   const newThisMonth = admNums[admNums.length - 1] ?? 0;
@@ -54,127 +62,151 @@ export default function DashboardCharts({ data }: Props) {
       <section className={s("chart-row")}>
 
         {/* Fee bar chart */}
-        <article className={s("chart-card")}>
+        <article className={s("chart-card")} style={{ display: "flex", flexDirection: "column" }}>
           <div className={s("chart-head")}>
             <div>
               <h3><i className="fa-solid fa-chart-column" /> Fee Collection Overview</h3>
               <p>Monthly collected vs pending — last 6 months</p>
             </div>
           </div>
-          <div className={s("chart-metrics")}>
-            <div className={s("metric-card")}>
-              <span>COLLECTED</span>
-              <strong>{fmtShort(totalCollected)}</strong>
-            </div>
-            <div className={s("metric-card")}>
-              <span>PENDING</span>
-              <strong style={{ color: "#d97706" }}>{fmtShort(totalPending)}</strong>
-            </div>
-            <div className={s("metric-card")}>
-              <span>COLLECTION RATE</span>
-              <strong style={{ color: "#059669" }}>{collectionRate}%</strong>
-            </div>
-          </div>
-          <div className={s("chart-body")}>
-            <div className={s("chart-canvas")}>
-              {feeMonthly.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
-                  <BarChart
-                    data={feeMonthly}
-                    barGap={6}
-                    barCategoryGap="28%"
-                    margin={{ top: 8, right: 24, left: -10, bottom: 0 }}
-                  >
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} interval={0} />
-                    <YAxis
-                      axisLine={false} tickLine={false}
-                      tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }}
-                      tickFormatter={(v) => fmtShort(v)}
-                    />
-                    <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <Tooltip
-                      cursor={{ fill: "rgba(37,99,235,0.04)" }}
-                      contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
-                      formatter={(v: any, n: any) => [fmtFull(Number(v)), n]}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 10 }} />
-                    <Bar dataKey="collected" name="Collected" fill="#2563eb" radius={[6,6,0,0]} maxBarSize={22} />
-                    <Bar dataKey="pending"   name="Pending"   fill="#f59e0b" radius={[6,6,0,0]} maxBarSize={22} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#94a3b8", fontSize:13, fontWeight:700 }}>
-                  No fee data available yet
+          {hasFeeData ? (
+            <>
+              <div className={s("chart-metrics")}>
+                <div className={s("metric-card")}>
+                  <span>COLLECTED</span>
+                  <strong>{fmtShort(totalCollected)}</strong>
                 </div>
-              )}
+                <div className={s("metric-card")}>
+                  <span>PENDING</span>
+                  <strong style={{ color: "#d97706" }}>{fmtShort(totalPending)}</strong>
+                </div>
+                <div className={s("metric-card")}>
+                  <span>COLLECTION RATE</span>
+                  <strong style={{ color: "#059669" }}>{collectionRate}%</strong>
+                </div>
+              </div>
+              <div className={s("chart-body")}>
+                <div className={s("chart-canvas")}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                    <BarChart
+                      data={feeMonthly}
+                      barGap={6}
+                      barCategoryGap="28%"
+                      margin={{ top: 8, right: 24, left: -10, bottom: 0 }}
+                    >
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} interval={0} />
+                      <YAxis
+                        axisLine={false} tickLine={false}
+                        tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }}
+                        tickFormatter={(v) => fmtShort(v)}
+                      />
+                      <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
+                      <Tooltip
+                        cursor={{ fill: "rgba(37,99,235,0.04)" }}
+                        contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
+                        formatter={(v: any, n: any) => [fmtFull(Number(v)), n]}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 10 }} />
+                      <Bar dataKey="collected" name="Collected" fill="#2563eb" radius={[6,6,0,0]} maxBarSize={22} />
+                      <Bar dataKey="pending"   name="Pending"   fill="#f59e0b" radius={[6,6,0,0]} maxBarSize={22} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", textAlign: "center", minHeight: "260px" }}>
+              <Image
+                src="/No-collection-overview.png"
+                alt="No collection overview"
+                width={260}
+                height={180}
+                style={{ objectFit: "contain", maxHeight: "175px", width: "auto" }}
+                priority
+              />
+              <p style={{ color: "#475569", fontSize: "14.5px", fontWeight: 800, margin: "14px 0 3px" }}>
+                No collection overview
+              </p>
+              <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0, maxWidth: "340px" }}>
+                Fee collections and pending dues will appear here once recorded
+              </p>
             </div>
-          </div>
+          )}
         </article>
 
         {/* Expense donut */}
-        <article className={s("chart-card")}>
+        <article className={s("chart-card")} style={{ display: "flex", flexDirection: "column" }}>
           <div className={s("chart-head")}>
             <div>
               <h3><i className="fa-solid fa-chart-pie" /> Expense Breakdown</h3>
               <p>By category — this month</p>
             </div>
           </div>
-          <div className={cx(s("chart-body"), s("expense-breakdown"))}>
-            <div className={s("chart-metrics")}>
-              <div className={s("metric-card")}>
-                <span>LARGEST</span>
-                <strong>{largestCat ? `${largestCat.name} (${largestCat.value}%)` : "None"}</strong>
+          {hasExpenseData ? (
+            <div className={cx(s("chart-body"), s("expense-breakdown"))}>
+              <div className={s("chart-metrics")}>
+                <div className={s("metric-card")}>
+                  <span>LARGEST</span>
+                  <strong>{largestCat ? `${largestCat.name} (${largestCat.value}%)` : "None"}</strong>
+                </div>
+                <div className={s("metric-card")}>
+                  <span>TOTAL SPEND</span>
+                  <strong>{fmtShort(totalExpenses)}</strong>
+                </div>
               </div>
-              <div className={s("metric-card")}>
-                <span>TOTAL SPEND</span>
-                <strong>{fmtShort(totalExpenses)}</strong>
+              <div className={s("donut-wrap")}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={160} minHeight={160}>
+                  <PieChart>
+                    <Pie
+                      data={expenseBreakdown}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={56}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      cornerRadius={5}
+                    >
+                      {expenseBreakdown.map((e: any) => (
+                        <Cell fill={e.color} key={e.name} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
+                      formatter={(v: any, n: any) => [`${v}%`, n]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className={s("donut-center")}>
+                  <strong>{fmtShort(totalExpenses)}</strong>
+                  <span>Total</span>
+                </div>
+              </div>
+              <div className={s("legend-grid")}>
+                {expenseBreakdown.map((item: any) => (
+                  <div className={s("legend-item")} key={item.name}>
+                    <span style={{ background: item.color }} />
+                    {item.name} {item.value}%
+                  </div>
+                ))}
               </div>
             </div>
-            {expenseBreakdown.length > 0 ? (
-              <>
-                <div className={s("donut-wrap")}>
-                  <ResponsiveContainer width="100%" height="100%" minWidth={160} minHeight={160}>
-                    <PieChart>
-                      <Pie
-                        data={expenseBreakdown}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={56}
-                        outerRadius={80}
-                        paddingAngle={3}
-                        cornerRadius={5}
-                      >
-                        {expenseBreakdown.map((e: any) => (
-                          <Cell fill={e.color} key={e.name} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.08)", background: "#ffffff", fontSize: 12 }}
-                        formatter={(v: any, n: any) => [`${v}%`, n]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className={s("donut-center")}>
-                    <strong>{fmtShort(totalExpenses)}</strong>
-                    <span>Total</span>
-                  </div>
-                </div>
-                <div className={s("legend-grid")}>
-                  {expenseBreakdown.map((item: any) => (
-                    <div className={s("legend-item")} key={item.name}>
-                      <span style={{ background: item.color }} />
-                      {item.name} {item.value}%
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div style={{ padding:"44px 0", textAlign:"center", color:"#94a3b8", fontSize:13, fontWeight:600 }}>
-                <i className="fa-solid fa-receipt" style={{ fontSize: 28, display: "block", marginBottom: 10, color: "#cbd5e1" }} />
-                No expenses recorded this month
-              </div>
-            )}
-          </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", textAlign: "center", minHeight: "260px" }}>
+              <Image
+                src="/no-expense.png"
+                alt="No expenses"
+                width={260}
+                height={180}
+                style={{ objectFit: "contain", maxHeight: "175px", width: "auto" }}
+              />
+              <p style={{ color: "#475569", fontSize: "14.5px", fontWeight: 800, margin: "14px 0 3px" }}>
+                No expenses recorded
+              </p>
+              <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0, maxWidth: "340px" }}>
+                Categorized school expenses for this month will appear here
+              </p>
+            </div>
+          )}
         </article>
       </section>
 
@@ -243,35 +275,49 @@ export default function DashboardCharts({ data }: Props) {
         </article>
 
         {/* Notice board */}
-        <article className={s("tbl-card")}>
+        <article className={s("tbl-card")} style={{ display: "flex", flexDirection: "column" }}>
           <div className={s("tbl-head")}>
             <h3><i className="fa-solid fa-bullhorn" /> Notice Board</h3>
             <a className={cx(s("btn"), s("btn-primary"), s("btn-sm"))} href="/notices">
               View All
             </a>
           </div>
-          <div className={s("notice-list")}>
-            {notices.length === 0 ? (
-              <div style={{ padding:"28px 20px", textAlign:"center", color:"#bfd0d7", fontSize:13, fontWeight:700 }}>
+          {notices.length === 0 ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", textAlign: "center", minHeight: "260px" }}>
+              <Image
+                src="/no-notice.png"
+                alt="No notices"
+                width={260}
+                height={180}
+                style={{ objectFit: "contain", maxHeight: "175px", width: "auto" }}
+              />
+              <p style={{ color: "#475569", fontSize: "14.5px", fontWeight: 800, margin: "14px 0 3px" }}>
                 No active notices
-              </div>
-            ) : notices.map((n: any, i: number) => (
-              <div className={s("notice-item")} key={n.id}>
-                <div className={s("n-dot-wrap")}>
-                  <div className={s("n-dot")} style={{ background: NOTICE_COLORS[i % NOTICE_COLORS.length] }} />
+              </p>
+              <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0, maxWidth: "340px" }}>
+                Important announcements, circulars and updates will appear here
+              </p>
+            </div>
+          ) : (
+            <div className={s("notice-list")}>
+              {notices.map((n: any, i: number) => (
+                <div className={s("notice-item")} key={n.id}>
+                  <div className={s("n-dot-wrap")}>
+                    <div className={s("n-dot")} style={{ background: NOTICE_COLORS[i % NOTICE_COLORS.length] }} />
+                  </div>
+                  <div>
+                    <h4>
+                      {n.is_pinned && (
+                        <i className="fa-solid fa-thumbtack" style={{ fontSize:10, color:"#f59e0b", marginRight:5 }} />
+                      )}
+                      {n.title}
+                    </h4>
+                    <p>{n.content.length > 90 ? n.content.slice(0, 90) + "…" : n.content}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4>
-                    {n.is_pinned && (
-                      <i className="fa-solid fa-thumbtack" style={{ fontSize:10, color:"#f59e0b", marginRight:5 }} />
-                    )}
-                    {n.title}
-                  </h4>
-                  <p>{n.content.length > 90 ? n.content.slice(0, 90) + "…" : n.content}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </article>
       </section>
     </>

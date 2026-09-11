@@ -17,12 +17,12 @@ const router = Router();
 router.use(protect);
 
 // ── Admin uploads ────────────────────────────────────────────────────────────
-router.post('/logo',                      restrictTo('admin', 'super_admin'), upload.single('logo'),       uploadLogo);
+router.post('/logo',                      restrictTo('admin', 'super_admin'), upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), uploadLogo);
 router.post('/teacher-photo/:id',         restrictTo('admin', 'super_admin'), upload.single('photo'),      uploadTeacherPhoto);
 router.post('/student-photo/:id',         restrictTo('admin', 'super_admin'), upload.single('photo'),      uploadStudentPhoto);
 router.post('/student-photo/:id/chunk',   restrictTo('admin', 'super_admin'), upload.single('chunk'),      uploadStudentPhotoChunk);
 router.post('/teacher-photo/:id/chunk',   restrictTo('admin', 'super_admin'), upload.single('chunk'),      uploadTeacherPhotoChunk);
-router.post('/qr-code/:account_id',       restrictTo('admin', 'super_admin'), upload.single('qr'),         uploadQrCode);
+router.post('/qr-code/:account_id',       restrictTo('admin', 'super_admin', 'finance'), upload.fields([{ name: 'qr', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), uploadQrCode);
 
 // ── Student: payment screenshot upload ──────────────────────────────────────
 // Student uploads screenshot first, gets back URL, then includes URL in the payment request body

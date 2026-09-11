@@ -20,6 +20,8 @@ interface Props {
   /** Accent colour for the initials avatar bg */
   accentColor?: string;
   label?:       string;
+  /** Form field name for file upload (default auto-detected from endpoint) */
+  fieldName?:   string;
 }
 
 export default function ImageUpload({
@@ -31,6 +33,7 @@ export default function ImageUpload({
   initials     = "?",
   accentColor  = "#FF9B51",
   label        = "Change Photo",
+  fieldName,
 }: Props) {
   const inputRef            = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
@@ -65,12 +68,18 @@ export default function ImageUpload({
 
     setUploading(true);
     try {
+      const uploadField = fieldName || (endpoint.includes("/logo") ? "logo" : endpoint.includes("/qr") ? "qr" : "photo");
       const formData = new FormData();
-      formData.append("photo", file);
+      formData.append(uploadField, file);
 
-      // Use fetch directly for multipart (apiRequest uses JSON by default)
+      // Use relative API path or env URL
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL 
+        ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
+        : "/api";
+      const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api"}${endpoint}`,
+        `${baseUrl}${cleanEndpoint}`,
         {
           method:      "POST",
           body:        formData,

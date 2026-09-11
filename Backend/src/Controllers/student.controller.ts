@@ -56,23 +56,30 @@ export const getStudentById = catchAsync(async (req: Request, res: Response, nex
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const student_id = Number(req.params.id);
 
-  // Faculty: verify student is in one of their coordinated sections
+  // Faculty: verify student is coordinated by or taught by this faculty member
   if (user.role === 'faculty') {
     const teacher_id = (user as IJwtUserPayload).id;
-    const mySections = await getSectionsByCoordinator(teacher_id, school_id);
-    const sectionIds = mySections.map((s: any) => s.id);
-    if (sectionIds.length === 0) throw new AppError('You are not assigned as coordinator of any section.', 403);
-
-    const result = await pool.query(
-      `SELECT 1 FROM student_enrollments
-       WHERE school_id = $1
-         AND student_id = $2
-         AND section_id = ANY($3::int[])
-         AND status = 'active'
+    const checkAuth = await pool.query(
+      `SELECT 1
+       FROM student_enrollments se
+       LEFT JOIN sections sec ON sec.id = se.section_id
+       LEFT JOIN class_subject_teachers cst ON cst.class_id = se.class_id AND cst.teacher_id = $2 AND cst.school_id = $1
+       LEFT JOIN section_timetables st ON st.section_id = se.section_id AND st.teacher_id = $2 AND st.school_id = $1
+       WHERE se.school_id = $1
+         AND se.student_id = $3
+         AND se.status = 'active'
+         AND (
+           sec.coordinator_id = $2
+           OR cst.teacher_id = $2
+           OR st.teacher_id = $2
+         )
        LIMIT 1`,
-      [school_id, student_id, sectionIds]
+      [school_id, teacher_id, student_id]
     );
-    if (!result.rows.length) throw new AppError('This student is not in your section.', 403);
+
+    if (!checkAuth.rows.length) {
+      throw new AppError('You are not authorized to view this student profile.', 403);
+    }
   }
 
   const student = await getStudentByIdService(student_id, school_id);

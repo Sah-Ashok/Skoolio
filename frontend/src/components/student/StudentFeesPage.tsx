@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
+import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
@@ -10,7 +11,6 @@ import { useCurrency } from "@/lib/useCurrency";
 
 // ── Receipt PDF button ───────────────────────────────────────────────────────
 type BtnState = "idle" | "generating" | "ready" | "error";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 function ReceiptButton({ paymentId }: { paymentId: number }) {
   const [state, setState]   = useState<BtnState>("idle");
@@ -29,10 +29,8 @@ function ReceiptButton({ paymentId }: { paymentId: number }) {
   const startPoll = useCallback((id: number) => {
     pollRef.current = setInterval(async () => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/fees/payments/${id}/receipt-status`, { credentials: "include" });
-        if (!r.ok) { stopPoll(); setState("error"); return; }
-        const json = await r.json();
-        const { status, url } = json?.data ?? {};
+        const res = await apiRequest(`/fees/payments/${id}/receipt-status`);
+        const { status, url } = res?.data ?? res ?? {};
         if (status === "ready" && url) { stopPoll(); openPdf(url); }
         else if (status === "failed") { stopPoll(); setState("error"); }
       } catch { stopPoll(); setState("error"); }
@@ -44,12 +42,10 @@ function ReceiptButton({ paymentId }: { paymentId: number }) {
     if (state === "ready" && pdfUrl) { window.open(pdfUrl, "_blank", "noreferrer"); return; }
     setState("generating");
     try {
-      const r = await fetch(`${API_BASE_URL}/api/fees/payments/${paymentId}/generate-receipt`, {
-        method: "POST", credentials: "include",
+      const res = await apiRequest(`/fees/payments/${paymentId}/generate-receipt`, {
+        method: "POST",
       });
-      if (!r.ok) { setState("error"); return; }
-      const json = await r.json();
-      const { status, url } = json?.data ?? {};
+      const { status, url } = res?.data ?? res ?? {};
       if (status === "ready" && url) openPdf(url);
       else if (status === "generating") startPoll(paymentId);
       else setState("error");

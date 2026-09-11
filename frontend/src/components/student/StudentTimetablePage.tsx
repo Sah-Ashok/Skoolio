@@ -473,7 +473,7 @@ function SubjectCard({ slot, theme, pNum, compact = false }: {
         <div className="st-slot-meta" style={{ fontSize: compact ? 11 : 12 }}>
           <span className="st-slot-meta-item">
             <i className="fa-solid fa-user-tie" style={{ opacity: 0.7, color: theme.accent }} />
-            {slot.teacher_name || "Assigned Faculty"}
+            {slot.teacher_name === "TBA" || !slot.teacher_name ? "Teacher: TBA" : slot.teacher_name}
           </span>
           {slot.room_no && (
             <span className="st-slot-meta-item">

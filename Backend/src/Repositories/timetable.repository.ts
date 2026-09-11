@@ -25,7 +25,7 @@ const TIMETABLE_SELECT = `
   st.updated_at,
   s.name       AS subject_name,
   s.code       AS subject_code,
-  t.full_name  AS teacher_name,
+  CASE WHEN st.is_break THEN NULL ELSE COALESCE(t.full_name, 'TBA') END AS teacher_name,
   c.name       AS class_name,
   sec.name     AS section_name
 `;

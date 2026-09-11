@@ -101,21 +101,24 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
     console.warn('[AcademicYear] Failed to setup default academic year on registration:', err.message);
   }
 
-  // Auto-verify if the platform setting is enabled (defaults to true)
+  // Initialize school storage directory in Azure Blob and auto-verify if enabled
+  const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
+  await initializeSchoolStorage(storageFolder, { id: school.id, school_name: school.school_name }).catch((err) => {
+    console.warn('[Storage] Auto-init storage folder failed:', err.message);
+  });
+
   try {
     const ps = await pool.query(`SELECT auto_verify_schools FROM platform_settings ORDER BY id ASC LIMIT 1`);
     const shouldAutoVerify = ps.rows.length === 0 || ps.rows[0]?.auto_verify_schools !== false;
     if (shouldAutoVerify) {
-      const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
-      await initializeSchoolStorage(storageFolder, { id: school.id, school_name: school.school_name }).catch((err) => {
-        console.warn('[Storage] Auto-init storage folder failed:', err.message);
-      });
       await verifySchool(school.id, storageFolder);
       school = { ...school, is_verified: true, storage_folder: storageFolder };
+    } else {
+      await pool.query(`UPDATE schools SET storage_folder = $1 WHERE id = $2`, [storageFolder, school.id]);
+      school = { ...school, storage_folder: storageFolder };
     }
   } catch {
     // If query failed or table not yet migrated, still verify by default
-    const storageFolder = generateSchoolStorageFolder(school.school_name, school.id);
     await verifySchool(school.id, storageFolder).catch(() => {});
     school = { ...school, is_verified: true, storage_folder: storageFolder };
   }

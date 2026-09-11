@@ -1,1 +1,0 @@
-{"version":"1.0","connections":[{"details":{"protocol":"postgresql","address":{"server":"stu-postgres.postgres.database.azure.com","database":"school_pos"}},"options":null}]}

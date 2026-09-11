@@ -19,6 +19,11 @@ import {
 import { getAcademicYearById } from '../Repositories/academic.repository';
 import { calculateWorkingDays } from '../Service/calendar.service';
 
+const resolveSchoolId = (req: Request): number => {
+  const user = req.user as IJwtAdminPayload | IJwtUserPayload;
+  return 'school_id' in user ? user.school_id : user.id;
+};
+
 // ── TEACHER CONTROLLERS ──
 
 export const createTeacher = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -29,7 +34,7 @@ export const createTeacher = catchAsync(async (req: Request, res: Response, next
 
 export const getTeachers = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
-  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const school_id = resolveSchoolId(req);
   const teachers = await getTeachersService(school_id);
   if (user.role === 'faculty') {
     teachers.forEach((t: any) => {
@@ -40,7 +45,7 @@ export const getTeachers = catchAsync(async (req: Request, res: Response, next: 
 });
 
 export const getTeacherById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req);
   const teacher = await getTeacherByIdService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Teacher fetched successfully', teacher);
 });
@@ -82,19 +87,20 @@ export const removeTeacherSubject = catchAsync(async (req: Request, res: Respons
 // ── SALARY CONTROLLERS ──
 
 export const createSalary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
-  const salary = await createSalaryService(school_id, school_id, req.body);
+  const school_id = resolveSchoolId(req);
+  const created_by = req.user?.id || school_id;
+  const salary = await createSalaryService(school_id, created_by, req.body);
   sendResponse(res, 201, true, 'Salary created successfully', salary);
 });
 
 export const getTeacherSalaries = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req);
   const salaries = await getTeacherSalariesService(Number(req.params.id), school_id);
   sendResponse(res, 200, true, 'Salaries fetched successfully', salaries);
 });
 
 export const updateSalary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req);
   const salary = await updateSalaryService(Number(req.params.id), school_id, req.body);
   sendResponse(res, 200, true, 'Salary updated successfully', salary);
 });
@@ -181,13 +187,13 @@ export const getMySalaries = catchAsync(async (req: Request, res: Response, next
 });
 
 export const getSalarySummary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req);
   const summary = await getSalarySummaryService(school_id);
   sendResponse(res, 200, true, 'Salary summary fetched successfully', summary);
 });
 
 export const getAttendanceSummaryForSalary = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { id: school_id } = req.user as IJwtAdminPayload;
+  const school_id = resolveSchoolId(req);
   const teacher_id = Number(req.params.id);
   const year  = Number(req.query.year);
   const month = Number(req.query.month);

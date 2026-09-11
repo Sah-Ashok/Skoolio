@@ -39,16 +39,18 @@ const extFromMime = (mime: string): string => {
 
 // ── POST /upload/logo ────────────────────────────────────────────────────────
 export const uploadLogo = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.file) {
+  const file = req.file || (req.files as any)?.logo?.[0] || (req.files as any)?.photo?.[0];
+  if (!file) {
     return sendResponse(res, 400, false, 'No image file provided.', null);
   }
 
-  const { id: school_id } = req.user as IJwtAdminPayload;
-  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
-  const ext      = extFromMime(req.file.mimetype);
+  const user     = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const folder   = user.storage_folder || await resolveSchoolStorageFolder(school_id);
+  const ext      = extFromMime(file.mimetype);
   const blobName = getLogoBlob(folder, ext);
 
-  const url = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const url = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, file.buffer, file.mimetype);
 
   await pool.query(
     `UPDATE schools SET logo = $1, updated_at = NOW() WHERE id = $2`,
@@ -276,19 +278,21 @@ export const uploadPaymentScreenshot = catchAsync(async (
 });
 
 // ── POST /upload/qr-code/:account_id ────────────────────────────────────────
-// Admin uploads a QR code image for a specific bank account.
+// Admin/Finance uploads a QR code image for a specific bank account.
 // Returns the Azure URL to be saved in the bank account record.
 export const uploadQrCode = catchAsync(async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  if (!req.file) {
+  const file = req.file || (req.files as any)?.qr?.[0] || (req.files as any)?.photo?.[0];
+  if (!file) {
     return sendResponse(res, 400, false, 'No QR code image provided.', null);
   }
 
-  const { id: school_id } = req.user as IJwtAdminPayload;
-  const account_id        = Number(req.params.account_id);
+  const user      = req.user as IJwtAdminPayload | IJwtUserPayload;
+  const school_id = 'school_id' in user ? user.school_id : user.id;
+  const account_id = Number(req.params.account_id);
 
   if (!account_id) {
     return sendResponse(res, 400, false, 'Invalid bank account id.', null);
@@ -303,10 +307,10 @@ export const uploadQrCode = catchAsync(async (
     return sendResponse(res, 404, false, 'Bank account not found.', null);
   }
 
-  const ext      = extFromMime(req.file.mimetype);
-  const folder   = (req.user as IJwtAdminPayload).storage_folder || await resolveSchoolStorageFolder(school_id);
+  const ext      = extFromMime(file.mimetype);
+  const folder   = user.storage_folder || await resolveSchoolStorageFolder(school_id);
   const blobName = getQrCodeBlob(folder, account_id, ext);
-  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, req.file.buffer, req.file.mimetype);
+  const url      = await uploadToAzure(SCHOOL_DATA_CONTAINER, blobName, file.buffer, file.mimetype);
 
   // Persist the URL back into the bank account row
   await pool.query(
