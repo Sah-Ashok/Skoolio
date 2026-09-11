@@ -20,14 +20,17 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: |
+            Backend/package-lock.json
+            frontend/package-lock.json
 
       - name: Backend — install & type-check
-        working-directory: backend
+        working-directory: Backend
         run: npm ci && npm run build
 
-      - name: Frontend — install & lint
+      - name: Frontend — install & type-check
         working-directory: frontend
-        run: npm ci && npm run lint
+        run: npm ci && npx tsc --noEmit
 
   deploy:
     name: SSH & Deploy
@@ -45,7 +48,11 @@ jobs:
           timeout:  600s
           script: |
             set -e
-            cd ~/School-ERP
+            if [ -d ~/skoolio ]; then
+              cd ~/skoolio
+            elif [ -d ~/School-ERP ]; then
+              cd ~/School-ERP
+            fi
 
             # ── Save current commit so we can rollback if needed ──
             PREVIOUS_COMMIT=$(git rev-parse HEAD)
