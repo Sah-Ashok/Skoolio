@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Configuration for Skoolio.
+  Allows plain HTTP to the production server IP while keeping HTTPS enforced
+  for everything else. When a proper domain + TLS certificate is added,
+  remove the <domain-config> block and set cleartextTrafficPermitted="false".
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Allow plain HTTP to the Skoolio backend server IP -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">20.219.6.128</domain>
+    </domain-config>
+</network-security-config>
