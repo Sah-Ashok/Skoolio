@@ -12,7 +12,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDebounce } from "@/hooks/useDebounce";
 
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -602,7 +602,7 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
                 fontSize: 18,
                 flexShrink: 0,
               }}>
-                <i className="fa-solid fa-coins" />
+                <NepaliCurrency size={20} color="#059669" />
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Collected</div>

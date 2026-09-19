@@ -15,7 +15,9 @@ import { isSchoolBlocked, getCachedSchoolSubscription } from '../Service/redis.s
 
 const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const token = req.cookies?.token;
+        const authHeader = req.headers.authorization;
+        const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+        const token = req.cookies?.token || bearerToken;
 
         if (!token) {
             throw new AppError('You are not logged in. Please login to continue', 401);

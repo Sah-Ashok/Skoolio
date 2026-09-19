@@ -8,7 +8,7 @@ import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 import PendingFeesModal from "./PendingFeesModal";
 
@@ -416,7 +416,7 @@ export default function StudentDashboardPage() {
               <div className="sdb-stat">
                 <div className="sdb-stat-accent" style={{ background: totalDue > 0 ? "#ef4444" : "#22c55e" }} />
                 <div className="sdb-stat-label">
-                  <i className="fa-solid fa-indian-rupee-sign" style={{ color: "#f59e0b" }} />
+                  <NepaliCurrency size={15} color="#f59e0b" style={{ marginRight: 6 }} />
                   Fees Due
                 </div>
                 <div className="sdb-stat-value" style={{ color: totalDue > 0 ? "#ef4444" : "#16a34a", fontSize: totalDue > 0 ? 22 : 30 }}>

@@ -25,6 +25,8 @@ export interface AuthUser {
   country?:         string;
   // Date system used by this school: 'AD' = Gregorian (default), 'BS' = Bikram Sambat
   calendar_system?: 'AD' | 'BS';
+  // ISO 4217 currency code returned by /auth/me — used by useCurrency to resolve the symbol
+  currency?:        string;
 }
 
 interface AuthState {

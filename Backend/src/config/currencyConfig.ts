@@ -62,13 +62,58 @@ const COUNTRY_CURRENCY_MAP: Record<string, ICurrencyConfig> = {
     symbol:   '$',
     priceKey: 'usd',
   },
+  'united kingdom': {
+    currency: 'USD',
+    symbol:   '£',
+    priceKey: 'usd',
+  },
+  uk: {
+    currency: 'USD',
+    symbol:   '£',
+    priceKey: 'usd',
+  },
+  gb: {
+    currency: 'USD',
+    symbol:   '£',
+    priceKey: 'usd',
+  },
+  canada: {
+    currency: 'USD',
+    symbol:   'C$',
+    priceKey: 'usd',
+  },
+  ca: {
+    currency: 'USD',
+    symbol:   'C$',
+    priceKey: 'usd',
+  },
+  australia: {
+    currency: 'USD',
+    symbol:   'A$',
+    priceKey: 'usd',
+  },
+  au: {
+    currency: 'USD',
+    symbol:   'A$',
+    priceKey: 'usd',
+  },
+  uae: {
+    currency: 'USD',
+    symbol:   'AED ',
+    priceKey: 'usd',
+  },
+  'united arab emirates': {
+    currency: 'USD',
+    symbol:   'AED ',
+    priceKey: 'usd',
+  },
 };
 
-/** Default when a country is not in the map */
+/** Default when a country is not in the map — global default is USD ($) */
 const DEFAULT_CONFIG: ICurrencyConfig = {
-  currency: 'NPR',
-  symbol:   'रु ',
-  priceKey: 'npr',
+  currency: 'USD',
+  symbol:   '$',
+  priceKey: 'usd',
 };
 
 /**

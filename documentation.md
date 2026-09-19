@@ -31,7 +31,7 @@
 
 ## 1. Project Overview
 
-**Skoolio** is a multi-tenant SaaS School Management System built for schools in Nepal and India. Each school is a fully isolated tenant. The system handles the full academic + administrative lifecycle:
+**Skoolio** is a modern multi-tenant SaaS School Management System built for schools worldwide. Each school is a fully isolated tenant. The system handles the full academic + administrative lifecycle:
 
 ```
 Student Admission → Enrollment → Attendance → Exams → Results
@@ -1199,5 +1199,5 @@ External Azure services (not in Docker): PostgreSQL, Redis, Blob Storage.
 
 ---
 
-*Built with ❤️ for schools in Nepal and India*  
-*Skoolio v1.0 — School Management SaaS*
+*Built with ❤️ for schools worldwide*  
+*Skoolio v1.0 — Cloud School Management SaaS*

@@ -7,23 +7,22 @@ import HeartbeatTracker from "@/components/shared/HeartbeatTracker";
 export const metadata: Metadata = {
   metadataBase: new URL("https://skoolio.app"),
   title: {
-    default: "Skoolio — School Management System for Nepal & India",
+    default: "Skoolio — Modern All-in-One Cloud School Management System",
     template: "%s | Skoolio",
   },
   description:
-    "Skoolio is a cloud-based school management platform built for schools in Nepal and India. Manage attendance, fees, exams, transport, hostel, staff salary, and more — all from one system.",
+    "Skoolio is a global cloud-based school management platform. Manage attendance, fees, exams, timetable, notices, staff salary, and more — all from one intuitive system.",
   keywords: [
     "school management system",
-    "school management software Nepal",
-    "school management system India",
+    "school management software",
+    "cloud school ERP",
     "attendance management",
     "fee management software",
-    "school ERP Nepal",
-    "school ERP India",
+    "school ERP",
     "student information system",
     "Skoolio",
-    "BS calendar school",
-    "Nepali school software",
+    "education management system",
+    "school administration software",
   ],
   authors: [{ name: "Skoolio", url: "https://skoolio.app" }],
   creator: "Skoolio",
@@ -38,9 +37,9 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://skoolio.app",
     siteName: "Skoolio",
-    title: "Skoolio — School Management System for Nepal & India",
+    title: "Skoolio — Modern All-in-One Cloud School Management System",
     description:
-      "The all-in-one school management platform. Attendance, fees, exams, transport, hostel, and staff — connected in one cloud system.",
+      "The modern all-in-one cloud school management platform. Attendance, fees, exams, timetable, notices, and staff — connected in one unified system.",
     images: [
       {
         url: "/og-image.png",
@@ -52,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skoolio — School Management System for Nepal & India",
+    title: "Skoolio — Modern All-in-One Cloud School Management System",
     description:
-      "The all-in-one school management platform for Nepal and India. Attendance, fees, exams, transport, hostel, and staff in one system.",
+      "The modern all-in-one cloud school management platform. Attendance, fees, exams, timetable, notices, and staff in one system.",
     images: ["/og-image.png"],
     creator: "@skoolio",
   },

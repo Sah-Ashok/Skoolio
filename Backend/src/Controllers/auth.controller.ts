@@ -43,7 +43,7 @@ export const verifyRegistrationOTP = catchAsync(async (req: Request, res: Respon
 export const registerSchool = catchAsync(async (req: Request, res: Response) => {
   const { school, token } = await registerSchoolService(req.body as IRegisterSchool);
   setAuthCookie(res, token);
-  sendResponse(res, 201, true, 'School registered successfully', { school });
+  sendResponse(res, 201, true, 'School registered successfully', { school, token });
 });
 
 // ── LOGIN (admin — handles 2FA redirect) ─────────────────────────────────────
@@ -60,7 +60,7 @@ export const loginSchool = catchAsync(async (req: Request, res: Response) => {
   }
 
   setAuthCookie(res, result.token);
-  sendResponse(res, 200, true, 'Login successful', { school: result.school });
+  sendResponse(res, 200, true, 'Login successful', { school: result.school, token: result.token });
 });
 
 // ── VERIFY 2FA ────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ export const verify2FA = catchAsync(async (req: Request, res: Response) => {
 
   const { school, token } = await verify2FAService(twofa_session, otp_code);
   setAuthCookie(res, token);
-  sendResponse(res, 200, true, 'Login successful', { school });
+  sendResponse(res, 200, true, 'Login successful', { school, token });
 });
 
 // ── TEACHER / STUDENT LOGIN ───────────────────────────────────────────────────
@@ -81,13 +81,13 @@ export const verify2FA = catchAsync(async (req: Request, res: Response) => {
 export const loginTeacher = catchAsync(async (req: Request, res: Response) => {
   const { user, token } = await loginTeacherService(req.body as ILoginSchool);
   setAuthCookie(res, token);
-  sendResponse(res, 200, true, 'Login successful', { user });
+  sendResponse(res, 200, true, 'Login successful', { user, token });
 });
 
 export const loginStudent = catchAsync(async (req: Request, res: Response) => {
   const { user, token } = await loginStudentService(req.body as ILoginSchool);
   setAuthCookie(res, token);
-  sendResponse(res, 200, true, 'Login successful', { user });
+  sendResponse(res, 200, true, 'Login successful', { user, token });
 });
 
 // ── LOGOUT ────────────────────────────────────────────────────────────────────

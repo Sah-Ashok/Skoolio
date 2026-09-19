@@ -22,7 +22,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Loader } from "@/components/shared/Loader";
@@ -635,7 +635,7 @@ export default function FinanceDashboard() {
         <div className={styles.metricCard}>
           <div className={styles.metricLeft}>
             <div className={styles.metricIcon} style={{ background: "#ecfdf5", border: "1.5px solid #d1fae5", color: "#059669" }}>
-              <i className="fa-solid fa-coins" />
+              <NepaliCurrency size={20} color="#059669" />
             </div>
             <div>
               <div className={styles.metricLabel}>Total Collected</div>

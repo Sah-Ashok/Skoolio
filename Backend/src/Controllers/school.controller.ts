@@ -8,6 +8,7 @@ import {
   changePasswordService,
   toggleTwoFAService,
 } from '../Service/auth.service';
+import { resolveCurrencyConfig } from '../config/currencyConfig';
 
 // ── GET SETTINGS ──────────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ export const getSuperAdminSchoolDetails = catchAsync(async (req: Request, res: R
   const rawSchool = schoolRes.rows[0];
   const school = {
     ...rawSchool,
-    currency: rawSchool.country?.toLowerCase() === 'india' ? 'INR' : 'NPR',
+    currency: resolveCurrencyConfig(rawSchool.country).currency,
   };
 
   // 2. Fetch Resource Counts in parallel

@@ -16,6 +16,7 @@ router.use(protect);
 
 // ── SELF-SERVICE ROUTES (student's own results & schedules) ──
 router.get('/me/results', restrictTo('student'), getMyResults);
+router.get('/my-results', restrictTo('student'), getMyResults);
 router.get('/me/schedules', restrictTo('student'), getMyExamSchedules);
 
 // ── EXAM ROUTES (ADMIN creates, FACULTY can view) ──

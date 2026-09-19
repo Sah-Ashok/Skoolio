@@ -10,7 +10,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
 import { addStudentFormSchema, getTodayISO } from "@/lib/studentValidator";
 
 const s  = (c: string) => styles[c] || c;
@@ -488,7 +488,7 @@ export default function AddStudentForm() {
                     }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
                         <strong style={{ fontSize: 12, fontWeight: 900, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
-                          <i className="fa-solid fa-coins" style={{ color: "#ff9b51" }} />
+                          <NepaliCurrency size={15} color="#ff9b51" />
                           Class Fee Structure (AY {activeYear?.year_name || "Active"})
                         </strong>
                         {classFeesLoading && (

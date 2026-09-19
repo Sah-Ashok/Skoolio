@@ -35,26 +35,36 @@ const FEATURE_PILLS = [
   { icon: 'fa-calendar-check',      label: 'Attendance & Reports' },
 ];
 
-const ASIA_TIMEZONES = [
-  { value: 'Asia/Kathmandu', label: 'Asia/Kathmandu — Nepal (NPT +5:45)' },
-  { value: 'Asia/Kolkata',   label: 'Asia/Kolkata — India / Sri Lanka (IST +5:30)' },
-  { value: 'Asia/Dhaka',     label: 'Asia/Dhaka — Bangladesh (BST +6:00)' },
-  { value: 'Asia/Karachi',   label: 'Asia/Karachi — Pakistan (PKT +5:00)' },
-  { value: 'Asia/Thimphu',   label: 'Asia/Thimphu — Bhutan (BTT +6:00)' },
-  { value: 'Asia/Kabul',     label: 'Asia/Kabul — Afghanistan (AFT +4:30)' },
-  { value: 'Asia/Yangon',    label: 'Asia/Yangon — Myanmar (MMT +6:30)' },
-  { value: 'Asia/Bangkok',   label: 'Asia/Bangkok — Thailand / Vietnam (ICT +7:00)' },
-  { value: 'Asia/Shanghai',  label: 'Asia/Shanghai — China (CST +8:00)' },
-  { value: 'Asia/Tokyo',     label: 'Asia/Tokyo — Japan (JST +9:00)' },
-  { value: 'Asia/Dubai',     label: 'Asia/Dubai — UAE (GST +4:00)' },
-  { value: 'Asia/Riyadh',    label: 'Asia/Riyadh — Saudi Arabia (AST +3:00)' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore — Singapore / Malaysia (SGT +8:00)' },
+const GLOBAL_TIMEZONES = [
+  { value: 'UTC',                    label: 'UTC — Universal Coordinated Time (UTC +0:00)' },
+  { value: 'America/New_York',       label: 'America/New York — Eastern Time (EST/EDT -5:00)' },
+  { value: 'America/Chicago',        label: 'America/Chicago — Central Time (CST/CDT -6:00)' },
+  { value: 'America/Denver',         label: 'America/Denver — Mountain Time (MST/MDT -7:00)' },
+  { value: 'America/Los_Angeles',    label: 'America/Los Angeles — Pacific Time (PST/PDT -8:00)' },
+  { value: 'Europe/London',          label: 'Europe/London — UK / Ireland (GMT/BST +0:00)' },
+  { value: 'Europe/Paris',           label: 'Europe/Paris — Central Europe (CET/CEST +1:00)' },
+  { value: 'Asia/Dubai',             label: 'Asia/Dubai — UAE / Gulf (GST +4:00)' },
+  { value: 'Asia/Riyadh',            label: 'Asia/Riyadh — Saudi Arabia (AST +3:00)' },
+  { value: 'Asia/Karachi',           label: 'Asia/Karachi — Pakistan (PKT +5:00)' },
+  { value: 'Asia/Kolkata',           label: 'Asia/Kolkata — India / Sri Lanka (IST +5:30)' },
+  { value: 'Asia/Kathmandu',         label: 'Asia/Kathmandu — Nepal (NPT +5:45)' },
+  { value: 'Asia/Dhaka',             label: 'Asia/Dhaka — Bangladesh (BST +6:00)' },
+  { value: 'Asia/Bangkok',           label: 'Asia/Bangkok — Thailand / Vietnam (ICT +7:00)' },
+  { value: 'Asia/Singapore',         label: 'Asia/Singapore — Singapore / Malaysia (SGT +8:00)' },
+  { value: 'Asia/Shanghai',          label: 'Asia/Shanghai — China (CST +8:00)' },
+  { value: 'Asia/Tokyo',             label: 'Asia/Tokyo — Japan (JST +9:00)' },
+  { value: 'Australia/Sydney',       label: 'Australia/Sydney — Eastern Australia (AEST +10:00)' },
+  { value: 'Africa/Cairo',           label: 'Africa/Cairo — Egypt (EET +2:00)' },
+  { value: 'Africa/Lagos',           label: 'Africa/Lagos — Nigeria / West Africa (WAT +1:00)' },
 ];
 
 const COUNTRIES = [
-  'Nepal', 'India', 'Bangladesh', 'Pakistan', 'Sri Lanka',
-  'Bhutan', 'Afghanistan', 'Myanmar', 'Thailand', 'China',
-  'Japan', 'UAE', 'Saudi Arabia', 'Singapore', 'Malaysia',
+  'United States', 'United Kingdom', 'Canada', 'Australia', 'India',
+  'Nepal', 'United Arab Emirates', 'Saudi Arabia', 'Singapore', 'Malaysia',
+  'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Sweden',
+  'Pakistan', 'Bangladesh', 'Sri Lanka', 'Bhutan', 'South Africa',
+  'Nigeria', 'Kenya', 'Philippines', 'Indonesia', 'Japan', 'South Korea',
+  'Brazil', 'Mexico', 'Other',
 ];
 
 export default function RegisterPage() {
@@ -73,12 +83,12 @@ export default function RegisterPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [form, setForm] = useState<FormData>({
-    school_name: '', city: '', state: '', country: 'Nepal',
+    school_name: '', city: '', state: '', country: 'United States',
     phone: '', email: '',
     owner_full_name: '', password: '', confirm_password: '',
     school_type: '', established_year: '',
-    timezone: 'Asia/Kathmandu',
-    calendar_system: 'BS',
+    timezone: 'America/New_York',
+    calendar_system: 'AD',
   });
 
   const handleChange = (
@@ -556,7 +566,7 @@ export default function RegisterPage() {
                     <div className={styles.inputWrap}>
                       <i className="fa-solid fa-clock" />
                       <select name="timezone" value={form.timezone} onChange={handleChange} className={styles.input}>
-                        {ASIA_TIMEZONES.map((tz) => (
+                        {GLOBAL_TIMEZONES.map((tz) => (
                           <option key={tz.value} value={tz.value}>{tz.label}</option>
                         ))}
                       </select>

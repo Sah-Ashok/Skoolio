@@ -19,6 +19,8 @@ router.post('/register',           registerSchool);
 router.post('/login',              strictAuthLimiter, loginSchool);
 router.post('/login/teacher',      strictAuthLimiter, loginTeacher);
 router.post('/login/student',      strictAuthLimiter, loginStudent);
+router.post('/student-login',      strictAuthLimiter, loginStudent);
+router.post('/teacher-login',      strictAuthLimiter, loginTeacher);
 router.post('/login/finance',      strictAuthLimiter, loginFinance);
 router.post('/logout',             logout);
 router.get ('/me',    protect,     getMe);

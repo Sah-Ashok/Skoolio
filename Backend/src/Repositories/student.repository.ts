@@ -30,7 +30,7 @@ export const createStudent = async (
     [
       school_id, data.admission_number, data.full_name, data.email || null,
       data.phone || null, data.password, data.gender, data.date_of_birth,
-      data.blood_group || null, data.photo || null, data.nationality || 'Nepali',
+      data.blood_group || null, data.photo || null, data.nationality || null,
       data.religion || null, data.ethnicity || null, data.city || null,
       data.state || null, data.country || null, data.previous_school || null,
       data.admission_date, data.disability || false, data.disability_description || null,
@@ -247,8 +247,8 @@ export const findStudentByEmailGlobal = async (
             s.is_account AS school_account_status, s.calendar_system AS school_calendar_system
      FROM students st
      INNER JOIN schools s ON s.id = st.school_id
-     WHERE st.email = $1`,
-    [email]
+     WHERE LOWER(st.email) = LOWER($1) OR LOWER(st.admission_number) = LOWER($1)`,
+    [email.trim()]
   );
   return result.rows[0] || null;
 };

@@ -10,6 +10,7 @@ import {
   createGradeScaleService, getGradeScalesService, updateGradeScaleService, deleteGradeScaleService,
   getStudentExamSchedulesService, publishExamScheduleService, getClassExamRegisterService,
 } from '../Service/exam.service';
+import { getActiveAcademicYear } from '../Repositories/academic.repository';
 
 const resolveSchoolId = (req: Request): number => {
   const user = req.user as IJwtAdminPayload | IJwtUserPayload;
@@ -213,10 +214,15 @@ export const deleteGradeScale = catchAsync(async (req: Request, res: Response, n
 export const getMyResults = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id, school_id } = req.user as IJwtUserPayload;
   const { academic_year_id } = req.query;
-  if (!academic_year_id) {
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
+  if (!yearId) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
-  const result = await getStudentAllResultsService(id, school_id, Number(academic_year_id));
+  const result = await getStudentAllResultsService(id, school_id, yearId);
   sendResponse(res, 200, true, 'Your results fetched successfully', result);
 });
 

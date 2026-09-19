@@ -314,13 +314,14 @@ export const loginTeacherService = async (data: ILoginSchool) => {
 // ── STUDENT LOGIN ─────────────────────────────────────────────────────────────
 
 export const loginStudentService = async (data: ILoginSchool) => {
-  if (!data.email) throw new AppError('Invalid email or password', 401);
+  const identifier = data.email || (data as any).identifier;
+  if (!identifier) throw new AppError('Invalid email or password', 401);
 
   const maintenanceActive = await isMaintenanceModeActive();
   if (maintenanceActive)
     throw new AppError('The platform is currently under maintenance. Please try again shortly.', 503);
 
-  const student = await findStudentByEmailGlobal(data.email);
+  const student = await findStudentByEmailGlobal(identifier);
   if (!student) throw new AppError('Invalid email or password', 401);
 
   if (student.status !== 'active')

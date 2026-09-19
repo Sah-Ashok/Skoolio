@@ -1,5 +1,6 @@
 import pool from '../config/db';
 import { adToBS, bsToAD, bsToISO, BS_MONTH_NAMES } from '../utils/bs-ad';
+import { resolveCurrencyConfig } from '../config/currencyConfig';
 
 /**
  * In-memory cache for dashboard summary: 3 minutes TTL (with auto-invalidation on data changes)
@@ -49,15 +50,15 @@ export const getDashboardSummary = async (school_id: number, academic_year_id?: 
     );
     const row = schoolRes.rows[0];
     school = {
-      country: row?.country || 'Nepal',
-      calendar_system: row?.calendar_system || 'BS',
+      country: row?.country || '',
+      calendar_system: row?.calendar_system || 'AD',
     };
     schoolSettingsCache.set(school_id, school);
   }
-  const isIndia = school?.country?.toLowerCase() === 'india';
   const isBS = school?.calendar_system === 'BS';
-  const currency = isIndia ? 'INR' : 'NPR';
-  const currencySymbol = isIndia ? '₹' : (isBS ? 'रू' : 'Rs.');
+  const currencyConfig = resolveCurrencyConfig(school?.country);
+  const currency = currencyConfig.currency;
+  const currencySymbol = isBS ? 'रू' : currencyConfig.symbol;
 
   const now = new Date();
 

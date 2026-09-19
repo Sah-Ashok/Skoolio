@@ -13,6 +13,7 @@ import {
   getAdminSectionSummaryService,
   getSectionRegisterService,
 } from '../Service/attendance.service';
+import { getActiveAcademicYear } from '../Repositories/academic.repository';
 
 // ── ATTENDANCE CONTROLLERS (ADMIN / FACULTY) ──
 
@@ -180,12 +181,18 @@ export const getMyAttendanceSummary = catchAsync(async (req: Request, res: Respo
   const { id, school_id, timezone } = req.user as IJwtUserPayload;
   const { academic_year_id, start_date, end_date } = req.query;
 
-  if (!academic_year_id) {
-    return sendResponse(res, 400, false, 'academic_year_id is required', null);
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
+
+  if (!yearId) {
+    return sendResponse(res, 400, false, 'academic_year_id is required and no active academic year found.', null);
   }
 
   const result = await getStudentAttendanceSummaryService(
-    id, school_id, Number(academic_year_id), timezone,
+    id, school_id, yearId, timezone,
     // Pass optional date overrides — service will use them when provided
     start_date ? String(start_date) : undefined,
     end_date   ? String(end_date)   : undefined,
@@ -199,9 +206,16 @@ export const getMyMonthlyAttendance = catchAsync(async (req: Request, res: Respo
   if (!year || !month) {
     return sendResponse(res, 400, false, 'year and month are required', null);
   }
+
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
+
   const result = await getStudentMonthlyAttendanceService(
     id, school_id, Number(year), Number(month),
-    academic_year_id ? Number(academic_year_id) : undefined
+    yearId
   );
   sendResponse(res, 200, true, 'Your monthly attendance fetched successfully', result);
 });

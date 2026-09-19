@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 export interface PendingFeeItem {
@@ -347,7 +347,7 @@ export default function PendingFeesModal({
           <div className="pfm-header">
             <div className="pfm-head-left">
               <div className="pfm-icon-ring">
-                <i className="fa-solid fa-file-invoice-dollar" />
+                <NepaliCurrency size={24} color="#e11d48" />
               </div>
               <div>
                 <h3 className="pfm-title">Outstanding Fee Notice</h3>
