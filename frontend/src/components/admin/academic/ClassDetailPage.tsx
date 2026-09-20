@@ -166,14 +166,19 @@ export default function ClassDetailPage() {
                         <strong style={{ textTransform: "capitalize" }}>{sec.status}</strong>
                       </div>
                     </div>
-                    {/* Section Coordinator (renamed from Class Coordinator) */}
-                    <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 8, background: sec.coordinator_name ? "#fff3e8" : "#f8fafc", border: `1px solid ${sec.coordinator_name ? "#fdd5b0" : "#e2e8f0"}` }}>
-                      <i className="fa-solid fa-chalkboard-user" style={{ marginRight: 6, color: sec.coordinator_name ? "#ff9b51" : "#94a3b8", fontSize: 11 }} />
-                      <span style={{ fontSize: 12, fontWeight: 800, color: sec.coordinator_name ? "#92400e" : "#94a3b8" }}>
-                        {sec.coordinator_name
-                          ? `Section Coordinator: ${sec.coordinator_name}`
-                          : "No section coordinator assigned"}
-                      </span>
+                    {/* Section Coordinator */}
+                    <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 8, background: sec.coordinator_name ? "#fff3e8" : "#f8fafc", border: `1px solid ${sec.coordinator_name ? "#fdd5b0" : "#e2e8f0"}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", overflow: "hidden" }}>
+                        <i className="fa-solid fa-chalkboard-user" style={{ marginRight: 6, color: sec.coordinator_name ? "#ff9b51" : "#94a3b8", fontSize: 11, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 800, color: sec.coordinator_name ? "#92400e" : "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {sec.coordinator_name
+                            ? `Section Coordinator: ${sec.coordinator_name}`
+                            : "No section coordinator assigned"}
+                        </span>
+                      </div>
+                      <Link href={`/classes/${id}/edit`} style={{ fontSize: 11, fontWeight: 800, color: "#e98239", textDecoration: "none", flexShrink: 0 }}>
+                        {sec.coordinator_name ? "Change" : "Assign"} →
+                      </Link>
                     </div>
                   </article>
                 ))}

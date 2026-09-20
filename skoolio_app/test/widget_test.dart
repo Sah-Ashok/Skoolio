@@ -1,0 +1,135 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:skoolio_app/features/attendance/domain/attendance_models.dart';
+import 'package:skoolio_app/features/auth/domain/models.dart';
+import 'package:skoolio_app/features/timetable/domain/timetable_model.dart';
+
+void main() {
+  group('Auth Models Test', () {
+    test('UserRole converts correctly', () {
+      expect(UserRole.fromString('student'), UserRole.student);
+      expect(UserRole.fromString('faculty'), UserRole.faculty);
+      expect(UserRole.fromString('teacher'), UserRole.faculty);
+    });
+
+    test('UserModel parses faculty from JSON correctly', () {
+      final json = {
+        'id': 42,
+        'email': 'teacher@skoolio.app',
+        'full_name': 'Prof. John Doe',
+        'role': 'faculty',
+        'school_id': 101,
+        'school_name': 'Global International Academy',
+        'currency': 'USD',
+        'currency_symbol': '\$',
+        'employee_id': 'EMP-007',
+        'qualification': 'M.Ed',
+        'specialization': 'Physics',
+      };
+
+      final user = UserModel.fromJson(json);
+      expect(user.id, 42);
+      expect(user.fullName, 'Prof. John Doe');
+      expect(user.role, UserRole.faculty);
+      expect(user.schoolName, 'Global International Academy');
+      expect(user.currencySymbol, '\$');
+      expect(user.employeeId, 'EMP-007');
+      expect(user.qualification, 'M.Ed');
+      expect(user.specialization, 'Physics');
+    });
+
+    test('UserModel parses student from JSON correctly', () {
+      final json = {
+        'id': 99,
+        'email': 'student@skoolio.app',
+        'full_name': 'Jane Student',
+        'role': 'student',
+        'school_id': 101,
+        'school_name': 'Global International Academy',
+        'admission_number': 'ADM-2024-001',
+        'roll_number': '12',
+        'class_name': 'Grade 10',
+        'section_name': 'A',
+        'parent_name': 'Robert Student',
+        'parent_phone': '+15551234567',
+      };
+
+      final user = UserModel.fromJson(json);
+      expect(user.id, 99);
+      expect(user.fullName, 'Jane Student');
+      expect(user.role, UserRole.student);
+      expect(user.admissionNumber, 'ADM-2024-001');
+      expect(user.rollNumber, '12');
+      expect(user.className, 'Grade 10');
+      expect(user.sectionName, 'A');
+      expect(user.parentName, 'Robert Student');
+      expect(user.parentPhone, '+15551234567');
+    });
+  });
+
+  group('Attendance Models Test', () {
+    test('AttendanceStatus converts and generates labels correctly', () {
+      expect(AttendanceStatus.fromString('present'), AttendanceStatus.present);
+      expect(AttendanceStatus.fromString('absent'), AttendanceStatus.absent);
+      expect(AttendanceStatus.fromString('leave'), AttendanceStatus.leave);
+
+      expect(AttendanceStatus.present.shortLabel, 'P');
+      expect(AttendanceStatus.absent.shortLabel, 'A');
+      expect(AttendanceStatus.leave.shortLabel, 'Lv');
+
+      expect(AttendanceStatus.present.displayLabel, 'Present');
+      expect(AttendanceStatus.absent.displayLabel, 'Absent');
+      expect(AttendanceStatus.leave.displayLabel, 'Leave');
+    });
+
+    test('TeacherSection parses JSON correctly', () {
+      final json = {
+        'id': 5,
+        'section_name': 'Section B',
+        'class_id': 2,
+        'class_name': 'Grade 8',
+        'is_coordinator': true,
+      };
+
+      final sec = TeacherSection.fromJson(json);
+      expect(sec.id, 5);
+      expect(sec.name, 'Section B');
+      expect(sec.classId, 2);
+      expect(sec.className, 'Grade 8');
+      expect(sec.isCoordinator, true);
+      expect(sec.displayName, 'Grade 8 - Section B');
+    });
+  });
+
+  group('Timetable Models Test', () {
+    test('TimetableSlot parses and detects breaks correctly', () {
+      final classSlot = TimetableSlot.fromJson({
+        'id': 1,
+        'day_of_week': 'monday',
+        'period_number': 1,
+        'start_time': '09:00',
+        'end_time': '09:45',
+        'subject_name': 'Mathematics',
+        'teacher_name': 'Mr. Newton',
+        'room_number': '101',
+        'is_break': false,
+      });
+
+      expect(classSlot.isBreak, false);
+      expect(classSlot.subjectName, 'Mathematics');
+      expect(classSlot.timeRange, '09:00 - 09:45');
+
+      final breakSlot = TimetableSlot.fromJson({
+        'id': 2,
+        'day_of_week': 'monday',
+        'period_number': 4,
+        'start_time': '12:00',
+        'end_time': '12:45',
+        'subject_name': 'Lunch Break',
+        'is_break': true,
+      });
+
+      expect(breakSlot.isBreak, true);
+      expect(breakSlot.subjectName, 'Lunch Break');
+    });
+  });
+}

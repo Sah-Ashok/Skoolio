@@ -108,5 +108,3 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
-
-skoolio_app

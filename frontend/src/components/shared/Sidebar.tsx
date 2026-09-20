@@ -50,6 +50,7 @@ const adminNav: NavSection[] = [
       { href: '/dashboard', icon: 'fa-gauge-high',          label: 'Dashboard' },
       { href: '/students',  icon: 'fa-user-graduate',       label: 'Students'  },
       { href: '/classes',   icon: 'fa-school',              label: 'Classes'   },
+      { href: '/sections',  icon: 'fa-people-line',         label: 'Sections'  },
       { href: '/teachers',  icon: 'fa-chalkboard-teacher',  label: 'Teachers', exact: true },
       { href: '/staff',     icon: 'fa-user-tie',            label: 'Staff',    exact: true },
     ],

@@ -50,18 +50,20 @@ function AddSectionModal({
       dispatch(showToast({ type: "error", title: "Validation", message: "Section name is required." }));
       return;
     }
-    const res = await execute({
-      name:           trimmed,
-      capacity:       Number(capacity) || 40,
-      room_no:        room.trim() || null,
-      coordinator_id: coordinatorId ? Number(coordinatorId) : null,
-      status:         "active",
-    });
-    if (res) {
-      dispatch(showToast({ type: "success", title: "Added", message: `Section ${trimmed} added to ${cls.name}.` }));
-      onAdded();
-    } else {
-      dispatch(showToast({ type: "error", title: "Error", message: "Failed to add section." }));
+    try {
+      const res = await execute({
+        name:           trimmed,
+        capacity:       Number(capacity) || 40,
+        room_no:        room.trim() || null,
+        coordinator_id: coordinatorId ? Number(coordinatorId) : null,
+        status:         "active",
+      });
+      if (res) {
+        dispatch(showToast({ type: "success", title: "Added", message: `Section ${trimmed} added to ${cls.name}.` }));
+        onAdded();
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to add section." }));
     }
   };
 
@@ -167,22 +169,25 @@ function EditSectionModal({
   const { execute, loading } = useMutation(`/classes/sections/${section.id}`, "PATCH");
 
   const handleSave = async () => {
-    if (!name.trim()) {
+    const trimmed = name.trim().toUpperCase();
+    if (!trimmed) {
       dispatch(showToast({ type: "error", title: "Validation", message: "Section name is required." }));
       return;
     }
-    const res = await execute({
-      name:           name.trim().toUpperCase(),
-      capacity:       Number(capacity) || 40,
-      room_no:        room.trim() || null,
-      coordinator_id: coordinatorId ? Number(coordinatorId) : null,
-      status,
-    });
-    if (res) {
-      dispatch(showToast({ type: "success", title: "Updated", message: `Section ${name.toUpperCase()} updated.` }));
-      onSaved();
-    } else {
-      dispatch(showToast({ type: "error", title: "Error", message: "Failed to update section." }));
+    try {
+      const res = await execute({
+        name:           trimmed,
+        capacity:       Number(capacity) || 40,
+        room_no:        room.trim() || null,
+        coordinator_id: coordinatorId ? Number(coordinatorId) : null,
+        status,
+      });
+      if (res) {
+        dispatch(showToast({ type: "success", title: "Updated", message: `Section ${trimmed} updated.` }));
+        onSaved();
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Error", message: err.message || "Failed to update section." }));
     }
   };
 

@@ -47,10 +47,10 @@ export default function ClassEditPage() {
 
   // ── Panel 3 state ─────────────────────────────────────────────────────────
   const [showAddSection,    setShowAddSection]    = useState(false);
-  const [newSection,        setNewSection]        = useState({ name: "", capacity: "", room_no: "" });
+  const [newSection,        setNewSection]        = useState({ name: "", capacity: "", room_no: "", coordinator_id: "" });
   const [addingSection,     setAddingSection]     = useState(false);
   const [editSectionId,     setEditSectionId]     = useState<number | null>(null);
-  const [editSectionForm,   setEditSectionForm]   = useState({ name: "", capacity: "", room_no: "", status: "active" });
+  const [editSectionForm,   setEditSectionForm]   = useState({ name: "", capacity: "", room_no: "", status: "active", coordinator_id: "" });
   const [savingSection,     setSavingSection]     = useState(false);
   const [confirmSectionId,  setConfirmSectionId]  = useState<number | null>(null);
   const [deletingSectionId, setDeletingSectionId] = useState<number | null>(null);
@@ -177,7 +177,8 @@ export default function ClassEditPage() {
 
   // ── Panel 3: section add ──────────────────────────────────────────────────
   const handleAddSection = async () => {
-    if (!newSection.name.trim()) {
+    const trimmed = newSection.name.trim().toUpperCase();
+    if (!trimmed) {
       dispatch(showToast({ type: "error", title: "Required", message: "Section name is required." }));
       return;
     }
@@ -186,13 +187,14 @@ export default function ClassEditPage() {
       await apiRequest(`/classes/${id}/sections`, {
         method: "POST",
         body: JSON.stringify({
-          name:     newSection.name.trim(),
-          capacity: newSection.capacity ? Number(newSection.capacity) : undefined,
-          room_no:  newSection.room_no.trim() || undefined,
+          name:           trimmed,
+          capacity:       newSection.capacity ? Number(newSection.capacity) : 40,
+          room_no:        newSection.room_no.trim() || undefined,
+          coordinator_id: newSection.coordinator_id ? Number(newSection.coordinator_id) : null,
         }),
       });
-      dispatch(showToast({ type: "success", title: "Section Added", message: `Section "${newSection.name}" created.` }));
-      setNewSection({ name: "", capacity: "", room_no: "" });
+      dispatch(showToast({ type: "success", title: "Section Added", message: `Section "${trimmed}" created.` }));
+      setNewSection({ name: "", capacity: "", room_no: "", coordinator_id: "" });
       setShowAddSection(false);
       refetch();
     } catch (err: any) {
@@ -205,21 +207,29 @@ export default function ClassEditPage() {
   // ── Panel 3: section edit / save ──────────────────────────────────────────
   const startEditSection = (sec: any) => {
     setEditSectionId(sec.id);
-    setEditSectionForm({ name: sec.name, capacity: String(sec.capacity ?? ""), room_no: sec.room_no ?? "", status: sec.status ?? "active" });
+    setEditSectionForm({
+      name:           sec.name,
+      capacity:       String(sec.capacity ?? ""),
+      room_no:        sec.room_no ?? "",
+      status:         sec.status ?? "active",
+      coordinator_id: sec.coordinator_id ? String(sec.coordinator_id) : "",
+    });
     setConfirmSectionId(null);
   };
 
   const handleSaveSection = async (sectionId: number) => {
-    if (!editSectionForm.name.trim()) return;
+    const trimmed = editSectionForm.name.trim().toUpperCase();
+    if (!trimmed) return;
     setSavingSection(true);
     try {
       await apiRequest(`/classes/sections/${sectionId}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name:     editSectionForm.name.trim(),
-          capacity: editSectionForm.capacity ? Number(editSectionForm.capacity) : undefined,
-          room_no:  editSectionForm.room_no.trim() || undefined,
-          status:   editSectionForm.status,
+          name:           trimmed,
+          capacity:       editSectionForm.capacity ? Number(editSectionForm.capacity) : undefined,
+          room_no:        editSectionForm.room_no.trim() || null,
+          status:         editSectionForm.status,
+          coordinator_id: editSectionForm.coordinator_id ? Number(editSectionForm.coordinator_id) : null,
         }),
       });
       dispatch(showToast({ type: "success", title: "Saved", message: "Section updated." }));
@@ -473,8 +483,9 @@ export default function ClassEditPage() {
                       <input
                         autoFocus
                         value={newSection.name}
-                        onChange={(e) => setNewSection({ ...newSection, name: e.target.value })}
+                        onChange={(e) => setNewSection({ ...newSection, name: e.target.value.toUpperCase() })}
                         placeholder="e.g. A"
+                        maxLength={10}
                         onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); }}
                       />
                     </label>
@@ -494,6 +505,23 @@ export default function ClassEditPage() {
                         onChange={(e) => setNewSection({ ...newSection, room_no: e.target.value })}
                         placeholder="e.g. 101"
                       />
+                    </label>
+                    <label className={s("field")}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="fa-solid fa-chalkboard-user" style={{ color: "#ff9b51", fontSize: 11 }} />
+                        Section Coordinator
+                      </span>
+                      <select
+                        value={newSection.coordinator_id}
+                        onChange={(e) => setNewSection({ ...newSection, coordinator_id: e.target.value })}
+                      >
+                        <option value="">— No coordinator —</option>
+                        {(teachers ?? []).filter((t: any) => t.status === "active").map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            {t.full_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || `Teacher #${t.id}`}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                   </div>
                   <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -523,11 +551,12 @@ export default function ClassEditPage() {
                       <div>
                         <div className={s("form-body")} style={{ padding: 0, marginBottom: 14 }}>
                           <label className={s("field")}>
-                            <span>Name</span>
+                            <span>Name <em style={{ color: "#f43f5e", fontStyle: "normal" }}>*</em></span>
                             <input
                               autoFocus
                               value={editSectionForm.name}
-                              onChange={(e) => setEditSectionForm({ ...editSectionForm, name: e.target.value })}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, name: e.target.value.toUpperCase() })}
+                              maxLength={10}
                             />
                           </label>
                           <label className={s("field")}>
@@ -544,6 +573,25 @@ export default function ClassEditPage() {
                               value={editSectionForm.room_no}
                               onChange={(e) => setEditSectionForm({ ...editSectionForm, room_no: e.target.value })}
                             />
+                          </label>
+                          <label className={s("field")}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <i className="fa-solid fa-chalkboard-user" style={{ color: "#ff9b51", fontSize: 11 }} />
+                              Section Coordinator
+                            </span>
+                            <select
+                              value={editSectionForm.coordinator_id}
+                              onChange={(e) => setEditSectionForm({ ...editSectionForm, coordinator_id: e.target.value })}
+                            >
+                              <option value="">— No coordinator —</option>
+                              {(teachers ?? [])
+                                .filter((t: any) => t.status === "active" || String(t.id) === editSectionForm.coordinator_id)
+                                .map((t: any) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.full_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || `Teacher #${t.id}`}
+                                  </option>
+                                ))}
+                            </select>
                           </label>
                           <label className={s("field")}>
                             <span>Status</span>
@@ -585,13 +633,15 @@ export default function ClassEditPage() {
                           </div>
                           <div className={s("row-sub")}>
                             Capacity: {sec.capacity ?? "—"}
-                            {sec.room_no          && <> · Room {sec.room_no}</>}
-                            {sec.coordinator_name && (
-                              <> ·&nbsp;
-                                <i className="fa-solid fa-chalkboard-user" style={{ marginRight: 4, color: "#ff9b51" }} />
-                                {sec.coordinator_name}
-                              </>
-                            )}
+                            {sec.room_no && <> · Room {sec.room_no}</>}
+                            <> ·&nbsp;
+                              <i className="fa-solid fa-chalkboard-user" style={{ marginRight: 4, color: sec.coordinator_name ? "#ff9b51" : "#94a3b8" }} />
+                              {sec.coordinator_name ? (
+                                <strong style={{ color: "#1f2d36" }}>{sec.coordinator_name}</strong>
+                              ) : (
+                                <span style={{ color: "#94a3b8" }}>No coordinator</span>
+                              )}
+                            </>
                           </div>
                         </div>
 
