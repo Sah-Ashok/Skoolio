@@ -1,5 +1,3 @@
-import 'package:intl/intl.dart';
-
 class AcademicCalendar {
   final int id;
   final int academicYearId;

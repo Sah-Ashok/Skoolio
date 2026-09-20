@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:skoolio_app/features/attendance/domain/attendance_models.dart';
 import 'package:skoolio_app/features/auth/domain/models.dart';
+import 'package:skoolio_app/features/calendar/domain/calendar_models.dart';
 import 'package:skoolio_app/features/timetable/domain/timetable_model.dart';
 
 void main() {
@@ -244,4 +245,85 @@ void main() {
       expect(schedule.scheduleByDay['sunday']?.isEmpty, true);
     });
   });
+
+  group('Calendar Models Test', () {
+    test('AcademicCalendar and CalendarEvent parse from JSON correctly', () {
+      final calJson = {
+        'id': 10,
+        'academic_year_id': 2026,
+        'weekend_type': 'saturday_sunday',
+        'name': 'Main Academic Calendar',
+      };
+
+      final cal = AcademicCalendar.fromJson(calJson);
+      expect(cal.id, 10);
+      expect(cal.academicYearId, 2026);
+      expect(cal.weekendType, 'saturday_sunday');
+      expect(cal.name, 'Main Academic Calendar');
+
+      final eventJson = {
+        'id': 101,
+        'calendar_id': 10,
+        'title': 'Autumn Break',
+        'event_type': 'holiday',
+        'event_date': '2026-10-15T00:00:00Z',
+        'end_date': '2026-10-20T00:00:00Z',
+        'description': 'School closed for autumn festival',
+      };
+
+      final event = CalendarEvent.fromJson(eventJson);
+      expect(event.id, 101);
+      expect(event.calendarId, 10);
+      expect(event.title, 'Autumn Break');
+      expect(event.isHoliday, true);
+      expect(event.isSchoolEvent, false);
+      expect(event.containsDate(DateTime(2026, 10, 16)), true);
+      expect(event.containsDate(DateTime(2026, 10, 25)), false);
+    });
+
+    test('CalendarBundle builds monthly grid and detects weekly offs correctly', () {
+      final bundle = CalendarBundle(
+        calendar: AcademicCalendar(
+          id: 1,
+          academicYearId: 2026,
+          weekendType: 'sunday_only',
+        ),
+        events: [
+          CalendarEvent(
+            id: 1,
+            calendarId: 1,
+            title: 'Sports Day',
+            eventType: 'event',
+            startDate: DateTime(2026, 9, 15),
+            endDate: DateTime(2026, 9, 15),
+            description: 'Annual inter-house athletic meet',
+          ),
+        ],
+        weeklyOffs: [
+          CalendarWeeklyOff(dayOfWeek: 0, weekPattern: 'all'), // Every Sunday
+        ],
+      );
+
+      // September 2026: starts on Tuesday (Sept 1), ends on Wednesday (Sept 30) -> 30 days
+      final grid = bundle.buildMonthGrid(2026, 9);
+      // Lead day: Monday Aug 31 (1 lead day). Total visible = 30. Trail days = 4 (Oct 1-4). Total = 35 (5 weeks * 7)
+      expect(grid.length % 7, 0);
+      expect(grid.length, 35);
+
+      final sportsDayCell = grid.firstWhere((c) => !c.isMuted && c.dayNumber == 15);
+      expect(sportsDayCell.isEvent, true);
+      expect(sportsDayCell.label, 'Sports Day');
+
+      final sundayCell = grid.firstWhere((c) => !c.isMuted && c.dayNumber == 6); // Sep 6, 2026 is Sunday
+      expect(sundayCell.isOffOrHoliday, true);
+      expect(sundayCell.isWeeklyOff, true);
+
+      final stats = bundle.calculateMonthStats(2026, 9);
+      expect(stats.schoolEvents, 1);
+      expect(stats.holidaysAndOff, 4); // 4 Sundays in Sep 2026 (6, 13, 20, 27)
+      expect(stats.workingDays, 26);
+      expect(bundle.getWeeklyOffSummary(), 'Every Sunday');
+    });
+  });
 }
+

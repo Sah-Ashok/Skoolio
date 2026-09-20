@@ -27,7 +27,7 @@ class CalendarRepository {
 
   Future<int?> getActiveAcademicYearId() async {
     if (_cachedAcademicYearId != null) return _cachedAcademicYearId;
-    final year = await getActiveAcademicYear();
+    await getActiveAcademicYear();
     return _cachedAcademicYearId;
   }
 
