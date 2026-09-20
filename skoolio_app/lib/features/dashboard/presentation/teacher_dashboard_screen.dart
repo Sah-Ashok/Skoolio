@@ -147,7 +147,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
         : '——';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       // No Navbar / AppBar as per requirement
       body: SafeArea(
         child: RefreshIndicator(
@@ -189,14 +189,14 @@ class TeacherDashboardScreen extends ConsumerWidget {
                         children: [
                           SvgPicture.asset(
                             greetingIcon,
-                            width: 28,
-                            height: 28,
+                            width: 26,
+                            height: 26,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             greetingText,
                             style: const TextStyle(
-                              fontSize: 19,
+                              fontSize: 18,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF64748B),
                             ),
@@ -209,10 +209,10 @@ class TeacherDashboardScreen extends ConsumerWidget {
                       Text(
                         teacherName,
                         style: const TextStyle(
-                          fontSize: 23,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF0F172A),
-                          letterSpacing: -0.3,
+                          letterSpacing: -0.4,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -223,7 +223,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(color: const Color(0xFFE2E8F0)),
                             ),
@@ -371,7 +371,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         mainAxisSpacing: 12,
                         crossAxisSpacing: 12,
-                        childAspectRatio: 2.1,
+                        childAspectRatio: 1.32,
                         children: [
                           _buildQuickAccessTile(
                             context,
@@ -444,7 +444,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFF1F5F9)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.02),
@@ -562,7 +562,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFF1F5F9)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.02),
@@ -710,7 +710,7 @@ class TeacherDashboardScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFF1F5F9)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.02),
@@ -1081,34 +1081,47 @@ class TeacherDashboardScreen extends ConsumerWidget {
         ),
         child: SafeArea(
           child: SizedBox(
-            height: 60,
+            height: 58,
             child: Row(
               children: [
                 // 1. Dashboard (Active)
                 Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: Color(0xFFF97316), width: 2.5),
-                      ),
-                      color: Color(0xFFFFF7ED),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.dashboard_rounded, color: Color(0xFFF97316), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'DASHBOARD',
-                          style: TextStyle(
-                            color: Color(0xFFF97316),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF97316),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      ],
-                    ),
+                      ),
+                      const Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.dashboard_rounded, color: Color(0xFFF97316), size: 20),
+                            SizedBox(height: 3),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 2),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  'DASHBOARD',
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: Color(0xFFF97316),
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -1116,18 +1129,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
                 Expanded(
                   child: InkWell(
                     onTap: () => context.push('/teacher/timetable'),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.calendar_month_outlined, color: Color(0xFF64748B), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'TIMETABLE',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                    child: const Column(
+                      children: [
+                        SizedBox(height: 3),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.calendar_month_outlined, color: Color(0xFF64748B), size: 20),
+                              SizedBox(height: 3),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'TIMETABLE',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1139,18 +1166,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
                 Expanded(
                   child: InkWell(
                     onTap: () => context.push('/teacher/attendance'),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.assignment_turned_in_outlined, color: Color(0xFF64748B), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'ATTENDANCE',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                    child: const Column(
+                      children: [
+                        SizedBox(height: 3),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.assignment_turned_in_outlined, color: Color(0xFF64748B), size: 20),
+                              SizedBox(height: 3),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'ATTENDANCE',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1162,18 +1203,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
                 Expanded(
                   child: InkWell(
                     onTap: () => context.push('/teacher/attendance/register'),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.view_list_outlined, color: Color(0xFF64748B), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'REGISTER',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                    child: const Column(
+                      children: [
+                        SizedBox(height: 3),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.view_list_outlined, color: Color(0xFF64748B), size: 20),
+                              SizedBox(height: 3),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'REGISTER',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1185,18 +1240,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
                 Expanded(
                   child: InkWell(
                     onTap: () => context.push('/teacher/results'),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.edit_note_rounded, color: Color(0xFF64748B), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'RESULTS',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                    child: const Column(
+                      children: [
+                        SizedBox(height: 3),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.edit_note_rounded, color: Color(0xFF64748B), size: 20),
+                              SizedBox(height: 3),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'RESULTS',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1208,18 +1277,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
                 Expanded(
                   child: InkWell(
                     onTap: () => _confirmLogout(context, ref),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.logout_rounded, color: Color(0xFF64748B), size: 20),
-                        SizedBox(height: 2),
-                        Text(
-                          'LOGOUT',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                    child: const Column(
+                      children: [
+                        SizedBox(height: 3),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.logout_rounded, color: Color(0xFF64748B), size: 20),
+                              SizedBox(height: 3),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'LOGOUT',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -1247,32 +1330,32 @@ class TeacherDashboardScreen extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 6,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(color: accentColor, width: 3.5),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 12, color: const Color(0xFF94A3B8)),
-                  const SizedBox(width: 4),
+                  Icon(icon, size: 13, color: const Color(0xFF94A3B8)),
+                  const SizedBox(width: 5),
                   Text(
                     title,
                     style: const TextStyle(
@@ -1284,28 +1367,28 @@ class TeacherDashboardScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: valueColor ?? const Color(0xFF0F172A),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   if (subtitleDotColor != null) ...[
                     Container(
-                      width: 5,
-                      height: 5,
+                      width: 6,
+                      height: 6,
                       decoration: BoxDecoration(
                         color: subtitleDotColor,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                   ],
                   Text(
                     subtitle,
@@ -1334,43 +1417,53 @@ class TeacherDashboardScreen extends ConsumerWidget {
   }) {
     return InkWell(
       onTap: () => context.push(route),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 4,
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: iconColor.withValues(alpha: 0.5), width: 1.2),
+                color: iconColor.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: iconColor.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF334155),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155),
+                  ),
+                ),
               ),
             ),
           ],

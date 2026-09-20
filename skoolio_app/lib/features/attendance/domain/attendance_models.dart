@@ -73,6 +73,7 @@ class TeacherSection {
 
 class StudentAttendanceItem {
   final int studentId;
+  final int? enrollmentId;
   final String fullName;
   final String? rollNumber;
   final String? photoUrl;
@@ -81,6 +82,7 @@ class StudentAttendanceItem {
 
   StudentAttendanceItem({
     required this.studentId,
+    this.enrollmentId,
     required this.fullName,
     this.rollNumber,
     this.photoUrl,
@@ -90,8 +92,10 @@ class StudentAttendanceItem {
 
   factory StudentAttendanceItem.fromJson(Map<String, dynamic> json) {
     final sId = json['student_id'] ?? json['id'];
+    final eId = json['enrollment_id'] ?? (json.containsKey('student_id') ? json['id'] : null);
     return StudentAttendanceItem(
       studentId: sId is int ? sId : int.tryParse(sId?.toString() ?? '0') ?? 0,
+      enrollmentId: eId is int ? eId : int.tryParse(eId?.toString() ?? ''),
       fullName: json['full_name']?.toString() ?? json['student_name']?.toString() ?? 'Student',
       rollNumber: json['roll_number']?.toString(),
       photoUrl: json['photo']?.toString() ?? json['photo_url']?.toString(),
@@ -103,6 +107,7 @@ class StudentAttendanceItem {
   Map<String, dynamic> toJson() {
     return {
       'student_id': studentId,
+      if (enrollmentId != null) 'enrollment_id': enrollmentId,
       'status': status.name,
       'remarks': remarks,
     };

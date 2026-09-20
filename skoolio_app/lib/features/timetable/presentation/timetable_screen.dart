@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../attendance/data/teacher_attendance_repository.dart';
+import '../../attendance/domain/attendance_models.dart';
 import '../../auth/domain/models.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/timetable_repository.dart';
@@ -13,7 +15,8 @@ class TimetableScreen extends ConsumerStatefulWidget {
   ConsumerState<TimetableScreen> createState() => _TimetableScreenState();
 }
 
-class _TimetableScreenState extends ConsumerState<TimetableScreen> {
+class _TimetableScreenState extends ConsumerState<TimetableScreen>
+    with SingleTickerProviderStateMixin {
   final List<String> _days = const [
     'monday',
     'tuesday',
@@ -25,13 +28,21 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen> {
   ];
 
   late String _selectedDay;
+  TabController? _teacherTabController;
+  TeacherSection? _selectedSection;
 
   @override
   void initState() {
     super.initState();
-    // Auto-select today's day of week
     final weekday = DateTime.now().weekday; // 1 = Mon, 7 = Sun
     _selectedDay = _days[(weekday - 1) % 7];
+    _teacherTabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _teacherTabController?.dispose();
+    super.dispose();
   }
 
   String _formatDayLabel(String day) {
@@ -43,185 +54,453 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen> {
     final user = ref.watch(authStateProvider).user;
     final isTeacher = user?.role == UserRole.faculty;
 
-    final scheduleAsync = isTeacher
-        ? ref.watch(teacherTimetableProvider)
-        : ref.watch(studentTimetableProvider);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
-          isTeacher ? 'My Teaching Schedule' : 'Class Timetable',
+          isTeacher ? 'Timetable & Routine' : 'Class Timetable',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
             onPressed: () {
               if (isTeacher) {
                 ref.invalidate(teacherTimetableProvider);
+                if (_selectedSection != null) {
+                  ref.invalidate(sectionTimetableProvider(_selectedSection!.id));
+                }
               } else {
                 ref.invalidate(studentTimetableProvider);
               }
             },
           ),
         ],
+        bottom: isTeacher
+            ? TabBar(
+                controller: _teacherTabController,
+                indicatorColor: AppColors.accent,
+                indicatorWeight: 3,
+                labelColor: AppColors.accent,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.person_outline_rounded, size: 20),
+                    text: 'My Teaching Schedule',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.table_chart_outlined, size: 20),
+                    text: 'Section Timetable',
+                  ),
+                ],
+              )
+            : null,
       ),
-      body: Column(
-        children: [
-          // Day selector horizontal tab bar
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _days.map((day) {
-                  final isSelected = _selectedDay == day;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(_formatDayLabel(day)),
-                      selected: isSelected,
-                      selectedColor: AppColors.primary,
-                      backgroundColor: AppColors.surface,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : AppColors.textSecondary,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        fontSize: 13,
+      body: isTeacher
+          ? TabBarView(
+              controller: _teacherTabController,
+              children: [
+                _buildMyScheduleTab(),
+                _buildSectionScheduleTab(),
+              ],
+            )
+          : _buildStudentScheduleView(),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Tab 1: Teacher's Personal Teaching Schedule
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildMyScheduleTab() {
+    final scheduleAsync = ref.watch(teacherTimetableProvider);
+
+    return Column(
+      children: [
+        _buildDaySelector(),
+        const Divider(height: 1, color: AppColors.border),
+        Expanded(
+          child: scheduleAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+            error: (err, _) => _buildErrorState(
+              err.toString(),
+              onRetry: () => ref.invalidate(teacherTimetableProvider),
+            ),
+            data: (schedule) {
+              final daySlots = schedule.scheduleByDay[_selectedDay] ?? [];
+
+              return RefreshIndicator(
+                color: AppColors.accent,
+                onRefresh: () async {
+                  ref.invalidate(teacherTimetableProvider);
+                },
+                child: daySlots.isEmpty
+                    ? _buildEmptyState(
+                        'No classes scheduled on ${_formatDayLabel(_selectedDay)}',
+                        'Enjoy your day off or check another day.',
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: daySlots.length,
+                        itemBuilder: (context, index) {
+                          return _TimetableSlotCard(
+                            slot: daySlots[index],
+                            viewMode: _SlotViewMode.teacherPersonal,
+                          );
+                        },
                       ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedDay = day);
-                        }
-                      },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Tab 2: Coordinated Section Timetable
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildSectionScheduleTab() {
+    final sectionsAsync = ref.watch(teacherSectionsProvider);
+
+    return sectionsAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+      error: (err, _) => _buildErrorState(
+        'Failed to load sections: $err',
+        onRetry: () => ref.invalidate(teacherSectionsProvider),
+      ),
+      data: (sections) {
+        if (sections.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      shape: BoxShape.circle,
                     ),
-                  );
-                }).toList(),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 40,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No Coordinated Sections',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'You are not currently assigned as a class/section coordinator.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ],
               ),
             ),
-          ),
-          const Divider(height: 1, color: AppColors.border),
+          );
+        }
 
-          // Main Slot List
-          Expanded(
-            child: scheduleAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.accent),
+        // Auto-select first section if unselected or not in list
+        if (_selectedSection == null ||
+            !sections.any((s) => s.id == _selectedSection!.id)) {
+          _selectedSection = sections.first;
+        }
+
+        final sectionScheduleAsync =
+            ref.watch(sectionTimetableProvider(_selectedSection!.id));
+
+        return Column(
+          children: [
+            // Section picker bar
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.school_outlined, size: 20, color: AppColors.accent),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Section:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<TeacherSection>(
+                          isExpanded: true,
+                          value: _selectedSection,
+                          items: sections.map((sec) {
+                            return DropdownMenuItem<TeacherSection>(
+                              value: sec,
+                              child: Text(
+                                '${sec.className} - Section ${sec.name}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (newSec) {
+                            if (newSec != null) {
+                              setState(() => _selectedSection = newSec);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              error: (err, stack) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Failed to load timetable',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        err.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (isTeacher) {
-                            ref.invalidate(teacherTimetableProvider);
-                          } else {
-                            ref.invalidate(studentTimetableProvider);
-                          }
+            ),
+            const Divider(height: 1, color: AppColors.border),
+
+            _buildDaySelector(),
+            const Divider(height: 1, color: AppColors.border),
+
+            Expanded(
+              child: sectionScheduleAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+                error: (err, _) => _buildErrorState(
+                  err.toString(),
+                  onRetry: () => ref.invalidate(
+                      sectionTimetableProvider(_selectedSection!.id)),
+                ),
+                data: (schedule) {
+                  final daySlots = schedule.scheduleByDay[_selectedDay] ?? [];
+
+                  return RefreshIndicator(
+                    color: AppColors.accent,
+                    onRefresh: () async {
+                      ref.invalidate(
+                          sectionTimetableProvider(_selectedSection!.id));
+                    },
+                    child: daySlots.isEmpty
+                        ? _buildEmptyState(
+                            'No routine found for ${_selectedSection?.className} - ${_selectedSection?.name} on ${_formatDayLabel(_selectedDay)}',
+                            'Select another day or check with admin.',
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: daySlots.length,
+                            itemBuilder: (context, index) {
+                              return _TimetableSlotCard(
+                                slot: daySlots[index],
+                                viewMode: _SlotViewMode.sectionRoutine,
+                              );
+                            },
+                          ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Student Timetable View
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildStudentScheduleView() {
+    final scheduleAsync = ref.watch(studentTimetableProvider);
+
+    return Column(
+      children: [
+        _buildDaySelector(),
+        const Divider(height: 1, color: AppColors.border),
+        Expanded(
+          child: scheduleAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+            error: (err, _) => _buildErrorState(
+              err.toString(),
+              onRetry: () => ref.invalidate(studentTimetableProvider),
+            ),
+            data: (schedule) {
+              final daySlots = schedule.scheduleByDay[_selectedDay] ?? [];
+
+              return RefreshIndicator(
+                color: AppColors.accent,
+                onRefresh: () async {
+                  ref.invalidate(studentTimetableProvider);
+                },
+                child: daySlots.isEmpty
+                    ? _buildEmptyState(
+                        'No classes on ${_formatDayLabel(_selectedDay)}',
+                        'Enjoy your day off or check other days.',
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: daySlots.length,
+                        itemBuilder: (context, index) {
+                          return _TimetableSlotCard(
+                            slot: daySlots[index],
+                            viewMode: _SlotViewMode.student,
+                          );
                         },
-                        child: const Text('Try Again'),
                       ),
-                    ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDaySelector() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _days.map((day) {
+            final isSelected = _selectedDay == day;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(_formatDayLabel(day)),
+                selected: isSelected,
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.surface,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedDay = day);
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String title, String subtitle) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.event_busy_rounded,
+                  size: 40,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              data: (schedule) {
-                final daySlots = schedule.scheduleByDay[_selectedDay] ?? [];
-
-                return RefreshIndicator(
-                  color: AppColors.accent,
-                  onRefresh: () async {
-                    if (isTeacher) {
-                      ref.invalidate(teacherTimetableProvider);
-                    } else {
-                      ref.invalidate(studentTimetableProvider);
-                    }
-                  },
-                  child: daySlots.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surface,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.event_busy_rounded,
-                                      size: 40,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No classes on ${_formatDayLabel(_selectedDay)}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Enjoy your day off or check other days.',
-                                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: daySlots.length,
-                          itemBuilder: (context, index) {
-                            final slot = daySlots[index];
-                            return _TimetableSlotCard(
-                              slot: slot,
-                              isTeacher: isTeacher,
-                            );
-                          },
-                        ),
-                );
-              },
-            ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorState(String message, {required VoidCallback onRetry}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+            const SizedBox(height: 12),
+            const Text(
+              'Failed to load timetable',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onRetry,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
+enum _SlotViewMode {
+  teacherPersonal,
+  sectionRoutine,
+  student,
+}
+
 class _TimetableSlotCard extends StatelessWidget {
   final TimetableSlot slot;
-  final bool isTeacher;
+  final _SlotViewMode viewMode;
 
   const _TimetableSlotCard({
     required this.slot,
-    required this.isTeacher,
+    required this.viewMode,
   });
 
   @override
@@ -267,7 +546,11 @@ class _TimetableSlotCard extends StatelessWidget {
               ),
               child: const Text(
                 'Break',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.warning),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.warning,
+                ),
               ),
             ),
           ],
@@ -295,11 +578,11 @@ class _TimetableSlotCard extends StatelessWidget {
           children: [
             // Left Period & Time indicator bar
             Container(
-              width: 80,
+              width: 82,
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: const BorderRadius.only(
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(14),
                   bottomLeft: Radius.circular(14),
                 ),
@@ -308,7 +591,7 @@ class _TimetableSlotCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(4),
@@ -364,9 +647,11 @@ class _TimetableSlotCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (slot.subjectCode != null && slot.subjectCode!.isNotEmpty)
+                        if (slot.subjectCode != null &&
+                            slot.subjectCode!.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(4),
@@ -385,20 +670,26 @@ class _TimetableSlotCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // Context line: Teacher Name (if student) OR Class & Section (if teacher)
+                    // Context line based on mode:
+                    // - teacherPersonal: shows class & section name
+                    // - sectionRoutine: shows assigned teacher name
+                    // - student: shows assigned faculty name
                     Row(
                       children: [
                         Icon(
-                          isTeacher ? Icons.class_outlined : Icons.person_outline_rounded,
+                          viewMode == _SlotViewMode.teacherPersonal
+                              ? Icons.class_outlined
+                              : Icons.person_outline_rounded,
                           size: 15,
                           color: AppColors.textSecondary,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            isTeacher
-                                ? '${slot.className ?? ''} ${slot.sectionName ?? ''}'.trim()
-                                : (slot.teacherName ?? 'Assigned Faculty'),
+                            viewMode == _SlotViewMode.teacherPersonal
+                                ? '${slot.className ?? ''} ${slot.sectionName ?? ''}'
+                                    .trim()
+                                : (slot.teacherName ?? 'Unassigned Faculty'),
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
@@ -414,11 +705,15 @@ class _TimetableSlotCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.room_outlined, size: 14, color: AppColors.textMuted),
+                          const Icon(Icons.room_outlined,
+                              size: 14, color: AppColors.textMuted),
                           const SizedBox(width: 4),
                           Text(
                             'Room: ${slot.roomNo}',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ],
                       ),

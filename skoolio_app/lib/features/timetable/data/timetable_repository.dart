@@ -24,6 +24,17 @@ class TimetableRepository {
     }
     return TimetableSchedule(allSlots: [], scheduleByDay: {});
   }
+
+  Future<TimetableSchedule> getSectionSchedule(int sectionId, {int? academicYearId}) async {
+    final res = await _apiClient.get(
+      '/timetable/section/$sectionId',
+      queryParameters: academicYearId != null ? {'academic_year_id': academicYearId} : null,
+    );
+    if (res is Map<String, dynamic>) {
+      return TimetableSchedule.fromJson(res);
+    }
+    return TimetableSchedule(allSlots: [], scheduleByDay: {});
+  }
 }
 
 final timetableRepositoryProvider = Provider<TimetableRepository>((ref) {
@@ -39,4 +50,9 @@ final studentTimetableProvider = FutureProvider<TimetableSchedule>((ref) async {
 final teacherTimetableProvider = FutureProvider<TimetableSchedule>((ref) async {
   final repo = ref.watch(timetableRepositoryProvider);
   return await repo.getTeacherSchedule();
+});
+
+final sectionTimetableProvider = FutureProvider.autoDispose.family<TimetableSchedule, int>((ref, sectionId) async {
+  final repo = ref.watch(timetableRepositoryProvider);
+  return await repo.getSectionSchedule(sectionId);
 });

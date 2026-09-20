@@ -157,6 +157,25 @@ void main() {
       expect(bob.monthTotal, 1);
       expect(bob.byDate['2026-09-01'], 'leave');
     });
+    test('StudentAttendanceItem parses enrollment_id and status correctly', () {
+      final json = {
+        'id': 105,
+        'student_id': 22,
+        'enrollment_id': 105,
+        'full_name': 'Charlie Chaplin',
+        'roll_number': '7',
+        'status': 'absent',
+        'remarks': 'Sick leave',
+      };
+
+      final item = StudentAttendanceItem.fromJson(json);
+      expect(item.studentId, 22);
+      expect(item.enrollmentId, 105);
+      expect(item.fullName, 'Charlie Chaplin');
+      expect(item.rollNumber, '7');
+      expect(item.status, AttendanceStatus.absent);
+      expect(item.remarks, 'Sick leave');
+    });
   });
 
   group('Timetable Models Test', () {
@@ -189,6 +208,40 @@ void main() {
 
       expect(breakSlot.isBreak, true);
       expect(breakSlot.subjectName, 'Lunch Break');
+    });
+
+    test('TimetableSchedule parses scheduleByDay correctly', () {
+      final json = {
+        'academic_year_id': 2026,
+        'slots': [
+          {
+            'id': 1,
+            'day_of_week': 'monday',
+            'period_number': 1,
+            'start_time': '08:00',
+            'end_time': '08:45',
+            'subject_name': 'Physics',
+            'is_break': false,
+          },
+          {
+            'id': 2,
+            'day_of_week': 'friday',
+            'period_number': 2,
+            'start_time': '09:00',
+            'end_time': '09:45',
+            'subject_name': 'Chemistry',
+            'is_break': false,
+          },
+        ],
+      };
+
+      final schedule = TimetableSchedule.fromJson(json);
+      expect(schedule.academicYearId, 2026);
+      expect(schedule.scheduleByDay['monday']?.length, 1);
+      expect(schedule.scheduleByDay['monday']?.first.subjectName, 'Physics');
+      expect(schedule.scheduleByDay['friday']?.length, 1);
+      expect(schedule.scheduleByDay['friday']?.first.subjectName, 'Chemistry');
+      expect(schedule.scheduleByDay['sunday']?.isEmpty, true);
     });
   });
 }

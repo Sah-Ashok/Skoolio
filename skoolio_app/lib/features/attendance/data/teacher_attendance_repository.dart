@@ -122,6 +122,32 @@ class TeacherAttendanceRepository {
     );
   }
 
+  Future<dynamic> suspendClass({
+    required int sectionId,
+    required int classId,
+    required String date,
+    int? academicYearId,
+    String? remarks,
+  }) async {
+    final yearId = academicYearId ?? await getActiveAcademicYearId();
+    return await _apiClient.post(
+      ApiConstants.teacherAttendanceCreate,
+      data: {
+        'section_id': sectionId,
+        'class_id': classId,
+        'date': date,
+        if (yearId != null) 'academic_year_id': yearId,
+        'is_holiday': true,
+        'remarks': remarks ?? 'Class suspended by teacher',
+        'students': [],
+      },
+    );
+  }
+
+  Future<dynamic> deleteAttendance(int attendanceId) async {
+    return await _apiClient.delete('/attendance/$attendanceId');
+  }
+
   Future<Map<String, dynamic>?> getActiveAcademicYear() async {
     try {
       final res = await _apiClient.get(ApiConstants.activeAcademicYear);

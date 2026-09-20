@@ -9,6 +9,7 @@ import {
   getWeeklyOffsService, setWeeklyOffsService,
   calculateWorkingDays,
 } from '../Service/calendar.service';
+import { getActiveAcademicYear } from '../Repositories/academic.repository';
 
 // Helper — resolves school_id from any JWT shape (admin, faculty, student)
 const resolveSchoolId = (user: any): number => {
@@ -28,7 +29,13 @@ export const createCalendar = catchAsync(async (req: Request, res: Response, nex
 
 export const getCalendar = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const school_id = resolveSchoolId(req.user);
-  const { academic_year_id } = req.query;
+  let { academic_year_id } = req.query as any;
+  if (!academic_year_id) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) {
+      academic_year_id = activeYear.id;
+    }
+  }
   if (!academic_year_id) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
