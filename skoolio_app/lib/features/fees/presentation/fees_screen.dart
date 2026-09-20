@@ -33,6 +33,11 @@ class FeesScreen extends ConsumerWidget {
         title: const Text('Fee Invoices & Dues', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
           IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Pay via Bank Transfer',
+            onPressed: () => context.push('/student/fees/bank-payment'),
+          ),
+          IconButton(
             icon: const Icon(Icons.history_edu_rounded),
             tooltip: 'Payment Submissions',
             onPressed: () => context.push('/student/fees/my-submissions'),
@@ -144,6 +149,13 @@ class FeesScreen extends ConsumerWidget {
             );
           },
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.payment_rounded),
+        label: const Text('Pay via Bank / Online', style: TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: () => context.push('/student/fees/bank-payment'),
       ),
     );
   }

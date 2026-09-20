@@ -60,10 +60,13 @@ class _TeacherAttendanceScreenState extends ConsumerState<TeacherAttendanceScree
     final repo = ref.read(teacherAttendanceRepositoryProvider);
 
     try {
+      final activeYearId = section.academicYearId ?? await repo.getActiveAcademicYearId();
+
       // 1. Check if attendance already exists for this date
       final existing = await repo.getSectionAttendanceForDate(
         sectionId: section.id,
         date: _formattedDate,
+        academicYearId: activeYearId,
       );
 
       if (existing != null && existing['details'] is List) {
@@ -88,7 +91,10 @@ class _TeacherAttendanceScreenState extends ConsumerState<TeacherAttendanceScree
       }
 
       // 2. No attendance recorded yet: fetch section roster
-      final roster = await repo.getSectionStudents(sectionId: section.id);
+      final roster = await repo.getSectionStudents(
+        sectionId: section.id,
+        academicYearId: activeYearId,
+      );
       roster.sort((a, b) => (int.tryParse(a.rollNumber ?? '9999') ?? 9999)
           .compareTo(int.tryParse(b.rollNumber ?? '9999') ?? 9999));
 
@@ -161,9 +167,12 @@ class _TeacherAttendanceScreenState extends ConsumerState<TeacherAttendanceScree
     try {
       if (_existingAttendanceId == null) {
         // Create new
+        final activeYearId = _selectedSection!.academicYearId ?? await repo.getActiveAcademicYearId();
         final res = await repo.createAttendance(
           sectionId: _selectedSection!.id,
+          classId: _selectedSection!.classId,
           date: _formattedDate,
+          academicYearId: activeYearId,
           students: _students,
         );
 

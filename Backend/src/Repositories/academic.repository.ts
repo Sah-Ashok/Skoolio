@@ -69,10 +69,23 @@ export const getActiveAcademicYear = async(
         start_date::text,
         end_date::text,
         status, description, created_at, updated_at
-        FROM academic_years WHERE school_id = $1 AND status = 'active'`,
+        FROM academic_years WHERE school_id = $1 AND LOWER(status) = 'active'
+        ORDER BY id DESC LIMIT 1`,
         [school_id]
     );
-    const activeYear = result.rows[0] || null;
+    let activeYear = result.rows[0] || null;
+    if (!activeYear) {
+        const fallback = await pool.query(
+            `SELECT id, school_id, year_name,
+            start_date::text,
+            end_date::text,
+            status, description, created_at, updated_at
+            FROM academic_years WHERE school_id = $1
+            ORDER BY start_date DESC, id DESC LIMIT 1`,
+            [school_id]
+        );
+        activeYear = fallback.rows[0] || null;
+    }
     if (activeYear) {
         await setCache(cacheKey, activeYear, 86400); // 24 hours TTL
     }

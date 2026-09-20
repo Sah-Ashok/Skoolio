@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/attendance/presentation/student_attendance_screen.dart';
 import '../features/attendance/presentation/teacher_attendance_screen.dart';
+import '../features/attendance/presentation/teacher_attendance_register_screen.dart';
+import '../features/attendance/presentation/teacher_own_attendance_screen.dart';
+import '../features/students/presentation/teacher_student_detail_screen.dart';
 import '../features/auth/domain/models.dart';
 import '../features/auth/presentation/auth_providers.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -13,6 +16,7 @@ import '../features/exams/presentation/results_screen.dart';
 import '../features/exams/presentation/teacher_marks_screen.dart';
 import '../features/fees/presentation/fees_screen.dart';
 import '../features/fees/presentation/student_fee_submissions_screen.dart';
+import '../features/fees/presentation/student_bank_payment_screen.dart';
 import '../features/notices/presentation/notices_screen.dart';
 import '../features/profile/presentation/student_profile_screen.dart';
 import '../features/profile/presentation/teacher_profile_screen.dart';
@@ -115,6 +119,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/teacher/attendance',
         builder: (context, state) => const TeacherAttendanceScreen(),
       ),
+      GoRoute(
+        path: '/teacher/attendance/register',
+        builder: (context, state) {
+          final secStr = state.uri.queryParameters['section_id'];
+          final secId = secStr != null ? int.tryParse(secStr) : null;
+          return TeacherAttendanceRegisterScreen(initialSectionId: secId);
+        },
+      ),
 
       // ── Fees & Payments ──
       GoRoute(
@@ -124,6 +136,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student/fees/my-submissions',
         builder: (context, state) => const StudentFeeSubmissionsScreen(),
+      ),
+      GoRoute(
+        path: '/student/fees/bank-payment',
+        builder: (context, state) => const StudentBankPaymentScreen(),
       ),
 
       // ── Exams & Results ──
@@ -174,6 +190,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/teacher/students',
         builder: (context, state) => const TeacherStudentsScreen(),
+      ),
+      GoRoute(
+        path: '/teacher/students/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return TeacherStudentDetailScreen(studentId: id);
+        },
+      ),
+      GoRoute(
+        path: '/teacher/attendance/own',
+        builder: (context, state) => const TeacherOwnAttendanceScreen(),
       ),
     ],
   );

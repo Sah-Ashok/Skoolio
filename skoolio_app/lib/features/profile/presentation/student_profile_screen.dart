@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/presentation/auth_providers.dart';
+import 'widgets/change_password_dialog.dart';
 
 class StudentProfileScreen extends ConsumerWidget {
   const StudentProfileScreen({super.key});
@@ -92,6 +93,48 @@ class StudentProfileScreen extends ConsumerWidget {
                 _buildInfoRow('Contact Number', user?.parentPhone ?? user?.phone ?? 'N/A'),
                 _buildInfoRow('Address', user?.address ?? 'N/A'),
               ],
+            ),
+            const SizedBox(height: 16),
+
+            // Security & Password Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.security_outlined, size: 20, color: AppColors.accent),
+                      SizedBox(width: 8),
+                      Text(
+                        'Security & Password',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.key_rounded, size: 20, color: AppColors.accent),
+                    ),
+                    title: const Text('Change Account Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: const Text('Update your login password', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                    onTap: () => ChangePasswordDialog.show(context, isTeacher: false),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 

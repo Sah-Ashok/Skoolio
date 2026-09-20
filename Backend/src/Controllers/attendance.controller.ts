@@ -22,6 +22,10 @@ export const createAttendance = catchAsync(async (req: Request, res: Response, n
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
   req.body.marked_by = user.id;
+  if (!req.body.academic_year_id) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) req.body.academic_year_id = activeYear.id;
+  }
   const result = await createAttendanceService(school_id, req.body, teacherId);
   sendResponse(res, 201, true, 'Attendance marked successfully', result);
 });
@@ -31,9 +35,14 @@ export const getAttendanceBySection = catchAsync(async (req: Request, res: Respo
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
   const { academic_year_id, date } = req.query;
-  if (!academic_year_id) return sendResponse(res, 400, false, 'academic_year_id is required', null);
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId || isNaN(yearId)) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
+  if (!yearId) return sendResponse(res, 400, false, 'academic_year_id is required', null);
   const result = await getAttendanceBySectionService(
-    Number(req.params.sectionId), school_id, Number(academic_year_id), teacherId, date ? String(date) : undefined
+    Number(req.params.sectionId), school_id, yearId, teacherId, date ? String(date) : undefined
   );
   sendResponse(res, 200, true, 'Attendance fetched successfully', result);
 });
@@ -103,11 +112,16 @@ export const getStudentAttendanceSummary = catchAsync(async (req: Request, res: 
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const timezone  = user.timezone ?? 'UTC';
   const { academic_year_id } = req.query;
-  if (!academic_year_id) {
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId || isNaN(yearId)) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
+  if (!yearId) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
   const result = await getStudentAttendanceSummaryService(
-    Number(req.params.id), school_id, Number(academic_year_id), timezone,
+    Number(req.params.id), school_id, yearId, timezone,
   );
   sendResponse(res, 200, true, 'Attendance summary fetched successfully', result);
 });
@@ -238,8 +252,13 @@ export const getSectionRegister = catchAsync(async (req: Request, res: Response,
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const teacherId = 'school_id' in user ? (user as IJwtUserPayload).id : undefined;
   const { year, month, academic_year_id, start_date, end_date } = req.query;
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId || isNaN(yearId)) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) yearId = activeYear.id;
+  }
   const hasDateRange = Boolean(start_date && end_date);
-  if (!academic_year_id || (!hasDateRange && (!year || !month))) {
+  if (!yearId || (!hasDateRange && (!year || !month))) {
     return sendResponse(res, 400, false, 'academic_year_id plus either start_date/end_date or year/month are required', null);
   }
   const fallbackYear = Number(year);
@@ -251,7 +270,7 @@ export const getSectionRegister = catchAsync(async (req: Request, res: Response,
     ? String(end_date)
     : `${fallbackYear}-${String(fallbackMonth).padStart(2, '0')}-${String(new Date(fallbackYear, fallbackMonth, 0).getDate()).padStart(2, '0')}`;
   const result = await getSectionRegisterService(
-    Number(req.params.sectionId), school_id, Number(academic_year_id),
+    Number(req.params.sectionId), school_id, yearId,
     startDate, endDate, teacherId
   );
   sendResponse(res, 200, true, 'Section register fetched successfully', result);

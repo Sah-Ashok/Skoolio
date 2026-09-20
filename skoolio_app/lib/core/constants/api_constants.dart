@@ -1,12 +1,14 @@
 class ApiConstants {
   // Configurable base URL
-  static const String defaultBaseUrl = 'http://20.219.6.128:5001/api';
+  static const String defaultBaseUrl = 'http://20.219.6.128/api';
 
   // ── Auth Endpoints ──────────────────────────────────────────
   static const String studentLogin = '/auth/login/student';
   static const String teacherLogin = '/auth/login/teacher';
   static const String logout = '/auth/logout';
   static const String getMe = '/auth/me';
+  static const String teacherChangePassword = '/auth/change-password/teacher';
+  static const String studentChangePassword = '/auth/change-password/student';
 
   // ── Student Endpoints ───────────────────────────────────────
   static const String studentAttendanceSummary = '/attendance/me/summary';
@@ -38,5 +40,6 @@ class ApiConstants {
 
   // ── Shared Endpoints ────────────────────────────────────────
   static const String calendarEvents = '/calendar';
+  static const String activeAcademicYear = '/academic-years/active';
   static String noticeDetail(int id) => '/notices/$id';
 }

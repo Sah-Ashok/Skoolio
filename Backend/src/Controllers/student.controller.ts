@@ -13,6 +13,8 @@ import {
 import { getEnrollmentById, updateEnrollment as updateEnrollmentRepo } from '../Repositories/student.repository';
 import { getSectionsByCoordinator } from '../Repositories/teacher.repository';
 import { invalidateDashboardCache } from '../Repositories/dashboard.repository';
+import { getActiveAcademicYearService } from '../Service/academic.service';
+import { getActiveAcademicYear } from '../Repositories/academic.repository';
 import AppError from '../utils/AppError';
 
 const resolveSchoolId = (user: any): number =>
@@ -122,13 +124,24 @@ export const getEnrollments = catchAsync(async (req: Request, res: Response, nex
   const school_id = 'school_id' in user ? user.school_id : user.id;
   const { academic_year_id, section_id, class_id, student_id } = req.query;
 
-  if (!academic_year_id) {
+  let yearId = academic_year_id ? Number(academic_year_id) : undefined;
+  if (!yearId || isNaN(yearId)) {
+    try {
+      const activeYear = await getActiveAcademicYearService(school_id);
+      yearId = activeYear?.id;
+    } catch (_) {
+      const fallback = await getActiveAcademicYear(school_id);
+      yearId = fallback?.id;
+    }
+  }
+
+  if (!yearId) {
     return sendResponse(res, 400, false, 'academic_year_id is required', null);
   }
 
   const enrollments = await getEnrollmentsService(
     school_id,
-    Number(academic_year_id),
+    yearId,
     section_id ? Number(section_id) : undefined,
     class_id ? Number(class_id) : undefined,
     student_id ? Number(student_id) : undefined

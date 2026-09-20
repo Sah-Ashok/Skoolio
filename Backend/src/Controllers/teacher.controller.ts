@@ -16,7 +16,7 @@ import {
   getTeacherAttendanceSummaryByMonth,
   getTeacherAttendanceYearlySummary,
 } from '../Repositories/teacher.repository';
-import { getAcademicYearById } from '../Repositories/academic.repository';
+import { getAcademicYearById, getActiveAcademicYear } from '../Repositories/academic.repository';
 import { calculateWorkingDays } from '../Service/calendar.service';
 
 const resolveSchoolId = (req: Request): number => {
@@ -117,7 +117,11 @@ export const getMyCoordinatorSections = catchAsync(async (req: Request, res: Res
 // Faculty-only: returns the calling teacher's full-year attendance summary.
 export const getMyAttendanceYearly = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: teacher_id, school_id } = req.user as IJwtUserPayload;
-  const academic_year_id = Number(req.query.academic_year_id);
+  let academic_year_id = Number(req.query.academic_year_id);
+  if (!academic_year_id || isNaN(academic_year_id)) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) academic_year_id = activeYear.id;
+  }
   if (!academic_year_id) throw new Error('academic_year_id query param is required');
 
   const academicYear = await getAcademicYearById(academic_year_id, school_id);

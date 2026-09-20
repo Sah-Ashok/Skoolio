@@ -98,6 +98,65 @@ void main() {
       expect(sec.isCoordinator, true);
       expect(sec.displayName, 'Grade 8 - Section B');
     });
+
+    test('SectionRegisterStudent and parseRegisterRows parse attendance rows correctly', () {
+      final rows = [
+        {
+          'student_id': 10,
+          'full_name': 'Alice Wonder',
+          'roll_number': '1',
+          'date': '2026-09-01T00:00:00Z',
+          'status': 'present',
+          'year_present': 15,
+          'year_absent': 1,
+          'year_leave': 0,
+          'year_total': 16,
+        },
+        {
+          'student_id': 10,
+          'full_name': 'Alice Wonder',
+          'roll_number': '1',
+          'date': '2026-09-02T00:00:00Z',
+          'status': 'absent',
+          'year_present': 15,
+          'year_absent': 1,
+          'year_leave': 0,
+          'year_total': 16,
+        },
+        {
+          'student_id': 20,
+          'full_name': 'Bob Builder',
+          'roll_number': '2',
+          'date': '2026-09-01T00:00:00Z',
+          'status': 'leave',
+          'year_present': 10,
+          'year_absent': 2,
+          'year_leave': 3,
+          'year_total': 15,
+        },
+      ];
+
+      final students = parseRegisterRows(rows);
+      expect(students.length, 2);
+
+      final alice = students[0];
+      expect(alice.fullName, 'Alice Wonder');
+      expect(alice.rollNumber, '1');
+      expect(alice.monthPresent, 1);
+      expect(alice.monthAbsent, 1);
+      expect(alice.monthLeave, 0);
+      expect(alice.monthTotal, 2);
+      expect(alice.monthAttendancePct, 50.0);
+      expect(alice.byDate['2026-09-01'], 'present');
+      expect(alice.byDate['2026-09-02'], 'absent');
+
+      final bob = students[1];
+      expect(bob.fullName, 'Bob Builder');
+      expect(bob.monthLeave, 1);
+      expect(bob.monthPresent, 0);
+      expect(bob.monthTotal, 1);
+      expect(bob.byDate['2026-09-01'], 'leave');
+    });
   });
 
   group('Timetable Models Test', () {

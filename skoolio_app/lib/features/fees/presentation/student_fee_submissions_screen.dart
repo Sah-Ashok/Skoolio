@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -155,6 +156,13 @@ class StudentFeeSubmissionsScreen extends ConsumerWidget {
             );
           },
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('New Submission', style: TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: () => context.push('/student/fees/bank-payment'),
       ),
     );
   }

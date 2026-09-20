@@ -16,7 +16,7 @@ import {
 } from '../types/attendance.types';
 import { getSectionById } from '../Repositories/class.repository';
 import { getStudentById } from '../Repositories/student.repository';
-import { getAcademicYearById } from '../Repositories/academic.repository';
+import { getAcademicYearById, getActiveAcademicYear } from '../Repositories/academic.repository';
 import AppError from '../utils/AppError';
 
 // ── Helper: get today's date in the school's local timezone ─────────────────
@@ -65,6 +65,16 @@ export const createAttendanceService = async (
   data: ICreateAttendance,
   teacherId?: number
 ) => {
+  if (!data.academic_year_id) {
+    const activeYear = await getActiveAcademicYear(school_id);
+    if (activeYear) data.academic_year_id = activeYear.id;
+  }
+
+  if (!data.class_id && data.section_id) {
+    const section = await getSectionById(data.section_id, school_id);
+    if (section) data.class_id = section.class_id;
+  }
+
   const isClassSuspension = data.is_holiday === true;
 
   // Validate: normal attendance must have students

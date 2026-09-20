@@ -127,6 +127,8 @@ export const getActiveAcademicYearService = async (school_id: number) => {
     const all = await getAcademicYearsBySchool(school_id);
     if (all.length === 0) {
       year = await setupDefaultAcademicYear(school_id);
+    } else {
+      year = all[0];
     }
   }
   if (!year) {
