@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_loader.dart';
 
-class SplashScreen extends ConsumerWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends ConsumerState<SplashScreen> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-cache key brand image assets for 0ms loading lag
+    precacheImage(const AssetImage('assets/smile.png'), context);
+    precacheImage(const AssetImage('assets/logo.png'), context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primary,
       body: Center(
@@ -51,13 +65,9 @@ class SplashScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 48),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                color: AppColors.accent,
-                strokeWidth: 2.5,
-              ),
+            const AppLoader(
+              text: null,
+              size: AppLoaderSize.md,
             ),
           ],
         ),
@@ -65,3 +75,4 @@ class SplashScreen extends ConsumerWidget {
     );
   }
 }
+

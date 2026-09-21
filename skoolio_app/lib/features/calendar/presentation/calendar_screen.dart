@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../data/calendar_repository.dart';
 import '../domain/calendar_models.dart';
@@ -236,9 +237,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         ],
       ),
       body: calendarAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.accent),
-        ),
+        loading: () => const AppLoader(text: 'Loading calendar...', size: AppLoaderSize.lg),
         error: (err, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
@@ -348,11 +349,7 @@ class _NoticesScreenState extends ConsumerState<NoticesScreen> {
                           }
                         },
                   child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
+                      ? AppLoader.spinner(color: Colors.white)
                       : const Text('Post Notice', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
@@ -572,11 +569,7 @@ class _NoticesScreenState extends ConsumerState<NoticesScreen> {
                           }
                         },
                   child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
+                      ? AppLoader.spinner(color: Colors.white)
                       : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
@@ -893,7 +886,7 @@ class _NoticesScreenState extends ConsumerState<NoticesScreen> {
             )
           : null,
       body: noticesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        loading: () => const AppLoader(text: 'Loading notice board...', size: AppLoaderSize.lg),
         error: (err, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_loader.dart';
 import '../../../auth/presentation/auth_providers.dart';
 
 class ChangePasswordDialog extends ConsumerStatefulWidget {
@@ -210,11 +211,7 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
           ),
           onPressed: _isSubmitting ? null : _submit,
           child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
+              ? AppLoader.spinner(color: Colors.white)
               : const Text('Update Password'),
         ),
       ],

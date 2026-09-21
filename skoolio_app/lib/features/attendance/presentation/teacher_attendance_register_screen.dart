@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../data/teacher_attendance_repository.dart';
 import '../domain/attendance_models.dart';
 
@@ -155,9 +156,7 @@ class _TeacherAttendanceRegisterScreenState
         ],
       ),
       body: sectionsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: Color(0xFFF97316)),
-        ),
+        loading: () => const AppLoader(text: 'Loading sections...', size: AppLoaderSize.lg),
         error: (err, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -379,9 +378,7 @@ class _TeacherAttendanceRegisterScreenState
               // Main Tab Content
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFF97316)),
-                      )
+                    ? const AppLoader(text: 'Loading attendance register...', size: AppLoaderSize.lg)
                     : _errorMessage != null
                         ? Center(
                             child: Padding(

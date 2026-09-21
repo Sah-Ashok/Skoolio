@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
 import '../../auth/presentation/auth_providers.dart';
@@ -127,7 +128,7 @@ class _TeacherStudentsScreenState extends ConsumerState<TeacherStudentsScreen> {
                         }
                       },
                 child: isSaving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? AppLoader.spinner(color: Colors.white)
                     : const Text('Save'),
               ),
             ],
@@ -154,7 +155,7 @@ class _TeacherStudentsScreenState extends ConsumerState<TeacherStudentsScreen> {
         title: const Text('My Students', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       ),
       body: sectionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFF97316))),
+        loading: () => const AppLoader(text: 'Loading sections...', size: AppLoaderSize.lg),
         error: (e, _) => Center(child: Text('Error loading sections: $e')),
         data: (sections) {
           if (sections.isEmpty) {
@@ -286,7 +287,7 @@ class _TeacherStudentsScreenState extends ConsumerState<TeacherStudentsScreen> {
               // ── Students List ──
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFFF97316)))
+                    ? const AppLoader(text: 'Loading student roster...', size: AppLoaderSize.lg)
                     : filtered.isEmpty
                         ? Center(
                             child: Padding(

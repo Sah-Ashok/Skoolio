@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final activeBankAccountsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
@@ -455,13 +456,7 @@ class _StudentBankPaymentScreenState extends ConsumerState<StudentBankPaymentScr
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: _isSubmitting ? null : _submit,
-                        icon: _isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.send_rounded, size: 20),
+                        icon: _isSubmitting ? AppLoader.spinner(color: Colors.white) : const Icon(Icons.send_rounded, size: 20),
                         label: Text(
                           _isSubmitting ? 'Submitting...' : 'Submit Payment Request',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),

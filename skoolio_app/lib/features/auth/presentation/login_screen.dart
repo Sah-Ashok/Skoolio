@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../domain/models.dart';
 import 'auth_providers.dart';
 
@@ -422,14 +423,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ElevatedButton(
                             onPressed: authState.isLoading ? null : _submit,
                             child: authState.isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                                ? AppLoader.spinner(color: Colors.white)
                                 : Text('Sign In as ${_selectedRole.displayName}'),
                           ),
                         ],

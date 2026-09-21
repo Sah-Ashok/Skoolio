@@ -1,6 +1,11 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:skoolio_app/core/widgets/app_bottom_nav_bar.dart';
+import 'package:skoolio_app/core/widgets/app_loader.dart';
 import 'package:skoolio_app/features/attendance/domain/attendance_models.dart';
 import 'package:skoolio_app/features/auth/domain/models.dart';
+import 'package:skoolio_app/features/auth/presentation/auth_providers.dart';
 import 'package:skoolio_app/features/calendar/domain/calendar_models.dart';
 import 'package:skoolio_app/features/timetable/domain/timetable_model.dart';
 
@@ -325,5 +330,164 @@ void main() {
       expect(bundle.getWeeklyOffSummary(), 'Every Sunday');
     });
   });
+
+  group('AppHorizontalNavBar Tests', () {
+    test('Teacher nav items contain all 12 web portal routes', () {
+      final items = AppHorizontalNavBar.teacherNavItems;
+      expect(items.length, 12);
+      expect(items.map((e) => e.route).toList(), [
+        '/teacher-dashboard',
+        '/teacher/timetable',
+        '/teacher/attendance',
+        '/teacher/attendance/register',
+        '/teacher/attendance/own',
+        '/teacher/students',
+        '/teacher/results',
+        '/teacher/calendar',
+        '/teacher/notices',
+        '/teacher/salary',
+        '/teacher/profile',
+        'logout',
+      ]);
+      expect(items.any((e) => e.title == 'Dashboard'), true);
+      expect(items.any((e) => e.title == 'Calendar'), true);
+      expect(items.any((e) => e.title == 'Salary'), true);
+      expect(items.any((e) => e.title == 'Sign Out'), true);
+    });
+
+    test('Student nav items contain all 9 web portal routes', () {
+      final items = AppHorizontalNavBar.studentNavItems;
+      expect(items.length, 9);
+      expect(items.map((e) => e.route).toList(), [
+        '/student-dashboard',
+        '/student/timetable',
+        '/student/attendance',
+        '/student/results',
+        '/student/fees',
+        '/student/notices',
+        '/student/calendar',
+        '/student/profile',
+        'logout',
+      ]);
+      expect(items.any((e) => e.title == 'Fee Status'), true);
+      expect(items.any((e) => e.title == 'Calendar'), true);
+      expect(items.any((e) => e.title == 'Sign Out'), true);
+    });
+
+    testWidgets('AppHorizontalNavBar renders horizontal scrollable strip and tabs', (tester) async {
+      final facultyUser = UserModel(
+        id: 1,
+        email: 'teacher@test.com',
+        fullName: 'Teacher Jane',
+        role: UserRole.faculty,
+        schoolId: 101,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith(
+              (ref) => FakeAuthNotifier(facultyUser),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              bottomNavigationBar: AppHorizontalNavBar(
+                currentRoute: '/teacher-dashboard',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify horizontal scroll view exists
+      final scrollFinder = find.byType(SingleChildScrollView);
+      expect(scrollFinder, findsOneWidget);
+      final SingleChildScrollView scrollView = tester.widget(scrollFinder);
+      expect(scrollView.scrollDirection, Axis.horizontal);
+
+      // Verify initial tabs are visible
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Timetable'), findsOneWidget);
+
+      // Drag horizontally to bring latter tabs into view
+      await tester.drag(scrollFinder, const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      // Verify further tabs appear after horizontal scroll
+      expect(find.text('Calendar'), findsOneWidget);
+    });
+
+    testWidgets('AppHorizontalNavBar renders student navigation tabs for student role', (tester) async {
+      final studentUser = UserModel(
+        id: 2,
+        email: 'student@test.com',
+        fullName: 'Student Alex',
+        role: UserRole.student,
+        schoolId: 101,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith(
+              (ref) => FakeAuthNotifier(studentUser),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              bottomNavigationBar: AppHorizontalNavBar(
+                currentRoute: '/student-dashboard',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Fee Status'), findsOneWidget);
+      expect(find.text('Results'), findsOneWidget);
+    });
+  });
+
+  group('AppLoader Widget Tests', () {
+    testWidgets('AppLoader renders text and animated components correctly', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AppLoader(
+              text: 'Loading timetable...',
+              size: AppLoaderSize.lg,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Loading timetable...'), findsOneWidget);
+    });
+
+    testWidgets('AppLoader.spinner renders compact spinner widget', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppLoader.spinner(size: 18, color: Colors.orange),
+          ),
+        ),
+      );
+
+      expect(find.byType(CustomPaint), findsWidgets);
+    });
+  });
+}
+
+class FakeAuthNotifier extends StateNotifier<AuthState> implements AuthNotifier {
+  FakeAuthNotifier(UserModel user) : super(AuthState(user: user, isInitialized: true));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

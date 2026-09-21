@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/api_constants.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';

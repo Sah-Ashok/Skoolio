@@ -69,7 +69,7 @@ export const getActiveAcademicYear = async(
         start_date::text,
         end_date::text,
         status, description, created_at, updated_at
-        FROM academic_years WHERE school_id = $1 AND LOWER(status) = 'active'
+        FROM academic_years WHERE school_id = $1 AND LOWER(status::text) = 'active'
         ORDER BY id DESC LIMIT 1`,
         [school_id]
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
 import '../../auth/domain/models.dart';
@@ -122,9 +123,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
         const Divider(height: 1, color: AppColors.border),
         Expanded(
           child: scheduleAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            ),
+            loading: () => const AppLoader(text: 'Loading your timetable...', size: AppLoaderSize.lg),
             error: (err, _) => _buildErrorState(
               err.toString(),
               onRetry: () => ref.invalidate(teacherTimetableProvider),
@@ -167,9 +166,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     final sectionsAsync = ref.watch(teacherSectionsProvider);
 
     return sectionsAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: AppColors.accent),
-      ),
+      loading: () => const AppLoader(text: 'Loading sections...', size: AppLoaderSize.lg),
       error: (err, _) => _buildErrorState(
         'Failed to load sections: $err',
         onRetry: () => ref.invalidate(teacherSectionsProvider),
@@ -278,9 +275,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
 
             Expanded(
               child: sectionScheduleAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.accent),
-                ),
+                loading: () => const AppLoader(text: 'Loading section timetable...', size: AppLoaderSize.lg),
                 error: (err, _) => _buildErrorState(
                   err.toString(),
                   onRetry: () => ref.invalidate(
@@ -332,9 +327,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
         const Divider(height: 1, color: AppColors.border),
         Expanded(
           child: scheduleAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            ),
+            loading: () => const AppLoader(text: 'Loading student timetable...', size: AppLoaderSize.lg),
             error: (err, _) => _buildErrorState(
               err.toString(),
               onRetry: () => ref.invalidate(studentTimetableProvider),

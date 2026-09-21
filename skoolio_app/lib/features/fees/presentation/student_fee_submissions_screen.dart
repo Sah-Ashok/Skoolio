@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final feeSubmissionsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
@@ -36,7 +37,7 @@ class StudentFeeSubmissionsScreen extends ConsumerWidget {
         color: AppColors.accent,
         onRefresh: () async => ref.refresh(feeSubmissionsProvider.future),
         child: submissionsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          loading: () => const AppLoader(text: 'Loading fee submissions...', size: AppLoaderSize.lg),
           error: (err, _) => Center(child: Text('Error loading submissions: $err')),
           data: (items) {
             if (items.isEmpty) {

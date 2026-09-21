@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 
 class TeacherStudentDetailScreen extends ConsumerStatefulWidget {
@@ -87,7 +88,7 @@ class _TeacherStudentDetailScreenState extends ConsumerState<TeacherStudentDetai
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+          ? const AppLoader(text: 'Loading student details...', size: AppLoaderSize.lg)
           : _errorMessage != null && _student == null
               ? Center(
                   child: Padding(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
@@ -112,7 +113,7 @@ class _MarksEntryTabState extends ConsumerState<_MarksEntryTab> {
         }
       },
       child: examsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFF97316))),
+        loading: () => const AppLoader(text: 'Loading exams...', size: AppLoaderSize.lg),
         error: (err, _) => Center(child: Text('Error loading exams: $err')),
         data: (exams) {
           if (exams.isEmpty) {
@@ -261,10 +262,7 @@ class _ExamSchedulesSection extends ConsumerWidget {
     final schedulesAsync = ref.watch(teacherExamSchedulesProvider(examId));
 
     return schedulesAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(20),
-        child: Center(child: CircularProgressIndicator(color: Color(0xFFF97316))),
-      ),
+      loading: () => const AppLoader(text: 'Loading schedule...', size: AppLoaderSize.sm),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(16),
         child: Text('Error loading schedules: $e', style: const TextStyle(fontSize: 12, color: AppColors.error)),
@@ -635,7 +633,7 @@ class _MarksEntryDetailScreenState extends ConsumerState<MarksEntryDetailScreen>
         title: Text('${widget.subjectName} — ${widget.className}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF97316)))
+          ? const AppLoader(text: 'Loading marks register...', size: AppLoaderSize.lg)
           : _errorMessage != null
               ? Center(child: Text('Error: $_errorMessage'))
               : Column(
@@ -834,7 +832,7 @@ class _MarksEntryDetailScreenState extends ConsumerState<MarksEntryDetailScreen>
                             const Spacer(),
                             ElevatedButton.icon(
                               onPressed: _isSaving ? null : _saveAll,
-                              icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_rounded, size: 18),
+                              icon: _isSaving ? AppLoader.spinner(color: Colors.white) : const Icon(Icons.check_rounded, size: 18),
                               label: Text(_isSaving ? 'Saving…' : 'Save All Marks'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFF97316),
@@ -1049,10 +1047,7 @@ class _ClassRegisterTabState extends ConsumerState<_ClassRegisterTab> {
             const SizedBox(height: 14),
 
             if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator(color: Color(0xFFF97316))),
-              )
+              const AppLoader(text: 'Loading...', size: AppLoaderSize.md)
             else if (_errorMessage != null)
               Container(
                 padding: const EdgeInsets.all(16),

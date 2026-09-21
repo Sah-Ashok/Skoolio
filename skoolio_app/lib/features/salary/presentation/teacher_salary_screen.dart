@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/widgets/app_loader.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final teacherSalaryHistoryProvider = FutureProvider<List<dynamic>>((ref) async {
@@ -58,7 +59,7 @@ class _TeacherSalaryScreenState extends ConsumerState<TeacherSalaryScreen> {
         color: const Color(0xFFF97316),
         onRefresh: () async => ref.refresh(teacherSalaryHistoryProvider.future),
         child: salaryAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFF97316))),
+          loading: () => const AppLoader(text: 'Loading salary records...', size: AppLoaderSize.lg),
           error: (err, _) => Center(child: Text('Error loading salary records: $err')),
           data: (salaries) {
             if (salaries.isEmpty) {
