@@ -147,44 +147,49 @@ export const saveBulkSectionTimetable = async (
 
     // 2. Insert new slots if provided
     if (slots && slots.length > 0) {
-      for (const slot of slots) {
-        await client.query(
-          `INSERT INTO section_timetables (
-             school_id, academic_year_id, class_id, section_id,
-             day_of_week, period_number, start_time, end_time,
-             subject_id, teacher_id, is_break, title, room_no,
-             created_by_teacher_id, updated_at
-           )
-           VALUES ($1, $2, $3, $4, $5, $6, $7::time, $8::time, $9, $10, $11, $12, $13, $14, NOW())
-           ON CONFLICT (school_id, academic_year_id, section_id, day_of_week, period_number)
-           DO UPDATE SET
-             start_time = EXCLUDED.start_time,
-             end_time = EXCLUDED.end_time,
-             subject_id = EXCLUDED.subject_id,
-             teacher_id = EXCLUDED.teacher_id,
-             is_break = EXCLUDED.is_break,
-             title = EXCLUDED.title,
-             room_no = EXCLUDED.room_no,
-             created_by_teacher_id = EXCLUDED.created_by_teacher_id,
-             updated_at = NOW()`,
-          [
-            school_id,
-            academic_year_id,
-            class_id,
-            section_id,
-            slot.day_of_week.toLowerCase(),
-            slot.period_number,
-            slot.start_time,
-            slot.end_time,
-            slot.subject_id || null,
-            slot.teacher_id || null,
-            Boolean(slot.is_break),
-            slot.title || null,
-            slot.room_no || null,
-            created_by_teacher_id || null,
-          ]
-        );
-      }
+      const valuePlaceholders = slots.map((_, i) => {
+        const b = i * 14;
+        return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}::time, $${b + 8}::time, $${b + 9}, $${b + 10}, $${b + 11}, $${b + 12}, $${b + 13}, $${b + 14}, NOW())`;
+      }).join(', ');
+
+      const params = slots.flatMap(s => [
+        school_id,
+        academic_year_id,
+        class_id,
+        section_id,
+        s.day_of_week.toLowerCase(),
+        s.period_number,
+        s.start_time,
+        s.end_time,
+        s.subject_id || null,
+        s.teacher_id || null,
+        Boolean(s.is_break),
+        s.title || null,
+        s.room_no || null,
+        created_by_teacher_id || null,
+      ]);
+
+      await client.query(
+        `INSERT INTO section_timetables (
+           school_id, academic_year_id, class_id, section_id,
+           day_of_week, period_number, start_time, end_time,
+           subject_id, teacher_id, is_break, title, room_no,
+           created_by_teacher_id, updated_at
+         )
+         VALUES ${valuePlaceholders}
+         ON CONFLICT (school_id, academic_year_id, section_id, day_of_week, period_number)
+         DO UPDATE SET
+           start_time = EXCLUDED.start_time,
+           end_time = EXCLUDED.end_time,
+           subject_id = EXCLUDED.subject_id,
+           teacher_id = EXCLUDED.teacher_id,
+           is_break = EXCLUDED.is_break,
+           title = EXCLUDED.title,
+           room_no = EXCLUDED.room_no,
+           created_by_teacher_id = EXCLUDED.created_by_teacher_id,
+           updated_at = NOW()`,
+        params
+      );
     }
 
     await client.query('COMMIT');

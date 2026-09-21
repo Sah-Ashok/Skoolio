@@ -99,7 +99,14 @@ export const saveBulkSectionTimetableService = async (
 
   // Validate teacher conflicts for each non-break slot
   if (data.slots && data.slots.length > 0) {
+    const seenSlots = new Set<string>();
     for (const slot of data.slots) {
+      const slotKey = `${slot.day_of_week.toLowerCase()}_${slot.period_number}`;
+      if (seenSlots.has(slotKey)) {
+        throw new AppError(`Duplicate slot entry for ${slot.day_of_week.toUpperCase()} Period ${slot.period_number}.`, 400);
+      }
+      seenSlots.add(slotKey);
+
       if (!slot.is_break && slot.teacher_id) {
         const conflict = await checkTeacherConflict(
           school_id,

@@ -9,6 +9,21 @@ export const getPlatformSettings = catchAsync(async (req: Request, res: Response
   sendResponse(res, 200, true, 'Platform settings fetched successfully', settings);
 });
 
+export const getPlatformVersion = catchAsync(async (req: Request, res: Response) => {
+  const pkgPath = path.resolve(process.cwd(), 'package.json');
+  let version = '1.0.1';
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    version = pkg.version || version;
+  }
+  sendResponse(res, 200, true, 'Platform version retrieved successfully', {
+    app: 'Skoolio Cloud ERP Backend API',
+    version,
+    environment: process.env.NODE_ENV || 'development',
+    server_time: new Date().toISOString(),
+  });
+});
+
 export const updatePlatformSettings = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { id: updated_by } = req.user as IJwtAdminPayload;
   const settings = await updatePlatformSettingsService(updated_by, req.body);

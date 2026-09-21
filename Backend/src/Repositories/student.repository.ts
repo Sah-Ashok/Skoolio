@@ -106,13 +106,13 @@ export const getStudentsBySchool = async (
   }
 
   if (search && search.trim()) {
-    const sParam = `$${params.push(`%${search.trim().toLowerCase()}%`)}`;
+    const sParam = `$${params.push(`%${search.trim()}%`)}`;
     whereClause += ` AND (
-      LOWER(s.full_name) ILIKE ${sParam}
-      OR LOWER(s.admission_number) ILIKE ${sParam}
-      OR LOWER(COALESCE(s.guardian_name, '')) ILIKE ${sParam}
-      OR LOWER(COALESCE(s.phone, '')) ILIKE ${sParam}
-      OR LOWER(COALESCE(cl.name, '')) ILIKE ${sParam}
+      s.full_name ILIKE ${sParam}
+      OR s.admission_number ILIKE ${sParam}
+      OR COALESCE(s.guardian_name, '') ILIKE ${sParam}
+      OR COALESCE(s.phone, '') ILIKE ${sParam}
+      OR COALESCE(cl.name, '') ILIKE ${sParam}
     )`;
   }
 

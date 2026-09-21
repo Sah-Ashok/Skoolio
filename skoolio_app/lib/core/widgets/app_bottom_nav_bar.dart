@@ -91,6 +91,12 @@ class AppHorizontalNavBar extends ConsumerStatefulWidget {
       inactiveIcon: Icons.payments_outlined,
     ),
     NavItem(
+      title: 'Contact',
+      route: '/teacher/contact',
+      activeIcon: Icons.headset_mic_rounded,
+      inactiveIcon: Icons.headset_mic_outlined,
+    ),
+    NavItem(
       title: 'Profile',
       route: '/teacher/profile',
       activeIcon: Icons.person_rounded,
@@ -147,6 +153,12 @@ class AppHorizontalNavBar extends ConsumerStatefulWidget {
       route: '/student/calendar',
       activeIcon: Icons.calendar_month_rounded,
       inactiveIcon: Icons.calendar_month_outlined,
+    ),
+    NavItem(
+      title: 'Contact',
+      route: '/student/contact',
+      activeIcon: Icons.headset_mic_rounded,
+      inactiveIcon: Icons.headset_mic_outlined,
     ),
     NavItem(
       title: 'Profile',

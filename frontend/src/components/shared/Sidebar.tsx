@@ -69,6 +69,7 @@ const adminNav: NavSection[] = [
       { href: '/notices',                   icon: 'fa-bullhorn',        label: 'Notices' },
       { href: '/calendar',                  icon: 'fa-calendar-days',   label: 'Calendar'},
       { href: '/academic-years',            icon: 'fa-layer-group',     label: 'Academic Years' },
+      { href: '/students/promote',          icon: 'fa-user-check',      label: 'Student Promotion', exact: true },
     ],
   },
   {

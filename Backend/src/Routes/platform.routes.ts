@@ -7,16 +7,18 @@ import {
   getSystemLogs,
   downloadSystemLogs,
   clearSystemLogs,
+  getPlatformVersion,
 } from '../Controllers/platform.controller';
 
 const router = Router();
+
+router.get('/version', getPlatformVersion);
 
 router.use(protect, restrictTo('super_admin'));
 
 router.get('/', getPlatformSettings);
 router.patch('/', updatePlatformSettings);
 
-// ── System Log Routes (Super Admin Only) ──
 router.get('/logs',          getSystemLogs);
 router.get('/system-logs',   getSystemLogs);
 router.get('/logs/download', downloadSystemLogs);

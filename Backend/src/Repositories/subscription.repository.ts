@@ -28,7 +28,7 @@ export const getPlanById = async (id: number): Promise<ISubscriptionPlan | null>
 };
 
 export const getPlanByName = async (name: string): Promise<ISubscriptionPlan | null> => {
-  const result = await pool.query(`SELECT * FROM subscription_plans WHERE name = $1`, [name]);
+  const result = await pool.query(`SELECT * FROM subscription_plans WHERE LOWER(name) = LOWER($1)`, [name]);
   return result.rows[0] || null;
 };
 

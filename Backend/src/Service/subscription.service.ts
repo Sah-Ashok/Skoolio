@@ -171,14 +171,14 @@ export const setupTrialSubscription = async (
     targetPlan = (await getPlanByName(preferredPlan)) || (await getPlanByName('Pro'));
   }
 
-  // Final fallback to any plan
+  // Fallback to any non-Free plan if Plus/Pro fail
   if (!targetPlan) {
     const all = await getAllPlans();
-    targetPlan = all[0] || null;
+    targetPlan = all.find(p => p.name.toLowerCase() !== 'free') || null;
   }
 
   if (!targetPlan) {
-    console.error('[Subscription] Failed to find or seed plan for trial.');
+    console.error('[Subscription] Failed to find or seed valid paid plan for trial.');
     return null;
   }
 

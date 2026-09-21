@@ -66,8 +66,6 @@ class TeacherDashboardScreen extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final sectionsAsync = ref.watch(teacherSectionsProvider);
-    final academicYearAsync = ref.watch(activeAcademicYearProvider);
-    final yearlyAttendanceAsync = ref.watch(teacherYearlyAttendanceProvider);
     final noticesAsync = ref.watch(noticesListProvider);
     final timetableAsync = ref.watch(teacherTimetableProvider);
 
@@ -78,11 +76,6 @@ class TeacherDashboardScreen extends ConsumerWidget {
     final schoolName = (user?.schoolName != null && user!.schoolName!.isNotEmpty)
         ? user.schoolName!
         : 'Golu Patshala';
-
-    final academicYearName = academicYearAsync.maybeWhen(
-      data: (data) => data?['year_name']?.toString() ?? data?['name']?.toString() ?? '2026-2027',
-      orElse: () => '2026-2027',
-    );
 
     final sections = sectionsAsync.maybeWhen(
       data: (data) => data,
@@ -107,17 +100,6 @@ class TeacherDashboardScreen extends ConsumerWidget {
       },
       orElse: () => ['Computer', 'Science'],
     );
-
-    final yearlyAttendance = yearlyAttendanceAsync.maybeWhen(
-      data: (data) => data,
-      orElse: () => null,
-    );
-
-    final attendanceDisplayValue = (yearlyAttendance != null &&
-            (yearlyAttendance['total_marked'] ?? 0) > 0 &&
-            yearlyAttendance['attendance_percentage'] != null)
-        ? '${yearlyAttendance['attendance_percentage']}%'
-        : '——';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -188,128 +170,35 @@ class TeacherDashboardScreen extends ConsumerWidget {
                           letterSpacing: -0.4,
                         ),
                       ),
-                      const SizedBox(height: 12),
-
-                      // Badges Row: [ 📅 2026-2027 ] [ • active ]
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.calendar_month_outlined, size: 13, color: Color(0xFF475569)),
-                                const SizedBox(width: 5),
-                                Text(
-                                  academicYearName,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF475569),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Text(
-                                  '• ',
-                                  style: TextStyle(
-                                    color: Color(0xFF16A34A),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  'active',
-                                  style: TextStyle(
-                                    color: Color(0xFF16A34A),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
 
-                // ── 4 KPI Summary Cards (2x2 Grid) ──
+                // ── KPI Summary Cards (Subjects & Notices) ──
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => context.push('/teacher/attendance/own'),
-                              borderRadius: BorderRadius.circular(14),
-                              child: _buildKpiCard(
-                                icon: Icons.calendar_month_outlined,
-                                title: 'ATTENDANCE',
-                                value: attendanceDisplayValue,
-                                subtitle: '• This year',
-                                accentColor: const Color(0xFFF97316),
-                                subtitleDotColor: const Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildKpiCard(
-                              icon: Icons.assignment_outlined,
-                              title: 'SECTIONS',
-                              value: '${sections.length}',
-                              subtitle: 'Section coordinator',
-                              accentColor: const Color(0xFF16A34A),
-                              valueColor: const Color(0xFF16A34A),
-                            ),
-                          ),
-                        ],
+                      Expanded(
+                        child: _buildKpiCard(
+                          icon: Icons.menu_book_outlined,
+                          title: 'SUBJECTS',
+                          value: '${subjects.length}',
+                          subtitle: 'Assigned subjects',
+                          accentColor: const Color(0xFF2563EB),
+                          valueColor: const Color(0xFF2563EB),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildKpiCard(
-                              icon: Icons.menu_book_outlined,
-                              title: 'SUBJECTS',
-                              value: '${subjects.length}',
-                              subtitle: 'Assigned subjects',
-                              accentColor: const Color(0xFF2563EB),
-                              valueColor: const Color(0xFF2563EB),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildKpiCard(
-                              icon: Icons.notifications_none_outlined,
-                              title: 'NOTICES',
-                              value: '${notices.length}',
-                              subtitle: notices.isEmpty ? 'Nothing new' : '${notices.length} active',
-                              accentColor: const Color(0xFF9333EA),
-                              valueColor: const Color(0xFF9333EA),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildKpiCard(
+                          icon: Icons.notifications_none_outlined,
+                          title: 'NOTICES',
+                          value: '${notices.length}',
+                          subtitle: notices.isEmpty ? 'Nothing new' : '${notices.length} active',
+                          accentColor: const Color(0xFF9333EA),
+                          valueColor: const Color(0xFF9333EA),
+                        ),
                       ),
                     ],
                   ),
@@ -594,7 +483,6 @@ class TeacherDashboardScreen extends ConsumerWidget {
                         else
                           Column(
                             children: sections.map((sec) {
-                              final letter = sec.name.isNotEmpty ? sec.name[0].toUpperCase() : 'A';
                               return InkWell(
                                 onTap: () => context.push('/teacher/attendance'),
                                 borderRadius: BorderRadius.circular(12),
@@ -609,20 +497,15 @@ class TeacherDashboardScreen extends ConsumerWidget {
                                   child: Row(
                                     children: [
                                       Container(
-                                        width: 34,
-                                        height: 34,
-                                        alignment: Alignment.center,
+                                        padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF1E293B),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
-                                        child: Text(
-                                          letter,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                        child: const Icon(
+                                          Icons.class_outlined,
+                                          size: 18,
+                                          color: Color(0xFF2563EB),
                                         ),
                                       ),
                                       const SizedBox(width: 12),

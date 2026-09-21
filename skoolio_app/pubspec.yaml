@@ -2,7 +2,7 @@ name: skoolio_app
 description: "Skoolio - Cloud School ERP Mobile Application"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.5.0

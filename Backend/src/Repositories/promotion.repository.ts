@@ -69,84 +69,90 @@ export const bulkPromoteStudents = async (
   target_academic_year_id: number,
   rows: PromotionRow[]
 ): Promise<{ promoted: number; skipped: number; errors: string[] }> => {
+  if (!rows || rows.length === 0) {
+    return { promoted: 0, skipped: 0, errors: [] };
+  }
+
   const client = await pool.connect();
   let promoted = 0;
-  let skipped  = 0;
+  let skipped = 0;
   const errors: string[] = [];
 
   try {
     await client.query('BEGIN');
 
-    for (const row of rows) {
-      try {
-        // Check if already enrolled in target year
-        const existing = await client.query(
-          `SELECT id FROM student_enrollments
-           WHERE school_id = $1 AND student_id = $2 AND academic_year_id = $3
-           LIMIT 1`,
-          [school_id, row.student_id, target_academic_year_id]
-        );
+    const studentIds = rows.map(r => r.student_id);
+    const existingRes = await client.query(
+      `SELECT student_id FROM student_enrollments
+       WHERE school_id = $1 AND academic_year_id = $2 AND student_id = ANY($3::int[])`,
+      [school_id, target_academic_year_id, studentIds]
+    );
 
-        if ((existing.rowCount ?? 0) > 0) {
-          skipped++;
-          continue;
-        }
-
-        // Fetch source enrollment for transport carry-forward
-        const srcRes = await client.query(
-          `SELECT transport_required, transport_route, pickup_location,
-                  transport_fee, transport_fee_type
-           FROM student_enrollments
-           WHERE id = $1 AND school_id = $2`,
-          [row.enrollment_id, school_id]
-        );
-        const src = srcRes.rows[0] || {};
-
-        // Mark source enrollment as promoted
-        await client.query(
-          `UPDATE student_enrollments
-           SET is_promoted          = true,
-               promoted_to_class_id = $1,
-               updated_at           = NOW()
-           WHERE id = $2 AND school_id = $3`,
-          [row.target_class_id, row.enrollment_id, school_id]
-        );
-
-        // Create new enrollment in target year
-        await client.query(
-          `INSERT INTO student_enrollments
-             (school_id, student_id, academic_year_id, class_id, section_id,
-              roll_number, stream,
-              transport_required, transport_route, pickup_location,
-              transport_fee, transport_fee_type,
-              status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active')`,
-          [
-            school_id,
-            row.student_id,
-            target_academic_year_id,
-            row.target_class_id,
-            row.target_section_id,
-            row.roll_number || null,
-            row.stream || 'not_applicable',
-            src.transport_required || false,
-            src.transport_route    || null,
-            src.pickup_location    || null,
-            src.transport_fee      || null,
-            src.transport_fee_type || null,
-          ]
-        );
-
-        promoted++;
-      } catch (err: any) {
-        errors.push(`Student ${row.student_id}: ${err.message}`);
+    const existingSet = new Set(existingRes.rows.map(r => Number(r.student_id)));
+    const validRows = rows.filter(r => {
+      if (existingSet.has(r.student_id)) {
+        skipped++;
+        return false;
       }
+      return true;
+    });
+
+    if (validRows.length > 0) {
+      const enrollmentIds = validRows.map(r => r.enrollment_id);
+      const srcRes = await client.query(
+        `SELECT id, transport_required, transport_route, pickup_location, transport_fee, transport_fee_type
+         FROM student_enrollments
+         WHERE id = ANY($1::int[]) AND school_id = $2`,
+        [enrollmentIds, school_id]
+      );
+      const srcMap = new Map(srcRes.rows.map(r => [r.id, r]));
+
+      await client.query(
+        `UPDATE student_enrollments
+         SET is_promoted = true, updated_at = NOW()
+         WHERE id = ANY($1::int[]) AND school_id = $2`,
+        [enrollmentIds, school_id]
+      );
+
+      const valuePlaceholders = validRows.map((_, i) => {
+        const b = i * 12;
+        return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9}, $${b + 10}, $${b + 11}, $${b + 12}, 'active')`;
+      }).join(', ');
+
+      const params = validRows.flatMap(r => {
+        const src = srcMap.get(r.enrollment_id) || {};
+        return [
+          school_id,
+          r.student_id,
+          target_academic_year_id,
+          r.target_class_id,
+          r.target_section_id,
+          r.roll_number || null,
+          r.stream || 'not_applicable',
+          src.transport_required || false,
+          src.transport_route || null,
+          src.pickup_location || null,
+          src.transport_fee || null,
+          src.transport_fee_type || null,
+        ];
+      });
+
+      await client.query(
+        `INSERT INTO student_enrollments
+           (school_id, student_id, academic_year_id, class_id, section_id,
+            roll_number, stream, transport_required, transport_route,
+            pickup_location, transport_fee, transport_fee_type, status)
+         VALUES ${valuePlaceholders}`,
+        params
+      );
+
+      promoted = validRows.length;
     }
 
     await client.query('COMMIT');
-  } catch (err) {
+  } catch (err: any) {
     await client.query('ROLLBACK');
-    throw err;
+    errors.push(err.message || 'Bulk promotion failed');
   } finally {
     client.release();
   }

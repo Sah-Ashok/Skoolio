@@ -22,6 +22,7 @@ import '../features/profile/presentation/student_profile_screen.dart';
 import '../features/profile/presentation/teacher_profile_screen.dart';
 import '../features/salary/presentation/teacher_salary_screen.dart';
 import '../features/splash/splash_screen.dart';
+import '../features/contact/presentation/contact_screen.dart';
 import '../features/students/presentation/teacher_students_screen.dart';
 import '../features/timetable/presentation/timetable_screen.dart';
 
@@ -201,6 +202,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/teacher/attendance/own',
         builder: (context, state) => const TeacherOwnAttendanceScreen(),
+      ),
+
+      // ── Contact & Support ──
+      GoRoute(
+        path: '/contact',
+        builder: (context, state) => const ContactScreen(),
+      ),
+      GoRoute(
+        path: '/teacher/contact',
+        builder: (context, state) => const ContactScreen(),
+      ),
+      GoRoute(
+        path: '/student/contact',
+        builder: (context, state) => const ContactScreen(),
       ),
     ],
   );

@@ -136,6 +136,46 @@ class StudentProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            // Contact Us & Support Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.headset_mic_outlined, size: 20, color: Color(0xFF16A34A)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Help & Support',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.support_agent_rounded, size: 20, color: Color(0xFF16A34A)),
+                    ),
+                    title: const Text('Contact Support Team', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: const Text('Send queries, feedback or technical issues', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                    onTap: () => context.push('/student/contact'),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
 
             // Logout Button

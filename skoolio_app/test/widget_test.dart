@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:skoolio_app/core/widgets/app_bottom_nav_bar.dart';
 import 'package:skoolio_app/core/widgets/app_loader.dart';
+import 'package:skoolio_app/features/contact/presentation/contact_screen.dart';
 import 'package:skoolio_app/features/attendance/domain/attendance_models.dart';
 import 'package:skoolio_app/features/auth/domain/models.dart';
 import 'package:skoolio_app/features/auth/presentation/auth_providers.dart';
@@ -332,9 +333,9 @@ void main() {
   });
 
   group('AppHorizontalNavBar Tests', () {
-    test('Teacher nav items contain all 12 web portal routes', () {
+    test('Teacher nav items contain all 13 web portal routes', () {
       final items = AppHorizontalNavBar.teacherNavItems;
-      expect(items.length, 12);
+      expect(items.length, 13);
       expect(items.map((e) => e.route).toList(), [
         '/teacher-dashboard',
         '/teacher/timetable',
@@ -346,18 +347,19 @@ void main() {
         '/teacher/calendar',
         '/teacher/notices',
         '/teacher/salary',
+        '/teacher/contact',
         '/teacher/profile',
         'logout',
       ]);
       expect(items.any((e) => e.title == 'Dashboard'), true);
       expect(items.any((e) => e.title == 'Calendar'), true);
-      expect(items.any((e) => e.title == 'Salary'), true);
+      expect(items.any((e) => e.title == 'Contact'), true);
       expect(items.any((e) => e.title == 'Sign Out'), true);
     });
 
-    test('Student nav items contain all 9 web portal routes', () {
+    test('Student nav items contain all 10 web portal routes', () {
       final items = AppHorizontalNavBar.studentNavItems;
-      expect(items.length, 9);
+      expect(items.length, 10);
       expect(items.map((e) => e.route).toList(), [
         '/student-dashboard',
         '/student/timetable',
@@ -366,6 +368,7 @@ void main() {
         '/student/fees',
         '/student/notices',
         '/student/calendar',
+        '/student/contact',
         '/student/profile',
         'logout',
       ]);
@@ -480,6 +483,25 @@ void main() {
       );
 
       expect(find.byType(CustomPaint), findsWidgets);
+    });
+  });
+
+  group('ContactScreen Widget Tests', () {
+    testWidgets('ContactScreen renders support info cards and message form correctly', (tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: ContactScreen(),
+          ),
+        ),
+      );
+
+      expect(find.text('Contact & Support'), findsOneWidget);
+      expect(find.text('Email Support'), findsOneWidget);
+      expect(find.text('skoolio.support@gmail.com'), findsOneWidget);
+      expect(find.text('WhatsApp Support'), findsOneWidget);
+      expect(find.text('+977 9713823636'), findsOneWidget);
+      expect(find.text('Send Message'), findsOneWidget);
     });
   });
 }
