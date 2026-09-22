@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApi } from '@/lib/useApi';
 import { apiRequest } from '@/lib/api';
+import styles from './security.module.css';
+
+const s = (c: string) => styles[c] || c;
+const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(' ');
 
 interface IDevice {
   id: number;
@@ -11,6 +15,7 @@ interface IDevice {
   ip_address: string | null;
   location: string | null;
   is_trusted: boolean;
+  is_current_device?: boolean;
   created_at: string;
   last_login_at: string;
 }
@@ -31,9 +36,37 @@ interface I2FASetupData {
   recoveryCodes: string[];
 }
 
+// Client-side detection helper
+function detectClientDevice(): { browser: string; os: string } {
+  if (typeof window === 'undefined' || !navigator) {
+    return { browser: 'Web Browser', os: 'Desktop' };
+  }
+  const ua = navigator.userAgent.toLowerCase();
+  let os = 'Windows';
+  if (ua.includes('macintosh') || ua.includes('mac os')) os = 'macOS';
+  else if (ua.includes('android')) os = 'Android';
+  else if (ua.includes('iphone') || ua.includes('ipad')) os = 'iOS';
+  else if (ua.includes('linux')) os = 'Linux';
+
+  let browser = 'Google Chrome';
+  if (ua.includes('brave')) browser = 'Brave Browser';
+  else if (ua.includes('edg/')) browser = 'Microsoft Edge';
+  else if (ua.includes('firefox/')) browser = 'Mozilla Firefox';
+  else if (ua.includes('safari/') && !ua.includes('chrome/')) browser = 'Apple Safari';
+  else if (ua.includes('opr/') || ua.includes('opera')) browser = 'Opera';
+
+  return { browser, os };
+}
+
 export default function SecurityDashboardPage() {
   const { data: overviewRes, loading, refetch } = useApi<{ success: boolean; data: ISecurityOverview }>('/security/overview');
   const overview = overviewRes?.data || null;
+
+  const [clientInfo, setClientInfo] = useState<{ browser: string; os: string }>({ browser: 'Google Chrome', os: 'Windows' });
+
+  useEffect(() => {
+    setClientInfo(detectClientDevice());
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'2fa' | 'devices' | 'protection'>('2fa');
   const [error, setError] = useState<string | null>(null);
@@ -145,408 +178,445 @@ export default function SecurityDashboardPage() {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
+  const is2FAActive = overview?.totp_enabled;
+  const rawDevices = overview?.devices || [];
+  const currentDevice = rawDevices.find((d) => d.is_current_device) || rawDevices[0] || null;
+  const otherDevices = rawDevices.filter((d) => d.id !== currentDevice?.id);
+  const activeDeviceCount = rawDevices.length > 0 ? rawDevices.length : 1;
+
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
-            <i className="fa-solid fa-shield-halved text-indigo-600"></i> Security & 2FA Dashboard
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage 2FA Authenticator app, active device history, and threat alerts
-          </p>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center justify-between text-red-700 dark:text-red-300">
-          <div className="flex items-center gap-3">
-            <i className="fa-solid fa-circle-exclamation text-lg"></i>
-            <span className="font-medium text-sm">{error}</span>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
-            <i className="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between text-emerald-700 dark:text-emerald-300">
-          <div className="flex items-center gap-3">
-            <i className="fa-solid fa-circle-check text-lg"></i>
-            <span className="font-medium text-sm">{successMsg}</span>
-          </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700">
-            <i className="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      )}
-
-      {/* Security Health Score Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-500/20">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg border ${
-              overview?.protectionStatus === 'HIGH'
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-            }`}>
-              <i className={`fa-solid ${overview?.protectionStatus === 'HIGH' ? 'fa-shield-check' : 'fa-shield-heart'}`}></i>
+    <div className={s('page')}>
+      <div className={s('content')}>
+        {/* ── Page Header ── */}
+        <div className={s('pageHead')}>
+          <div className={s('headLeft')}>
+            <div className={s('headIcon')}>
+              <i className="fa-solid fa-shield-halved" />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold tracking-tight">Account Protection Status</h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  overview?.protectionStatus === 'HIGH'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                }`}>
-                  {overview?.protectionStatus === 'HIGH' ? '🟢 High Security' : '🟡 Medium Protection'}
-                </span>
-              </div>
-              <p className="text-slate-300 text-sm mt-1">
-                {overview?.totp_enabled
-                  ? 'Two-Factor Authentication is ACTIVE with Google Authenticator and Device Fingerprinting.'
-                  : 'Enable 2FA Authenticator to shield your portal from session hijacking and password leaks.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
-            <div className="text-center px-4">
-              <span className="block text-2xl font-black text-indigo-400">{overview?.securityScore ?? 50}%</span>
-              <span className="text-xs text-slate-400 font-medium">Security Rating</span>
-            </div>
-            <div className="h-8 w-px bg-slate-800"></div>
-            <div className="text-center px-4">
-              <span className="block text-2xl font-black text-emerald-400">{overview?.active_devices_count ?? 1}</span>
-              <span className="text-xs text-slate-400 font-medium">Active Devices</span>
+              <h1>Security & 2FA</h1>
+              <p>Google Authenticator (TOTP), active device history, and login threat protection</p>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <button
-          onClick={() => setActiveTab('2fa')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === '2fa'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <i className="fa-solid fa-mobile-screen-button"></i>
-          <span>2FA Authenticator App</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('devices')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === 'devices'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <i className="fa-solid fa-laptop-code"></i>
-          <span>Logged-in Devices & History</span>
-          <span className="ml-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-xs">
-            {overview?.active_devices_count ?? 0}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('protection')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === 'protection'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <i className="fa-solid fa-user-shield"></i>
-          <span>Threat Defense Policy</span>
-        </button>
-      </div>
-
-      {/* TAB 1: 2FA AUTHENTICATOR APP */}
-      {activeTab === '2fa' && (
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl shrink-0">
-                  <i className="fa-solid fa-qrcode"></i>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                    Google / Microsoft Authenticator (TOTP)
-                  </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-                    Secure your account with 6-digit time-based one-time passwords from Google Authenticator, Authy, or 1Password every time you sign in.
-                  </p>
-                </div>
-              </div>
-
-              {overview?.totp_enabled ? (
-                <div className="flex items-center gap-3">
-                  <span className="px-3.5 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5">
-                    <i className="fa-solid fa-check"></i> 2FA Enabled
-                  </span>
-                  <button
-                    onClick={() => setDisableModalOpen(true)}
-                    className="px-4 py-2 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-sm transition-all"
-                  >
-                    Disable 2FA
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleStartSetup}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-key"></i> Enable 2FA Now
-                </button>
-              )}
+        {/* ── Alerts ── */}
+        {error && (
+          <div className={s('alertError')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <i className="fa-solid fa-circle-exclamation" />
+              <span>{error}</span>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: LOGGED IN DEVICES */}
-      {activeTab === 'devices' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Logged-in Devices & History</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Instant alert emails are sent whenever your account is accessed from an unrecognized device.
-              </p>
-            </div>
-            <button
-              onClick={() => refetch()}
-              className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-              title="Refresh Devices"
-            >
-              <i className="fa-solid fa-arrows-rotate"></i>
+            <button onClick={() => setError(null)} className={s('closeBtn')}>
+              <i className="fa-solid fa-xmark" />
             </button>
           </div>
+        )}
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {overview?.devices?.map((dev, idx) => (
-              <div key={dev.id} className="py-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg">
-                    <i className={`fa-solid ${dev.os?.toLowerCase().includes('windows') ? 'fa-desktop' : dev.os?.toLowerCase().includes('android') || dev.os?.toLowerCase().includes('ios') ? 'fa-mobile-screen' : 'fa-laptop'}`}></i>
+        {successMsg && (
+          <div className={s('alertSuccess')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <i className="fa-solid fa-circle-check" />
+              <span>{successMsg}</span>
+            </div>
+            <button onClick={() => setSuccessMsg(null)} className={s('closeBtn')}>
+              <i className="fa-solid fa-xmark" />
+            </button>
+          </div>
+        )}
+
+        {/* ── Overview Hero Card ── */}
+        <div className={s('heroCard')}>
+          <div className={s('heroLeft')}>
+            <div className={cx(s('heroIcon'), is2FAActive ? s('heroIconGreen') : s('heroIconOrange'))}>
+              <i className={`fa-solid ${is2FAActive ? 'fa-shield-check' : 'fa-shield'}`} />
+            </div>
+            <div className={s('heroDetails')}>
+              <div className={s('heroTitleRow')}>
+                <h2 className={s('heroTitle')}>Account Protection Status</h2>
+                <span className={is2FAActive ? s('badgeHigh') : s('badgeMed')}>
+                  {is2FAActive ? 'High Protection' : 'Standard Protection'}
+                </span>
+              </div>
+              <p className={s('heroDesc')}>
+                {is2FAActive
+                  ? 'Two-Factor Authentication is active with Google Authenticator and smart device fingerprinting.'
+                  : 'Enable 2FA Authenticator app to protect your school data from session hijacking and password theft.'}
+              </p>
+            </div>
+          </div>
+
+          <div className={s('heroRight')}>
+            <div className={s('statChip')}>
+              <div className={cx(s('statChipIcon'), is2FAActive ? s('statChipIconGreen') : s('statChipIconOrange'))}>
+                <i className={`fa-solid ${is2FAActive ? 'fa-lock' : 'fa-lock-open'}`} />
+              </div>
+              <div className={s('statChipText')}>
+                <span>2FA Status</span>
+                <strong>{is2FAActive ? 'ENABLED' : 'DISABLED'}</strong>
+              </div>
+            </div>
+
+            <div className={s('statChip')}>
+              <div className={cx(s('statChipIcon'), s('statChipIconOrange'))}>
+                <i className="fa-solid fa-laptop-code" />
+              </div>
+              <div className={s('statChipText')}>
+                <span>Active Devices</span>
+                <strong>{activeDeviceCount} Device{activeDeviceCount > 1 ? 's' : ''}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Tab Navigation ── */}
+        <div className={s('tabs')}>
+          <button
+            onClick={() => setActiveTab('2fa')}
+            className={cx(s('tab'), activeTab === '2fa' && s('tabActive'))}
+          >
+            <i className="fa-solid fa-mobile-screen-button" />
+            <span>Authenticator App (2FA)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('devices')}
+            className={cx(s('tab'), activeTab === 'devices' && s('tabActive'))}
+          >
+            <i className="fa-solid fa-laptop-code" />
+            <span>Active Devices</span>
+            <span className={s('badgeCount')}>{activeDeviceCount}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('protection')}
+            className={cx(s('tab'), activeTab === 'protection' && s('tabActive'))}
+          >
+            <i className="fa-solid fa-user-shield" />
+            <span>Threat Defense & Policy</span>
+          </button>
+        </div>
+
+        {/* ── TAB 1: 2FA AUTHENTICATOR APP ── */}
+        {activeTab === '2fa' && (
+          <div className={s('card')}>
+            <div className={s('cardHead')}>
+              <div>
+                <h3>
+                  <i className="fa-solid fa-qrcode" style={{ color: '#ea580c' }} />
+                  Google / Microsoft Authenticator (TOTP)
+                </h3>
+                <p>Use a mobile authenticator app to generate single-use verification codes at login.</p>
+              </div>
+            </div>
+
+            <div className={s('twofaBox')}>
+              <div className={cx(s('twofaStatusCard'), is2FAActive && s('twofaStatusActive'))}>
+                <div className={s('twofaStatusLeft')}>
+                  <div className={cx(s('twofaStatusIcon'), is2FAActive ? s('iconActive') : s('iconInactive'))}>
+                    <i className={`fa-solid ${is2FAActive ? 'fa-circle-check' : 'fa-key'}`} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 dark:text-white text-sm">
-                        {dev.browser || 'Unknown Browser'} on {dev.os || 'Unknown OS'}
-                      </span>
-                      {idx === 0 && (
-                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md text-[11px] font-bold">
-                          Current Session
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-3">
-                      <span><i className="fa-solid fa-network-wired text-slate-400 mr-1"></i> {dev.ip_address}</span>
-                      <span>•</span>
-                      <span><i className="fa-solid fa-clock text-slate-400 mr-1"></i> Last active: {new Date(dev.last_login_at).toLocaleString()}</span>
-                    </div>
+                    <h4 className={s('twofaTitle')}>
+                      {is2FAActive ? 'Authenticator App 2FA is Active' : '2FA is Currently Disabled'}
+                    </h4>
+                    <p className={s('twofaDesc')}>
+                      {is2FAActive
+                        ? 'Your account is secured. Every sign in requires your password and a 6-digit TOTP code.'
+                        : 'Protect your portal against brute force attacks and credential stuffing by enabling 2FA.'}
+                    </p>
                   </div>
                 </div>
 
-                {idx !== 0 && (
-                  <button
-                    onClick={() => handleRevokeDevice(dev.id)}
-                    className="px-3 py-1.5 border border-red-200 dark:border-red-900/40 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                  >
-                    <i className="fa-solid fa-ban"></i> Revoke
-                  </button>
-                )}
+                <div>
+                  {is2FAActive ? (
+                    <button onClick={() => setDisableModalOpen(true)} className={s('btnDangerOutline')}>
+                      <i className="fa-solid fa-ban" style={{ marginRight: 6 }} />
+                      Disable 2FA
+                    </button>
+                  ) : (
+                    <button onClick={handleStartSetup} className={s('btnPrimary')}>
+                      <i className="fa-solid fa-shield-halved" />
+                      Set Up 2FA Now
+                    </button>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: THREAT DEFENSE POLICY */}
-      {activeTab === 'protection' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg">
-              <i className="fa-solid fa-shield-virus"></i>
             </div>
-            <h4 className="font-bold text-slate-900 dark:text-white">Anti-DDoS & Edge Defense</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Global rate limiting (150 req/min), automated IP telemetry monitoring, and instant lockout protection active.
-            </p>
           </div>
+        )}
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
-              <i className="fa-solid fa-fingerprint"></i>
-            </div>
-            <h4 className="font-bold text-slate-900 dark:text-white">Smart Device Fingerprinting</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Calculates SHA256 browser/subnet fingerprints. Real-time email alerts dispatched for logins from new devices.
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
-              <i className="fa-solid fa-lock"></i>
-            </div>
-            <h4 className="font-bold text-slate-900 dark:text-white">RFC 6238 TOTP Standard</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Compatible with Google Authenticator, Authy, and 1Password with single-use emergency recovery backup codes.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* 2FA SETUP MODAL */}
-      {setupModalOpen && setupData && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <i className="fa-solid fa-qrcode text-indigo-600"></i> Set up Google Authenticator
-              </h3>
-              <button
-                onClick={() => setSetupModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg"
-              >
-                <i className="fa-solid fa-xmark"></i>
+        {/* ── TAB 2: ACTIVE DEVICES & LOGIN HISTORY ── */}
+        {activeTab === 'devices' && (
+          <div className={s('card')}>
+            <div className={s('cardHead')}>
+              <div>
+                <h3>
+                  <i className="fa-solid fa-laptop-code" style={{ color: '#ea580c' }} />
+                  Logged-in Devices & History
+                </h3>
+                <p>We send an instant email notification whenever a new or unrecognized device logs in.</p>
+              </div>
+              <button onClick={() => refetch()} className={s('btnIcon')} title="Refresh Device List">
+                <i className="fa-solid fa-arrows-rotate" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                1. Open <strong>Google Authenticator</strong> or your preferred TOTP app on your smartphone.<br />
-                2. Tap <strong>+</strong> and choose <strong>Scan a QR code</strong>:
-              </p>
+            {/* 1. CURRENT ACTIVE DEVICE CARD */}
+            <div className={cx(s('currentDeviceBox'), s('currentDeviceBoxActive'))}>
+              <div className={s('currentDeviceTop')}>
+                <div className={s('currentDeviceLeft')}>
+                  <div className={s('currentDeviceIcon')}>
+                    <i className={`fa-solid ${(currentDevice?.os || clientInfo.os).toLowerCase().includes('windows') ? 'fa-desktop' : (currentDevice?.os || clientInfo.os).toLowerCase().includes('android') || (currentDevice?.os || clientInfo.os).toLowerCase().includes('ios') ? 'fa-mobile-screen' : 'fa-laptop'}`} />
+                  </div>
+                  <div>
+                    <h4 className={s('currentDeviceTitle')}>
+                      {currentDevice?.browser || clientInfo.browser} on {currentDevice?.os || clientInfo.os}
+                    </h4>
+                    <p className={s('currentDeviceSub')}>
+                      This Device • Your Current Active Session
+                    </p>
+                  </div>
+                </div>
 
-              <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                <img src={setupData.qrCodeDataUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg shadow-sm" />
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-xs font-mono text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold">
-                    {setupData.secret}
+                <span className={s('activeNowBadge')}>
+                  <span className={s('pulseDot')} /> Active Now
+                </span>
+              </div>
+
+              <div className={s('deviceDetailGrid')}>
+                <div className={s('detailCell')}>
+                  <span className={s('detailLabel')}>Browser</span>
+                  <span className={s('detailVal')}>{currentDevice?.browser || clientInfo.browser}</span>
+                </div>
+                <div className={s('detailCell')}>
+                  <span className={s('detailLabel')}>Operating System</span>
+                  <span className={s('detailVal')}>{currentDevice?.os || clientInfo.os}</span>
+                </div>
+                <div className={s('detailCell')}>
+                  <span className={s('detailLabel')}>IP Address</span>
+                  <span className={s('detailVal')}>{currentDevice?.ip_address || '127.0.0.1'}</span>
+                </div>
+                <div className={s('detailCell')}>
+                  <span className={s('detailLabel')}>Location</span>
+                  <span className={s('detailVal')}>{currentDevice?.location || 'Local Network'}</span>
+                </div>
+                <div className={s('detailCell')}>
+                  <span className={s('detailLabel')}>Last Active</span>
+                  <span className={s('detailVal')}>
+                    {currentDevice?.last_login_at ? new Date(currentDevice.last_login_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                   </span>
-                  <button
-                    onClick={() => copyToClipboard(setupData.secret)}
-                    className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all"
-                  >
-                    {copySuccess ? 'Copied!' : 'Copy'}
-                  </button>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  3. Enter the 6-digit code generated by your app:
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={verifyCode}
-                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 text-center text-2xl font-mono tracking-widest bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
+            {/* 2. OTHER RECOGNIZED DEVICES */}
+            {otherDevices.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px', margin: '0 0 12px' }}>
+                  Other Recognized Devices ({otherDevices.length})
+                </h4>
+                <div className={s('deviceList')}>
+                  {otherDevices.map((dev) => (
+                    <div key={dev.id} className={s('deviceItem')}>
+                      <div className={s('deviceLeft')}>
+                        <div className={s('deviceIcon')}>
+                          <i className={`fa-solid ${dev.os?.toLowerCase().includes('windows') ? 'fa-desktop' : dev.os?.toLowerCase().includes('android') || dev.os?.toLowerCase().includes('ios') ? 'fa-mobile-screen' : 'fa-laptop'}`} />
+                        </div>
+                        <div>
+                          <div className={s('deviceTitleRow')}>
+                            <span className={s('deviceName')}>
+                              {dev.browser || 'Web Browser'} on {dev.os || 'Device'}
+                            </span>
+                          </div>
+                          <div className={s('deviceMeta')}>
+                            <span><i className="fa-solid fa-network-wired" style={{ marginRight: 4, color: '#94a3b8' }} /> {dev.ip_address || '127.0.0.1'}</span>
+                            <span>•</span>
+                            <span><i className="fa-solid fa-location-dot" style={{ marginRight: 4, color: '#94a3b8' }} /> {dev.location || 'Local Network'}</span>
+                            <span>•</span>
+                            <span><i className="fa-solid fa-clock" style={{ marginRight: 4, color: '#94a3b8' }} /> Last active: {dev.last_login_at ? new Date(dev.last_login_at).toLocaleString() : 'Recent'}</span>
+                          </div>
+                        </div>
+                      </div>
 
-              {/* Recovery codes preview */}
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl text-xs text-amber-800 dark:text-amber-300">
-                <span className="font-bold block mb-1">Emergency Recovery Codes:</span>
-                <div className="grid grid-cols-2 gap-1 font-mono text-[11px]">
-                  {setupData.recoveryCodes.map((c, i) => (
-                    <span key={i}>{c}</span>
+                      <button onClick={() => handleRevokeDevice(dev.id)} className={s('btnDangerOutline')}>
+                        <i className="fa-solid fa-ban" style={{ marginRight: 4 }} /> Revoke
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 3: THREAT DEFENSE & POLICY ── */}
+        {activeTab === 'protection' && (
+          <div className={s('policyGrid')}>
+            <div className={s('policyCard')}>
+              <div className={cx(s('policyIconWrap'), s('policyIconOrange'))}>
+                <i className="fa-solid fa-fingerprint" />
+              </div>
+              <h4 className={s('policyTitle')}>Smart Device Fingerprinting</h4>
+              <p className={s('policyDesc')}>
+                Calculates cryptographic SHA256 browser and IP subnet fingerprints. Dispatches instant email alerts when a login from an unrecognized device occurs.
+              </p>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-4">
-              <button
-                onClick={() => setSetupModalOpen(false)}
-                className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEnable2FA}
-                disabled={verifyLoading || verifyCode.length < 6}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md disabled:opacity-50"
-              >
-                {verifyLoading ? 'Verifying...' : 'Verify & Enable 2FA'}
-              </button>
+            <div className={s('policyCard')}>
+              <div className={cx(s('policyIconWrap'), s('policyIconGreen'))}>
+                <i className="fa-solid fa-shield-halved" />
+              </div>
+              <h4 className={s('policyTitle')}>RFC 6238 TOTP Standard</h4>
+              <p className={s('policyDesc')}>
+                Compatible with Google Authenticator, Authy, and Microsoft Authenticator with 8 single-use emergency backup recovery codes.
+              </p>
+            </div>
+
+            <div className={s('policyCard')}>
+              <div className={cx(s('policyIconWrap'), s('policyIconBlue'))}>
+                <i className="fa-solid fa-shield-virus" />
+              </div>
+              <h4 className={s('policyTitle')}>Edge & DDoS Defense</h4>
+              <p className={s('policyDesc')}>
+                Global rate limiting (150 req/min per IP), automated IP telemetry monitoring, and instant lockout protection against brute-force attacks.
+              </p>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* DISABLE 2FA MODAL */}
-      {disableModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="font-bold text-lg text-slate-900 dark:text-white text-red-600 flex items-center gap-2">
-              <i className="fa-solid fa-triangle-exclamation"></i> Disable 2FA Protection
-            </h3>
-            <p className="text-xs text-slate-500">
-              Disabling 2FA reduces your account security. Please verify your identity:
-            </p>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Current Account Password
-                </label>
-                <input
-                  type="password"
-                  value={disablePassword}
-                  onChange={(e) => setDisablePassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
+        {/* ── 2FA SETUP MODAL ── */}
+        {setupModalOpen && setupData && (
+          <div className={s('modalOverlay')}>
+            <div className={s('modalContent')}>
+              <div className={s('modalHeader')}>
+                <h3 className={s('modalTitle')}>
+                  <i className="fa-solid fa-qrcode" style={{ color: '#ea580c' }} /> Set up Authenticator App
+                </h3>
+                <button onClick={() => setSetupModalOpen(false)} className={s('closeBtn')}>
+                  <i className="fa-solid fa-xmark" />
+                </button>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  6-Digit Authenticator Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={8}
-                  value={disableCode}
-                  onChange={(e) => setDisableCode(e.target.value)}
-                  placeholder="000000"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-mono bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                  1. Open <strong>Google Authenticator</strong> or your preferred TOTP app.<br />
+                  2. Tap <strong>+</strong> and scan this QR code:
+                </p>
+
+                <div className={s('qrBox')}>
+                  <img src={setupData.qrCodeDataUrl} alt="2FA QR Code" className={s('qrImage')} />
+                  <div className={s('secretRow')}>
+                    <span className={s('secretCode')}>{setupData.secret}</span>
+                    <button onClick={() => copyToClipboard(setupData.secret)} className={s('btnSecondary')} style={{ minHeight: 30, padding: '0 10px', fontSize: 12 }}>
+                      {copySuccess ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    3. Enter the 6-digit code from your app:
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className={s('otpInput')}
+                  />
+                </div>
+
+                <div className={s('recoveryBox')}>
+                  <span className={s('recoveryTitle')}>Emergency Backup Recovery Codes:</span>
+                  <div className={s('recoveryGrid')}>
+                    {setupData.recoveryCodes.map((c, i) => (
+                      <span key={i}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={s('modalFooter')}>
+                <button onClick={() => setSetupModalOpen(false)} className={s('btnSecondary')}>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEnable2FA}
+                  disabled={verifyLoading || verifyCode.length < 6}
+                  className={s('btnPrimary')}
+                >
+                  {verifyLoading ? 'Verifying...' : 'Verify & Enable 2FA'}
+                </button>
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="flex items-center justify-end gap-3 pt-3">
-              <button
-                onClick={() => setDisableModalOpen(false)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 font-bold text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDisable2FA}
-                disabled={disableLoading || !disablePassword || !disableCode}
-                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md disabled:opacity-50"
-              >
-                {disableLoading ? 'Disabling...' : 'Confirm Disable'}
-              </button>
+        {/* ── DISABLE 2FA MODAL ── */}
+        {disableModalOpen && (
+          <div className={s('modalOverlay')}>
+            <div className={s('modalContent')}>
+              <div className={s('modalHeader')}>
+                <h3 className={s('modalTitle')} style={{ color: '#dc2626' }}>
+                  <i className="fa-solid fa-triangle-exclamation" /> Disable 2FA Protection
+                </h3>
+                <button onClick={() => setDisableModalOpen(false)} className={s('closeBtn')}>
+                  <i className="fa-solid fa-xmark" />
+                </button>
+              </div>
+
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px 0' }}>
+                Disabling 2FA reduces your account security. Please verify your credentials:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={disablePassword}
+                    onChange={(e) => setDisablePassword(e.target.value)}
+                    placeholder="Enter your current password"
+                    className={s('inputField')}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    6-Digit Authenticator Code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={8}
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value)}
+                    placeholder="000000"
+                    className={s('inputField')}
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                </div>
+              </div>
+
+              <div className={s('modalFooter')}>
+                <button onClick={() => setDisableModalOpen(false)} className={s('btnSecondary')}>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDisable2FA}
+                  disabled={disableLoading || !disablePassword || !disableCode}
+                  className={s('btnDangerFilled')}
+                >
+                  {disableLoading ? 'Disabling...' : 'Confirm Disable'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

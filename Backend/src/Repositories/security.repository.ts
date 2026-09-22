@@ -127,11 +127,11 @@ export const upsertUserDeviceRepo = async (
   if (existing) {
     const updateQuery = `
       UPDATE public.user_devices
-      SET last_login_at = NOW(), ip_address = $1, browser = $2, os = $3
-      WHERE id = $4
+      SET last_login_at = NOW(), ip_address = $1, browser = $2, os = $3, location = $4
+      WHERE id = $5
       RETURNING *;
     `;
-    const res = await pool.query(updateQuery, [ipAddress, browser, os, existing.id]);
+    const res = await pool.query(updateQuery, [ipAddress, browser, os, location, existing.id]);
     return { isNew: false, device: res.rows[0] };
   } else {
     const insertQuery = `

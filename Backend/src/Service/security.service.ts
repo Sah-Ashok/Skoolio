@@ -2,6 +2,7 @@ import { generateSecret, generateURI, verify } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import geoip from 'geoip-lite';
 import { Request } from 'express';
 import {
   getTOTPSettingsRepo,
@@ -37,22 +38,59 @@ export const parseUserAgent = (userAgent: string = ''): { browser: string; os: s
   const ua = userAgent.toLowerCase();
 
   // Detect OS
-  if (ua.includes('windows')) os = 'Windows';
-  else if (ua.includes('macintosh') || ua.includes('mac os')) os = 'macOS';
-  else if (ua.includes('android')) os = 'Android';
-  else if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) os = 'iOS';
-  else if (ua.includes('linux')) os = 'Linux';
+  if (ua.includes('windows nt 10.0') || ua.includes('windows nt 11.0') || ua.includes('windows 11') || ua.includes('windows 10') || ua.includes('windows')) {
+    os = 'Windows';
+  } else if (ua.includes('macintosh') || ua.includes('mac os') || ua.includes('macos')) {
+    os = 'macOS';
+  } else if (ua.includes('android')) {
+    os = 'Android';
+  } else if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) {
+    os = 'iOS';
+  } else if (ua.includes('linux')) {
+    os = 'Linux';
+  }
 
   // Detect Browser
-  if (ua.includes('edg/')) browser = 'Microsoft Edge';
+  if (ua.includes('brave')) browser = 'Brave Browser';
+  else if (ua.includes('edg/')) browser = 'Microsoft Edge';
   else if (ua.includes('chrome/')) browser = 'Google Chrome';
   else if (ua.includes('firefox/')) browser = 'Mozilla Firefox';
   else if (ua.includes('safari/') && !ua.includes('chrome/')) browser = 'Apple Safari';
   else if (ua.includes('opr/') || ua.includes('opera')) browser = 'Opera';
   else if (ua.includes('skoolio') || ua.includes('dart')) browser = 'Skoolio Mobile App';
   else if (ua.includes('postman')) browser = 'Postman API Tool';
+  else if (browser === 'Unknown Browser') browser = 'Web Browser';
 
   return { browser, os };
+};
+
+/**
+  Resolve client IP to City and Country using offline geoip-lite
+ */
+export const resolveIpLocation = (ip: string): string => {
+  if (!ip) return 'Unknown Location';
+  const cleanIp = ip.split(',')[0].trim();
+  if (
+    cleanIp === '127.0.0.1' ||
+    cleanIp === '::1' ||
+    cleanIp.startsWith('192.168.') ||
+    cleanIp.startsWith('10.') ||
+    cleanIp.startsWith('172.16.')
+  ) {
+    return 'Local Network';
+  }
+
+  try {
+    const geo = geoip.lookup(cleanIp);
+    if (!geo) return 'Unknown Location';
+    const city = geo.city?.trim();
+    const country = geo.country?.trim();
+    if (city && country) return `${city}, ${country}`;
+    if (country) return country;
+    return 'Unknown Location';
+  } catch {
+    return 'Unknown Location';
+  }
 };
 
 /**
@@ -64,7 +102,7 @@ export const computeDeviceHash = (
   userAgent: string,
   ipAddress: string
 ): string => {
-  // Use first 3 octets of IP for subnet tolerance on dynamic mobile networks
+  // Use first 3 octets of IP for subnet tolerance on dynamic networks
   const ipSubnet = ipAddress.split('.').slice(0, 3).join('.');
   const rawString = `${userId}:${role}:${userAgent}:${ipSubnet}`;
   return crypto.createHash('sha256').update(rawString).digest('hex');
@@ -173,15 +211,38 @@ export const disable2FAService = async (
 
 export const getSecurityOverviewService = async (
   userId: number,
-  role: string
+  role: string,
+  req?: Request
 ) => {
+  let currentDeviceHash = '';
+  if (req) {
+    const userAgent = (req.headers['user-agent'] as string) || 'Unknown User-Agent';
+    const rawIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      '127.0.0.1';
+    const schoolId = (req.user as any)?.school_id ?? userId;
+    const { browser, os } = parseUserAgent(userAgent);
+    const location = resolveIpLocation(rawIp);
+    currentDeviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
+    await upsertUserDeviceRepo(schoolId, userId, role, currentDeviceHash, browser, os, rawIp, location);
+  }
+
   const userSecurity = await getTOTPSettingsRepo(userId, role);
-  const devices = await getUserDevicesRepo(userId, role);
+  const rawDevices = await getUserDevicesRepo(userId, role);
+
+  const devices = rawDevices.map((d) => ({
+    ...d,
+    is_current_device: currentDeviceHash ? d.device_hash === currentDeviceHash : false,
+  }));
+
+  if (devices.length > 0 && !devices.some((d) => d.is_current_device)) {
+    devices[0].is_current_device = true;
+  }
 
   const is2faEnabled = userSecurity ? userSecurity.totp_enabled : false;
 
-  // Compute overall protection level score
-  let securityScore = 50; // Base score
+  let securityScore = 50;
   if (is2faEnabled) securityScore += 40;
   if (devices.length <= 3) securityScore += 10;
 
@@ -215,6 +276,7 @@ export const trackDeviceLoginService = async (
     '127.0.0.1';
 
   const { browser, os } = parseUserAgent(userAgent);
+  const location = resolveIpLocation(rawIp);
   const deviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
 
   const { isNew, device } = await upsertUserDeviceRepo(
@@ -225,7 +287,7 @@ export const trackDeviceLoginService = async (
     browser,
     os,
     rawIp,
-    'Nepal' // Default fallback location
+    location
   );
 
   // If this is a NEW unrecognized device, send instant security alert email
@@ -236,13 +298,12 @@ export const trackDeviceLoginService = async (
       timeStyle: 'short',
     });
 
-    // Fire and forget email so login is not delayed
     sendNewDeviceAlertEmail(userEmail, {
       browser,
       os,
       ip: rawIp,
       time: `${formattedTime} (NPT)`,
-      location: 'Nepal',
+      location,
     }).catch((err) => {
       console.error('[Device Tracker] Failed to dispatch new device email:', err.message);
     });
@@ -251,8 +312,26 @@ export const trackDeviceLoginService = async (
   return { isNewDevice: isNew, device };
 };
 
-export const getUserDevicesService = async (userId: number, role: string) => {
-  return await getUserDevicesRepo(userId, role);
+export const getUserDevicesService = async (userId: number, role: string, req?: Request) => {
+  let currentDeviceHash = '';
+  if (req) {
+    const userAgent = (req.headers['user-agent'] as string) || 'Unknown User-Agent';
+    const rawIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      '127.0.0.1';
+    const schoolId = (req.user as any)?.school_id ?? userId;
+    const { browser, os } = parseUserAgent(userAgent);
+    const location = resolveIpLocation(rawIp);
+    currentDeviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
+    await upsertUserDeviceRepo(schoolId, userId, role, currentDeviceHash, browser, os, rawIp, location);
+  }
+
+  const rawDevices = await getUserDevicesRepo(userId, role);
+  return rawDevices.map((d) => ({
+    ...d,
+    is_current_device: currentDeviceHash ? d.device_hash === currentDeviceHash : false,
+  }));
 };
 
 export const revokeUserDeviceService = async (

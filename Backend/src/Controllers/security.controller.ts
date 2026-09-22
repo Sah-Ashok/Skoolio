@@ -58,14 +58,14 @@ export const disable2FA = catchAsync(async (req: Request, res: Response) => {
 // ── GET SECURITY OVERVIEW ─────────────────────────────────────────────────────
 export const getSecurityOverview = catchAsync(async (req: Request, res: Response) => {
   const user = req.user!;
-  const overview = await getSecurityOverviewService(user.id, user.role);
+  const overview = await getSecurityOverviewService(user.id, user.role, req);
   sendResponse(res, 200, true, 'Security overview fetched', overview);
 });
 
 // ── GET USER DEVICES ──────────────────────────────────────────────────────────
 export const getUserDevices = catchAsync(async (req: Request, res: Response) => {
   const user = req.user!;
-  const devices = await getUserDevicesService(user.id, user.role);
+  const devices = await getUserDevicesService(user.id, user.role, req);
   sendResponse(res, 200, true, 'User logged-in devices fetched', devices);
 });
 
