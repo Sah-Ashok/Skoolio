@@ -256,104 +256,75 @@ class StudentDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    SvgPicture.asset(
-                      greetingIcon,
-                      width: 24,
-                      height: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      greetingText,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
+          Row(
+            children: [
+              SvgPicture.asset(
+                greetingIcon,
+                width: 38,
+                height: 38,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                greetingText,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF64748B),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  firstName,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF86EFAC)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, size: 7, color: Color(0xFF16A34A)),
-                          SizedBox(width: 5),
-                          Text(
-                            'Active Student',
-                            style: TextStyle(
-                              color: Color(0xFF166534),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (user?.className != null) ...[
-                      const SizedBox(width: 8),
-                      Text(
-                        'Class ${user.className}${user?.sectionName != null ? ' - ${user.sectionName}' : ''}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            firstName,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.5,
             ),
           ),
-          InkWell(
-            onTap: () => context.push('/student/profile'),
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFF97316), width: 2),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'S',
-                style: const TextStyle(
-                  color: Color(0xFFF97316),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.circle, size: 7, color: Color(0xFF16A34A)),
+                    SizedBox(width: 5),
+                    Text(
+                      'Active Student',
+                      style: TextStyle(
+                        color: Color(0xFF166534),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              if (user?.className != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'Class ${user.className}${user?.sectionName != null ? ' - ${user.sectionName}' : ''}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -424,12 +395,12 @@ class StudentDashboardScreen extends ConsumerWidget {
         ),
         const SizedBox(width: 8),
 
-        // 3. Semester Avg / Exam Results
+        // 3. Exam Avg / Exam Results
         Expanded(
           child: resultsAsync.when(
             loading: () => _buildKpiPlaceholder(),
             error: (_, __) => _buildStatBox(
-              title: 'Semester Avg',
+              title: 'Exam Avg',
               value: '—',
               subtitle: 'No exams yet',
               accentColor: const Color(0xFF94A3B8),
@@ -441,7 +412,7 @@ class StudentDashboardScreen extends ConsumerWidget {
               final grade = data['semester_grade'] ?? '—';
               final avg = data['semester_avg'] ?? 0;
               return _buildStatBox(
-                title: 'Semester Avg',
+                title: 'Exam Avg',
                 value: hasResults ? grade : '—',
                 subtitle: hasResults ? '$avg% Overall' : 'No exams yet',
                 accentColor: hasResults ? const Color(0xFF7C3AED) : const Color(0xFF94A3B8),

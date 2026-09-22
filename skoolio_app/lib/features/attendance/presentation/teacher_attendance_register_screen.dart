@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../data/teacher_attendance_repository.dart';
 import '../domain/attendance_models.dart';
 
@@ -436,34 +437,40 @@ class _TeacherAttendanceRegisterScreenState
         },
       ),
       bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF97316),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF97316),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.edit_calendar_rounded, size: 18),
+                      label: const Text(
+                        'Mark Roll for Section',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: () => context.push('/teacher/attendance'),
                     ),
                   ),
-                  icon: const Icon(Icons.edit_calendar_rounded, size: 18),
-                  label: const Text(
-                    'Mark Roll for Section',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  onPressed: () => context.push('/teacher/attendance'),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const AppHorizontalNavBar(currentRoute: '/teacher/attendance/register'),
+          ],
         ),
       ),
     );

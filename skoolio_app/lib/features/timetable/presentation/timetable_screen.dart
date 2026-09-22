@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
 import '../../auth/domain/models.dart';
@@ -57,6 +58,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: AppHorizontalNavBar(currentRoute: isTeacher ? '/teacher/timetable' : '/student/timetable'),
       appBar: AppBar(
         title: Text(
           isTeacher ? 'Timetable & Routine' : 'Class Timetable',

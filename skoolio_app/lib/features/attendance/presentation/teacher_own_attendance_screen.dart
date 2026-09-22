@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../data/teacher_attendance_repository.dart';
 
 class TeacherOwnAttendanceScreen extends ConsumerStatefulWidget {
@@ -75,6 +76,7 @@ class _TeacherOwnAttendanceScreenState extends ConsumerState<TeacherOwnAttendanc
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/teacher/attendance/own'),
       appBar: AppBar(
         title: const Text('My Attendance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [

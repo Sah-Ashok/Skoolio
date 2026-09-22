@@ -23,6 +23,8 @@ import { setupTrialSubscription } from './subscription.service';
 import { setupDefaultAcademicYear } from './academic.service';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
+import { trackDeviceLoginService } from './security.service';
+import { Request } from 'express';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -141,7 +143,7 @@ export type LoginSchoolResult =
   | { type: 'success';      school: any; token: string }
   | { type: 'requires_2fa'; twofa_session: string };
 
-export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoolResult> => {
+export const loginSchoolService = async (data: ILoginSchool, req?: Request): Promise<LoginSchoolResult> => {
   const school = await findSchoolByEmail(data.email);
   if (!school) throw new AppError('Invalid email or password', 401);
 
@@ -160,20 +162,20 @@ export const loginSchoolService = async (data: ILoginSchool): Promise<LoginSchoo
   const isMatch = await bcrypt.compare(data.password, school.password);
   if (!isMatch) throw new AppError('Invalid email or password', 401);
 
-  // ── 2FA flow ──
-  if ((school as any).two_fa_enabled) {
-    const otp = generateOTPCode();
-    await storeOTP(school.email, otp, 'two_fa');
-    try {
-      await sendOTPEmail(school.email, otp, 'two_fa');
-    } catch (err: any) {
-      console.error('[2FA] Failed to send OTP email:', err.message);
-      throw new AppError('Could not send verification code. Please try again later.', 503);
-    }
+  // ── TOTP / Authenticator App 2FA flow ──
+  const isTotpEnabled = (school as any).totp_enabled || (school as any).two_fa_enabled;
+  if (isTotpEnabled) {
     const twofa_session = generateShortToken(
-      { id: school.id, email: school.email, purpose: 'twofa_pending' }, '5m'
+      { id: school.id, email: school.email, role: school.role, purpose: 'totp_pending' }, '5m'
     );
     return { type: 'requires_2fa', twofa_session };
+  }
+
+  // ── Smart Device Login Fingerprint Tracking ──
+  if (req) {
+    await trackDeviceLoginService(req, school.id, school.id, school.role, school.email).catch((err) => {
+      console.error('[Device Tracker Error]', err.message);
+    });
   }
 
   // ── Normal login ──

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
+import '../../auth/domain/models.dart';
+import '../../auth/presentation/auth_providers.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../data/calendar_repository.dart';
 import '../domain/calendar_models.dart';
@@ -210,9 +213,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final calendarAsync = ref.watch(calendarBundleProvider);
+    final user = ref.watch(authStateProvider).user;
+    final isTeacher = user?.role == UserRole.faculty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: AppHorizontalNavBar(currentRoute: isTeacher ? '/teacher/calendar' : '/student/calendar'),
       appBar: AppBar(
         title: const Text(
           'Academic Calendar',

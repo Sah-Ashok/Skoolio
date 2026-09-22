@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../attendance/data/teacher_attendance_repository.dart';
 import '../../attendance/domain/attendance_models.dart';
@@ -60,6 +61,7 @@ class _TeacherMarksScreenState extends ConsumerState<TeacherMarksScreen> with Si
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/teacher/results'),
       appBar: AppBar(
         title: const Text('Exams & Marks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         bottom: TabBar(

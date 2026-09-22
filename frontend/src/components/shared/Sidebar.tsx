@@ -97,6 +97,7 @@ const adminNav: NavSection[] = [
   {
     label: 'System',
     items: [
+      { href: '/security', icon: 'fa-shield-halved', label: 'Security & 2FA' },
       { href: '/settings', icon: 'fa-gear', label: 'Settings' },
       { href: '/subscription', icon: 'fa-crown', label: 'Subscription' },
     ],
@@ -195,6 +196,12 @@ const financeNav: NavSection[] = [
     items: [
       { href: '/finance/transport', icon: 'fa-bus',      label: 'Transport' },
       { href: '/finance/hostel',    icon: 'fa-building', label: 'Hostel' },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { href: '/security', icon: 'fa-shield-halved', label: 'Security & 2FA' },
     ],
   },
 ];

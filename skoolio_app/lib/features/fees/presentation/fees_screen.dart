@@ -7,6 +7,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final studentFeesListProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
@@ -33,6 +34,7 @@ class FeesScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/student/fees'),
       appBar: AppBar(
         title: const Text(
           'Fees & Invoices',

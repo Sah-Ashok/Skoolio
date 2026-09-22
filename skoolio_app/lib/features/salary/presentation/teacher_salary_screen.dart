@@ -4,6 +4,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final teacherSalaryHistoryProvider = FutureProvider<List<dynamic>>((ref) async {
@@ -52,6 +53,7 @@ class _TeacherSalaryScreenState extends ConsumerState<TeacherSalaryScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/teacher/salary'),
       appBar: AppBar(
         title: const Text('My Salary & Slips', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       ),

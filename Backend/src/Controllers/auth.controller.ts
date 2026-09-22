@@ -49,7 +49,7 @@ export const registerSchool = catchAsync(async (req: Request, res: Response) => 
 // ── LOGIN (admin — handles 2FA redirect) ─────────────────────────────────────
 
 export const loginSchool = catchAsync(async (req: Request, res: Response) => {
-  const result = await loginSchoolService(req.body as ILoginSchool);
+  const result = await loginSchoolService(req.body as ILoginSchool, req);
 
   if (result.type === 'requires_2fa') {
     sendResponse(res, 200, true, '2FA verification required', {

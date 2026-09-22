@@ -314,8 +314,86 @@ export const sendCriticalErrorAlert = async (
   }
 };
 
+export interface IDeviceInfo {
+  browser: string;
+  os: string;
+  ip: string;
+  time: string;
+  location?: string;
+}
 
+export const sendNewDeviceAlertEmail = async (
+  to: string,
+  device: IDeviceInfo
+): Promise<void> => {
+  const subject = 'Security Alert: New device login to your Skoolio account';
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${subject}</title>
+  ${GOOGLE_FONTS_HEAD}
+</head>
+<body style="margin:0;padding:28px 20px;font-family:${FONT_FAMILY};color:#1e293b;background:#ffffff;line-height:1.6;">
+  <div style="max-width:540px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;background:#ffffff;">
+    <div style="font-size:24px;font-weight:800;color:#1e293b;letter-spacing:-0.5px;margin-bottom:20px;">
+      🛡️ Skoolio Security Alert
+    </div>
 
+    <h2 style="margin:0 0 12px 0;font-size:18px;font-weight:700;color:#0f172a;">
+      New Login Detected
+    </h2>
 
+    <p style="margin:0 0 16px 0;font-size:14px;color:#334155;line-height:1.6;">
+      Your Skoolio account was recently logged into from a new or unrecognized device.
+    </p>
 
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;color:#334155;">
+        <tr>
+          <td style="padding:4px 0;font-weight:700;color:#64748b;width:120px;">Browser:</td>
+          <td style="padding:4px 0;font-weight:600;color:#0f172a;">${device.browser}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:700;color:#64748b;">OS:</td>
+          <td style="padding:4px 0;font-weight:600;color:#0f172a;">${device.os}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:700;color:#64748b;">IP Address:</td>
+          <td style="padding:4px 0;font-weight:600;color:#0f172a;">${device.ip}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-weight:700;color:#64748b;">Time:</td>
+          <td style="padding:4px 0;font-weight:600;color:#0f172a;">${device.time}</td>
+        </tr>
+      </table>
+    </div>
 
+    <p style="margin:16px 0 8px 0;font-size:13px;color:#64748b;">
+      If this was you, no action is needed. Your device fingerprint has been recorded.
+    </p>
+    <p style="margin:0 0 20px 0;font-size:13px;color:#dc2626;font-weight:700;">
+      If you did not initiate this login, please sign in immediately and revoke access from your Security Dashboard.
+    </p>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px;font-size:12px;color:#94a3b8;text-align:center;">
+      © ${new Date().getFullYear()} Skoolio Cloud ERP Security Engine
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    await getTransporter().sendMail({
+      from: `"Skoolio Security" <${process.env.SMTP_USER}>`,
+      to,
+      subject,
+      text: `Security Alert: New device login from ${device.browser} on ${device.os} (IP: ${device.ip}). If this was not you, revoke access in your Security Dashboard immediately.`,
+      html,
+    });
+    console.log(`[Security Alert] New device email delivered to ${to}`);
+  } catch (mailErr: any) {
+    console.error('[Security Alert Error] Failed to send new device email:', mailErr.message);
+  }
+};

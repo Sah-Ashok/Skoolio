@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 class StudentAttendanceScreen extends ConsumerStatefulWidget {
@@ -93,6 +94,7 @@ class _StudentAttendanceScreenState extends ConsumerState<StudentAttendanceScree
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/student/attendance'),
       appBar: AppBar(
         title: const Text(
           'My Attendance',

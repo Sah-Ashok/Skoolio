@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 import 'widgets/change_password_dialog.dart';
 
@@ -14,6 +15,7 @@ class TeacherProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/teacher/profile'),
       appBar: AppBar(
         title: const Text('Faculty Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       ),

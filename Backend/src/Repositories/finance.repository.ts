@@ -35,6 +35,16 @@ export const findFinanceUserById = async (
   return result.rows[0] || null;
 };
 
+export const findFinanceUserByIdWithPassword = async (
+  id: number
+): Promise<IFinanceUser | null> => {
+  const result = await pool.query(
+    `SELECT * FROM finance_users WHERE id = $1`,
+    [id]
+  );
+  return result.rows[0] || null;
+};
+
 export const findFinanceUserByEmailGlobal = async (
   email: string
 ): Promise<(IFinanceUser & {

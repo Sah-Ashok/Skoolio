@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
+import '../../auth/domain/models.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 class ContactScreen extends ConsumerStatefulWidget {
@@ -38,7 +40,7 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
     try {
       final user = ref.read(authStateProvider).user;
       if (user != null) {
-        final name = user.fullName ?? '';
+        final name = user.fullName;
         final email = user.email ?? '';
         final school = user.schoolName ?? '';
 
@@ -109,8 +111,12 @@ class _ContactScreenState extends ConsumerState<ContactScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authStateProvider).user;
+    final isTeacher = user?.role == UserRole.faculty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      bottomNavigationBar: AppHorizontalNavBar(currentRoute: isTeacher ? '/teacher/contact' : '/student/contact'),
       appBar: AppBar(
         title: const Text('Contact & Support', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       ),

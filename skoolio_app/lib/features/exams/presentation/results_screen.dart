@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final studentResultsListProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
@@ -41,6 +42,7 @@ class ResultsScreen extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         backgroundColor: AppColors.background,
+        bottomNavigationBar: const AppHorizontalNavBar(currentRoute: '/student/results'),
         appBar: AppBar(
           title: const Text(
             'Exams & Results',
