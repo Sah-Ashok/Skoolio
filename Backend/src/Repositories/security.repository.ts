@@ -153,7 +153,13 @@ export const findDeviceByHashRepo = async (
 ): Promise<IUserDeviceRecord | null> => {
   const query = `
     SELECT * FROM public.user_devices
-    WHERE user_id = $1 AND role = $2 AND device_hash = $3
+    WHERE user_id = $1
+      AND (
+        role = $2
+        OR ($2 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+        OR ($2 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
+      )
+      AND device_hash = $3
     LIMIT 1;
   `;
   const res = await pool.query(query, [userId, role, deviceHash]);
@@ -226,7 +232,12 @@ export const getUserDevicesRepo = async (
   try {
     const query = `
       SELECT * FROM public.user_devices
-      WHERE user_id = $1 AND role = $2
+      WHERE user_id = $1
+        AND (
+          role = $2
+          OR ($2 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+          OR ($2 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
+        )
       ORDER BY last_login_at DESC;
     `;
     const res = await pool.query(query, [userId, role]);
@@ -244,7 +255,13 @@ export const deleteUserDeviceRepo = async (
 ): Promise<boolean> => {
   const query = `
     DELETE FROM public.user_devices
-    WHERE id = $1 AND user_id = $2 AND role = $3;
+    WHERE id = $1
+      AND user_id = $2
+      AND (
+        role = $3
+        OR ($3 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+        OR ($3 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
+      );
   `;
   const res = await pool.query(query, [deviceId, userId, role]);
   return (res.rowCount ?? 0) > 0;
