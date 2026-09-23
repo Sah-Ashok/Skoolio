@@ -8,6 +8,14 @@ import {
   getUserDevices,
   revokeDevice,
   verify2FAChallenge,
+  getTrafficStats,
+  getSecurityEvents,
+  getBannedIpsList,
+  banIpAddress,
+  unbanIpAddress,
+  updateMaintenanceMode,
+  updateAnnouncement,
+  syncBlockedSchoolsState,
 } from '../Controllers/security.controller';
 import {
   getPasskeyRegistrationOptions,
@@ -36,6 +44,16 @@ router.post('/2fa/disable', disable2FA);
 
 router.get('/devices', getUserDevices);
 router.delete('/devices/:id', revokeDevice);
+
+// Super Admin platform traffic, threats, and Redis controls
+router.get('/traffic-stats', getTrafficStats);
+router.get('/events', getSecurityEvents);
+router.get('/banned-ips', getBannedIpsList);
+router.post('/ban-ip', banIpAddress);
+router.delete('/unban-ip/:ip', unbanIpAddress);
+router.post('/maintenance', updateMaintenanceMode);
+router.post('/announcement', updateAnnouncement);
+router.post('/sync-blocked-schools', syncBlockedSchoolsState);
 
 // Passkey registration & management
 router.get('/passkey/register-options', getPasskeyRegistrationOptions);

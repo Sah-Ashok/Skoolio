@@ -64,11 +64,11 @@ function formatDate(dateStr?: string | null): string {
 }
 
 export default function SecurityDashboardPage() {
-  const { data: overviewRes, loading: overviewLoading, refetch: refetchOverview } = useApi<{ success: boolean; data: ISecurityOverview }>('/security/overview');
-  const overview = overviewRes?.data || null;
+  const { data: overviewData, loading: overviewLoading, refetch: refetchOverview } = useApi<ISecurityOverview>('/security/overview');
+  const overview: ISecurityOverview | null = (overviewData as any)?.data ?? overviewData ?? null;
 
-  const { data: passkeysRes, loading: passkeysLoading, refetch: refetchPasskeys } = useApi<{ success: boolean; data: IPasskey[] }>('/security/passkey/list');
-  const passkeys = passkeysRes?.data || [];
+  const { data: passkeysData, loading: passkeysLoading, refetch: refetchPasskeys } = useApi<IPasskey[]>('/security/passkey/list');
+  const passkeys: IPasskey[] = Array.isArray(passkeysData) ? passkeysData : ((passkeysData as any)?.data ?? []);
 
   const [activeTab, setActiveTab] = useState<'devices' | 'passkeys' | '2fa' | 'password'>('devices');
   const [error, setError] = useState<string | null>(null);
@@ -272,7 +272,7 @@ export default function SecurityDashboardPage() {
   };
 
   const is2FAActive = overview?.totp_enabled;
-  const devices = overview?.devices || [];
+  const devices: IDevice[] = overview?.devices || [];
 
   return (
     <div className={s('page')}>
@@ -366,7 +366,7 @@ export default function SecurityDashboardPage() {
                       </td>
                     </tr>
                   )}
-                  {devices.map((dev) => (
+                  {devices.map((dev: IDevice) => (
                     <tr key={dev.id} className={dev.is_current_device ? s('currentDeviceRow') : undefined}>
                       <td>
                         <div className={s('deviceCell')}>
@@ -443,7 +443,7 @@ export default function SecurityDashboardPage() {
                       </td>
                     </tr>
                   )}
-                  {passkeys.map((pk) => (
+                  {passkeys.map((pk: IPasskey) => (
                     <tr key={pk.id}>
                       <td>
                         <div className={s('deviceCell')}>

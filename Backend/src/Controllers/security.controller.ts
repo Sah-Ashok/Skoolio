@@ -151,3 +151,112 @@ export const verify2FAChallenge = catchAsync(async (req: Request, res: Response)
   setAuthCookie(res, token);
   sendResponse(res, 200, true, '2FA authentication successful', { school: safeSchool, token });
 });
+
+// ── SUPER ADMIN TRAFFIC & SECURITY STATS ────────────────────────────────────
+import pool from '../config/db';
+import {
+  getActiveUsersStats,
+  getBannedIps,
+  banIp,
+  unbanIp,
+  getMaintenanceMode,
+  setMaintenanceMode,
+  getGlobalAnnouncement,
+  setGlobalAnnouncement,
+  syncBlockedSchools,
+} from '../Service/redis.service';
+
+export const getTrafficStats = catchAsync(async (_req: Request, res: Response) => {
+  const activeStats = await getActiveUsersStats();
+  const maintenance = await getMaintenanceMode();
+  const announcement = await getGlobalAnnouncement();
+  const bannedIps = await getBannedIps();
+
+  let eventsLast24Hours = 0;
+  try {
+    const evRes = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM platform_security_events WHERE created_at > NOW() - INTERVAL '24 hours'`
+    );
+    eventsLast24Hours = evRes.rows[0]?.count || 0;
+  } catch {}
+
+  const responseData = {
+    ...activeStats,
+    bannedIpsCount: bannedIps.length,
+    eventsLast24Hours,
+    maintenance,
+    announcement,
+  };
+
+  sendResponse(res, 200, true, 'Traffic and security statistics fetched', responseData);
+});
+
+// ── GET SECURITY EVENTS AUDIT LOG ───────────────────────────────────────────
+export const getSecurityEvents = catchAsync(async (req: Request, res: Response) => {
+  const eventType = req.query.event_type as string | undefined;
+  let query = `
+    SELECT pse.*, s.school_name
+    FROM platform_security_events pse
+    LEFT JOIN schools s ON s.id = pse.school_id
+  `;
+  const params: any[] = [];
+  if (eventType && eventType.trim()) {
+    query += ` WHERE pse.event_type = $1`;
+    params.push(eventType.trim());
+  }
+  query += ` ORDER BY pse.created_at DESC LIMIT 100`;
+
+  let events: any[] = [];
+  try {
+    const result = await pool.query(query, params);
+    events = result.rows;
+  } catch (err: any) {
+    console.warn('[SecurityEvents Query Error]', err.message);
+  }
+
+  sendResponse(res, 200, true, 'Security events retrieved', events);
+});
+
+// ── GET BANNED IPS ──────────────────────────────────────────────────────────
+export const getBannedIpsList = catchAsync(async (_req: Request, res: Response) => {
+  const ips = await getBannedIps();
+  sendResponse(res, 200, true, 'Banned IPs retrieved', ips);
+});
+
+// ── BAN IP ──────────────────────────────────────────────────────────────────
+export const banIpAddress = catchAsync(async (req: Request, res: Response) => {
+  const { ip, reason, durationSeconds } = req.body;
+  if (!ip) throw new AppError('IP address is required.', 400);
+
+  await banIp(ip, reason || 'Manual ban by Super Admin', durationSeconds ? Number(durationSeconds) : 86400);
+  sendResponse(res, 200, true, `IP ${ip} has been banned`, null);
+});
+
+// ── UNBAN IP ────────────────────────────────────────────────────────────────
+export const unbanIpAddress = catchAsync(async (req: Request, res: Response) => {
+  const ip = decodeURIComponent(String(req.params.ip || ''));
+  if (!ip) throw new AppError('IP address parameter is required.', 400);
+
+  await unbanIp(ip);
+  sendResponse(res, 200, true, `IP ${ip} has been unbanned`, null);
+});
+
+// ── SET MAINTENANCE MODE ────────────────────────────────────────────────────
+export const updateMaintenanceMode = catchAsync(async (req: Request, res: Response) => {
+  const { enabled, message } = req.body;
+  await setMaintenanceMode(Boolean(enabled), message || 'System is undergoing scheduled maintenance.');
+  sendResponse(res, 200, true, 'Maintenance mode updated', { enabled, message });
+});
+
+// ── SET GLOBAL ANNOUNCEMENT ─────────────────────────────────────────────────
+export const updateAnnouncement = catchAsync(async (req: Request, res: Response) => {
+  const { active, message } = req.body;
+  await setGlobalAnnouncement(message || '', Boolean(active));
+  sendResponse(res, 200, true, 'Broadcast announcement updated', { active, message });
+});
+
+// ── SYNC BLOCKED SCHOOLS ────────────────────────────────────────────────────
+export const syncBlockedSchoolsState = catchAsync(async (_req: Request, res: Response) => {
+  await syncBlockedSchools();
+  sendResponse(res, 200, true, 'Blocked schools synchronized with Redis', null);
+});
