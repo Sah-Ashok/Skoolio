@@ -61,7 +61,7 @@ export const deleteFinanceAccount = catchAsync(async (req: Request, res: Respons
 });
 
 export const loginFinance = catchAsync(async (req: Request, res: Response) => {
-  const { user, token } = await loginFinanceService(req.body);
+  const { user, token } = await loginFinanceService(req.body, req);
 
   res.cookie('token', token, {
     httpOnly: true,

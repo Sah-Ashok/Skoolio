@@ -23,28 +23,14 @@ export interface ITOTPUserData {
   totp_recovery_codes: string[] | null;
 }
 
-// Auto-initialize security & device tables if not exists
+// Auto-initialize security & device tables if not exists (isolated blocks)
 export const initSecurityTables = async (): Promise<void> => {
+  // 1. Ensure user_devices table always exists
   try {
     await pool.query(`
-      ALTER TABLE public.schools
-        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
-        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
-
-      ALTER TABLE public.finance_users
-        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
-        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
-
-      ALTER TABLE public.teachers
-        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
-        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
-
       CREATE TABLE IF NOT EXISTS public.user_devices (
         id SERIAL PRIMARY KEY,
-        school_id INT REFERENCES public.schools(id) ON DELETE CASCADE,
+        school_id INT,
         user_id INT NOT NULL,
         role VARCHAR(50) NOT NULL,
         device_hash VARCHAR(64) NOT NULL,
@@ -54,18 +40,51 @@ export const initSecurityTables = async (): Promise<void> => {
         location VARCHAR(100),
         is_trusted BOOLEAN DEFAULT TRUE NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        last_login_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        CONSTRAINT uq_user_role_device UNIQUE (user_id, role, device_hash)
+        last_login_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
       );
-
       CREATE INDEX IF NOT EXISTS idx_user_devices_lookup
         ON public.user_devices (user_id, role, device_hash);
-
       CREATE INDEX IF NOT EXISTS idx_user_devices_school
         ON public.user_devices (school_id);
     `);
   } catch (err: any) {
-    console.warn('[Security DB Init]', err.message);
+    console.error('[Security DB Init user_devices error]', err.message);
+  }
+
+  // 2. Add TOTP columns to schools if not exists
+  try {
+    await pool.query(`
+      ALTER TABLE public.schools
+        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
+        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
+    `);
+  } catch (err: any) {
+    console.warn('[Security DB Init schools error]', err.message);
+  }
+
+  // 3. Add TOTP columns to finance_users if table exists
+  try {
+    await pool.query(`
+      ALTER TABLE public.finance_users
+        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
+        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
+    `);
+  } catch (err: any) {
+    console.warn('[Security DB Init finance_users error]', err.message);
+  }
+
+  // 4. Add TOTP columns to teachers if table exists
+  try {
+    await pool.query(`
+      ALTER TABLE public.teachers
+        ADD COLUMN IF NOT EXISTS totp_secret TEXT,
+        ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[];
+    `);
+  } catch (err: any) {
+    console.warn('[Security DB Init teachers error]', err.message);
   }
 };
 
@@ -157,6 +176,7 @@ export const findDeviceByHashRepo = async (
       AND (
         role = $2
         OR ($2 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+        OR ($2 IN ('finance', 'finance_manager') AND role IN ('finance', 'finance_manager'))
         OR ($2 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
       )
       AND device_hash = $3
@@ -176,52 +196,29 @@ export const upsertUserDeviceRepo = async (
   ipAddress: string,
   location: string = 'Unknown'
 ): Promise<{ isNew: boolean; device: IUserDeviceRecord }> => {
-  try {
-    const existing = await findDeviceByHashRepo(userId, role, deviceHash);
+  const existing = await findDeviceByHashRepo(userId, role, deviceHash);
 
-    if (existing) {
-      const updateQuery = `
-        UPDATE public.user_devices
-        SET last_login_at = NOW(), ip_address = $1, browser = $2, os = $3, location = $4
-        WHERE id = $5
-        RETURNING *;
-      `;
-      const res = await pool.query(updateQuery, [ipAddress, browser, os, location, existing.id]);
-      return { isNew: false, device: res.rows[0] };
-    } else {
-      const insertQuery = `
-        INSERT INTO public.user_devices
-          (school_id, user_id, role, device_hash, browser, os, ip_address, location, is_trusted, created_at, last_login_at)
-        VALUES
-          ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())
-        ON CONFLICT (user_id, role, device_hash) DO UPDATE
-        SET last_login_at = NOW(), ip_address = EXCLUDED.ip_address, browser = EXCLUDED.browser, os = EXCLUDED.os, location = EXCLUDED.location
-        RETURNING *;
-      `;
-      const res = await pool.query(insertQuery, [
-        schoolId, userId, role, deviceHash, browser, os, ipAddress, location,
-      ]);
-      return { isNew: true, device: res.rows[0] };
-    }
-  } catch (err: any) {
-    console.warn('[upsertUserDeviceRepo error]', err.message);
-    return {
-      isNew: false,
-      device: {
-        id: 0,
-        school_id: schoolId,
-        user_id: userId,
-        role,
-        device_hash: deviceHash,
-        browser,
-        os,
-        ip_address: ipAddress,
-        location,
-        is_trusted: true,
-        created_at: new Date(),
-        last_login_at: new Date(),
-      },
-    };
+  if (existing) {
+    const updateQuery = `
+      UPDATE public.user_devices
+      SET last_login_at = NOW(), ip_address = $1, browser = $2, os = $3, location = $4
+      WHERE id = $5
+      RETURNING *;
+    `;
+    const res = await pool.query(updateQuery, [ipAddress, browser, os, location, existing.id]);
+    return { isNew: false, device: res.rows[0] };
+  } else {
+    const insertQuery = `
+      INSERT INTO public.user_devices
+        (school_id, user_id, role, device_hash, browser, os, ip_address, location, is_trusted, created_at, last_login_at)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())
+      RETURNING *;
+    `;
+    const res = await pool.query(insertQuery, [
+      schoolId, userId, role, deviceHash, browser, os, ipAddress, location,
+    ]);
+    return { isNew: true, device: res.rows[0] };
   }
 };
 
@@ -229,23 +226,19 @@ export const getUserDevicesRepo = async (
   userId: number,
   role: string
 ): Promise<IUserDeviceRecord[]> => {
-  try {
-    const query = `
-      SELECT * FROM public.user_devices
-      WHERE user_id = $1
-        AND (
-          role = $2
-          OR ($2 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
-          OR ($2 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
-        )
-      ORDER BY last_login_at DESC;
-    `;
-    const res = await pool.query(query, [userId, role]);
-    return res.rows;
-  } catch (err: any) {
-    console.warn('[getUserDevicesRepo error]', err.message);
-    return [];
-  }
+  const query = `
+    SELECT * FROM public.user_devices
+    WHERE user_id = $1
+      AND (
+        role = $2
+        OR ($2 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+        OR ($2 IN ('finance', 'finance_manager') AND role IN ('finance', 'finance_manager'))
+        OR ($2 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
+      )
+    ORDER BY last_login_at DESC;
+  `;
+  const res = await pool.query(query, [userId, role]);
+  return res.rows;
 };
 
 export const deleteUserDeviceRepo = async (
@@ -260,6 +253,7 @@ export const deleteUserDeviceRepo = async (
       AND (
         role = $3
         OR ($3 IN ('admin', 'school_admin', 'super_admin') AND role IN ('admin', 'school_admin', 'super_admin'))
+        OR ($3 IN ('finance', 'finance_manager') AND role IN ('finance', 'finance_manager'))
         OR ($3 IN ('faculty', 'teacher') AND role IN ('faculty', 'teacher'))
       );
   `;

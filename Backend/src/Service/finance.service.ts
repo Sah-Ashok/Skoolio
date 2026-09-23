@@ -130,7 +130,13 @@ export const deleteSchoolFinanceAccountService = async (school_id: number, otp?:
   return await deleteFinanceUser(school_id);
 };
 
-export const loginFinanceService = async (credentials: { email: string; password: string }) => {
+import { trackDeviceLoginService } from './security.service';
+import { Request } from 'express';
+
+export const loginFinanceService = async (
+  credentials: { email: string; password: string },
+  req?: Request
+) => {
   const financeUser = await findFinanceUserByEmailGlobal(credentials.email);
   if (!financeUser) {
     throw new AppError('Invalid email or password.', 401);
@@ -164,6 +170,13 @@ export const loginFinanceService = async (credentials: { email: string; password
   }
 
   await updateFinanceLastLogin(financeUser.id);
+
+  // Track device login for Finance user
+  if (req) {
+    await trackDeviceLoginService(req, financeUser.school_id, financeUser.id, 'finance', financeUser.email).catch((err) => {
+      console.error('[Finance Device Tracker Error]', err.message);
+    });
+  }
 
   const payload: IJwtUserPayload = {
     id: financeUser.id,
