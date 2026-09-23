@@ -24,6 +24,11 @@ router.post('/2fa/verify-challenge', verify2FAChallenge);
 // Protected security dashboard endpoints
 router.use(protect);
 
+// Heartbeat keep-alive endpoint (maintains active presence in Redis)
+router.all('/heartbeat', (req, res) => {
+  res.status(200).json({ success: true, message: 'Heartbeat recorded' });
+});
+
 router.get('/overview', getSecurityOverview);
 router.get('/2fa/setup', get2FASetup);
 router.post('/2fa/enable', enable2FA);
