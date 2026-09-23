@@ -78,7 +78,7 @@ export type IJwtAdminPayload = {
   storage_folder?: string;
 };
 
-// JWT Payload - Faculty/Student
+// JWT Payload - Faculty/Student/Finance
 export type IJwtUserPayload = {
   id: number;
   email: string;
@@ -87,6 +87,8 @@ export type IJwtUserPayload = {
   school_name: string;
   logo?: string;
   timezone: string;
+  country?: string;
+  currency?: string;
   calendar_system: CalendarSystem;
   is_account: AccountStatus;
   storage_folder?: string;

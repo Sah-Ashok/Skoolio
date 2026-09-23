@@ -9,6 +9,12 @@ import {
   revokeDevice,
   verify2FAChallenge,
 } from '../Controllers/security.controller';
+import {
+  getPasskeyRegistrationOptions,
+  verifyPasskeyRegistration,
+  listUserPasskeys,
+  deletePasskey,
+} from '../Controllers/passkey.controller';
 
 const router = Router();
 
@@ -25,5 +31,11 @@ router.post('/2fa/disable', disable2FA);
 
 router.get('/devices', getUserDevices);
 router.delete('/devices/:id', revokeDevice);
+
+// Passkey registration & management
+router.get('/passkey/register-options', getPasskeyRegistrationOptions);
+router.post('/passkey/verify-register', verifyPasskeyRegistration);
+router.get('/passkey/list', listUserPasskeys);
+router.delete('/passkey/:id', deletePasskey);
 
 export default router;

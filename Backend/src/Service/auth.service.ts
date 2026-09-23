@@ -296,6 +296,8 @@ export const loginTeacherService = async (data: ILoginSchool) => {
     school_id: teacher.school_id, school_name: teacher.school_name,
     logo: teacher.school_logo || undefined,
     timezone: teacher.school_timezone,
+    country: (teacher as any).school_country || teacher.country || 'India',
+    currency: (teacher as any).school_currency || undefined,
     calendar_system: (teacher.school_calendar_system as any) ?? 'AD',
     is_account: teacher.school_account_status as any,
   };
@@ -305,6 +307,8 @@ export const loginTeacherService = async (data: ILoginSchool) => {
   return {
     user: {
       ...safeTeacher,
+      country:         (teacher as any).school_country || teacher.country || 'India',
+      currency:        (teacher as any).school_currency || undefined,
       calendar_system: teacher.school_calendar_system ?? 'AD',
       timezone:        teacher.school_timezone,
       logo:            teacher.school_logo,
@@ -340,6 +344,8 @@ export const loginStudentService = async (data: ILoginSchool) => {
     school_id: student.school_id, school_name: student.school_name,
     logo: student.school_logo || undefined,
     timezone: student.school_timezone,
+    country: (student as any).school_country || student.country || 'India',
+    currency: (student as any).school_currency || undefined,
     calendar_system: (student.school_calendar_system as any) ?? 'AD',
     is_account: student.school_account_status as any,
   };
@@ -349,6 +355,8 @@ export const loginStudentService = async (data: ILoginSchool) => {
   return {
     user: {
       ...safeStudent,
+      country:         (student as any).school_country || student.country || 'India',
+      currency:        (student as any).school_currency || undefined,
       calendar_system: student.school_calendar_system ?? 'AD',
       timezone:        student.school_timezone,
       logo:            student.school_logo,
@@ -373,6 +381,9 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
       role: 'faculty',
       school_name: u.school_name,
       logo: u.logo,
+      timezone: u.timezone,
+      country: u.country || (teacher as any)?.country || 'India',
+      currency: u.currency || undefined,
       calendar_system: u.calendar_system ?? 'AD',
     };
   }
@@ -386,6 +397,8 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
       school_name: financeUser.school_name || u.school_name,
       logo: financeUser.logo || u.logo,
       timezone: financeUser.timezone || u.timezone,
+      country: (financeUser as any).country || u.country || 'India',
+      currency: (financeUser as any).currency || u.currency || undefined,
       calendar_system: financeUser.calendar_system || u.calendar_system || 'AD',
       is_account: financeUser.is_account || 'active',
     };
@@ -397,6 +410,9 @@ export const getMeService = async (jwtUser: IJwtPayload) => {
     role: 'student',
     school_name: u.school_name,
     logo: u.logo,
+    timezone: u.timezone,
+    country: u.country || (student as any)?.country || 'India',
+    currency: u.currency || undefined,
     calendar_system: u.calendar_system ?? 'AD',
   };
 };

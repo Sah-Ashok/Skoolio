@@ -58,10 +58,13 @@ export const findTeacherByEmailGlobal = async (
   school_timezone: string;
   school_account_status: string;
   school_calendar_system: string;
+  school_country: string | null;
+  school_currency?: string | null;
 }) | null> => {
   const result = await pool.query(
     `SELECT t.*, s.school_name, s.logo AS school_logo, s.timezone AS school_timezone,
-            s.is_account AS school_account_status, s.calendar_system AS school_calendar_system
+            s.is_account AS school_account_status, s.calendar_system AS school_calendar_system,
+            s.country AS school_country, s.currency AS school_currency
      FROM teachers t
      INNER JOIN schools s ON s.id = t.school_id
      WHERE t.email = $1`,

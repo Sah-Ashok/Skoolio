@@ -30,6 +30,18 @@ const generateRecoveryCodes = (count: number = 8): string[] => {
   return codes;
 };
 
+// Helper to extract real public IP through reverse proxy
+export const extractClientIp = (req: Request): string => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0].trim();
+  }
+  return req.ip || req.socket.remoteAddress || '127.0.0.1';
+};
+
 // User-Agent parser helper
 export const parseUserAgent = (userAgent: string = ''): { browser: string; os: string } => {
   let browser = 'Unknown Browser';
@@ -217,10 +229,7 @@ export const getSecurityOverviewService = async (
   let currentDeviceHash = '';
   if (req) {
     const userAgent = (req.headers['user-agent'] as string) || 'Unknown User-Agent';
-    const rawIp =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      '127.0.0.1';
+    const rawIp = extractClientIp(req);
     const schoolId = (req.user as any)?.school_id ?? userId;
     const { browser, os } = parseUserAgent(userAgent);
     const location = resolveIpLocation(rawIp);
@@ -270,10 +279,7 @@ export const trackDeviceLoginService = async (
   userEmail: string
 ): Promise<{ isNewDevice: boolean; device: IUserDeviceRecord }> => {
   const userAgent = (req.headers['user-agent'] as string) || 'Unknown User-Agent';
-  const rawIp =
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.socket.remoteAddress ||
-    '127.0.0.1';
+  const rawIp = extractClientIp(req);
 
   const { browser, os } = parseUserAgent(userAgent);
   const location = resolveIpLocation(rawIp);
@@ -316,10 +322,7 @@ export const getUserDevicesService = async (userId: number, role: string, req?: 
   let currentDeviceHash = '';
   if (req) {
     const userAgent = (req.headers['user-agent'] as string) || 'Unknown User-Agent';
-    const rawIp =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      '127.0.0.1';
+    const rawIp = extractClientIp(req);
     const schoolId = (req.user as any)?.school_id ?? userId;
     const { browser, os } = parseUserAgent(userAgent);
     const location = resolveIpLocation(rawIp);

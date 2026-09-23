@@ -30,7 +30,7 @@ export default function PendingFeesModal({
   totalDue,
 }: PendingFeesModalProps) {
   const router = useRouter();
-  const { fmt } = useCurrency();
+  const { fmt, symbol, isNepali } = useCurrency();
   const { formatDate } = useDateFormat();
 
   useEffect(() => {
@@ -347,7 +347,11 @@ export default function PendingFeesModal({
           <div className="pfm-header">
             <div className="pfm-head-left">
               <div className="pfm-icon-ring">
-                <NepaliCurrency size={24} color="#e11d48" />
+                {isNepali ? (
+                  <NepaliCurrency size={24} color="#e11d48" />
+                ) : (
+                  <span style={{ fontSize: 22, fontWeight: 900, color: "#e11d48" }}>{symbol}</span>
+                )}
               </div>
               <div>
                 <h3 className="pfm-title">Outstanding Fee Notice</h3>

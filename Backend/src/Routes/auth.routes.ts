@@ -5,6 +5,10 @@ import {
   changeTeacherPassword, changeStudentPassword,
   sendRegistrationOTP, verifyRegistrationOTP,
 } from '../Controllers/auth.controller';
+import {
+  getPasskeyLoginOptions,
+  verifyPasskeyLogin,
+} from '../Controllers/passkey.controller';
 import protect     from '../middlewares/auth.middleware';
 import restrictTo  from '../middlewares/role.middleware';
 import { strictAuthLimiter } from '../middlewares/rateLimiter.middleware';
@@ -24,6 +28,10 @@ router.post('/teacher-login',      strictAuthLimiter, loginTeacher);
 router.post('/login/finance',      strictAuthLimiter, loginFinance);
 router.post('/logout',             logout);
 router.get ('/me',    protect,     getMe);
+
+// ── Passkey / WebAuthn passwordless login ──
+router.post('/passkey/login-options', strictAuthLimiter, getPasskeyLoginOptions);
+router.post('/passkey/verify-login',  strictAuthLimiter, verifyPasskeyLogin);
 
 // ── Forgot password (3-step) ──
 router.post('/forgot-password',    strictAuthLimiter, forgotPassword);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useApi } from '@/lib/useApi';
 import { apiRequest } from '@/lib/api';
 import styles from './security.module.css';
@@ -20,6 +20,16 @@ interface IDevice {
   last_login_at: string;
 }
 
+interface IPasskey {
+  id: number;
+  device_name: string;
+  credential_id: string;
+  counter: number;
+  transports?: string[];
+  created_at: string;
+  last_used_at: string | null;
+}
+
 interface ISecurityOverview {
   totp_enabled: boolean;
   has_recovery_codes: boolean;
@@ -36,41 +46,36 @@ interface I2FASetupData {
   recoveryCodes: string[];
 }
 
-// Client-side detection helper
-function detectClientDevice(): { browser: string; os: string } {
-  if (typeof window === 'undefined' || !navigator) {
-    return { browser: 'Web Browser', os: 'Desktop' };
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return 'Just now';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return dateStr;
   }
-  const ua = navigator.userAgent.toLowerCase();
-  let os = 'Windows';
-  if (ua.includes('macintosh') || ua.includes('mac os')) os = 'macOS';
-  else if (ua.includes('android')) os = 'Android';
-  else if (ua.includes('iphone') || ua.includes('ipad')) os = 'iOS';
-  else if (ua.includes('linux')) os = 'Linux';
-
-  let browser = 'Google Chrome';
-  if (ua.includes('brave')) browser = 'Brave Browser';
-  else if (ua.includes('edg/')) browser = 'Microsoft Edge';
-  else if (ua.includes('firefox/')) browser = 'Mozilla Firefox';
-  else if (ua.includes('safari/') && !ua.includes('chrome/')) browser = 'Apple Safari';
-  else if (ua.includes('opr/') || ua.includes('opera')) browser = 'Opera';
-
-  return { browser, os };
 }
 
 export default function SecurityDashboardPage() {
-  const { data: overviewRes, loading, refetch } = useApi<{ success: boolean; data: ISecurityOverview }>('/security/overview');
+  const { data: overviewRes, loading: overviewLoading, refetch: refetchOverview } = useApi<{ success: boolean; data: ISecurityOverview }>('/security/overview');
   const overview = overviewRes?.data || null;
 
-  const [clientInfo, setClientInfo] = useState<{ browser: string; os: string }>({ browser: 'Google Chrome', os: 'Windows' });
+  const { data: passkeysRes, loading: passkeysLoading, refetch: refetchPasskeys } = useApi<{ success: boolean; data: IPasskey[] }>('/security/passkey/list');
+  const passkeys = passkeysRes?.data || [];
 
-  useEffect(() => {
-    setClientInfo(detectClientDevice());
-  }, []);
-
-  const [activeTab, setActiveTab] = useState<'2fa' | 'devices' | 'protection'>('2fa');
+  const [activeTab, setActiveTab] = useState<'devices' | 'passkeys' | '2fa' | 'password'>('devices');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Passkey Registration state
+  const [passkeyRegLoading, setPasskeyRegLoading] = useState<boolean>(false);
 
   // 2FA Setup state
   const [setupModalOpen, setSetupModalOpen] = useState<boolean>(false);
@@ -85,7 +90,63 @@ export default function SecurityDashboardPage() {
   const [disableCode, setDisableCode] = useState<string>('');
   const [disableLoading, setDisableLoading] = useState<boolean>(false);
 
-  // Initiate 2FA Setup
+  // Change Password state
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [savingPw, setSavingPw] = useState<boolean>(false);
+
+  // ── Register Passkey ──
+  const handleRegisterPasskey = async () => {
+    setPasskeyRegLoading(true);
+    setError(null);
+    try {
+      const optRes = await apiRequest<{ success: boolean; data: any }>('/security/passkey/register-options');
+      if (!optRes?.success || !optRes.data) {
+        throw new Error('Failed to obtain registration challenge from server.');
+      }
+
+      const { startRegistration } = await import('@simplewebauthn/browser');
+      const regResponse = await startRegistration({ optionsJSON: optRes.data });
+
+      const verifyRes = await apiRequest<{ success: boolean; message: string }>('/security/passkey/verify-register', {
+        method: 'POST',
+        body: JSON.stringify({ response: regResponse }),
+      });
+
+      if (verifyRes?.success) {
+        setSuccessMsg('Passkey added successfully. You can now use biometrics to sign in.');
+        refetchPasskeys();
+      }
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        setError('Biometric registration was cancelled.');
+      } else if (err.name === 'InvalidStateError' || err.message?.toLowerCase().includes('previously registered')) {
+        setError('This passkey or device was already registered. If you need to re-register it, remove the old key from your browser or Windows Settings first.');
+      } else {
+        setError(err.message || 'Passkey registration failed.');
+      }
+    } finally {
+      setPasskeyRegLoading(false);
+    }
+  };
+
+  // ── Delete Passkey ──
+  const handleDeletePasskey = async (passkeyId: number) => {
+    if (!confirm('Are you sure you want to delete this passkey?')) return;
+    setError(null);
+    try {
+      const res = await apiRequest<{ success: boolean; message: string }>(`/security/passkey/${passkeyId}`, {
+        method: 'DELETE',
+      });
+      if (res?.success) {
+        setSuccessMsg('Passkey removed successfully.');
+        refetchPasskeys();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Could not delete passkey.');
+    }
+  };
+
+  // ── 2FA Handlers ──
   const handleStartSetup = async () => {
     setError(null);
     try {
@@ -99,7 +160,6 @@ export default function SecurityDashboardPage() {
     }
   };
 
-  // Enable 2FA after entering 6-digit code
   const handleEnable2FA = async () => {
     if (!verifyCode || verifyCode.trim().length < 6) {
       setError('Please enter a valid 6-digit verification code.');
@@ -113,10 +173,10 @@ export default function SecurityDashboardPage() {
         body: JSON.stringify({ code: verifyCode.trim() }),
       });
       if (res?.success) {
-        setSuccessMsg('Google Authenticator 2FA enabled successfully!');
+        setSuccessMsg('Two-factor authentication enabled successfully.');
         setSetupModalOpen(false);
         setVerifyCode('');
-        refetch();
+        refetchOverview();
       }
     } catch (err: any) {
       setError(err.message || 'Verification failed. Check your authenticator app code.');
@@ -125,7 +185,6 @@ export default function SecurityDashboardPage() {
     }
   };
 
-  // Disable 2FA
   const handleDisable2FA = async () => {
     if (!disablePassword || !disableCode) {
       setError('Both password and current 2FA code are required.');
@@ -146,7 +205,7 @@ export default function SecurityDashboardPage() {
         setDisableModalOpen(false);
         setDisablePassword('');
         setDisableCode('');
-        refetch();
+        refetchOverview();
       }
     } catch (err: any) {
       setError(err.message || 'Could not disable 2FA. Check credentials.');
@@ -155,9 +214,43 @@ export default function SecurityDashboardPage() {
     }
   };
 
-  // Revoke device session
+  // ── Password Change Handler ──
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwForm.current_password || !pwForm.new_password) {
+      setError('Please enter your current and new password.');
+      return;
+    }
+    if (pwForm.new_password.length < 6) {
+      setError('New password must be at least 6 characters.');
+      return;
+    }
+    if (pwForm.new_password !== pwForm.confirm_password) {
+      setError('New passwords do not match.');
+      return;
+    }
+    setSavingPw(true);
+    setError(null);
+    try {
+      await apiRequest('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: pwForm.current_password,
+          new_password: pwForm.new_password,
+        }),
+      });
+      setSuccessMsg('Your account password has been updated successfully.');
+      setPwForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (err: any) {
+      setError(err.message || 'Could not change password.');
+    } finally {
+      setSavingPw(false);
+    }
+  };
+
+  // ── Revoke Device Session ──
   const handleRevokeDevice = async (deviceId: number) => {
-    if (!confirm('Are you sure you want to revoke this device access?')) return;
+    if (!confirm('Are you sure you want to revoke access for this device?')) return;
     setError(null);
     try {
       const res = await apiRequest<{ success: boolean; message: string }>(`/security/devices/${deviceId}`, {
@@ -165,7 +258,7 @@ export default function SecurityDashboardPage() {
       });
       if (res?.success) {
         setSuccessMsg('Device session revoked successfully.');
-        refetch();
+        refetchOverview();
       }
     } catch (err: any) {
       setError(err.message || 'Could not revoke device.');
@@ -179,10 +272,7 @@ export default function SecurityDashboardPage() {
   };
 
   const is2FAActive = overview?.totp_enabled;
-  const rawDevices = overview?.devices || [];
-  const currentDevice = rawDevices.find((d) => d.is_current_device) || rawDevices[0] || null;
-  const otherDevices = rawDevices.filter((d) => d.id !== currentDevice?.id);
-  const activeDeviceCount = rawDevices.length > 0 ? rawDevices.length : 1;
+  const devices = overview?.devices || [];
 
   return (
     <div className={s('page')}>
@@ -190,297 +280,308 @@ export default function SecurityDashboardPage() {
         {/* ── Page Header ── */}
         <div className={s('pageHead')}>
           <div className={s('headLeft')}>
-            <div className={s('headIcon')}>
-              <i className="fa-solid fa-shield-halved" />
-            </div>
-            <div>
-              <h1>Security & 2FA</h1>
-              <p>Google Authenticator (TOTP), active device history, and login threat protection</p>
-            </div>
+            <h1>Security & Access</h1>
+            <p>Manage account password, passkeys, two-factor authentication, and active device sessions.</p>
           </div>
         </div>
 
         {/* ── Alerts ── */}
         {error && (
           <div className={s('alertError')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <i className="fa-solid fa-circle-exclamation" />
-              <span>{error}</span>
-            </div>
-            <button onClick={() => setError(null)} className={s('closeBtn')}>
-              <i className="fa-solid fa-xmark" />
-            </button>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className={s('closeBtn')}>✕</button>
           </div>
         )}
 
         {successMsg && (
           <div className={s('alertSuccess')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <i className="fa-solid fa-circle-check" />
-              <span>{successMsg}</span>
-            </div>
-            <button onClick={() => setSuccessMsg(null)} className={s('closeBtn')}>
-              <i className="fa-solid fa-xmark" />
-            </button>
+            <span>{successMsg}</span>
+            <button onClick={() => setSuccessMsg(null)} className={s('closeBtn')}>✕</button>
           </div>
         )}
-
-        {/* ── Overview Hero Card ── */}
-        <div className={s('heroCard')}>
-          <div className={s('heroLeft')}>
-            <div className={cx(s('heroIcon'), is2FAActive ? s('heroIconGreen') : s('heroIconOrange'))}>
-              <i className={`fa-solid ${is2FAActive ? 'fa-shield-check' : 'fa-shield'}`} />
-            </div>
-            <div className={s('heroDetails')}>
-              <div className={s('heroTitleRow')}>
-                <h2 className={s('heroTitle')}>Account Protection Status</h2>
-                <span className={is2FAActive ? s('badgeHigh') : s('badgeMed')}>
-                  {is2FAActive ? 'High Protection' : 'Standard Protection'}
-                </span>
-              </div>
-              <p className={s('heroDesc')}>
-                {is2FAActive
-                  ? 'Two-Factor Authentication is active with Google Authenticator and smart device fingerprinting.'
-                  : 'Enable 2FA Authenticator app to protect your school data from session hijacking and password theft.'}
-              </p>
-            </div>
-          </div>
-
-          <div className={s('heroRight')}>
-            <div className={s('statChip')}>
-              <div className={cx(s('statChipIcon'), is2FAActive ? s('statChipIconGreen') : s('statChipIconOrange'))}>
-                <i className={`fa-solid ${is2FAActive ? 'fa-lock' : 'fa-lock-open'}`} />
-              </div>
-              <div className={s('statChipText')}>
-                <span>2FA Status</span>
-                <strong>{is2FAActive ? 'ENABLED' : 'DISABLED'}</strong>
-              </div>
-            </div>
-
-            <div className={s('statChip')}>
-              <div className={cx(s('statChipIcon'), s('statChipIconOrange'))}>
-                <i className="fa-solid fa-laptop-code" />
-              </div>
-              <div className={s('statChipText')}>
-                <span>Active Devices</span>
-                <strong>{activeDeviceCount} Device{activeDeviceCount > 1 ? 's' : ''}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* ── Tab Navigation ── */}
         <div className={s('tabs')}>
           <button
+            onClick={() => setActiveTab('devices')}
+            className={cx(s('tab'), activeTab === 'devices' && s('tabActive'))}
+          >
+            <span>Active Devices</span>
+            <span className={s('badgeCount')}>{devices.length}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('passkeys')}
+            className={cx(s('tab'), activeTab === 'passkeys' && s('tabActive'))}
+          >
+            <span>Passkeys & Biometrics</span>
+            <span className={s('badgeCount')}>{passkeys.length}</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('2fa')}
             className={cx(s('tab'), activeTab === '2fa' && s('tabActive'))}
           >
-            <i className="fa-solid fa-mobile-screen-button" />
             <span>Authenticator App (2FA)</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('devices')}
-            className={cx(s('tab'), activeTab === 'devices' && s('tabActive'))}
+            onClick={() => setActiveTab('password')}
+            className={cx(s('tab'), activeTab === 'password' && s('tabActive'))}
           >
-            <i className="fa-solid fa-laptop-code" />
-            <span>Active Devices</span>
-            <span className={s('badgeCount')}>{activeDeviceCount}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('protection')}
-            className={cx(s('tab'), activeTab === 'protection' && s('tabActive'))}
-          >
-            <i className="fa-solid fa-user-shield" />
-            <span>Threat Defense & Policy</span>
+            <span>Change Password</span>
           </button>
         </div>
 
-        {/* ── TAB 1: 2FA AUTHENTICATOR APP ── */}
-        {activeTab === '2fa' && (
-          <div className={s('card')}>
-            <div className={s('cardHead')}>
-              <div>
-                <h3>
-                  <i className="fa-solid fa-qrcode" style={{ color: '#ea580c' }} />
-                  Google / Microsoft Authenticator (TOTP)
-                </h3>
-                <p>Use a mobile authenticator app to generate single-use verification codes at login.</p>
-              </div>
-            </div>
-
-            <div className={s('twofaBox')}>
-              <div className={cx(s('twofaStatusCard'), is2FAActive && s('twofaStatusActive'))}>
-                <div className={s('twofaStatusLeft')}>
-                  <div className={cx(s('twofaStatusIcon'), is2FAActive ? s('iconActive') : s('iconInactive'))}>
-                    <i className={`fa-solid ${is2FAActive ? 'fa-circle-check' : 'fa-key'}`} />
-                  </div>
-                  <div>
-                    <h4 className={s('twofaTitle')}>
-                      {is2FAActive ? 'Authenticator App 2FA is Active' : '2FA is Currently Disabled'}
-                    </h4>
-                    <p className={s('twofaDesc')}>
-                      {is2FAActive
-                        ? 'Your account is secured. Every sign in requires your password and a 6-digit TOTP code.'
-                        : 'Protect your portal against brute force attacks and credential stuffing by enabling 2FA.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  {is2FAActive ? (
-                    <button onClick={() => setDisableModalOpen(true)} className={s('btnDangerOutline')}>
-                      <i className="fa-solid fa-ban" style={{ marginRight: 6 }} />
-                      Disable 2FA
-                    </button>
-                  ) : (
-                    <button onClick={handleStartSetup} className={s('btnPrimary')}>
-                      <i className="fa-solid fa-shield-halved" />
-                      Set Up 2FA Now
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 2: ACTIVE DEVICES & LOGIN HISTORY ── */}
+        {/* ── TAB 1: ACTIVE DEVICES TABLE ── */}
         {activeTab === 'devices' && (
           <div className={s('card')}>
             <div className={s('cardHead')}>
               <div>
-                <h3>
-                  <i className="fa-solid fa-laptop-code" style={{ color: '#ea580c' }} />
-                  Logged-in Devices & History
-                </h3>
-                <p>We send an instant email notification whenever a new or unrecognized device logs in.</p>
+                <h3>Logged-in Devices</h3>
+                <p>Sessions currently authorized to access your account.</p>
               </div>
-              <button onClick={() => refetch()} className={s('btnIcon')} title="Refresh Device List">
-                <i className="fa-solid fa-arrows-rotate" />
+              <button onClick={() => refetchOverview()} className={s('btnRefresh')}>
+                Refresh
               </button>
             </div>
 
-            {/* 1. CURRENT ACTIVE DEVICE CARD */}
-            <div className={cx(s('currentDeviceBox'), s('currentDeviceBoxActive'))}>
-              <div className={s('currentDeviceTop')}>
-                <div className={s('currentDeviceLeft')}>
-                  <div className={s('currentDeviceIcon')}>
-                    <i className={`fa-solid ${(currentDevice?.os || clientInfo.os).toLowerCase().includes('windows') ? 'fa-desktop' : (currentDevice?.os || clientInfo.os).toLowerCase().includes('android') || (currentDevice?.os || clientInfo.os).toLowerCase().includes('ios') ? 'fa-mobile-screen' : 'fa-laptop'}`} />
-                  </div>
-                  <div>
-                    <h4 className={s('currentDeviceTitle')}>
-                      {currentDevice?.browser || clientInfo.browser} on {currentDevice?.os || clientInfo.os}
-                    </h4>
-                    <p className={s('currentDeviceSub')}>
-                      This Device • Your Current Active Session
-                    </p>
-                  </div>
-                </div>
-
-                <span className={s('activeNowBadge')}>
-                  <span className={s('pulseDot')} /> Active Now
-                </span>
-              </div>
-
-              <div className={s('deviceDetailGrid')}>
-                <div className={s('detailCell')}>
-                  <span className={s('detailLabel')}>Browser</span>
-                  <span className={s('detailVal')}>{currentDevice?.browser || clientInfo.browser}</span>
-                </div>
-                <div className={s('detailCell')}>
-                  <span className={s('detailLabel')}>Operating System</span>
-                  <span className={s('detailVal')}>{currentDevice?.os || clientInfo.os}</span>
-                </div>
-                <div className={s('detailCell')}>
-                  <span className={s('detailLabel')}>IP Address</span>
-                  <span className={s('detailVal')}>{currentDevice?.ip_address || '127.0.0.1'}</span>
-                </div>
-                <div className={s('detailCell')}>
-                  <span className={s('detailLabel')}>Location</span>
-                  <span className={s('detailVal')}>{currentDevice?.location || 'Local Network'}</span>
-                </div>
-                <div className={s('detailCell')}>
-                  <span className={s('detailLabel')}>Last Active</span>
-                  <span className={s('detailVal')}>
-                    {currentDevice?.last_login_at ? new Date(currentDevice.last_login_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. OTHER RECOGNIZED DEVICES */}
-            {otherDevices.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px', margin: '0 0 12px' }}>
-                  Other Recognized Devices ({otherDevices.length})
-                </h4>
-                <div className={s('deviceList')}>
-                  {otherDevices.map((dev) => (
-                    <div key={dev.id} className={s('deviceItem')}>
-                      <div className={s('deviceLeft')}>
-                        <div className={s('deviceIcon')}>
-                          <i className={`fa-solid ${dev.os?.toLowerCase().includes('windows') ? 'fa-desktop' : dev.os?.toLowerCase().includes('android') || dev.os?.toLowerCase().includes('ios') ? 'fa-mobile-screen' : 'fa-laptop'}`} />
+            <div className={s('tableWrapper')}>
+              <table className={s('deviceTable')}>
+                <thead>
+                  <tr>
+                    <th>Device & OS</th>
+                    <th>Browser</th>
+                    <th>IP Address</th>
+                    <th>Location</th>
+                    <th>Last Active</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.length === 0 && !overviewLoading && (
+                    <tr>
+                      <td colSpan={6} className={s('emptyState')}>
+                        No active sessions recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                  {devices.map((dev) => (
+                    <tr key={dev.id} className={dev.is_current_device ? s('currentDeviceRow') : undefined}>
+                      <td>
+                        <div className={s('deviceCell')}>
+                          <span>{dev.os || 'Unknown Device'}</span>
+                          {dev.is_current_device && (
+                            <span className={s('currentBadge')}>This device</span>
+                          )}
                         </div>
-                        <div>
-                          <div className={s('deviceTitleRow')}>
-                            <span className={s('deviceName')}>
-                              {dev.browser || 'Web Browser'} on {dev.os || 'Device'}
-                            </span>
-                          </div>
-                          <div className={s('deviceMeta')}>
-                            <span><i className="fa-solid fa-network-wired" style={{ marginRight: 4, color: '#94a3b8' }} /> {dev.ip_address || '127.0.0.1'}</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-location-dot" style={{ marginRight: 4, color: '#94a3b8' }} /> {dev.location || 'Local Network'}</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-clock" style={{ marginRight: 4, color: '#94a3b8' }} /> Last active: {dev.last_login_at ? new Date(dev.last_login_at).toLocaleString() : 'Recent'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button onClick={() => handleRevokeDevice(dev.id)} className={s('btnDangerOutline')}>
-                        <i className="fa-solid fa-ban" style={{ marginRight: 4 }} /> Revoke
-                      </button>
-                    </div>
+                      </td>
+                      <td>{dev.browser || 'Web Browser'}</td>
+                      <td>
+                        <span className={s('monoText')}>{dev.ip_address || '127.0.0.1'}</span>
+                      </td>
+                      <td>
+                        <span className={s('locationText')}>{dev.location || 'Local Network'}</span>
+                      </td>
+                      <td>
+                        <span className={s('dateText')}>{formatDate(dev.last_login_at || dev.created_at)}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {dev.is_current_device ? (
+                          <span className={s('currentBadge')}>Active Now</span>
+                        ) : (
+                          <button
+                            onClick={() => handleRevokeDevice(dev.id)}
+                            className={s('btnDangerOutline')}
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* ── TAB 3: THREAT DEFENSE & POLICY ── */}
-        {activeTab === 'protection' && (
-          <div className={s('policyGrid')}>
-            <div className={s('policyCard')}>
-              <div className={cx(s('policyIconWrap'), s('policyIconOrange'))}>
+        {/* ── TAB 2: PASSKEYS & BIOMETRICS ── */}
+        {activeTab === 'passkeys' && (
+          <div className={s('card')}>
+            <div className={s('cardHead')}>
+              <div>
+                <h3>Passkeys & Biometric Credentials</h3>
+                <p>Sign in instantly using Windows Hello, Touch ID, Face ID, or hardware security keys without typing passwords or OTPs.</p>
+              </div>
+              <button
+                onClick={handleRegisterPasskey}
+                disabled={passkeyRegLoading}
+                className={s('btnPrimary')}
+              >
                 <i className="fa-solid fa-fingerprint" />
-              </div>
-              <h4 className={s('policyTitle')}>Smart Device Fingerprinting</h4>
-              <p className={s('policyDesc')}>
-                Calculates cryptographic SHA256 browser and IP subnet fingerprints. Dispatches instant email alerts when a login from an unrecognized device occurs.
-              </p>
+                <span>{passkeyRegLoading ? 'Setting up...' : '+ Add Passkey'}</span>
+              </button>
             </div>
 
-            <div className={s('policyCard')}>
-              <div className={cx(s('policyIconWrap'), s('policyIconGreen'))}>
-                <i className="fa-solid fa-shield-halved" />
+            <div className={s('tableWrapper')}>
+              <table className={s('deviceTable')}>
+                <thead>
+                  <tr>
+                    <th>Passkey Device</th>
+                    <th>Type</th>
+                    <th>Created On</th>
+                    <th>Last Used</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {passkeys.length === 0 && !passkeysLoading && (
+                    <tr>
+                      <td colSpan={5} className={s('emptyState')}>
+                        No passkeys registered yet. Click &quot;+ Add Passkey&quot; above to enable 1-click biometric sign-in.
+                      </td>
+                    </tr>
+                  )}
+                  {passkeys.map((pk) => (
+                    <tr key={pk.id}>
+                      <td>
+                        <div className={s('deviceCell')}>
+                          <i className="fa-solid fa-key" style={{ color: '#ea580c', fontSize: 13 }} />
+                          <span>{pk.device_name || 'Passkey'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={s('currentBadge')} style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}>
+                          FIDO2 / WebAuthn
+                        </span>
+                      </td>
+                      <td>
+                        <span className={s('dateText')}>{formatDate(pk.created_at)}</span>
+                      </td>
+                      <td>
+                        <span className={s('dateText')}>{pk.last_used_at ? formatDate(pk.last_used_at) : 'Never'}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          onClick={() => handleDeletePasskey(pk.id)}
+                          className={s('btnDangerOutline')}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 3: 2FA AUTHENTICATOR APP ── */}
+        {activeTab === '2fa' && (
+          <div className={s('card')}>
+            <div className={s('cardHead')}>
+              <div>
+                <h3>Two-Factor Authentication (TOTP)</h3>
+                <p>Add a backup layer of security using Google Authenticator or Microsoft Authenticator.</p>
               </div>
-              <h4 className={s('policyTitle')}>RFC 6238 TOTP Standard</h4>
-              <p className={s('policyDesc')}>
-                Compatible with Google Authenticator, Authy, and Microsoft Authenticator with 8 single-use emergency backup recovery codes.
-              </p>
             </div>
 
-            <div className={s('policyCard')}>
-              <div className={cx(s('policyIconWrap'), s('policyIconBlue'))}>
-                <i className="fa-solid fa-shield-virus" />
+            <div className={s('twofaRow')}>
+              <div className={s('twofaInfo')}>
+                <div className={cx(s('statusIndicator'), is2FAActive ? s('statusIndicatorOn') : s('statusIndicatorOff'))} />
+                <div>
+                  <h4 className={s('twofaTitle')}>
+                    {is2FAActive ? 'Authenticator app is enabled' : 'Authenticator app is not enabled'}
+                  </h4>
+                  <p className={s('twofaDesc')}>
+                    {is2FAActive
+                      ? 'You will be prompted for a 6-digit verification code when signing in.'
+                      : 'Secure your login by requiring a verification code from your authenticator app.'}
+                  </p>
+                </div>
               </div>
-              <h4 className={s('policyTitle')}>Edge & DDoS Defense</h4>
-              <p className={s('policyDesc')}>
-                Global rate limiting (150 req/min per IP), automated IP telemetry monitoring, and instant lockout protection against brute-force attacks.
-              </p>
+
+              <div>
+                {is2FAActive ? (
+                  <button onClick={() => setDisableModalOpen(true)} className={s('btnDangerOutline')}>
+                    Disable 2FA
+                  </button>
+                ) : (
+                  <button onClick={handleStartSetup} className={s('btnPrimary')}>
+                    Set up 2FA
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 4: CHANGE PASSWORD ── */}
+        {activeTab === 'password' && (
+          <div className={s('card')}>
+            <div className={s('cardHead')}>
+              <div>
+                <h3>Change Account Password</h3>
+                <p>Update your master account login password.</p>
+              </div>
+            </div>
+
+            <div className={s('cardBody')}>
+              <form onSubmit={handleChangePassword} style={{ maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.current_password}
+                    onChange={(e) => setPwForm({ ...pwForm, current_password: e.target.value })}
+                    placeholder="Enter current password"
+                    className={s('inputField')}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.new_password}
+                    onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
+                    placeholder="Min. 6 characters"
+                    className={s('inputField')}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={pwForm.confirm_password}
+                    onChange={(e) => setPwForm({ ...pwForm, confirm_password: e.target.value })}
+                    placeholder="Re-enter new password"
+                    className={s('inputField')}
+                    required
+                  />
+                </div>
+
+                <div style={{ marginTop: 6 }}>
+                  <button
+                    type="submit"
+                    disabled={savingPw}
+                    className={s('btnPrimary')}
+                  >
+                    {savingPw ? 'Updating Password...' : 'Save Password'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -490,33 +591,32 @@ export default function SecurityDashboardPage() {
           <div className={s('modalOverlay')}>
             <div className={s('modalContent')}>
               <div className={s('modalHeader')}>
-                <h3 className={s('modalTitle')}>
-                  <i className="fa-solid fa-qrcode" style={{ color: '#ea580c' }} /> Set up Authenticator App
-                </h3>
-                <button onClick={() => setSetupModalOpen(false)} className={s('closeBtn')}>
-                  <i className="fa-solid fa-xmark" />
-                </button>
+                <h3 className={s('modalTitle')}>Set Up Two-Factor Authentication</h3>
+                <button onClick={() => setSetupModalOpen(false)} className={s('closeBtn')}>✕</button>
               </div>
 
               <div>
-                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px 0', lineHeight: 1.5 }}>
-                  1. Open <strong>Google Authenticator</strong> or your preferred TOTP app.<br />
-                  2. Tap <strong>+</strong> and scan this QR code:
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                  1. Scan this QR code with Google Authenticator or your TOTP app:
                 </p>
 
                 <div className={s('qrBox')}>
                   <img src={setupData.qrCodeDataUrl} alt="2FA QR Code" className={s('qrImage')} />
                   <div className={s('secretRow')}>
                     <span className={s('secretCode')}>{setupData.secret}</span>
-                    <button onClick={() => copyToClipboard(setupData.secret)} className={s('btnSecondary')} style={{ minHeight: 30, padding: '0 10px', fontSize: 12 }}>
-                      {copySuccess ? 'Copied!' : 'Copy'}
+                    <button
+                      onClick={() => copyToClipboard(setupData.secret)}
+                      className={s('btnSecondary')}
+                      style={{ height: 28, padding: '0 8px', fontSize: 11 }}
+                    >
+                      {copySuccess ? 'Copied' : 'Copy'}
                     </button>
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
-                    3. Enter the 6-digit code from your app:
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    2. Enter the 6-digit code from your app:
                   </label>
                   <input
                     type="text"
@@ -529,7 +629,7 @@ export default function SecurityDashboardPage() {
                 </div>
 
                 <div className={s('recoveryBox')}>
-                  <span className={s('recoveryTitle')}>Emergency Backup Recovery Codes:</span>
+                  <span className={s('recoveryTitle')}>Backup Recovery Codes:</span>
                   <div className={s('recoveryGrid')}>
                     {setupData.recoveryCodes.map((c, i) => (
                       <span key={i}>{c}</span>
@@ -547,7 +647,7 @@ export default function SecurityDashboardPage() {
                   disabled={verifyLoading || verifyCode.length < 6}
                   className={s('btnPrimary')}
                 >
-                  {verifyLoading ? 'Verifying...' : 'Verify & Enable 2FA'}
+                  {verifyLoading ? 'Verifying...' : 'Verify & Enable'}
                 </button>
               </div>
             </div>
@@ -559,34 +659,30 @@ export default function SecurityDashboardPage() {
           <div className={s('modalOverlay')}>
             <div className={s('modalContent')}>
               <div className={s('modalHeader')}>
-                <h3 className={s('modalTitle')} style={{ color: '#dc2626' }}>
-                  <i className="fa-solid fa-triangle-exclamation" /> Disable 2FA Protection
-                </h3>
-                <button onClick={() => setDisableModalOpen(false)} className={s('closeBtn')}>
-                  <i className="fa-solid fa-xmark" />
-                </button>
+                <h3 className={s('modalTitle')} style={{ color: '#dc2626' }}>Disable Two-Factor Authentication</h3>
+                <button onClick={() => setDisableModalOpen(false)} className={s('closeBtn')}>✕</button>
               </div>
 
-              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px 0' }}>
-                Disabling 2FA reduces your account security. Please verify your credentials:
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 14px 0' }}>
+                Enter your current account password and 2FA code to confirm disabling protection.
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
                     Current Password
                   </label>
                   <input
                     type="password"
                     value={disablePassword}
                     onChange={(e) => setDisablePassword(e.target.value)}
-                    placeholder="Enter your current password"
+                    placeholder="Enter password"
                     className={s('inputField')}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
                     6-Digit Authenticator Code
                   </label>
                   <input

@@ -40,6 +40,9 @@ import logger from './utils/logger';
 
 const app:Application = express();
 
+// Trust reverse proxy (Nginx, Cloudflare, Azure) to get real client IP in req.ip and req.headers['x-forwarded-for']
+app.set('trust proxy', true);
+
 // Synchronize blocked schools state with Redis on server startup
 syncBlockedSchools().catch(() => {});
 

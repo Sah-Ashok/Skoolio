@@ -11,18 +11,19 @@ function resolveSymbol(country: string | undefined | null, calendarSystem?: stri
   if (explicitCurrency === 'EUR') return '€';
 
   if (calendarSystem === 'BS') return 'रू';
-  if (!country) return '$';
+  if (!country) return '₹';
   const c = country.toLowerCase().trim();
-  if (c.includes('nepal')) return 'रू';
-  if (c.includes('india')) return '₹';
+  if (c.includes('nepal') || c === 'np') return 'रू';
+  if (c.includes('india') || c === 'in') return '₹';
   if (c.includes('united kingdom') || c === 'uk' || c === 'gb') return '£';
   if (c.includes('germany') || c.includes('france') || c.includes('spain') || c.includes('italy') || c.includes('euro')) return '€';
-  if (c.includes('australia')) return 'A$';
-  if (c.includes('canada')) return 'C$';
-  if (c.includes('uae') || c.includes('emirates')) return 'AED ';
-  if (c.includes('saudi')) return 'SAR ';
-  if (c.includes('japan')) return '¥';
-  return '$';
+  if (c.includes('australia') || c === 'au') return 'A$';
+  if (c.includes('canada') || c === 'ca') return 'C$';
+  if (c.includes('uae') || c.includes('emirates') || c === 'ae') return 'AED ';
+  if (c.includes('saudi') || c === 'sa') return 'SAR ';
+  if (c.includes('japan') || c === 'jp') return '¥';
+  if (c.includes('united states') || c === 'us' || c === 'usa') return '$';
+  return '₹';
 }
 
 interface SchoolSettingsPayload {

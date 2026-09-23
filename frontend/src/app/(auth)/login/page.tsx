@@ -34,6 +34,50 @@ export default function LoginPage() {
     if (error) dispatch(clearError());
   };
 
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyLoading(true);
+    setLocalError('');
+    try {
+      const { apiRequest } = await import('@/lib/api');
+      const res = await apiRequest<{ success: boolean; data: { options: any; challengeKey: string } }>('/auth/passkey/login-options', {
+        method: 'POST',
+        body: JSON.stringify({ email: form.email.trim() || undefined }),
+      });
+
+      if (!res?.success || !res.data) {
+        throw new Error('Could not initiate passkey authentication.');
+      }
+
+      const { startAuthentication } = await import('@simplewebauthn/browser');
+      const authResp = await startAuthentication({ optionsJSON: res.data.options });
+
+      const verifyRes = await apiRequest<{ success: boolean; data: { user: any; token: string; role: string } }>('/auth/passkey/verify-login', {
+        method: 'POST',
+        body: JSON.stringify({ response: authResp, challenge_key: res.data.challengeKey }),
+      });
+
+      if (verifyRes?.success && verifyRes.data) {
+        dispatch(showToast({
+          type: 'success',
+          title: `Welcome back, ${verifyRes.data.user.full_name || verifyRes.data.user.school_name}!`,
+          message: 'Signed in successfully with Passkey.',
+        }));
+        await dispatch(meThunk());
+        router.push(getRoleRedirect(verifyRes.data.role as any));
+      }
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        setLocalError('Biometric verification cancelled.');
+      } else {
+        setLocalError(err.message || 'Passkey sign-in failed.');
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.email || !form.password) {
       setLocalError('Please enter your email and password.');
@@ -207,7 +251,7 @@ export default function LoginPage() {
             <button
               className={styles.btnLogin}
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || passkeyLoading}
             >
               {loading ? (
                 <>
@@ -215,6 +259,30 @@ export default function LoginPage() {
                 </>
               ) : (
                 'Login'
+              )}
+            </button>
+
+            {/* Divider */}
+            <div className={styles.authDivider}>
+              <span>or</span>
+            </div>
+
+            {/* Passkey / Biometrics Button */}
+            <button
+              type="button"
+              className={styles.btnPasskey}
+              onClick={handlePasskeyLogin}
+              disabled={loading || passkeyLoading}
+            >
+              {passkeyLoading ? (
+                <>
+                  <Spinner size={16} color="#0f172a" /> Authenticating Passkey…
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-fingerprint" style={{ color: '#0284c7', fontSize: 16 }} />
+                  <span>Sign in with Passkey / Biometrics</span>
+                </>
               )}
             </button>
 

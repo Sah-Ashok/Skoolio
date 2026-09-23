@@ -21,7 +21,7 @@ function getGreeting() {
 
 export default function StudentDashboardPage() {
   const { user } = useAppSelector((s) => s.auth);
-  const { fmt: fmtCurrency } = useCurrency();
+  const { fmt: fmtCurrency, symbol, isNepali } = useCurrency();
   const { formatDate: formatDateLabel } = useDateFormat();
   const { data: me, loading: meLoading } = useApi<any>("/auth/me");
   const { activeYear } = useAcademicYear();
@@ -416,7 +416,11 @@ export default function StudentDashboardPage() {
               <div className="sdb-stat">
                 <div className="sdb-stat-accent" style={{ background: totalDue > 0 ? "#ef4444" : "#22c55e" }} />
                 <div className="sdb-stat-label">
-                  <NepaliCurrency size={15} color="#f59e0b" style={{ marginRight: 6 }} />
+                  {isNepali ? (
+                    <NepaliCurrency size={15} color="#f59e0b" style={{ marginRight: 6 }} />
+                  ) : (
+                    <span style={{ marginRight: 6, fontWeight: 800, color: "#f59e0b", fontSize: 13 }}>{symbol}</span>
+                  )}
                   Fees Due
                 </div>
                 <div className="sdb-stat-value" style={{ color: totalDue > 0 ? "#ef4444" : "#16a34a", fontSize: totalDue > 0 ? 22 : 30 }}>
