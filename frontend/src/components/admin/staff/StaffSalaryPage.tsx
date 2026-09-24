@@ -9,7 +9,7 @@ import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { apiRequest } from "@/lib/api";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { BS_MONTH_NAMES, adToBS, isoToBS } from "@/lib/bs-ad";
 
 const s  = (n: string) => styles[n] || n;
@@ -385,17 +385,17 @@ function PaySalaryModal({ staff, onClose, onSaved }: { staff: Staff[]; onClose: 
               <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 9, background: "#f6fdf9", border: "1px solid #bee8d6" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
                   <span style={{ color: "#6a7882", fontWeight: 800 }}>Gross Amount</span>
-                  <strong>{fmt(form.gross_amount)}</strong>
+                  <strong><CurrencyAmount amount={form.gross_amount} /></strong>
                 </div>
                 {totalDeductions > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
                     <span style={{ color: "#b42318", fontWeight: 800 }}>Total Deductions</span>
-                    <strong style={{ color: "#b42318" }}>− {fmt(totalDeductions)}</strong>
+                    <strong style={{ color: "#b42318" }}>− <CurrencyAmount amount={totalDeductions} /></strong>
                   </div>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, borderTop: "1px solid #bee8d6", paddingTop: 8 }}>
                   <span style={{ color: "#12805c", fontWeight: 900 }}>Net Salary</span>
-                  <strong style={{ color: "#12805c" }}>{fmt(netAmount)}</strong>
+                  <strong style={{ color: "#12805c" }}><CurrencyAmount amount={netAmount} /></strong>
                 </div>
               </div>
             )}
@@ -470,7 +470,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
               </div>
               {d.per_day_salary != null && (
                 <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6a7882", fontWeight: 700 }}>
-                  Per-day: <strong style={{ color: "#1f2d36" }}>{fmt(d.per_day_salary)}</strong>
+                  Per-day: <strong style={{ color: "#1f2d36" }}><CurrencyAmount amount={d.per_day_salary} /></strong>
                 </p>
               )}
             </div>
@@ -480,7 +480,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
           <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 900, color: "#6a7882", textTransform: "uppercase", letterSpacing: 1 }}>Earnings</p>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #f0f4f6" }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#6a7882" }}>Gross Amount</span>
-            <strong style={{ fontSize: 13, color: "#1f2d36" }}>{fmt(d.gross_amount)}</strong>
+            <strong style={{ fontSize: 13, color: "#1f2d36" }}><CurrencyAmount amount={d.gross_amount} /></strong>
           </div>
 
           {/* Deductions */}
@@ -493,12 +493,12 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
                     {item.deduction_type.replace("_", " ")}
                     {item.note && <small style={{ marginLeft: 6, fontWeight: 700, color: "#aab5bb" }}>({item.note})</small>}
                   </span>
-                  <strong style={{ color: "#b42318", fontSize: 13 }}>− {fmt(item.amount)}</strong>
+                  <strong style={{ color: "#b42318", fontSize: 13 }}>− <CurrencyAmount amount={item.amount} /></strong>
                 </div>
               ))}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0" }}>
                 <span style={{ fontSize: 13, fontWeight: 900 }}>Total Deductions</span>
-                <strong style={{ color: "#b42318" }}>− {fmt(d.total_deductions)}</strong>
+                <strong style={{ color: "#b42318" }}>− <CurrencyAmount amount={d.total_deductions} /></strong>
               </div>
             </>
           )}
@@ -506,7 +506,7 @@ function SalarySlipModal({ payment, onClose }: { payment: SalaryPayment; onClose
           {/* Net */}
           <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 14px", marginTop: 12, borderRadius: 9, background: "#f6fdf9", border: "1px solid #bee8d6" }}>
             <span style={{ fontSize: 14, fontWeight: 900, color: "#12805c" }}>Net Salary</span>
-            <strong style={{ fontSize: 18, fontWeight: 900, color: "#12805c" }}>{fmt(d.net_amount)}</strong>
+            <strong style={{ fontSize: 18, fontWeight: 900, color: "#12805c" }}><CurrencyAmount amount={d.net_amount} /></strong>
           </div>
 
           {/* Payment info */}
@@ -575,7 +575,7 @@ function MarkPaidModal({ payment, onClose, onSaved }: { payment: SalaryPayment; 
         <div className={s("modalHead")}>
           <div>
             <h2>Mark as Paid</h2>
-            <p>{payment.full_name} · {monthStr} · {fmt(payment.net_amount)}</p>
+            <p>{payment.full_name} · {monthStr} · <CurrencyAmount amount={payment.net_amount} /></p>
           </div>
           <button className={s("closeBtn")} onClick={onClose}><i className="fa-solid fa-xmark" /></button>
         </div>
@@ -720,18 +720,18 @@ export function StaffSalaryPage() {
 
         <section className={s("stats")}>
           {[
-            { label: "Total Paid",       value: fmt(totalPaid),     sub: "All paid months",             cls: "green",  icon: "fa-check-circle"        },
-            { label: "Pending Amount",   value: fmt(totalPending),  sub: `${(pending ?? []).length} pending entries`, cls: "orange", icon: "fa-clock" },
-            { label: "Total Deductions", value: fmt(totalDeducted), sub: "Across all payments",         cls: "red",    icon: "fa-minus-circle"        },
-            { label: "Payments Made",    value: (allPay ?? []).filter(p => p.status === "paid").length, sub: "Paid entries", cls: "blue", icon: "fa-receipt" },
-          ].map(({ label, value, sub, cls, icon }) => (
+            { label: "Total Paid",       amount: totalPaid,     sub: "All paid months",             cls: "green",  icon: "fa-check-circle"        },
+            { label: "Pending Amount",   amount: totalPending,  sub: `${(pending ?? []).length} pending entries`, cls: "orange", icon: "fa-clock" },
+            { label: "Total Deductions", amount: totalDeducted, sub: "Across all payments",         cls: "red",    icon: "fa-minus-circle"        },
+            { label: "Payments Made",    raw: (allPay ?? []).filter(p => p.status === "paid").length, sub: "Paid entries", cls: "blue", icon: "fa-receipt" },
+          ].map(({ label, amount, raw, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
               <div className={s("statHead")}>
                 <span>{label}</span>
                 <div><i className={`fa-solid ${icon}`} /></div>
               </div>
               <div className={s("statBody")}>
-                <strong>{loading ? "—" : value}</strong>
+                <strong>{loading ? "—" : amount !== undefined ? <CurrencyAmount amount={amount} /> : raw}</strong>
                 <small>{sub}</small>
               </div>
             </article>
@@ -807,14 +807,14 @@ export function StaffSalaryPage() {
                           <span style={{ color: "#aab5bb", fontSize: 12 }}>—</span>
                         )}
                       </td>
-                      <td>{fmt(p.gross_amount)}</td>
+                      <td><CurrencyAmount amount={p.gross_amount} /></td>
                       <td>
                         {Number(p.total_deductions) > 0
-                          ? <span style={{ color: "#b42318", fontWeight: 900 }}>− {fmt(p.total_deductions)}</span>
+                          ? <span style={{ color: "#b42318", fontWeight: 900 }}>− <CurrencyAmount amount={p.total_deductions} /></span>
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>
-                      <td><strong style={{ color: "#12805c", fontSize: 14 }}>{fmt(p.net_amount)}</strong></td>
+                      <td><strong style={{ color: "#12805c", fontSize: 14 }}><CurrencyAmount amount={p.net_amount} /></strong></td>
                       <td>
                         <span className={s("badge")} style={{ background: STATUS_STYLE[p.status]?.bg, color: STATUS_STYLE[p.status]?.color }}>
                           {p.status}

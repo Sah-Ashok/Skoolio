@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useApi } from '@/lib/useApi';
 import { useAcademicYear } from '@/hooks/useAcademicYear';
-import { useCurrency } from '@/lib/useCurrency';
+import { useCurrency, CurrencyAmount } from '@/lib/useCurrency';
 import Loader from '@/components/shared/Loader';
 import styles from './report.module.css';
 
@@ -119,7 +119,7 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Gross Inflow / Receipts</div>
             <div className={styles.statPillVal} style={{ color: '#059669' }}>
-              {typeof data?.summary?.total_income === 'number' ? fmt(data.summary.total_income) : (data?.summary?.total_income ?? fmt(0))}
+              <CurrencyAmount amount={data?.summary?.total_income ?? 0} />
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Gross Outflow / Expenses</div>
             <div className={styles.statPillVal} style={{ color: '#dc2626' }}>
-              {typeof data?.summary?.total_expense === 'number' ? fmt(data.summary.total_expense) : (data?.summary?.total_expense ?? fmt(0))}
+              <CurrencyAmount amount={data?.summary?.total_expense ?? 0} />
             </div>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function FinanceIncomeExpenseReportPage() {
           <div>
             <div className={styles.statPillLabel}>Net Institutional Surplus</div>
             <div className={styles.statPillVal} style={{ color: '#0d9488' }}>
-              {typeof data?.summary?.net_balance === 'number' ? fmt(data.summary.net_balance) : (data?.summary?.net_balance ?? fmt(0))}
+              <CurrencyAmount amount={data?.summary?.net_balance ?? 0} />
             </div>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function FinanceIncomeExpenseReportPage() {
                 <div key={cat.name} className={styles.categoryItem}>
                   <div className={styles.categoryTop}>
                     <span>{cat.name}</span>
-                    <span>{typeof cat.amount === 'number' ? fmt(cat.amount) : cat.amount} ({cat.percent}%)</span>
+                    <span><CurrencyAmount amount={cat.amount} /> ({cat.percent}%)</span>
                   </div>
                   <div className={styles.progressTrack}>
                     <div className={styles.progressBar} style={{ width: `${Math.min(100, Math.max(0, cat.percent))}%`, background: '#059669' }} />
@@ -185,7 +185,7 @@ export default function FinanceIncomeExpenseReportPage() {
                 <div key={cat.name} className={styles.categoryItem}>
                   <div className={styles.categoryTop}>
                     <span>{cat.name}</span>
-                    <span>{typeof cat.amount === 'number' ? fmt(cat.amount) : cat.amount} ({cat.percent}%)</span>
+                    <span><CurrencyAmount amount={cat.amount} /> ({cat.percent}%)</span>
                   </div>
                   <div className={styles.progressTrack}>
                     <div className={styles.progressBar} style={{ width: `${Math.min(100, Math.max(0, cat.percent))}%`, background: '#dc2626' }} />
@@ -225,9 +225,9 @@ export default function FinanceIncomeExpenseReportPage() {
                 {months.map((m) => (
                   <tr key={m.month}>
                     <td><strong>{m.month}</strong></td>
-                    <td style={{ color: '#059669' }}><strong>{typeof m.income === 'number' ? fmt(m.income) : m.income}</strong></td>
-                    <td style={{ color: '#dc2626' }}><strong>{typeof m.expense === 'number' ? fmt(m.expense) : m.expense}</strong></td>
-                    <td><strong>{typeof m.net === 'number' ? fmt(m.net) : m.net}</strong></td>
+                    <td style={{ color: '#059669' }}><strong><CurrencyAmount amount={m.income} /></strong></td>
+                    <td style={{ color: '#dc2626' }}><strong><CurrencyAmount amount={m.expense} /></strong></td>
+                    <td><strong><CurrencyAmount amount={m.net} /></strong></td>
                     <td>
                       <span
                         style={{

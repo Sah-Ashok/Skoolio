@@ -10,7 +10,7 @@ import { showToast } from "@/store/toastSlice";
 import { Loader } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { isoToBS, daysInBSMonth, BS_MONTH_NAMES } from "@/lib/bs-ad";
 
@@ -121,7 +121,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: React.ReactNode; required?: boolean; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: col.navy, marginBottom: 5 }}>
@@ -1175,7 +1175,7 @@ export default function HostelPage() {
                         <div style={{ padding: "8px 10px", borderRadius: 8, background: "#f8fafc", border: `1px solid ${col.border}` }}>
                           <span style={{ fontSize: 10, fontWeight: 800, color: col.muted, textTransform: "uppercase" }}>Monthly Fee</span>
                           <p style={{ fontSize: 13.5, fontWeight: 900, color: col.navy, margin: "2px 0 0" }}>
-                            {currencySymbol} {Number(r.monthly_fee).toLocaleString()}
+                            <CurrencyAmount amount={r.monthly_fee} />
                           </p>
                         </div>
                       </div>
@@ -1365,7 +1365,7 @@ export default function HostelPage() {
                             </td>
                             <td>{roomTypeBadge(a.room_type)}</td>
                             <td style={{ fontWeight: 800, color: col.navy }}>
-                              {currencySymbol} {Number(a.monthly_fee).toLocaleString()}
+                              <CurrencyAmount amount={a.monthly_fee} />
                             </td>
                             <td style={{ fontSize: 12, color: col.muted, fontWeight: 700 }}>
                               {joinDate ? formatDate(joinDate) : "—"}
@@ -1377,7 +1377,7 @@ export default function HostelPage() {
                                   padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 800,
                                   background: col.greenBg, color: col.green, border: `1px solid ${col.greenBrd}`,
                                 }}>
-                                  <i className="fa-solid fa-circle-check" /> Paid ({currencySymbol} {feeInfo?.paid_amount?.toLocaleString()})
+                                  <i className="fa-solid fa-circle-check" /> Paid (<CurrencyAmount amount={feeInfo?.paid_amount} />)
                                 </span>
                               ) : isPartial ? (
                                 <span style={{
@@ -1385,7 +1385,7 @@ export default function HostelPage() {
                                   padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 800,
                                   background: col.amberBg, color: col.amber, border: `1px solid ${col.amberBrd}`,
                                 }}>
-                                  <i className="fa-solid fa-clock" /> Due: {currencySymbol} {feeInfo?.remaining_amount?.toLocaleString()}
+                                  <i className="fa-solid fa-clock" /> Due: <CurrencyAmount amount={feeInfo?.remaining_amount} />
                                 </span>
                               ) : isUnpaid ? (
                                 <span style={{
@@ -1393,7 +1393,7 @@ export default function HostelPage() {
                                   padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 800,
                                   background: col.redBg, color: col.red, border: `1px solid ${col.redBrd}`,
                                 }}>
-                                  <i className="fa-solid fa-circle-exclamation" /> Due: {currencySymbol} {feeInfo?.remaining_amount?.toLocaleString()}
+                                  <i className="fa-solid fa-circle-exclamation" /> Due: <CurrencyAmount amount={feeInfo?.remaining_amount} />
                                 </span>
                               ) : (
                                 <span style={{ fontSize: 11.5, color: col.muted, fontWeight: 600 }}>
@@ -1447,7 +1447,7 @@ export default function HostelPage() {
 
                   {totalHostelDues > 0 && (
                     <span style={{ fontSize: 12.5, fontWeight: 800, color: col.red }}>
-                      Total Hostel Dues for this Hostel: <strong>{currencySymbol} {totalHostelDues.toLocaleString()}</strong>
+                      Total Hostel Dues for this Hostel: <strong><CurrencyAmount amount={totalHostelDues} /></strong>
                     </span>
                   )}
                 </div>
@@ -1589,7 +1589,7 @@ export default function HostelPage() {
               </Field>
             </div>
 
-            <Field label={`Monthly Fee (${currencySymbol})`} required>
+            <Field label={<>Monthly Fee (<CurrencySymbol />)</>} required>
               <input
                 type="number" min="0" placeholder="e.g. 4000"
                 value={rForm.monthly_fee}

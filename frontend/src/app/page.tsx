@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useAppSelector } from "@/store/hooks";
 import { getRoleRedirect } from "@/store/authSlice";
 import AppFooter from "@/components/shared/AppFooter";
+import { CurrencySymbol } from "@/components/shared/NepaliCurrency";
 import s from "./landing.module.css";
 
 export default function HomePage() {
@@ -1139,7 +1140,7 @@ export default function HomePage() {
                     >
                       <span className={s.countryFlag}>{co.flag}</span>
                       <span className={s.countryName}>{co.label}</span>
-                      <span className={s.countrySymbol}>({co.symbol.trim()})</span>
+                      <span className={s.countrySymbol}>(<CurrencySymbol symbol={co.symbol} />)</span>
                     </button>
                   );
                 })}
@@ -1201,7 +1202,7 @@ export default function HomePage() {
                   {/* Price Block */}
                   <div className={s.tierPriceSection}>
                     <div className={s.tierPriceAmountRow}>
-                      <span className={s.tierCurrency}>{tier.currencySymbol}</span>
+                      <span className={s.tierCurrency}><CurrencySymbol symbol={tier.currencySymbol} /></span>
                       <span className={s.tierPriceNumber}>{tier.price.toLocaleString()}</span>
                       <span className={s.tierPricePeriod}>/mo</span>
                     </div>
@@ -1209,13 +1210,13 @@ export default function HomePage() {
                       {billingCycle === "annual" ? (
                         tier.savingsPct > 0 ? (
                           <span>
-                            Billed annually: {tier.currencySymbol}{tier.totalAnnualPrice.toLocaleString()}/yr{" "}
+                            Billed annually: <CurrencySymbol symbol={tier.currencySymbol} />{tier.totalAnnualPrice.toLocaleString()}/yr{" "}
                             <strong style={{ color: "#10b981" }}>
-                              (Save {tier.currencySymbol}{tier.annualSavingsAmt.toLocaleString()} · {tier.savingsPct}%)
+                              (Save <CurrencySymbol symbol={tier.currencySymbol} />{tier.annualSavingsAmt.toLocaleString()} · {tier.savingsPct}%)
                             </strong>
                           </span>
                         ) : (
-                          `Billed annually: ${tier.currencySymbol}${tier.totalAnnualPrice.toLocaleString()}/yr`
+                          <>Billed annually: <CurrencySymbol symbol={tier.currencySymbol} />{tier.totalAnnualPrice.toLocaleString()}/yr</>
                         )
                       ) : (
                         <span>

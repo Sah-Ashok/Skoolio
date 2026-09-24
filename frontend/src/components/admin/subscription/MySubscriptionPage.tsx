@@ -51,7 +51,7 @@ export default function MySubscriptionPage() {
     ? Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86400000)
     : null;
 
-  const isPaid = sub?.billing_cycle !== "free";
+  const isPaid = sub?.billing_cycle !== "trial" && Number(sub?.amount_paid || 0) > 0;
 
   return (
     <div className={s("pageWrap")}>

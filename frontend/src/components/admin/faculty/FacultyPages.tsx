@@ -11,7 +11,7 @@ import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import { SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 const s = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -469,7 +469,7 @@ export function ViewFacultyPage() {
         <article>
           <i className="fa-solid fa-wallet" />
           <span>Basic Salary</span>
-          <strong>{basicSalary ? fmt(basicSalary) : "—"}</strong>
+          <strong>{basicSalary ? <CurrencyAmount amount={basicSalary} /> : "—"}</strong>
         </article>
       </div>
 
@@ -482,7 +482,7 @@ export function ViewFacultyPage() {
               <h2><i className="fa-solid fa-id-badge" style={{ color: "#ea580c", marginRight: 8 }} />Personal Information</h2>
             </div>
             <div className={s("info-grid")}>
-              {[
+              {([
                 ["Full Name",      faculty.full_name],
                 ["Email",          faculty.email],
                 ["Phone",          faculty.phone],
@@ -491,12 +491,12 @@ export function ViewFacultyPage() {
                 ["Blood Group",    faculty.blood_group || "—"],
                 ["Qualification",  faculty.qualification || "—"],
                 ["Experience",     Number(faculty.experience_years) > 0 ? `${faculty.experience_years} years` : "—"],
-                ["Monthly Salary", basicSalary ? fmt(basicSalary) : "—"],
+                ["Monthly Salary", basicSalary ? <CurrencyAmount amount={basicSalary} /> : "—"],
                 ["Join Date",      faculty.join_date ? formatDate(String(faculty.join_date).slice(0, 10)) : "—"],
                 ["City",           faculty.city || "—"],
                 ["State",          faculty.state || "—"],
                 ["Country",        faculty.country || "—"],
-              ].map(([label, value]) => (
+              ] as [string, React.ReactNode][]).map(([label, value]) => (
                 <div className={s("info-item")} key={label}>
                   <span>{label}</span>
                   <strong style={{ textTransform: label === "Gender" ? "capitalize" : "none" }}>{value}</strong>
@@ -588,8 +588,8 @@ export function ViewFacultyPage() {
                       </em>
                     </span>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Basic: {fmt(rec.basic_salary)}</div>
-                      <div style={{ fontSize: 13, fontWeight: 900, color: "#0f172a" }}>Net: {fmt(net)}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Basic: <CurrencyAmount amount={rec.basic_salary} /></div>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: "#0f172a" }}>Net: <CurrencyAmount amount={net} /></div>
                     </div>
                   </div>
                 );

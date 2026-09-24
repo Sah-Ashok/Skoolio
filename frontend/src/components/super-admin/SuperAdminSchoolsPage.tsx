@@ -15,7 +15,7 @@ const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
 
 const planBadge = (p: string) => {
-  const m: Record<string, string> = { Free: "badge-blue", Pro: "badge-violet", Plus: "badge-teal", Ultra: "badge-yellow" };
+  const m: Record<string, string> = { Pro: "badge-violet", Plus: "badge-teal", Ultra: "badge-yellow" };
   return s(m[p] ?? "badge-blue");
 };
 
@@ -123,7 +123,6 @@ export default function SuperAdminSchoolsPage() {
   const active   = schools?.filter((sc) => sc.status === "active").length        || 0;
   const grace    = schools?.filter((sc) => sc.status === "grace_period").length  || 0;
   const expired  = schools?.filter((sc) => sc.status === "expired" || sc.status === "cancelled").length || 0;
-  const freePlan = schools?.filter((sc) => sc.plan_name === "Free").length       || 0;
 
   const uniquePlans = Array.from(
     new Set((schools || []).map((sc: any) => sc.plan_name).filter(Boolean))
@@ -322,7 +321,7 @@ export default function SuperAdminSchoolsPage() {
                       <td style={{ color: "#6b7b86" }}>{sc.country || "—"}</td>
                       <td>
                         <span className={cx(s("badge"), planBadge(sc.plan_name))}>
-                          {sc.plan_name || "Free"}
+                          {sc.plan_name || "Plus"}
                         </span>
                       </td>
                       <td>
@@ -545,7 +544,7 @@ function ActivateSubscriptionModal({
   const { execute: activate, loading } = useMutation("/subscriptions/activate", "POST");
 
   const [planId, setPlanId]         = useState(school.plan_id?.toString() || "");
-  const [cycle, setCycle]           = useState<"monthly" | "yearly" | "free">("monthly");
+  const [cycle, setCycle]           = useState<"monthly" | "yearly">("monthly");
   const [amount, setAmount]         = useState("");
   const [currency, setCurrency]     = useState<"NPR" | "INR">(school.country === "India" ? "INR" : "NPR");
   const [startDate, setStartDate]   = useState(new Date().toISOString().split("T")[0]);
@@ -562,25 +561,21 @@ function ActivateSubscriptionModal({
       : cycle === "yearly" ? selectedPlan.price_inr_yearly : selectedPlan.price_inr_monthly
     : 0;
 
-  const handlePlanCycleChange = (newPlanId: string, newCycle: typeof cycle) => {
+  const handlePlanCycleChange = (newPlanId: string, newCycle: "monthly" | "yearly") => {
     setPlanId(newPlanId);
     setCycle(newCycle);
     const plan = plans.find((p) => p.id.toString() === newPlanId);
-    if (plan && newCycle !== "free") {
+    if (plan) {
       const price =
         currency === "NPR"
           ? newCycle === "yearly" ? plan.price_npr_yearly : plan.price_npr_monthly
           : newCycle === "yearly" ? plan.price_inr_yearly : plan.price_inr_monthly;
       setAmount(price.toString());
     }
-    if (newCycle !== "free") {
-      const s = new Date(startDate);
-      const e = new Date(s);
-      newCycle === "yearly" ? e.setFullYear(e.getFullYear() + 1) : e.setMonth(e.getMonth() + 1);
-      setEndDate(e.toISOString().split("T")[0]);
-    } else {
-      setEndDate("");
-    }
+    const s = new Date(startDate);
+    const e = new Date(s);
+    newCycle === "yearly" ? e.setFullYear(e.getFullYear() + 1) : e.setMonth(e.getMonth() + 1);
+    setEndDate(e.toISOString().split("T")[0]);
   };
 
   const handleSubmit = async () => {
@@ -588,8 +583,8 @@ function ActivateSubscriptionModal({
       dispatch(showToast({ type: "error", title: "Error", message: "Please select a plan" }));
       return;
     }
-    if (cycle !== "free" && !endDate) {
-      dispatch(showToast({ type: "error", title: "Error", message: "End date is required for paid plans" }));
+    if (!endDate) {
+      dispatch(showToast({ type: "error", title: "Error", message: "End date is required" }));
       return;
     }
     try {
@@ -597,11 +592,11 @@ function ActivateSubscriptionModal({
         school_id: school.school_id,
         plan_id: parseInt(planId),
         billing_cycle: cycle,
-        amount_paid: cycle === "free" ? 0 : parseFloat(amount || "0"),
-        currency: cycle === "free" ? undefined : currency,
+        amount_paid: parseFloat(amount || "0"),
+        currency,
         start_date: startDate,
-        end_date: cycle === "free" ? undefined : endDate,
-        payment_method: cycle === "free" ? undefined : payMethod,
+        end_date: endDate,
+        payment_method: payMethod,
         payment_reference: payRef || undefined,
         notes: notes || undefined,
       });
@@ -667,10 +662,9 @@ function ActivateSubscriptionModal({
           <div className={s("form-grid-2")}>
             <div className={s("field")}>
               <label>Billing Cycle</label>
-              <select value={cycle} onChange={(e) => handlePlanCycleChange(planId, e.target.value as typeof cycle)}>
+              <select value={cycle} onChange={(e) => handlePlanCycleChange(planId, e.target.value as "monthly" | "yearly")}>
                 <option value="monthly">Monthly</option>
                 <option value="yearly">Yearly</option>
-                <option value="free">Free (downgrade)</option>
               </select>
             </div>
             <div className={s("field")}>
@@ -678,7 +672,6 @@ function ActivateSubscriptionModal({
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as "NPR" | "INR")}
-                disabled={cycle === "free"}
               >
                 <option value="NPR">NPR</option>
                 <option value="INR">INR</option>
@@ -686,55 +679,51 @@ function ActivateSubscriptionModal({
             </div>
           </div>
 
-          {cycle !== "free" && (
-            <>
-              <div className={s("field")}>
-                <label>
-                  Amount Paid
-                  {suggested > 0 && (
-                    <span style={{ fontWeight: 600, color: "#6b7b86", marginLeft: 6 }}>
-                      (suggested: {suggested})
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
+          <div className={s("field")}>
+            <label>
+              Amount Paid
+              {suggested > 0 && (
+                <span style={{ fontWeight: 600, color: "#6b7b86", marginLeft: 6 }}>
+                  (suggested: {suggested})
+                </span>
+              )}
+            </label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
 
-              <div className={s("form-grid-2")}>
-                <div className={s("field")}>
-                  <label>Start Date</label>
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div className={s("field")}>
-                  <label>End Date</label>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-              </div>
+          <div className={s("form-grid-2")}>
+            <div className={s("field")}>
+              <label>Start Date</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className={s("field")}>
+              <label>End Date</label>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+          </div>
 
-              <div className={s("field")}>
-                <label>Payment Method</label>
-                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="esewa">eSewa</option>
-                  <option value="khalti">Khalti</option>
-                  <option value="cash">Cash</option>
-                </select>
-              </div>
+          <div className={s("field")}>
+            <label>Payment Method</label>
+            <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="esewa">eSewa</option>
+              <option value="khalti">Khalti</option>
+              <option value="cash">Cash</option>
+            </select>
+          </div>
 
-              <div className={s("field")}>
-                <label>Payment Reference <span style={{ fontWeight: 600, color: "#6b7b86" }}>(optional)</span></label>
-                <input
-                  value={payRef}
-                  onChange={(e) => setPayRef(e.target.value)}
-                  placeholder="Transaction ID / receipt"
-                />
-              </div>
-            </>
-          )}
+          <div className={s("field")}>
+            <label>Payment Reference <span style={{ fontWeight: 600, color: "#6b7b86" }}>(optional)</span></label>
+            <input
+              value={payRef}
+              onChange={(e) => setPayRef(e.target.value)}
+              placeholder="Transaction ID / receipt"
+            />
+          </div>
 
           <div className={s("field")}>
             <label>Notes <span style={{ fontWeight: 600, color: "#6b7b86" }}>(optional)</span></label>

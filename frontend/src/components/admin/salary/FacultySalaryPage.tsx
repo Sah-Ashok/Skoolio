@@ -9,7 +9,7 @@ import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, BS_MONTH_NAMES } from "@/lib/bs-ad";
 import { useAppSelector } from "@/store/hooks";
 
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -205,7 +205,7 @@ export default function FacultySalaryPage() {
               <div><i className="fa-solid fa-clock" /></div>
             </div>
             <div className={s("statBody")}>
-              <strong style={{ fontSize: 18 }}>{formatCurrency(totalPending)}</strong>
+              <strong style={{ fontSize: 18 }}><CurrencyAmount amount={totalPending} /></strong>
               <small>Outstanding salary</small>
             </div>
           </div>
@@ -215,7 +215,7 @@ export default function FacultySalaryPage() {
               <div><i className="fa-solid fa-circle-check" /></div>
             </div>
             <div className={s("statBody")}>
-              <strong style={{ fontSize: 18 }}>{formatCurrency(totalPaidAll)}</strong>
+              <strong style={{ fontSize: 18 }}><CurrencyAmount amount={totalPaidAll} /></strong>
               <small>All time disbursed</small>
             </div>
           </div>
@@ -325,7 +325,7 @@ export default function FacultySalaryPage() {
                         <td>
                           {hasSalary ? (
                             <>
-                              <strong>{formatCurrency(t.monthly_salary)}</strong>
+                              <strong><CurrencyAmount amount={t.monthly_salary} /></strong>
                               <small style={{ display: "block", color: "#6a7882", fontSize: 11, marginTop: 2 }}>/month</small>
                             </>
                           ) : (
@@ -347,7 +347,7 @@ export default function FacultySalaryPage() {
                         </td>
                         <td>
                           <strong className={s("successText")}>
-                            {formatCurrency(t.total_paid)}
+                            <CurrencyAmount amount={t.total_paid} />
                           </strong>
                         </td>
                         <td>
@@ -362,7 +362,7 @@ export default function FacultySalaryPage() {
                         <td>
                           {pending > 0 ? (
                             <strong className={s("pendingAmount")}>
-                              {formatCurrency(pending)}
+                              <CurrencyAmount amount={pending} />
                             </strong>
                           ) : (
                             <span style={{ color: "#12805c", fontWeight: 900 }}>—</span>

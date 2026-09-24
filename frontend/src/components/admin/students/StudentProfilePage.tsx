@@ -8,7 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency }  from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount }  from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
 
@@ -16,7 +16,7 @@ const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
 
 /* ─── STAT BOX ───────────────────────────────────────────────────────────── */
-function StatBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatBox({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <div className={s("sp-stat")}>
       <span className={s("sp-stat-label")}>{label}</span>
@@ -78,7 +78,7 @@ function SvcRow({ icon, label, value }: { icon: string; label: string; value: st
 }
 
 /* ─── FEE ROW ────────────────────────────────────────────────────────────── */
-function FeeRow({ label, value, muted, accent }: { label: string; value: string; muted?: boolean; accent?: string }) {
+function FeeRow({ label, value, muted, accent }: { label: string; value: React.ReactNode; muted?: boolean; accent?: string }) {
   return (
     <div className={s("sp-feerow")}>
       <span style={{ color: muted ? "#94a3b8" : "#64748b" }}>{label}</span>
@@ -261,7 +261,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
               </p>
               <div className={s("sp-tags")}>
                 {grandPending > 0
-                  ? <span className={cx(s("badge"), s("badge-red"))}><i className="fa-solid fa-circle-exclamation" style={{ marginRight: 4 }} /> Fee Due {fmt(grandPending)}</span>
+                  ? <span className={cx(s("badge"), s("badge-red"))}><i className="fa-solid fa-circle-exclamation" style={{ marginRight: 4 }} /> Fee Due <CurrencyAmount amount={grandPending} /></span>
                   : <span className={cx(s("badge"), s("badge-green"))}><i className="fa-solid fa-circle-check" style={{ marginRight: 4 }} /> Fee Cleared</span>
                 }
                 {!loadingSvc && transport && (
@@ -290,8 +290,8 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
             <StatBox label="Attendance (Year)" value={`${yearPct}%`} sub={`${yearPresent} / ${yearMarked} days`} />
             <StatBox
               label="Fee Paid"
-              value={fmt(grandPaid)}
-              sub={`of ${fmt(grandTotal)}${billedWaived > 0 ? ` · ${fmt(billedWaived)} waived` : ""}`}
+              value={<CurrencyAmount amount={grandPaid} />}
+              sub={<>of <CurrencyAmount amount={grandTotal} />{billedWaived > 0 ? <> · <CurrencyAmount amount={billedWaived} /> waived</> : null}</>}
             />
             <StatBox label="Enrollments" value={String(enrollments?.length || 0)} sub="academic years" />
           </div>
@@ -399,7 +399,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                     background: "#f0f4ff", border: "1.5px solid #c7d2fe",
                   }}>
                     <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: "#4338ca", textTransform: "uppercase", marginBottom: 4, letterSpacing: 0.5 }}>Billed</span>
-                    <strong style={{ fontSize: 18, fontWeight: 900, color: "#3730a3" }}>{fmt(grandTotal)}</strong>
+                    <strong style={{ fontSize: 18, fontWeight: 900, color: "#3730a3" }}><CurrencyAmount amount={grandTotal} /></strong>
                   </div>
                   {/* Paid */}
                   <div style={{
@@ -407,7 +407,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                     background: "#f0fdf4", border: "1.5px solid #bbf7d0",
                   }}>
                     <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: "#15803d", textTransform: "uppercase", marginBottom: 4, letterSpacing: 0.5 }}>Cash Paid</span>
-                    <strong style={{ fontSize: 18, fontWeight: 900, color: "#166534" }}>{fmt(grandPaid)}</strong>
+                    <strong style={{ fontSize: 18, fontWeight: 900, color: "#166534" }}><CurrencyAmount amount={grandPaid} /></strong>
                   </div>
                   {/* Waived */}
                   {billedWaived > 0 && (
@@ -416,7 +416,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                       background: "#faf5ff", border: "1.5px solid #e9d5ff",
                     }}>
                       <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: "#7c3aed", textTransform: "uppercase", marginBottom: 4, letterSpacing: 0.5 }}>Waived</span>
-                      <strong style={{ fontSize: 18, fontWeight: 900, color: "#6b21a8" }}>{fmt(billedWaived)}</strong>
+                      <strong style={{ fontSize: 18, fontWeight: 900, color: "#6b21a8" }}><CurrencyAmount amount={billedWaived} /></strong>
                     </div>
                   )}
                   {/* Pending */}
@@ -426,7 +426,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                     border: `1.5px solid ${grandPending > 0 ? "#fecdd3" : "#bbf7d0"}`,
                   }}>
                     <span style={{ display: "block", fontSize: 10, fontWeight: 900, color: grandPending > 0 ? "#be123c" : "#15803d", textTransform: "uppercase", marginBottom: 4, letterSpacing: 0.5 }}>Pending</span>
-                    <strong style={{ fontSize: 18, fontWeight: 900, color: grandPending > 0 ? "#9f1239" : "#166534" }}>{fmt(grandPending)}</strong>
+                    <strong style={{ fontSize: 18, fontWeight: 900, color: grandPending > 0 ? "#9f1239" : "#166534" }}><CurrencyAmount amount={grandPending} /></strong>
                   </div>
                 </div>
 
@@ -435,7 +435,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                       <span style={{ fontSize: 11, fontWeight: 800, color: "#6a7882" }}>
-                        Payment Progress {billedWaived > 0 ? `(incl. ${fmt(billedWaived)} waived)` : ""}
+                        Payment Progress {billedWaived > 0 ? <>(incl. <CurrencyAmount amount={billedWaived} /> waived)</> : ""}
                       </span>
                       <span style={{ fontSize: 11, fontWeight: 900, color: paidPct >= 100 ? "#16a34a" : "#c46a14" }}>
                         {paidPct >= 100 ? "100% Cleared" : `${paidPct.toFixed(0)}% Paid`}
@@ -483,12 +483,12 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                 right={<span className={cx(s("badge"), grandPending > 0 ? s("badge-red") : s("badge-green"))}>{grandPending > 0 ? "Pending" : "Cleared"}</span>}
               />
               <div className={s("sp-feebody")}>
-                <FeeRow label="Issued Invoices" value={fmt(billedTotal)} />
-                {billedWaived > 0 && <FeeRow label="Waived" value={fmt(billedWaived)} accent="#7c3aed" />}
+                <FeeRow label="Issued Invoices" value={<CurrencyAmount amount={billedTotal} />} />
+                {billedWaived > 0 && <FeeRow label="Waived" value={<CurrencyAmount amount={billedWaived} />} accent="#7c3aed" />}
                 <div className={s("sp-fee-divider")} />
-                <FeeRow label={billedWaived > 0 ? "Net Payable" : "Grand Total"} value={fmt(netPayable)} />
-                <FeeRow label="Cash Paid"     value={fmt(grandPaid)}    accent="#16a34a" />
-                <FeeRow label="Outstanding"   value={fmt(grandPending)} accent={grandPending > 0 ? "#dc2626" : "#16a34a"} />
+                <FeeRow label={billedWaived > 0 ? "Net Payable" : "Grand Total"} value={<CurrencyAmount amount={netPayable} />} />
+                <FeeRow label="Cash Paid"     value={<CurrencyAmount amount={grandPaid} />}    accent="#16a34a" />
+                <FeeRow label="Outstanding"   value={<CurrencyAmount amount={grandPending} />} accent={grandPending > 0 ? "#dc2626" : "#16a34a"} />
                 <div className={s("sp-fee-progress-wrap")}>
                   <div className={s("sp-fee-progress-track")}>
                     <div className={s("sp-fee-progress-fill")} style={{
@@ -540,8 +540,8 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                     </div>
                     <div className={s("sp-fee-divider")} style={{ margin: "14px 0 10px" }} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <FeeRow label="Monthly fee" value={fmt(parseFloat(transport.monthly_fee || 0))} />
-                      <FeeRow label="Annual fee"  value={fmt(transportAnn)} accent="#0f172a" />
+                      <FeeRow label="Monthly fee" value={<CurrencyAmount amount={parseFloat(transport.monthly_fee || 0)} />} />
+                      <FeeRow label="Annual fee"  value={<CurrencyAmount amount={transportAnn} />} accent="#0f172a" />
                     </div>
                   </div>
                 ) : <p className={s("sp-svcempty")}>Not assigned for this academic year.</p>}
@@ -563,7 +563,7 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                       <SvcRow icon="fa-solid fa-venus-mars" label="Type"      value={(hostel.hostel_type || "").replace(/_/g, " ")} />
                       <SvcRow icon="fa-solid fa-door-open"  label="Room"      value={`Room ${hostel.room_number} · Floor ${hostel.floor}`} />
                       <SvcRow icon="fa-solid fa-bed"        label="Room Type" value={(hostel.room_type || "").replace(/_/g, " ")} />
-                      <SvcRow icon="fa-solid fa-users"      label="Capacity"  value={hostel.capacity ? `${hostel.capacity} beds` : "—"} />
+                      <SvcRow icon="fa-users"               label="Capacity"  value={hostel.capacity ? `${hostel.capacity} beds` : "—"} />
                       {hostel.warden_name ? (
                         <SvcRow icon="fa-solid fa-user-shield" label="Warden" value={`${hostel.warden_name}${hostel.warden_phone ? " · " + hostel.warden_phone : ""}`} />
                       ) : (
@@ -572,8 +572,8 @@ export default function StudentProfilePage({ basePath = "", isFinance = false }:
                     </div>
                     <div className={s("sp-fee-divider")} style={{ margin: "14px 0 10px" }} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <FeeRow label="Monthly fee" value={fmt(parseFloat(hostel.monthly_fee || 0))} />
-                      <FeeRow label="Annual fee"  value={fmt(hostelAnn)} accent="#0f172a" />
+                      <FeeRow label="Monthly fee" value={<CurrencyAmount amount={parseFloat(hostel.monthly_fee || 0)} />} />
+                      <FeeRow label="Annual fee"  value={<CurrencyAmount amount={hostelAnn} />} accent="#0f172a" />
                     </div>
                   </div>
                 ) : <p className={s("sp-svcempty")}>Not assigned for this academic year.</p>}

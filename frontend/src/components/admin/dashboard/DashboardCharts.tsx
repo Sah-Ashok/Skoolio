@@ -6,7 +6,7 @@ import {
   Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import type { DashboardData } from "@/types/dashboard.types";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -74,11 +74,11 @@ export default function DashboardCharts({ data }: Props) {
               <div className={s("chart-metrics")}>
                 <div className={s("metric-card")}>
                   <span>COLLECTED</span>
-                  <strong>{fmtShort(totalCollected)}</strong>
+                  <strong><CurrencyAmount amount={totalCollected} size={15} short customSymbol={sym} /></strong>
                 </div>
                 <div className={s("metric-card")}>
                   <span>PENDING</span>
-                  <strong style={{ color: "#d97706" }}>{fmtShort(totalPending)}</strong>
+                  <strong style={{ color: "#d97706" }}><CurrencyAmount amount={totalPending} size={15} short customSymbol={sym} /></strong>
                 </div>
                 <div className={s("metric-card")}>
                   <span>COLLECTION RATE</span>
@@ -151,7 +151,7 @@ export default function DashboardCharts({ data }: Props) {
                 </div>
                 <div className={s("metric-card")}>
                   <span>TOTAL SPEND</span>
-                  <strong>{fmtShort(totalExpenses)}</strong>
+                  <strong><CurrencyAmount amount={totalExpenses} size={15} short customSymbol={sym} /></strong>
                 </div>
               </div>
               <div className={s("donut-wrap")}>
@@ -177,7 +177,7 @@ export default function DashboardCharts({ data }: Props) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className={s("donut-center")}>
-                  <strong>{fmtShort(totalExpenses)}</strong>
+                  <strong><CurrencyAmount amount={totalExpenses} size={15} short customSymbol={sym} /></strong>
                   <span>Total</span>
                 </div>
               </div>

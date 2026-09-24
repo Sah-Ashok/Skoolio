@@ -22,7 +22,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Loader } from "@/components/shared/Loader";
@@ -639,7 +639,9 @@ export default function FinanceDashboard() {
             </div>
             <div>
               <div className={styles.metricLabel}>Total Collected</div>
-              <div className={styles.metricValue}>{formatCurrency(totalPaid)}</div>
+              <div className={styles.metricValue}>
+                <CurrencyAmount amount={totalPaid} size={20} customSymbol={currSymbol} />
+              </div>
               <div className={styles.metricSub} style={{ color: "#059669" }}>This academic year</div>
             </div>
           </div>
@@ -678,7 +680,9 @@ export default function FinanceDashboard() {
             </div>
             <div>
               <div className={styles.metricLabel}>Total Outstanding</div>
-              <div className={styles.metricValue}>{formatCurrency(totalPending)}</div>
+              <div className={styles.metricValue}>
+                <CurrencyAmount amount={totalPending} size={20} customSymbol={currSymbol} />
+              </div>
               <div className={styles.metricSub} style={{ color: "#ea580c" }}>Pending student dues</div>
             </div>
           </div>
@@ -1209,7 +1213,7 @@ export default function FinanceDashboard() {
                         <td style={{ color: "#334155", fontWeight: 700 }}>{cleanFee}</td>
                         <td>
                           <strong style={{ color: "#16a34a", fontWeight: 900 }}>
-                            {formatCurrency(paidAmt)}
+                            <CurrencyAmount amount={paidAmt} size={13} customSymbol={currSymbol} />
                           </strong>
                         </td>
                         <td style={{ color: "#64748b", fontWeight: 600 }}>

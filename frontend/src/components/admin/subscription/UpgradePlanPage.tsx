@@ -6,6 +6,7 @@ import { useState } from "react";
 import { getPlanPrice } from "@/lib/currency";
 import { computeSavingText } from "@/components/super-admin/OfferModal";
 import { useDateFormat } from "@/lib/useDateFormat";
+import { CurrencyAmount } from "@/lib/useCurrency";
 import styles from "./subscription.module.css";
 
 const s = (n: string) => styles[n];
@@ -197,8 +198,8 @@ export default function UpgradePlanPage() {
   const currentTier     = getPlanTier(currentPlanName);
   const activeOffers    = (offers ?? []).filter((o: any) => o.is_active);
 
-  // Compute yearly saving % from first paid plan for the toggle label
-  const repPlan = (plans ?? []).find((p: any) => p.name !== "Free") || (plans ?? [])[0];
+  // Compute yearly saving % from first plan for the toggle label
+  const repPlan = (plans ?? [])[0];
   const repYearlySavingPct = repPlan?.price_npr_monthly && repPlan?.price_npr_yearly
     ? Math.round(((repPlan.price_npr_monthly * 12 - repPlan.price_npr_yearly) / (repPlan.price_npr_monthly * 12)) * 100)
     : 0;
@@ -230,7 +231,7 @@ export default function UpgradePlanPage() {
 
             {/* ── Plan cards ── */}
             <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 24, marginBottom: 36 }}>
-              {(plans ?? []).filter((plan: any) => plan.name !== "Free").map((plan: any) => {
+              {(plans ?? []).map((plan: any) => {
                 const isCurrent   = plan.name === currentPlanName;
                 const planTier    = getPlanTier(plan.name);
                 const isUpgrade   = planTier > currentTier;
@@ -238,7 +239,6 @@ export default function UpgradePlanPage() {
                 const isPro       = plan.name === "Pro";
                 const isPlus      = plan.name === "Plus";
                 const isUltra     = plan.name === "Ultra";
-                const isFree      = plan.name === "Free";
                 const pricing     = getPlanPrice(plan, cycle);
                 const rp          = plan.resolved_pricing;
 
@@ -255,11 +255,9 @@ export default function UpgradePlanPage() {
                 const currSym = rp?.symbol ?? "Rs.";
 
                 // Monthly-equivalent price when yearly is selected (motion.dev pattern)
-                const displayPrice = isFree
-                  ? "Free"
-                  : cycle === "yearly" && yearlyPrice > 0
-                    ? `${currSym}${Math.round(yearlyPrice / 12).toLocaleString("en-IN")}`
-                    : pricing.display;
+                const displayPrice = cycle === "yearly" && yearlyPrice > 0
+                  ? `${currSym}${Math.round(yearlyPrice / 12).toLocaleString("en-IN")}`
+                  : pricing.display;
 
                 // Check for a free_months offer on this plan
                 const planOffer = activeOffers.find((o: any) =>
@@ -267,7 +265,7 @@ export default function UpgradePlanPage() {
                   (!o.plan_name || o.plan_name === plan.name) &&
                   (!o.applies_to_billing || o.applies_to_billing === cycle)
                 );
-                const hasFreeOffer = !isFree && !!planOffer;
+                const hasFreeOffer = !!planOffer;
                 const freeMonths   = hasFreeOffer ? planOffer.discount_value : 0;
 
                 const cardTintClass = isPro
@@ -310,7 +308,7 @@ export default function UpgradePlanPage() {
                       {hasFreeOffer ? (
                         <div>
                           <span style={{ fontSize: 20, fontWeight: 700, color: "#94a3b8", textDecoration: "line-through", marginRight: 8 }}>
-                            {pricing.display}
+                            <CurrencyAmount amount={pricing.amount} customSymbol={currSym} />
                           </span>
                           <span className={s("motionPriceNumber")}>Free</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: "#15803d", marginLeft: 6 }}>
@@ -320,32 +318,31 @@ export default function UpgradePlanPage() {
                       ) : (
                         <>
                           <span className={s("motionPriceNumber")}>
-                            {displayPrice}
+                            <CurrencyAmount
+                              amount={cycle === "yearly" && yearlyPrice > 0 ? Math.round(yearlyPrice / 12) : monthlyPrice}
+                              customSymbol={currSym}
+                            />
                           </span>
-                          {!isFree && (
-                            <span className={s("motionPricePeriod")}>
-                              /mo
-                            </span>
-                          )}
+                          <span className={s("motionPricePeriod")}>
+                            /mo
+                          </span>
                         </>
                       )}
                     </div>
 
                     {/* ── 4. Billed Annually Subtitle (motion.dev signature line) ── */}
                     <div className={s("motionBilledLine")}>
-                      {!isFree && rp && cycle === "yearly" && yearlyPrice > 0 ? (
+                      {rp && cycle === "yearly" && yearlyPrice > 0 ? (
                         <span>
-                          Billed annually at {currSym}{yearlyPrice.toLocaleString("en-IN")}
+                          Billed annually at <CurrencyAmount amount={yearlyPrice} customSymbol={currSym} />
                           {yearlySavingPct > 0 && (
                             <span style={{ color: "#16a34a", fontWeight: 800, marginLeft: 6 }}>
                               (Save {yearlySavingPct}%)
                             </span>
                           )}
                         </span>
-                      ) : !isFree && rp ? (
-                        <span>Billed monthly</span>
                       ) : (
-                        <span>No credit card required</span>
+                        <span>Billed monthly</span>
                       )}
                     </div>
 
@@ -396,7 +393,7 @@ export default function UpgradePlanPage() {
                     </div>
 
                     {/* Offer chip if active */}
-                    {!isFree && planOffer && (
+                    {planOffer && (
                       <div style={{ marginTop: 14, padding: "6px 12px", borderRadius: 8, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 6 }}>
                         <i className="fa-solid fa-gift" style={{ fontSize: 11, color: "#ea580c" }} />
                         <span style={{ fontSize: 11, fontWeight: 800, color: "#c2410c" }}>

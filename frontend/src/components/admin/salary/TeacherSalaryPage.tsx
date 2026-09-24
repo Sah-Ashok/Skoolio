@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import styles from "@/components/admin/salary/salary.module.css";
 import { useApi } from "@/lib/useApi";
 import Loader, { Spinner } from "@/components/shared/Loader";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (name: string) => styles[name] || name;
@@ -98,7 +98,9 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
             ].map(({ label, amount, pos }) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <span style={{ color: "#6a7882", fontWeight: 700 }}>{label}</span>
-                <span style={{ fontWeight: 900, color: pos ? "#1f2d36" : "#b42318" }}>{fmt(amount)}</span>
+                <span style={{ fontWeight: 900, color: pos ? "#1f2d36" : "#b42318" }}>
+                  <CurrencyAmount amount={amount} />
+                </span>
               </div>
             ))}
           </div>
@@ -110,7 +112,9 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
               <span style={{ color: "#6a7882", fontWeight: 700 }}>Total Deductions</span>
-              <span style={{ fontWeight: 900, color: "#b42318" }}>-{fmt(salary.deduction)}</span>
+              <span style={{ fontWeight: 900, color: "#b42318" }}>
+                -<CurrencyAmount amount={salary.deduction} />
+              </span>
             </div>
           </div>
 
@@ -120,7 +124,9 @@ function SalarySlipModal({ salary, onClose }: { salary: Salary; onClose: () => v
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
             <span style={{ fontSize: 14, fontWeight: 900, color: "#12805c" }}>Net Salary</span>
-            <strong style={{ fontSize: 18, fontWeight: 900, color: "#12805c" }}>{fmt(salary.net_salary)}</strong>
+            <strong style={{ fontSize: 18, fontWeight: 900, color: "#12805c" }}>
+              <CurrencyAmount amount={salary.net_salary} />
+            </strong>
           </div>
 
           {/* Payment info */}
@@ -197,9 +203,9 @@ export default function TeacherSalaryPage() {
         {/* Stats */}
         <section className={s("stats")}>
           {[
-            { label: "Total Received",    value: fmt(totalPaid),     sub: "All paid months",       cls: "green",  icon: "fa-circle-check" },
-            { label: "Latest Net Salary", value: fmt(latestNet),     sub: sorted[0] ? `${MONTHS[sorted[0].month - 1]} ${sorted[0].year}` : "No payments", cls: "blue", icon: "fa-receipt" },
-            { label: "Total Deductions",  value: fmt(totalDeducted), sub: "Attendance & other",    cls: "red",    icon: "fa-minus-circle" },
+            { label: "Total Received",    value: <CurrencyAmount amount={totalPaid} />,     sub: "All paid months",       cls: "green",  icon: "fa-circle-check" },
+            { label: "Latest Net Salary", value: <CurrencyAmount amount={latestNet} />,     sub: sorted[0] ? `${MONTHS[sorted[0].month - 1]} ${sorted[0].year}` : "No payments", cls: "blue", icon: "fa-receipt" },
+            { label: "Total Deductions",  value: <CurrencyAmount amount={totalDeducted} />, sub: "Attendance & other",    cls: "red",    icon: "fa-minus-circle" },
             { label: "Pending Months",    value: pendingCount,       sub: pendingCount > 0 ? "Awaiting disbursement" : "All cleared", cls: "orange", icon: "fa-clock" },
           ].map(({ label, value, sub, cls, icon }) => (
             <article key={label} className={cx(s("stat"), s(cls))}>
@@ -260,22 +266,22 @@ export default function TeacherSalaryPage() {
                           {MONTHS[sal.month - 1]} {sal.year}
                         </strong>
                       </td>
-                      <td>{fmt(sal.basic_salary)}</td>
+                      <td><CurrencyAmount amount={sal.basic_salary} /></td>
                       <td>
                         {Number(sal.bonus) > 0
-                          ? <span style={{ color: "#12805c", fontWeight: 900 }}>+{fmt(sal.bonus)}</span>
+                          ? <span style={{ color: "#12805c", fontWeight: 900 }}>+<CurrencyAmount amount={sal.bonus} /></span>
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>
                       <td>
                         {Number(sal.deduction) > 0
-                          ? <span style={{ color: "#b42318", fontWeight: 900 }}>–{fmt(sal.deduction)}</span>
+                          ? <span style={{ color: "#b42318", fontWeight: 900 }}>–<CurrencyAmount amount={sal.deduction} /></span>
                           : <span style={{ color: "#aab5bb" }}>—</span>
                         }
                       </td>
                       <td>
                         <strong style={{ fontSize: 14, fontWeight: 900, color: "#12805c" }}>
-                          {fmt(sal.net_salary)}
+                          <CurrencyAmount amount={sal.net_salary} />
                         </strong>
                       </td>
                       <td>

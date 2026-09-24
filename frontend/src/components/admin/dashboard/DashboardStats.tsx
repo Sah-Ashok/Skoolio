@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import type { DashboardData } from "@/types/dashboard.types";
 
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -11,14 +11,11 @@ const s  = (className: string) => styles[className];
 interface Props { data: DashboardData }
 
 export default function DashboardStats({ data }: Props) {
-  const { symbol: currSymbol, fmt, fmtShort: currencyShort } = useCurrency();
+  const { symbol: currSymbol } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
 
-  const fmtShort = (n: number) => currencyShort(n, sym);
-  const fmtFull  = (n: number) => fmt(n, sym);
-
   const collectionRate = data.collectionRate ?? 0;
-  const netBalanceSign = (data.netBalance ?? 0) >= 0 ? "+" : "";
+  const netBalanceSign = (data.netBalance ?? 0) >= 0 ? "+" : "-";
 
   const heroCards = [
     {
@@ -40,7 +37,7 @@ export default function DashboardStats({ data }: Props) {
     {
       icon: "fa-circle-dollar-to-slot",
       label: "Fee Collected",
-      value: fmtShort(data.totalCollected ?? 0),
+      value: <CurrencyAmount amount={data.totalCollected ?? 0} size={22} short customSymbol={sym} />,
       helper: `${collectionRate}% collected`,
       tone: "amber",
       tag: `${collectionRate}% rate`,
@@ -48,10 +45,15 @@ export default function DashboardStats({ data }: Props) {
     {
       icon: "fa-scale-balanced",
       label: "Net Balance",
-      value: fmtShort(Math.abs(data.netBalance ?? 0)),
-      helper: `${netBalanceSign}${fmtFull(data.netBalance ?? 0)}`,
+      value: <CurrencyAmount amount={Math.abs(data.netBalance ?? 0)} size={22} short customSymbol={sym} />,
+      helper: (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+          <span>{netBalanceSign}</span>
+          <CurrencyAmount amount={Math.abs(data.netBalance ?? 0)} size={11} customSymbol={sym} />
+        </span>
+      ),
       tone: "indigo",
-      tag: data.netBalance >= 0 ? "Surplus" : "Deficit",
+      tag: (data.netBalance ?? 0) >= 0 ? "Surplus" : "Deficit",
     },
   ];
 
@@ -60,7 +62,7 @@ export default function DashboardStats({ data }: Props) {
       tone: "rose",
       icon: "fa-clock-rotate-left",
       label: "Pending Fees",
-      value: fmtShort(data.totalPending ?? 0),
+      value: <CurrencyAmount amount={data.totalPending ?? 0} size={18} short customSymbol={sym} />,
       helper: data.pendingBills && data.pendingBills !== data.pendingStudents
         ? `${data.pendingStudents ?? 0} students pending (${data.pendingBills} bills)`
         : `${data.pendingStudents ?? 0} students pending`,
@@ -70,7 +72,7 @@ export default function DashboardStats({ data }: Props) {
       tone: "violet",
       icon: "fa-receipt",
       label: "Monthly Expenses",
-      value: fmtShort(data.totalExpenses ?? 0),
+      value: <CurrencyAmount amount={data.totalExpenses ?? 0} size={18} short customSymbol={sym} />,
       helper: `${data.expenseCount ?? 0} transactions`,
       trend: undefined,
     },
@@ -78,7 +80,7 @@ export default function DashboardStats({ data }: Props) {
       tone: "teal",
       icon: "fa-money-bill-wave",
       label: "Salaries Paid",
-      value: fmtShort(data.salaryPaidAmt ?? 0),
+      value: <CurrencyAmount amount={data.salaryPaidAmt ?? 0} size={18} short customSymbol={sym} />,
       helper: `${data.salaryPaidCount ?? 0} of ${data.salaryTotal ?? 0} staff`,
       trend: "trend-up",
     },

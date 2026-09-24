@@ -11,7 +11,7 @@ import { showToast } from "@/store/toastSlice";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import Topbar from "@/components/shared/Topbar";
 import DateInput from "@/components/shared/DateInput";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const s = (c: string) => styles[c] || c;
@@ -249,7 +249,7 @@ export default function EditFacultyForm() {
             <span>
               <b>Monthly Salary</b>
               <strong style={{ fontSize: 13, color: form.monthly_salary ? "#12805c" : "#b42318" }}>
-                {form.monthly_salary ? `${fmt(form.monthly_salary)}/mo` : "Not set"}
+                {form.monthly_salary ? <><CurrencyAmount amount={form.monthly_salary} />/mo</> : "Not set"}
               </strong>
             </span>
             <span>
@@ -394,7 +394,7 @@ export default function EditFacultyForm() {
                 <input name="experience_years" type="number" min="0" max="60" value={form.experience_years} onChange={set} placeholder="e.g. 5" />
               </label>
               <label className={s("field")}>
-                <span>Monthly Salary <em>*</em></span>
+                <span>Monthly Salary (<CurrencySymbol />) <em>*</em></span>
                 <input
                   name="monthly_salary"
                   type="number"

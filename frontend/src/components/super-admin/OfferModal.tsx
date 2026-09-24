@@ -21,19 +21,19 @@ export function computeSavingText(
   if (discountType === "free_months") {
     const targetPlan = planName
       ? plans.find(p => p.name === planName)
-      : plans.find(p => p.name !== "Free");
+      : plans[0];
     if (targetPlan) {
       const curr = currency || "NPR";
       const monthlyPrice = curr === "INR" ? targetPlan.price_inr_monthly : targetPlan.price_npr_monthly;
       const saved = monthlyPrice * discountValue;
-      const sym = curr === "INR" ? "₹" : curr === "USD" ? "$" : "Rs.";
+      const sym = curr === "INR" ? "₹" : curr === "USD" ? "$" : "रू";
       return `${discountValue} month${discountValue !== 1 ? "s" : ""} free — worth ${sym}${saved.toLocaleString()}`;
     }
     return `${discountValue} month${discountValue !== 1 ? "s" : ""} free`;
   }
   if (discountType === "fixed") {
     const curr = currency || "NPR";
-    const sym = curr === "INR" ? "₹" : curr === "USD" ? "$" : "Rs.";
+    const sym = curr === "INR" ? "₹" : curr === "USD" ? "$" : "रू";
     return `Save ${sym}${discountValue.toLocaleString()} flat`;
   }
   return "";
@@ -251,7 +251,7 @@ export default function OfferModal({ offer, plans, onClose, onSaved }: {
                 <FieldLabel>Applies to Plan</FieldLabel>
                 <select style={selectStyle} value={form.plan_name as any} onChange={e => set("plan_name", e.target.value)}>
                   <option value="">Any Plan</option>
-                  {plans.filter(p => p.name !== "Free").map(p => (
+                  {plans.map(p => (
                     <option key={p.id} value={p.name}>{p.name}</option>
                   ))}
                 </select>

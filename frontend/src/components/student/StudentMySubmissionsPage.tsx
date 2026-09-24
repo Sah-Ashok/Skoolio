@@ -5,7 +5,7 @@ import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import Link from "next/link";
 
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -85,7 +85,7 @@ export default function StudentMySubmissionsPage() {
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                            <span style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}>{fmt(r.amount)}</span>
+                            <span style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}><CurrencyAmount amount={r.amount} /></span>
                             <span style={{ padding: "4px 11px", borderRadius: 999, fontSize: 11, fontWeight: 900, background: st.bg, color: st.color, whiteSpace: "nowrap" }}>
                               {st.label}
                             </span>

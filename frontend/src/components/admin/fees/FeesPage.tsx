@@ -9,7 +9,7 @@ import { Spinner } from "@/components/shared/Loader";
 import { SkeletonStatRow, SkeletonChart, SkeletonTable } from "@/components/shared/Skeleton";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useAppSelector } from "@/store/hooks";
 
 const s = (className: string) => styles[className] || className;
@@ -38,7 +38,7 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
   const prefix = basePath || (isFinance ? '/finance/fees' : '/fees');
 
   const { formatDate, formatFeeName } = useDateFormat();
-  const { fmt: formatCurrency } = useCurrency();
+  const { fmt: formatCurrency, symbol: currSymbol } = useCurrency();
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: rawCollections, loading } = useApi<any>(
     academicYearId ? `/fees/collections?academic_year_id=${academicYearId}&limit=200` : "",
@@ -323,7 +323,9 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
             <article className={cx(s("heroCard"), s("c1"))}>
               <div className={s("hcInfo")}>
                 <span className={s("hcLabel")}>Total Collected</span>
-                <strong className={s("hcValue")}>{formatCurrency(totalCollected)}</strong>
+                <strong className={s("hcValue")}>
+                  <CurrencyAmount amount={totalCollected} size={18} customSymbol={currSymbol} />
+                </strong>
                 <span className={s("hcSub")}>Active academic session</span>
               </div>
               <div className={s("hcIcon")}><i className="fa-solid fa-wallet" /></div>
@@ -332,7 +334,9 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
             <article className={cx(s("heroCard"), s("c2"))}>
               <div className={s("hcInfo")}>
                 <span className={s("hcLabel")}>Total Outstanding Dues</span>
-                <strong className={s("hcValue")}>{formatCurrency(totalPending)}</strong>
+                <strong className={s("hcValue")}>
+                  <CurrencyAmount amount={totalPending} size={18} customSymbol={currSymbol} />
+                </strong>
                 <span className={s("hcSub")}>{pendingStudentsCount} students with dues</span>
               </div>
               <div className={s("hcIcon")}><i className="fa-solid fa-clock-rotate-left" /></div>
@@ -341,7 +345,9 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
             <article className={cx(s("heroCard"), s("c3"))}>
               <div className={s("hcInfo")}>
                 <span className={s("hcLabel")}>This Month's Collections</span>
-                <strong className={s("hcValue")}>{formatCurrency(thisMonthCollected)}</strong>
+                <strong className={s("hcValue")}>
+                  <CurrencyAmount amount={thisMonthCollected} size={18} customSymbol={currSymbol} />
+                </strong>
                 <span className={s("hcSub")}>{MONTH_NAMES[currentMonthIdx]} revenue</span>
               </div>
               <div className={s("hcIcon")}><i className="fa-solid fa-calendar-check" /></div>
@@ -595,7 +601,7 @@ export default function FeesPage({ mode, basePath, showHeroGreeting }: FeesPageP
                         </td>
                         <td>
                           <span className={s("amountCell")}>
-                            {formatCurrency(parseFloat(item.remaining_amount || item.total_amount || 0))}
+                            <CurrencyAmount amount={parseFloat(item.remaining_amount || item.total_amount || 0)} size={12} customSymbol={currSymbol} />
                           </span>
                         </td>
                         <td>

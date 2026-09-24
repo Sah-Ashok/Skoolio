@@ -11,7 +11,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { showToast } from "@/store/toastSlice";
 
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s = (className: string) => styles[className] || className;
@@ -303,10 +303,10 @@ export default function FeeStructuresPage() {
                           </span>
                         </td>
                         <td>
-                          <span className={s("amountCell")}>{formatCurrency(row.amount)}</span>
+                          <span className={s("amountCell")}><CurrencyAmount amount={row.amount} /></span>
                         </td>
                         <td>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{formatCurrency(row.annualTotal)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}><CurrencyAmount amount={row.annualTotal} /></span>
                         </td>
                         <td>
                           <span className={cx(s("badge"), row.scholarship_applies ? s("badgeGreen") : s("badgeGray"))}>
@@ -416,7 +416,7 @@ export default function FeeStructuresPage() {
               )}
 
               <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
-                Amount ({symbol}) *
+                <span>Amount (<CurrencySymbol />) *</span>
                 <input
                   type="number"
                   min={1}

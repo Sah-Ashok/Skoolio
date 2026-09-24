@@ -8,7 +8,7 @@ import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const s  = (c: string) => styles[c] || c;
@@ -91,13 +91,13 @@ function RequestDetailModal({
           {/* Payment details */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
             {[
-              ["Amount Submitted",  fmt(req.amount)],
-              ["Payment Date",      formatDate(req.payment_date)],
-              ["Bank Account",      req.bank_name ?? "—"],
-              ["Transaction Ref",   req.transaction_ref || "Not provided"],
-              ["Fee Head",          req.fee_name || "—"],
-              ["Outstanding Before", fmt(req.collection_remaining_amount ?? 0)],
-            ].map(([label, val]) => (
+              { label: "Amount Submitted",  val: <CurrencyAmount amount={req.amount} /> },
+              { label: "Payment Date",      val: formatDate(req.payment_date) },
+              { label: "Bank Account",      val: req.bank_name ?? "—" },
+              { label: "Transaction Ref",   val: req.transaction_ref || "Not provided" },
+              { label: "Fee Head",          val: req.fee_name || "—" },
+              { label: "Outstanding Before", val: <CurrencyAmount amount={req.collection_remaining_amount ?? 0} /> },
+            ].map(({ label, val }) => (
               <div key={label} style={{ padding: "10px 12px", borderRadius: 9, background: "#f7fbfc", border: "1px solid #e1e8eb" }}>
                 <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>{label}</p>
                 <strong style={{ fontSize: 13, color: "#1f2d36", fontWeight: 900 }}>{val}</strong>
@@ -379,7 +379,7 @@ export default function OnlinePaymentRequestsPage() {
                         <small style={{ color: "#6a7882" }}>{req.admission_number}</small>
                       </td>
                       <td style={{ fontWeight: 700 }}>{req.fee_name || "—"}</td>
-                      <td><strong style={{ color: "#12805c", fontSize: 14 }}>{fmt(req.amount)}</strong></td>
+                      <td><strong style={{ color: "#12805c", fontSize: 14 }}><CurrencyAmount amount={req.amount} /></strong></td>
                       <td style={{ fontSize: 12, color: "#6a7882", fontWeight: 700 }}>{req.transaction_ref || "—"}</td>
                       <td style={{ fontSize: 12, color: "#6a7882" }}>{formatDate(req.payment_date)}</td>
                       <td>

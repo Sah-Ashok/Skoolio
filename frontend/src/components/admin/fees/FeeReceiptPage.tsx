@@ -5,7 +5,7 @@ import { useApi } from "@/lib/useApi";
 import { Loader } from "@/components/shared/Loader";
 import { amountToWords } from "@/lib/amountToWords";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 // ── Azure PDF download button ───────────────────────────────────────────────
 type AzureBtnState = 'idle' | 'generating' | 'ready' | 'error';
@@ -541,17 +541,17 @@ export default function FeeReceiptPage({ paymentId }: Props) {
                       {g.title}
                       {g.discountAmt > 0 && (
                         <span style={{ fontSize: 11, color: '#333', marginLeft: 6, fontWeight: 'normal' }}>
-                          (LESS DISCOUNT: {formatCurrency(g.discountAmt)}{g.discountReason ? ` · ${g.discountReason}` : ''})
+                          (LESS DISCOUNT: <CurrencyAmount amount={g.discountAmt} />{g.discountReason ? ` · ${g.discountReason}` : ''})
                         </span>
                       )}
                     </div>
                     {g.count > 1 && (
                       <div style={{ fontSize: 10.5, color: '#555', fontWeight: 'normal', marginTop: 2 }}>
-                        Rate: {formatCurrency(g.rate)} / Month × {g.count} Months
+                        Rate: <CurrencyAmount amount={g.rate} /> / Month × {g.count} Months
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '6px 8px' }}>{formatCurrency(g.netBillAmt)}</td>
+                  <td style={{ padding: '6px 8px' }}><CurrencyAmount amount={g.netBillAmt} /></td>
                 </tr>
               ))}
 
@@ -562,7 +562,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
                   <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#b42318' }}>
                     Add: Late Payment Fine {receipt.fine_reason ? `(${receipt.fine_reason})` : ''}
                   </td>
-                  <td style={{ padding: '6px 8px', color: '#b42318' }}>+ {formatCurrency(fineAmt)}</td>
+                  <td style={{ padding: '6px 8px', color: '#b42318' }}>+ <CurrencyAmount amount={fineAmt} /></td>
                 </tr>
               )}
 
@@ -573,7 +573,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
                   <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#333' }}>
                     Less: Waived by Management {receipt.fine_reason ? `(${receipt.fine_reason})` : ''}
                   </td>
-                  <td style={{ padding: '6px 8px' }}>− {formatCurrency(waivedAmt)}</td>
+                  <td style={{ padding: '6px 8px' }}>− <CurrencyAmount amount={waivedAmt} /></td>
                 </tr>
               )}
 
@@ -584,7 +584,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
                   <td style={{ textAlign: 'left', padding: '6px 12px', fontStyle: 'italic', color: '#333' }}>
                     Less: Balance Due / Pending
                   </td>
-                  <td style={{ padding: '6px 8px' }}>− {formatCurrency(balanceDue)}</td>
+                  <td style={{ padding: '6px 8px' }}>− <CurrencyAmount amount={balanceDue} /></td>
                 </tr>
               )}
 
@@ -594,7 +594,7 @@ export default function FeeReceiptPage({ paymentId }: Props) {
                 <td style={{ textAlign: 'right', padding: '6px 12px', fontWeight: 'bold' }}>
                   TOTAL RECEIVED
                 </td>
-                <td style={{ padding: '6px 8px', fontWeight: 'bold' }}>{formatCurrency(paidNow)}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 'bold' }}><CurrencyAmount amount={paidNow} /></td>
               </tr>
             </tbody>
           </table>

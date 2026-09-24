@@ -10,14 +10,14 @@ import {
 
 export const getActivePlans = async (): Promise<ISubscriptionPlan[]> => {
   const result = await pool.query(
-    `SELECT * FROM subscription_plans WHERE is_active = true AND name != 'Free' ORDER BY id ASC`
+    `SELECT * FROM subscription_plans WHERE is_active = true ORDER BY id ASC`
   );
   return result.rows;
 };
 
 export const getAllPlans = async (): Promise<ISubscriptionPlan[]> => {
   const result = await pool.query(
-    `SELECT * FROM subscription_plans WHERE name != 'Free' ORDER BY id ASC`
+    `SELECT * FROM subscription_plans ORDER BY id ASC`
   );
   return result.rows;
 };
@@ -257,33 +257,6 @@ export const getTeacherCount = async (school_id: number): Promise<number> => {
   return getTotalStaffCount(school_id);
 };
 
-export const downgradeToFreeTransaction = async (
-  expiredSubscriptionId: number,
-  school_id:             number,
-  freePlanId:            number,
-  notes:                 string
-): Promise<void> => {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      `UPDATE school_subscriptions SET status = 'expired' WHERE id = $1`,
-      [expiredSubscriptionId]
-    );
-    await client.query(
-      `INSERT INTO school_subscriptions
-        (school_id, plan_id, billing_cycle, amount_paid, start_date, end_date, status, activated_by, notes)
-       VALUES ($1, $2, 'free', 0, NOW()::date, NULL, 'active', $1, $3)`,
-      [school_id, freePlanId, notes]
-    );
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-};
 
 export const getAllSchoolsWithSubscriptions = async (): Promise<any[]> => {
   const result = await pool.query(

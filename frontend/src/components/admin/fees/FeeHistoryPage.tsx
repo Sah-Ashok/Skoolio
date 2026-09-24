@@ -8,7 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import styles from "./fees.module.css";
 
@@ -72,7 +72,7 @@ function groupByMonth(collections: any[], payments: any[], billingGroupKey?: (is
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, accent, icon }: { label: string; value: string; accent: string; icon: string }) {
+function StatCard({ label, value, accent, icon }: { label: string; value: React.ReactNode; accent: string; icon: string }) {
   return (
     <div style={{
       padding: "14px 18px", borderRadius: 12, background: "#fff",
@@ -266,7 +266,7 @@ export default function FeeHistoryPage() {
                   {totalPending > 0 ? (
                     <span style={{ padding: "4px 12px", borderRadius: 999, background: "#fee2e2", color: "#dc2626", fontSize: 12, fontWeight: 900 }}>
                       <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 5 }} />
-                      Due: {fmt(totalPending)}
+                      Due: <CurrencyAmount amount={totalPending} />
                     </span>
                   ) : (
                     <span style={{ padding: "4px 12px", borderRadius: 999, background: "#dcfce7", color: "#15803d", fontSize: 12, fontWeight: 900 }}>
@@ -280,9 +280,9 @@ export default function FeeHistoryPage() {
 
             {/* ── Summary stats ── */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-              <StatCard label="Total Billed"  value={fmt(totalBilled)}  accent="#3b5bdb" icon="fa-file-invoice"    />
-              <StatCard label="Total Paid"    value={fmt(totalPaid)}    accent="#059669" icon="fa-circle-check"    />
-              <StatCard label="Pending"       value={fmt(totalPending)} accent="#dc2626" icon="fa-hourglass-half"  />
+              <StatCard label="Total Billed"  value={<CurrencyAmount amount={totalBilled} />}  accent="#3b5bdb" icon="fa-file-invoice"    />
+              <StatCard label="Total Paid"    value={<CurrencyAmount amount={totalPaid} />}    accent="#059669" icon="fa-circle-check"    />
+              <StatCard label="Pending"       value={<CurrencyAmount amount={totalPending} />} accent="#dc2626" icon="fa-hourglass-half"  />
               <StatCard label="Overdue Bills" value={String(overdueCt)} accent="#d97706" icon="fa-triangle-exclamation" />
               <StatCard label="Total Payments" value={String(payments.length)} accent="#7c3aed" icon="fa-receipt" />
             </div>
@@ -305,7 +305,7 @@ export default function FeeHistoryPage() {
                         Pending Dues — {pendingFees.length} bill{pendingFees.length !== 1 ? "s" : ""}
                       </strong>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#6a7882" }}>
-                        Total outstanding: {fmt(totalPending)}
+                        Total outstanding: <CurrencyAmount amount={totalPending} />
                       </span>
                     </div>
                   </div>
@@ -345,9 +345,9 @@ export default function FeeHistoryPage() {
                             <td style={{ padding: "10px 13px", fontSize: 12, fontWeight: 700, color: isOverdue ? "#dc2626" : "#6a7882", whiteSpace: "nowrap" }}>
                               {formatDate(c.due_date?.slice(0, 10))}
                             </td>
-                            <td style={{ padding: "10px 13px", fontWeight: 700, color: "#475569", whiteSpace: "nowrap" }}>{fmt(c.net_amount)}</td>
-                            <td style={{ padding: "10px 13px", fontWeight: 700, color: "#059669", whiteSpace: "nowrap" }}>{fmt(c.paid_amount || 0)}</td>
-                            <td style={{ padding: "10px 13px", fontWeight: 900, color: "#dc2626", whiteSpace: "nowrap" }}>{fmt(c.remaining_amount || 0)}</td>
+                            <td style={{ padding: "10px 13px", fontWeight: 700, color: "#475569", whiteSpace: "nowrap" }}><CurrencyAmount amount={c.net_amount} /></td>
+                            <td style={{ padding: "10px 13px", fontWeight: 700, color: "#059669", whiteSpace: "nowrap" }}><CurrencyAmount amount={c.paid_amount || 0} /></td>
+                            <td style={{ padding: "10px 13px", fontWeight: 900, color: "#dc2626", whiteSpace: "nowrap" }}><CurrencyAmount amount={c.remaining_amount || 0} /></td>
                             <td style={{ padding: "10px 13px" }}><StatusBadge status={c.status} /></td>
                           </tr>
                         );
@@ -356,7 +356,7 @@ export default function FeeHistoryPage() {
                     <tfoot>
                       <tr style={{ background: "#fff5f5", borderTop: "1.5px solid #fca5a5" }}>
                         <td colSpan={5} style={{ padding: "10px 13px", fontSize: 12, fontWeight: 900, color: "#6a7882" }}>Total Outstanding</td>
-                        <td style={{ padding: "10px 13px", fontWeight: 900, color: "#dc2626", fontSize: 15 }}>{fmt(totalPending)}</td>
+                        <td style={{ padding: "10px 13px", fontWeight: 900, color: "#dc2626", fontSize: 15 }}><CurrencyAmount amount={totalPending} /></td>
                         <td />
                       </tr>
                     </tfoot>
@@ -466,16 +466,16 @@ export default function FeeHistoryPage() {
                         <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
                           <div style={{ textAlign: "right" }}>
                             <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: "#6a7882", textTransform: "uppercase" }}>Billed</span>
-                            <strong style={{ fontSize: 14, fontWeight: 900, color: "#1f2d36" }}>{fmt(monthTotal)}</strong>
+                            <strong style={{ fontSize: 14, fontWeight: 900, color: "#1f2d36" }}><CurrencyAmount amount={monthTotal} /></strong>
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: "#6a7882", textTransform: "uppercase" }}>Paid</span>
-                            <strong style={{ fontSize: 14, fontWeight: 900, color: "#16a34a" }}>{fmt(monthPaid)}</strong>
+                            <strong style={{ fontSize: 14, fontWeight: 900, color: "#16a34a" }}><CurrencyAmount amount={monthPaid} /></strong>
                           </div>
                           {monthPending > 0 && (
                             <div style={{ textAlign: "right" }}>
                               <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: "#6a7882", textTransform: "uppercase" }}>Pending</span>
-                              <strong style={{ fontSize: 14, fontWeight: 900, color: "#dc2626" }}>{fmt(monthPending)}</strong>
+                              <strong style={{ fontSize: 14, fontWeight: 900, color: "#dc2626" }}><CurrencyAmount amount={monthPending} /></strong>
                             </div>
                           )}
                         </div>
@@ -513,13 +513,13 @@ export default function FeeHistoryPage() {
                                     <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 700, color: isOverdue ? "#dc2626" : "#6a7882", whiteSpace: "nowrap" }}>
                                       {formatDate(c.due_date?.slice(0, 10))}
                                     </td>
-                                    <td style={{ padding: "11px 14px", fontWeight: 700, color: "#475569", whiteSpace: "nowrap" }}>{fmt(c.net_amount)}</td>
+                                    <td style={{ padding: "11px 14px", fontWeight: 700, color: "#475569", whiteSpace: "nowrap" }}><CurrencyAmount amount={c.net_amount} /></td>
                                     <td style={{ padding: "11px 14px", fontWeight: 700, color: c.discount_amount > 0 ? "#16a34a" : "#c8d6de", whiteSpace: "nowrap" }}>
-                                      {c.discount_amount > 0 ? `-${fmt(c.discount_amount)}` : "—"}
+                                      {c.discount_amount > 0 ? <>-<CurrencyAmount amount={c.discount_amount} /></> : "—"}
                                     </td>
-                                    <td style={{ padding: "11px 14px", fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}>{fmt(c.paid_amount || 0)}</td>
+                                    <td style={{ padding: "11px 14px", fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}><CurrencyAmount amount={c.paid_amount || 0} /></td>
                                     <td style={{ padding: "11px 14px", fontWeight: 900, color: parseFloat(c.remaining_amount || 0) > 0 ? "#dc2626" : "#16a34a", whiteSpace: "nowrap" }}>
-                                      {fmt(c.remaining_amount || 0)}
+                                      <CurrencyAmount amount={c.remaining_amount || 0} />
                                     </td>
                                     <td style={{ padding: "11px 14px" }}><StatusBadge status={c.status} /></td>
                                   </tr>
@@ -542,7 +542,7 @@ export default function FeeHistoryPage() {
                                         {(p.payment_method || "").replace(/_/g, " ")}
                                       </td>
                                       <td style={{ padding: "7px 14px", fontWeight: 900, color: "#16a34a", fontSize: 12, whiteSpace: "nowrap" }}>
-                                        {fmt(p.paid_amount || 0)}
+                                        <CurrencyAmount amount={p.paid_amount || 0} />
                                       </td>
                                       <td colSpan={2} />
                                     </tr>
@@ -554,10 +554,10 @@ export default function FeeHistoryPage() {
                           <tfoot>
                             <tr style={{ background: "#f8fafc", borderTop: "1.5px solid #e5ebee" }}>
                               <td colSpan={3} style={{ padding: "10px 14px", fontSize: 12, fontWeight: 900, color: "#6a7882" }}>Month Total</td>
-                              <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1f2d36", whiteSpace: "nowrap" }}>{fmt(monthTotal)}</td>
+                              <td style={{ padding: "10px 14px", fontWeight: 900, color: "#1f2d36", whiteSpace: "nowrap" }}><CurrencyAmount amount={monthTotal} /></td>
                               <td />
-                              <td style={{ padding: "10px 14px", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}>{fmt(monthPaid)}</td>
-                              <td style={{ padding: "10px 14px", fontWeight: 900, color: monthPending > 0 ? "#dc2626" : "#16a34a", whiteSpace: "nowrap" }}>{fmt(monthPending)}</td>
+                              <td style={{ padding: "10px 14px", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}><CurrencyAmount amount={monthPaid} /></td>
+                              <td style={{ padding: "10px 14px", fontWeight: 900, color: monthPending > 0 ? "#dc2626" : "#16a34a", whiteSpace: "nowrap" }}><CurrencyAmount amount={monthPending} /></td>
                               <td />
                             </tr>
                           </tfoot>

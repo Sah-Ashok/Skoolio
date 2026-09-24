@@ -7,7 +7,7 @@ import { apiRequest } from "@/lib/api";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 // ── Receipt PDF button ───────────────────────────────────────────────────────
 type BtnState = "idle" | "generating" | "ready" | "error";
@@ -150,7 +150,7 @@ function DonutChart({
           <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#059669", flexShrink: 0 }} />
           <div>
             <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748b", lineHeight: "1.2" }}>Paid</span>
-            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: "#059669", lineHeight: "1.3" }}>{fmt(paid)}</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: "#059669", lineHeight: "1.3" }}><CurrencyAmount amount={paid} /></span>
           </div>
         </div>
 
@@ -158,7 +158,7 @@ function DonutChart({
           <div style={{ width: 9, height: 9, borderRadius: "50%", background: due > 0 ? "#dc2626" : "#94a3b8", flexShrink: 0 }} />
           <div>
             <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748b", lineHeight: "1.2" }}>Pending</span>
-            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: due > 0 ? "#dc2626" : "#0f172a", lineHeight: "1.3" }}>{fmt(due)}</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 900, color: due > 0 ? "#dc2626" : "#0f172a", lineHeight: "1.3" }}><CurrencyAmount amount={due} /></span>
           </div>
         </div>
 
@@ -167,7 +167,7 @@ function DonutChart({
             <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#7c3aed", flexShrink: 0 }} />
             <div>
               <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748b", lineHeight: "1.2" }}>Waived</span>
-              <span style={{ display: "block", fontSize: 13, fontWeight: 900, color: "#7c3aed", lineHeight: "1.3" }}>{fmt(waived)}</span>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 900, color: "#7c3aed", lineHeight: "1.3" }}><CurrencyAmount amount={waived} /></span>
             </div>
           </div>
         )}
@@ -179,7 +179,7 @@ function DonutChart({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function StudentFeesPage() {
   const { formatDate, formatFeeName } = useDateFormat();
-  const { fmt } = useCurrency();
+  const { fmt, symbol } = useCurrency();
 
   // Read active academic year from Redux
   const activeYear     = useAppSelector(s => s.academicYear?.activeYear);
@@ -298,9 +298,9 @@ export default function StudentFeesPage() {
                   
                   <div className="sfp-stats">
                     {[
-                      { icon: "fa-file-invoice-dollar", label: "Total Billed", val: fmt(totalAmount), iconBg: "#fff7ed", iconColor: "#ff9148" },
-                      { icon: "fa-circle-check", label: "Total Paid", val: fmt(totalPaid), iconBg: "#e2f6ee", iconColor: "#059669" },
-                      { icon: "fa-hourglass-half", label: "Pending", val: fmt(totalDue), iconBg: totalDue > 0 ? "#fde7e7" : "#f1f5f9", iconColor: totalDue > 0 ? "#dc2626" : "#64748b" },
+                      { icon: "fa-file-invoice-dollar", label: "Total Billed", val: <CurrencyAmount amount={totalAmount} size={15} customSymbol={symbol} />, iconBg: "#fff7ed", iconColor: "#ff9148" },
+                      { icon: "fa-circle-check", label: "Total Paid", val: <CurrencyAmount amount={totalPaid} size={15} customSymbol={symbol} />, iconBg: "#e2f6ee", iconColor: "#059669" },
+                      { icon: "fa-hourglass-half", label: "Pending", val: <CurrencyAmount amount={totalDue} size={15} customSymbol={symbol} />, iconBg: totalDue > 0 ? "#fde7e7" : "#f1f5f9", iconColor: totalDue > 0 ? "#dc2626" : "#64748b" },
                       { icon: "fa-list-check", label: "Records", val: `${settledCount}/${count} paid`, iconBg: "#eff6ff", iconColor: "#3b5bdb" },
                     ].map(st => (
                       <div key={st.label} className="sfp-stat">
@@ -379,11 +379,25 @@ export default function StudentFeesPage() {
                             <td style={{ color: isOverdue ? "#b42318" : "#64748b", fontWeight: 700, whiteSpace: "nowrap" as const }}>
                               {formatDate(c.due_date?.slice(0, 10))}
                             </td>
-                            <td style={{ fontWeight: 800 }}>{fmt(c.total_amount)}</td>
-                            <td style={{ color: "#059669", fontWeight: 700 }}>{Number(c.discount_amount) > 0 ? `−${fmt(c.discount_amount)}` : "—"}</td>
-                            <td style={{ color: "#b42318", fontWeight: 700 }}>{Number(c.fine_amount) > 0 ? `+${fmt(c.fine_amount)}` : "—"}</td>
-                            <td style={{ color: "#059669", fontWeight: 800 }}>{fmt(c.paid_amount)}</td>
-                            <td style={{ color: Number(c.remaining_amount) > 0 ? "#b42318" : "#64748b", fontWeight: 800 }}>{fmt(c.remaining_amount)}</td>
+                            <td style={{ fontWeight: 800 }}>
+                              <CurrencyAmount amount={c.total_amount} size={12} customSymbol={symbol} />
+                            </td>
+                            <td style={{ color: "#059669", fontWeight: 700 }}>
+                              {Number(c.discount_amount) > 0 ? (
+                                <CurrencyAmount amount={c.discount_amount} size={12} customSymbol={symbol} prefix="−" />
+                              ) : "—"}
+                            </td>
+                            <td style={{ color: "#b42318", fontWeight: 700 }}>
+                              {Number(c.fine_amount) > 0 ? (
+                                <CurrencyAmount amount={c.fine_amount} size={12} customSymbol={symbol} prefix="+" />
+                              ) : "—"}
+                            </td>
+                            <td style={{ color: "#059669", fontWeight: 800 }}>
+                              <CurrencyAmount amount={c.paid_amount} size={12} customSymbol={symbol} />
+                            </td>
+                            <td style={{ color: Number(c.remaining_amount) > 0 ? "#b42318" : "#64748b", fontWeight: 800 }}>
+                              <CurrencyAmount amount={c.remaining_amount} size={12} customSymbol={symbol} />
+                            </td>
                             <td><StatusBadge status={c.status} /></td>
                           </tr>
                         );
@@ -435,7 +449,9 @@ export default function StudentFeesPage() {
                           </td>
                           <td><TypeBadge type={p.fee_type} /></td>
                           <td style={{ color: "#64748b", whiteSpace: "nowrap" as const }}>{formatDate(p.payment_date?.slice(0, 10))}</td>
-                          <td style={{ fontWeight: 900, color: "#059669" }}>{fmt(p.paid_amount)}</td>
+                          <td style={{ fontWeight: 900, color: "#059669" }}>
+                            <CurrencyAmount amount={p.paid_amount} size={12} customSymbol={symbol} />
+                          </td>
                           <td>
                             {p.payment_method ? (
                               <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, background: "#f1f5f9", color: "#475569", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>

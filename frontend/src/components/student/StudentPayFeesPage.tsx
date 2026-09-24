@@ -7,7 +7,7 @@ import { apiRequest } from "@/lib/api";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
@@ -381,7 +381,7 @@ function MySubmissions({ requests, loading, refetch }: { requests: any[]; loadin
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}>{fmt(r.amount)}</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}><CurrencyAmount amount={r.amount} /></span>
                 <span style={{ padding: "4px 11px", borderRadius: 999, fontSize: 11, fontWeight: 900, background: st.bg, color: st.color, whiteSpace: "nowrap" }}>
                   {st.label}
                 </span>

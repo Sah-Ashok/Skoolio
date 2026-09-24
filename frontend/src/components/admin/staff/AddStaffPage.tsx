@@ -9,7 +9,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 
 const s  = (className: string) => styles[className] || className;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -236,7 +236,7 @@ export default function AddStaffPage() {
                 </label>
 
                 <label className={s("field")}>
-                  <span>Monthly Salary (NPR) <em>*</em></span>
+                  <span>Monthly Salary (<CurrencySymbol />) <em>*</em></span>
                   <input
                     name="monthly_salary"
                     required
@@ -272,12 +272,12 @@ export default function AddStaffPage() {
                     <div>
                       <p style={{ margin: 0, fontSize: 11, fontWeight: 900, color: "#6a7882" }}>Monthly Salary</p>
                       <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#12805c" }}>
-                        {fmt(form.monthly_salary)}
+                        <CurrencyAmount amount={form.monthly_salary} />
                       </p>
                       <p style={{ margin: 0, fontSize: 11, color: "#6a7882", fontWeight: 700 }}>
-                        ≈ {fmt(Math.round(Number(form.monthly_salary) / 30))} / day
+                        ≈ <CurrencyAmount amount={Math.round(Number(form.monthly_salary) / 30)} /> / day
                         &nbsp;·&nbsp;
-                        {fmt(Math.round(Number(form.monthly_salary) * 12))} / year
+                        <CurrencyAmount amount={Math.round(Number(form.monthly_salary) * 12)} /> / year
                       </p>
                     </div>
                   </div>

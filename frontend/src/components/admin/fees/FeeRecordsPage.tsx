@@ -12,7 +12,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDebounce } from "@/hooks/useDebounce";
 
-import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 const s  = (c: string) => styles[c] || c;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -607,7 +607,7 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Collected</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
-                  {formatCurrency(totalPaid)}
+                  <CurrencyAmount amount={totalPaid} size={20} customSymbol={currSymbol} />
                 </div>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "#059669" }}>This academic year</div>
               </div>
@@ -775,7 +775,7 @@ export default function FeeRecordsPage({ basePath }: FeeRecordsPageProps = {}) {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>Total Outstanding</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px", lineHeight: 1.25, margin: "2px 0 1px" }}>
-                  {formatCurrency(totalPending)}
+                  <CurrencyAmount amount={totalPending} size={20} customSymbol={currSymbol} />
                 </div>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "#ea580c" }}>Pending student dues</div>
               </div>

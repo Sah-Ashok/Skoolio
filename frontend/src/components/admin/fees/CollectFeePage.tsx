@@ -11,7 +11,7 @@ import { showToast } from "@/store/toastSlice";
 import DateInput from "@/components/shared/DateInput";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 
 // ── Color & Style Tokens ────────────────────────────────────────────────────────
 const col = {
@@ -1551,15 +1551,15 @@ export default function CollectFeePage() {
                               </td>
 
                               <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 700, color: col.slate }}>
-                                {fmt(g.total_amount)}
+                                <CurrencyAmount amount={g.total_amount} size={11} customSymbol={currencySymbol} />
                               </td>
 
                               <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 700, color: col.green }}>
-                                {fmt(g.paid_amount)}
+                                <CurrencyAmount amount={g.paid_amount} size={11} customSymbol={currencySymbol} />
                               </td>
 
                               <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 800, color: col.red, fontSize: 13.5 }}>
-                                {fmt(g.remaining_amount)}
+                                <CurrencyAmount amount={g.remaining_amount} size={12} customSymbol={currencySymbol} />
                               </td>
 
                               <td style={{ textAlign: "right", padding: "8px 12px" }}>
@@ -1676,7 +1676,9 @@ export default function CollectFeePage() {
                         </select>
                       </div>
                       <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>Amount ({currencySymbol}) *</label>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: col.navy, display: "block", marginBottom: 2 }}>
+                          Amount (<CurrencySymbol symbol={currencySymbol} size={11} />) *
+                        </label>
                         <input value={miscAmount} onChange={e => setMiscAmount(e.target.value)} type="number" min="1" required placeholder="0" style={INPUT_STYLE} />
                       </div>
                       <div>
@@ -1776,7 +1778,7 @@ export default function CollectFeePage() {
                       Total Outstanding
                     </span>
                     <strong style={{ fontSize: 15, fontWeight: 800, color: totalDue > 0 ? col.red : col.green, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {fmt(totalDue)}
+                      <CurrencyAmount amount={totalDue} size={14} customSymbol={currencySymbol} />
                     </strong>
                   </div>
                   <div style={{ minWidth: 0 }}>
@@ -1784,7 +1786,7 @@ export default function CollectFeePage() {
                       Total Collected
                     </span>
                     <strong style={{ fontSize: 15, fontWeight: 800, color: col.green, display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {fmt(totalPaid)}
+                      <CurrencyAmount amount={totalPaid} size={14} customSymbol={currencySymbol} />
                     </strong>
                   </div>
                 </div>
@@ -1862,8 +1864,8 @@ export default function CollectFeePage() {
 
                           {/* Paying Amount Input Box */}
                           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", padding: "6px 10px", borderRadius: 6, border: `1px solid ${col.border}` }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, flexShrink: 0 }}>
-                              Paying ({currencySymbol}):
+                            <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                              Paying (<CurrencySymbol symbol={currencySymbol} size={11} />):
                             </span>
                             <input
                               type="number"
@@ -1980,7 +1982,9 @@ export default function CollectFeePage() {
                 <div style={{ borderTop: `1px solid ${col.border}`, paddingTop: 10, marginTop: 2 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: col.muted, textTransform: "uppercase" }}>Net Paying Amount</span>
-                    <strong style={{ fontSize: 22, fontWeight: 800, color: col.green }}>{fmt(bulkTotal)}</strong>
+                    <strong style={{ fontSize: 22, fontWeight: 800, color: col.green }}>
+                      <CurrencyAmount amount={bulkTotal} size={18} customSymbol={currencySymbol} />
+                    </strong>
                   </div>
 
                   <button

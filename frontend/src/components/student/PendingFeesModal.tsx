@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 export interface PendingFeeItem {
@@ -383,7 +383,9 @@ export default function PendingFeesModal({
               <span style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", marginRight: 8 }}>
                 Total Outstanding:
               </span>
-              <span className="pfm-summary-total">{fmt(totalDue)}</span>
+              <span className="pfm-summary-total">
+                <CurrencyAmount amount={totalDue} size={16} customSymbol={symbol} />
+              </span>
             </div>
           </div>
 
@@ -456,13 +458,13 @@ export default function PendingFeesModal({
                         {fee.due_date ? formatDate(fee.due_date.slice(0, 10)) : "—"}
                       </td>
                       <td style={{ fontWeight: 700, color: "#334155" }}>
-                        {fmt(total)}
+                        <CurrencyAmount amount={total} size={12} customSymbol={symbol} />
                       </td>
                       <td style={{ fontWeight: 700, color: paid > 0 ? "#059669" : "#94a3b8" }}>
-                        {paid > 0 ? fmt(paid) : "—"}
+                        {paid > 0 ? <CurrencyAmount amount={paid} size={12} customSymbol={symbol} /> : "—"}
                       </td>
                       <td style={{ fontWeight: 800, color: "#dc2626" }}>
-                        {fmt(remaining)}
+                        <CurrencyAmount amount={remaining} size={12} customSymbol={symbol} />
                       </td>
                       <td>
                         {isOverdue ? (

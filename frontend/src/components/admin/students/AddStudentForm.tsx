@@ -10,7 +10,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
-import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { addStudentFormSchema, getTodayISO } from "@/lib/studentValidator";
 
 const s  = (c: string) => styles[c] || c;
@@ -527,12 +527,12 @@ export default function AddStudentForm() {
                                 <div style={{ textAlign: "right" }}>
                                   {discount > 0 ? (
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                      <span style={{ fontSize: 11, color: "#94a3b8", textDecoration: "line-through" }}>{fmt(original)}</span>
-                                      <strong style={{ fontWeight: 900, color: "#16a34a" }}>{fmt(net)}</strong>
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 5px", borderRadius: 4 }}>-{fmt(discount)}</span>
+                                      <span style={{ fontSize: 11, color: "#94a3b8", textDecoration: "line-through" }}><CurrencyAmount amount={original} /></span>
+                                      <strong style={{ fontWeight: 900, color: "#16a34a" }}><CurrencyAmount amount={net} /></strong>
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 5px", borderRadius: 4 }}>-<CurrencyAmount amount={discount} /></span>
                                     </div>
                                   ) : (
-                                    <strong style={{ fontWeight: 900, color: "#0f172a" }}>{fmt(original)}</strong>
+                                    <strong style={{ fontWeight: 900, color: "#0f172a" }}><CurrencyAmount amount={original} /></strong>
                                   )}
                                 </div>
                               </div>

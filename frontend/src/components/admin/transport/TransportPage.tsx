@@ -9,7 +9,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Loader, Spinner } from "@/components/shared/Loader";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Skeleton";
 import DateInput from "@/components/shared/DateInput";
@@ -879,7 +879,7 @@ export default function TransportPage() {
                           <span>{stop.pickup_time ? `↑ ${stop.pickup_time}` : ""}{stop.drop_time ? `  ↓ ${stop.drop_time}` : ""}{!stop.pickup_time && !stop.drop_time ? "No times set" : ""}</span>
                         </div>
                         {stop.student_count > 0 && <span className={cx(s("badge"),s("badge-blue"))}>{stop.student_count} students</span>}
-                        <span className={s("stop-fee")}>{fmtCur(stop.monthly_fee||0)}/mo</span>
+                        <span className={s("stop-fee")}><CurrencyAmount amount={stop.monthly_fee || 0} />/mo</span>
                         <button className={cx(s("btn"),s("btn-sm"),s("btn-danger"))} onClick={()=>deleteStop(stop.id)}><i className="fa-solid fa-trash"/></button>
                       </div>
                     ))}
@@ -900,7 +900,7 @@ export default function TransportPage() {
                                 <td><div className={s("avatar-cell")}><span className={s("avatar")}>{initials(a.full_name)}</span><div><strong style={{fontSize:13}}>{a.full_name}</strong><span style={{display:"block",fontSize:11,color:"#6b7b86"}}>{a.admission_number}</span></div></div></td>
                                 <td style={{fontWeight:700}}>{a.stop_name}</td>
                                 <td style={{color:"#6b7b86",fontSize:13}}>{a.pickup_time||"—"}</td>
-                                <td style={{fontWeight:800,color:"#ff9b51"}}>{fmtCur(a.monthly_fee||0)}</td>
+                                <td style={{fontWeight:800,color:"#ff9b51"}}><CurrencyAmount amount={a.monthly_fee || 0} /></td>
                               </tr>
                             ))}
                           </tbody>
@@ -1047,7 +1047,7 @@ export default function TransportPage() {
                             <td><div className={s("avatar-cell")}><span className={s("avatar")}>{initials(a.full_name)}</span><strong style={{fontSize:13}}>{a.full_name}</strong></div></td>
                             <td style={{fontSize:13,fontWeight:700}}>{a.route_name}</td>
                             <td style={{fontSize:13}}>{a.stop_name}</td>
-                            <td style={{fontWeight:800,color:"#ff9b51",fontSize:13}}>{fmtCur(a.monthly_fee||0)}</td>
+                            <td style={{fontWeight:800,color:"#ff9b51",fontSize:13}}><CurrencyAmount amount={a.monthly_fee || 0} /></td>
                             <td>
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                                 <Link

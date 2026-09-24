@@ -9,7 +9,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencySymbol } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
@@ -235,7 +235,7 @@ export default function StudentSubmitPaymentPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 900, color: "#1f2d36", display: "block", marginBottom: 6 }}>
-                        Amount Paid <span style={{ color: "#e53e3e" }}>*</span>
+                        Amount Paid (<CurrencySymbol />) <span style={{ color: "#e53e3e" }}>*</span>
                       </label>
                       <input type="number" min="1" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="e.g. 5000"
                         style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid #c6d0d7", fontSize: 13, fontWeight: 700 }} />

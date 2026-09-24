@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "@/app/(admin)/dashboard/dashboard.module.css";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 import type { DashboardData } from "@/types/dashboard.types";
 
@@ -15,15 +15,12 @@ interface Props { data: DashboardData }
 
 export default function DashboardTables({ data }: Props) {
   const { isBS, formatMonth, formatDateShort } = useDateFormat();
-  const { symbol: currSymbol, fmt, fmtShort: currencyShort } = useCurrency();
+  const { symbol: currSymbol } = useCurrency();
   const sym = data?.currencySymbol || currSymbol || "रू";
 
   const currentMonthDisplay = isBS
     ? formatMonth(new Date().getFullYear(), new Date().getMonth() + 1)
     : new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-
-  const fmtCurrency = (n: number) => fmt(n, sym);
-  const fmtShort = (n: number) => currencyShort(n, sym);
 
   const recentStudents = data.recentStudents ?? [];
   const recentExpenses = data.recentExpenses ?? [];
@@ -116,14 +113,16 @@ export default function DashboardTables({ data }: Props) {
           </div>
           <div className={s("fee-body")}>
             {[
-              ["Total Assigned", fmtCurrency(totalAssigned),  undefined],
-              ["Collected",      fmtCurrency(totalCollected), "text-success"],
-              ["Pending",        fmtCurrency(totalPending),   "text-danger"],
-              ["Overdue (>30d)", fmtCurrency(overdueAmount),  "text-warning"],
-            ].map(([label, value, tone]) => (
+              { label: "Total Assigned", val: totalAssigned,  tone: undefined },
+              { label: "Collected",      val: totalCollected, tone: "text-success" },
+              { label: "Pending",        val: totalPending,   tone: "text-danger" },
+              { label: "Overdue (>30d)", val: overdueAmount,  tone: "text-warning" },
+            ].map(({ label, val, tone }) => (
               <div className={s("fee-item")} key={label}>
                 <div className={s("fee-lbl")}>{label}</div>
-                <div className={cx(s("fee-val"), tone ? s(tone) : undefined)}>{value}</div>
+                <div className={cx(s("fee-val"), tone ? s(tone) : undefined)}>
+                  <CurrencyAmount amount={val} size={13} customSymbol={sym} />
+                </div>
               </div>
             ))}
 
@@ -186,7 +185,9 @@ export default function DashboardTables({ data }: Props) {
                         {ex.category_name || "Other"}
                       </span>
                     </td>
-                    <td className={s("strong-cell")}>{fmtCurrency(Number(ex.amount))}</td>
+                    <td className={s("strong-cell")}>
+                      <CurrencyAmount amount={Number(ex.amount)} size={13} customSymbol={sym} />
+                    </td>
                     <td className={s("muted-cell")}>{formatDateShort(ex.expense_date)}</td>
                   </tr>
                 ))}
@@ -216,7 +217,9 @@ export default function DashboardTables({ data }: Props) {
                       <div className={s("av")}>{initials(sal.full_name)}</div>
                       <div>
                         <div className={s("name")}>{sal.full_name}</div>
-                        <div className={s("sub")}>{fmtCurrency(Number(sal.net_salary))}</div>
+                        <div className={s("sub")}>
+                          <CurrencyAmount amount={Number(sal.net_salary)} size={11} customSymbol={sym} />
+                        </div>
                       </div>
                     </div>
                     <span className={cx(s("badge"), sal.status === "paid" ? s("b-green") : s("b-red"))}>
@@ -241,7 +244,9 @@ export default function DashboardTables({ data }: Props) {
             {/* Paid amount summary */}
             <div className={s("fee-item")} style={{ marginTop: 8 }}>
               <div className={s("fee-lbl")}>Total Paid Out</div>
-              <div className={cx(s("fee-val"), s("text-success"))}>{fmtShort(salaryPaidAmt)}</div>
+              <div className={cx(s("fee-val"), s("text-success"))}>
+                <CurrencyAmount amount={salaryPaidAmt} size={13} short customSymbol={sym} />
+              </div>
             </div>
           </div>
         </article>

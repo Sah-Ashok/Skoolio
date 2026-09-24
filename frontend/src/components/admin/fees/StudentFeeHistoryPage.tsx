@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useApi } from "@/lib/useApi";
 import { apiRequest } from "@/lib/api";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 import { useAppDispatch } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
@@ -1177,7 +1177,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
             Total Billed (Debit)
           </span>
           <strong style={{ fontSize: 22, fontWeight: 900, color: col.navy, display: "block", margin: "4px 0 2px" }}>
-            {fmt(totalBilled)}
+            <CurrencyAmount amount={totalBilled} />
           </strong>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: col.lightMuted }}>
             {collections.length} invoice{collections.length !== 1 ? "s" : ""} generated
@@ -1190,7 +1190,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
             Total Collected (Credit)
           </span>
           <strong style={{ fontSize: 22, fontWeight: 900, color: col.green, display: "block", margin: "4px 0 2px" }}>
-            {fmt(totalPaid)}
+            <CurrencyAmount amount={totalPaid} />
           </strong>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: col.muted }}>
             {uniqueReceiptsCount} payment receipt{uniqueReceiptsCount !== 1 ? "s" : ""}
@@ -1203,7 +1203,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
             Waived &amp; Concessions
           </span>
           <strong style={{ fontSize: 22, fontWeight: 900, color: col.purple, display: "block", margin: "4px 0 2px" }}>
-            {fmt(totalWaived)}
+            <CurrencyAmount amount={totalWaived} />
           </strong>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: col.lightMuted }}>
             Concessions applied
@@ -1222,7 +1222,7 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
             Outstanding Balance
           </span>
           <strong style={{ fontSize: 22, fontWeight: 900, color: totalDue > 0 ? col.red : col.green, display: "block", margin: "4px 0 2px" }}>
-            {fmt(totalDue)}
+            <CurrencyAmount amount={totalDue} />
           </strong>
           <span style={{ fontSize: 11.5, fontWeight: 700, color: totalDue > 0 ? col.red : col.green }}>
             {totalDue > 0 ? "Pending Payment" : "All Fees Cleared ✓"}
@@ -1455,24 +1455,24 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
                       <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 800, color: item.debit > 0 ? col.navy : col.lightMuted }}>
                         {item.status === "cancelled" ? (
                           <span style={{ textDecoration: "line-through", color: col.lightMuted, fontSize: 11.5 }} title="Voided / Cancelled Bill">
-                            {fmt(item.originalDebit || 0)}
+                            <CurrencyAmount amount={item.originalDebit || 0} />
                           </span>
-                        ) : item.debit > 0 ? fmt(item.debit) : "—"}
+                        ) : item.debit > 0 ? <CurrencyAmount amount={item.debit} /> : "—"}
                       </td>
 
                       {/* Waived */}
                       <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 800, color: item.waived > 0 ? col.purple : col.lightMuted }}>
-                        {item.waived > 0 ? fmt(item.waived) : "—"}
+                        {item.waived > 0 ? <CurrencyAmount amount={item.waived} /> : "—"}
                       </td>
 
                       {/* Paid (Cr) */}
                       <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 800, color: item.credit > 0 ? col.green : col.lightMuted }}>
-                        {item.credit > 0 ? fmt(item.credit) : "—"}
+                        {item.credit > 0 ? <CurrencyAmount amount={item.credit} /> : "—"}
                       </td>
 
                       {/* Running Balance */}
                       <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 900, color: (item.runningBalance || 0) > 0 ? col.navy : col.green }}>
-                        {fmt(item.runningBalance || 0)}
+                        <CurrencyAmount amount={item.runningBalance || 0} />
                       </td>
 
                       {/* Status */}
@@ -1526,16 +1526,16 @@ export default function StudentFeeHistoryPage({ basePath = "" }: { basePath?: st
                     Ledger Summary Totals:
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right", color: col.navy, fontSize: 13 }}>
-                    {fmt(totalBilled)}
+                    <CurrencyAmount amount={totalBilled} />
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right", color: col.purple, fontSize: 13 }}>
-                    {totalWaived > 0 ? fmt(totalWaived) : "—"}
+                    {totalWaived > 0 ? <CurrencyAmount amount={totalWaived} /> : "—"}
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right", color: col.green, fontSize: 13 }}>
-                    {fmt(totalPaid)}
+                    <CurrencyAmount amount={totalPaid} />
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right", color: totalDue > 0 ? col.red : col.green, fontSize: 13.5 }}>
-                    {fmt(totalDue)}
+                    <CurrencyAmount amount={totalDue} />
                   </td>
                   <td colSpan={2} style={{ padding: "12px 14px" }} />
                 </tr>

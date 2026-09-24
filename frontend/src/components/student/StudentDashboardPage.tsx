@@ -8,7 +8,7 @@ import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import AttendanceOverviewCard from "@/components/shared/AttendanceOverviewCard";
-import { useCurrency, NepaliCurrency } from "@/lib/useCurrency";
+import { useCurrency, NepaliCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 import PendingFeesModal from "./PendingFeesModal";
 
@@ -424,7 +424,7 @@ export default function StudentDashboardPage() {
                   Fees Due
                 </div>
                 <div className="sdb-stat-value" style={{ color: totalDue > 0 ? "#ef4444" : "#16a34a", fontSize: totalDue > 0 ? 22 : 30 }}>
-                  {totalDue > 0 ? fmtCurrency(totalDue) : "Clear ✓"}
+                  {totalDue > 0 ? <CurrencyAmount amount={totalDue} size={18} customSymbol={symbol} /> : "Clear ✓"}
                 </div>
                 <div className="sdb-stat-sub">
                   <i className="fa-solid fa-circle" style={{ color: totalDue > 0 ? "#ef4444" : "#22c55e", fontSize: 7 }} />
@@ -623,7 +623,9 @@ export default function StudentDashboardPage() {
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div className="sdb-pay-amount">{fmtCurrency(p.amount)}</div>
+                        <div className="sdb-pay-amount">
+                          <CurrencyAmount amount={p.amount} size={13} customSymbol={symbol} />
+                        </div>
                         <span className="sdb-paid">Paid</span>
                       </div>
                     </div>

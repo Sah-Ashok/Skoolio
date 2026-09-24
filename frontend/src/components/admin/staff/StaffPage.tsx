@@ -7,7 +7,7 @@ import { useApi, useMutation } from "@/lib/useApi";
 import styles from "./staff.module.css";
 import DateInput from "@/components/shared/DateInput";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 const s  = (n: string) => styles[n] || n;
 const cx = (...cs: Array<string | false | undefined>) => cs.filter(Boolean).join(" ");
@@ -278,7 +278,7 @@ function StaffDetailPanel({ staff, onClose, onEdit }: { staff: Staff; onClose: (
                 <i className="fa-solid fa-money-bill-wave" style={{ marginRight: 5 }} />Monthly Salary
               </p>
               <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 900, color: "#12805c" }}>
-                {fmt(staff.current_salary.basic_salary)}
+                <CurrencyAmount amount={staff.current_salary.basic_salary} />
               </p>
             </div>
           )}
@@ -586,7 +586,7 @@ export function StaffPage() {
                       <td>{m.joined_date ? formatDate(m.joined_date.slice(0,10)) : "—"}</td>
                       <td>
                         {m.current_salary
-                          ? <strong style={{ color: "#12805c" }}>{fmt(m.current_salary.basic_salary)}</strong>
+                          ? <strong style={{ color: "#12805c" }}><CurrencyAmount amount={m.current_salary.basic_salary} /></strong>
                           : <span style={{ color: "#c46a14", fontWeight: 900, fontSize: 12 }}>Not set</span>
                         }
                       </td>

@@ -9,7 +9,7 @@ import { Skeleton, SkeletonStatRow, SkeletonTable } from "@/components/shared/Sk
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { useDateFormat } from "@/lib/useDateFormat";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const s = (name: string) => styles[name] || name;
@@ -41,7 +41,7 @@ export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {
   const isReadOnly = readOnly ?? (user?.role === "admin");
   const recordExpenseUrl = addUrl || (user?.role === "finance" ? "/finance/expenses/add" : "/expenses/add");
   const { formatDate } = useDateFormat();
-  const { fmt } = useCurrency();
+  const { fmt, symbol } = useCurrency();
   
   const { data: activeYear } = useApi<any>('/academic-years/active');
   const { data: expenses, loading, refetch } = useApi<any[]>(
@@ -177,7 +177,9 @@ export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {
             <article className={s("statCard")}>
               <div className={s("statInfo")}>
                 <span className={s("statLabel")}>Total Expenses</span>
-                <strong className={s("statValue")}>{fmt(totalAmount)}</strong>
+                <strong className={s("statValue")}>
+                  <CurrencyAmount amount={totalAmount} size={18} customSymbol={symbol} />
+                </strong>
                 <span className={s("statSub")}>Active academic session</span>
               </div>
               <div className={cx(s("statIconWrap"), s("iconGreen"))}>
@@ -210,7 +212,9 @@ export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {
             <article className={s("statCard")}>
               <div className={s("statInfo")}>
                 <span className={s("statLabel")}>Average Spending</span>
-                <strong className={s("statValue")}>{fmt(avgAmount)}</strong>
+                <strong className={s("statValue")}>
+                  <CurrencyAmount amount={avgAmount} size={18} customSymbol={symbol} />
+                </strong>
                 <span className={s("statSub")}>Per voucher average</span>
               </div>
               <div className={cx(s("statIconWrap"), s("iconPurple"))}>
@@ -319,7 +323,9 @@ export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {
                           <span className={s("categoryDot")} style={{ background: color.fill }} />
                           {item.category_name}
                         </div>
-                        <span className={s("categoryAmount")}>{fmt(itemAmount)}</span>
+                        <span className={s("categoryAmount")}>
+                          <CurrencyAmount amount={itemAmount} size={11} customSymbol={symbol} />
+                        </span>
                       </div>
                       <div className={s("progressBarBg")}>
                         <div 
@@ -415,7 +421,7 @@ export default function ExpensesPage({ readOnly, addUrl }: ExpensesPageProps = {
                           </td>
                           <td>
                             <span className={s("amountCell")}>
-                              {fmt(ex.amount)}
+                              <CurrencyAmount amount={ex.amount} size={12} customSymbol={symbol} />
                             </span>
                           </td>
                           {!isReadOnly && (

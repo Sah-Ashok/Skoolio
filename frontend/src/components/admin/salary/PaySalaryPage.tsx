@@ -13,7 +13,7 @@ import { useDateFormat } from "@/lib/useDateFormat";
 import { adToBS, bsToISO, BS_MONTH_NAMES } from "@/lib/bs-ad";
 import { apiRequest } from "@/lib/api";
 
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 
 const s  = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -384,7 +384,7 @@ export default function PaySalaryPage() {
               {working > 0 && (
                 <div className={s("calcNote")}>
                   <i className="fa-solid fa-calculator" />
-                  Per-day = {fmt(perDaySalary.toFixed(2))}&nbsp;
+                  Per-day = <CurrencyAmount amount={perDaySalary} />&nbsp;
                   {paidLeaveQuota > 0 && (
                     <span style={{ color: "#16a34a" }}>
                       · Paid leave quota: {paidLeaveQuota} day{paidLeaveQuota !== 1 ? "s" : ""}/mo&nbsp;
@@ -393,10 +393,10 @@ export default function PaySalaryPage() {
                   {(absent > 0 || half > 0 || unpaidLeaveDays > 0) && (
                     <>
                       | Attendance deductions:&nbsp;
-                      {absent > 0 && <span className={s("redText")}>{absent}×absent (-{fmt(absentDeduction.toFixed(0))}) </span>}
-                      {half > 0 && <span style={{ color: "#c46a14" }}>{half}×half-day (-{fmt(halfDayDeduction.toFixed(0))}) </span>}
-                      {unpaidLeaveDays > 0 && <span className={s("redText")}>{unpaidLeaveDays} unpaid leave (-{fmt(leaveDeduction.toFixed(0))}) </span>}
-                      = <strong className={s("redText")}>-{fmt(attendanceDeduction.toFixed(0))}</strong>
+                      {absent > 0 && <span className={s("redText")}>{absent}×absent (-<CurrencyAmount amount={absentDeduction} />) </span>}
+                      {half > 0 && <span style={{ color: "#c46a14" }}>{half}×half-day (-<CurrencyAmount amount={halfDayDeduction} />) </span>}
+                      {unpaidLeaveDays > 0 && <span className={s("redText")}>{unpaidLeaveDays} unpaid leave (-<CurrencyAmount amount={leaveDeduction} />) </span>}
+                      = <strong className={s("redText")}>-<CurrencyAmount amount={attendanceDeduction} /></strong>
                     </>
                   )}
                 </div>
@@ -520,7 +520,7 @@ export default function PaySalaryPage() {
                   <b>Configured Salary</b>
                   <strong style={{ color: selectedFaculty.monthly_salary ? "#12805c" : "#b42318", fontSize: 12 }}>
                     {selectedFaculty.monthly_salary
-                      ? `${fmt(selectedFaculty.monthly_salary)}/mo`
+                      ? <><CurrencyAmount amount={selectedFaculty.monthly_salary} />/mo</>
                       : "Not configured"}
                   </strong>
                 </span>
@@ -531,12 +531,12 @@ export default function PaySalaryPage() {
               {/* Earnings */}
               <div className={s("calcRow")}>
                 <span>Basic Salary</span>
-                <strong>{fmt(basic)}</strong>
+                <strong><CurrencyAmount amount={basic} /></strong>
               </div>
               {bonusAmt > 0 && (
                 <div className={s("calcRow")}>
                   <span>Bonus / Allowance</span>
-                  <strong style={{ color: "#16a34a" }}>+{fmt(bonusAmt)}</strong>
+                  <strong style={{ color: "#16a34a" }}>+<CurrencyAmount amount={bonusAmt} /></strong>
                 </div>
               )}
 
@@ -547,9 +547,9 @@ export default function PaySalaryPage() {
                 <div className={s("calcRow")}>
                   <span style={{ color: "#b42318" }}>
                     Absent ({absent} day{absent !== 1 ? "s" : ""})<br />
-                    <small>{fmt(perDaySalary.toFixed(0))}/day × {absent}</small>
+                    <small><CurrencyAmount amount={perDaySalary} />/day × {absent}</small>
                   </span>
-                  <strong style={{ color: "#b42318" }}>-{fmt(absentDeduction.toFixed(0))}</strong>
+                  <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={absentDeduction} /></strong>
                 </div>
               )}
               {working > 0 && half > 0 && (
@@ -558,7 +558,7 @@ export default function PaySalaryPage() {
                     Half-day ({half} day{half !== 1 ? "s" : ""})<br />
                     <small>{100 - Math.round((payrollPolicy?.half_day_pay_percent ?? 50))}% deducted per half-day</small>
                   </span>
-                  <strong style={{ color: "#c46a14" }}>-{fmt(halfDayDeduction.toFixed(0))}</strong>
+                  <strong style={{ color: "#c46a14" }}>-<CurrencyAmount amount={halfDayDeduction} /></strong>
                 </div>
               )}
               {unpaidLeaveDays > 0 && (
@@ -567,7 +567,7 @@ export default function PaySalaryPage() {
                     Unpaid leave ({unpaidLeaveDays} day{unpaidLeaveDays !== 1 ? "s" : ""})<br />
                     <small>{leave} taken, {paidLeaveQuota} paid quota</small>
                   </span>
-                  <strong style={{ color: "#b42318" }}>-{fmt(leaveDeduction.toFixed(0))}</strong>
+                  <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={leaveDeduction} /></strong>
                 </div>
               )}
               {leave > 0 && unpaidLeaveDays === 0 && (
@@ -576,7 +576,7 @@ export default function PaySalaryPage() {
                     Leave ({leave} day{leave !== 1 ? "s" : ""} — fully paid)<br />
                     <small>Within {paidLeaveQuota}-day paid quota</small>
                   </span>
-                  <strong style={{ color: "#16a34a" }}>{fmt(0)}</strong>
+                  <strong style={{ color: "#16a34a" }}><CurrencyAmount amount={0} /></strong>
                 </div>
               )}
 
@@ -584,19 +584,19 @@ export default function PaySalaryPage() {
               {tax > 0 && (
                 <div className={s("calcRow")}>
                   <span style={{ color: "#b42318" }}>Tax / TDS</span>
-                  <strong style={{ color: "#b42318" }}>-{fmt(tax)}</strong>
+                  <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={tax} /></strong>
                 </div>
               )}
               {pf > 0 && (
                 <div className={s("calcRow")}>
                   <span style={{ color: "#b42318" }}>Provident Fund</span>
-                  <strong style={{ color: "#b42318" }}>-{fmt(pf)}</strong>
+                  <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={pf} /></strong>
                 </div>
               )}
               {other > 0 && (
                 <div className={s("calcRow")}>
                   <span style={{ color: "#b42318" }}>Other Deduction</span>
-                  <strong style={{ color: "#b42318" }}>-{fmt(other)}</strong>
+                  <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={other} /></strong>
                 </div>
               )}
 
@@ -605,7 +605,7 @@ export default function PaySalaryPage() {
                   <div className={s("calcDivider")} />
                   <div className={s("calcRow")}>
                     <span style={{ color: "#b42318", fontWeight: 900 }}>Total Deductions</span>
-                    <strong style={{ color: "#b42318" }}>-{fmt(totalDeduction.toFixed(0))}</strong>
+                    <strong style={{ color: "#b42318" }}>-<CurrencyAmount amount={totalDeduction} /></strong>
                   </div>
                 </>
               )}
@@ -615,7 +615,7 @@ export default function PaySalaryPage() {
               <div className={cx(s("calcRow"), s("calcNetRow"))}>
                 <span>Net Pay</span>
                 <strong style={{ color: "#16a34a", fontSize: 20 }}>
-                  {fmt(netPay.toFixed(0))}
+                  <CurrencyAmount amount={netPay} />
                 </strong>
               </div>
             </div>

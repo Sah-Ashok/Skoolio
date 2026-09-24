@@ -1,5 +1,5 @@
 // Enums
-export type BillingCycle = 'monthly' | 'yearly' | 'free' | 'trial';
+export type BillingCycle = 'monthly' | 'yearly' | 'trial';
 export type Currency = 'NPR' | 'INR' | 'USD';
 export type SubscriptionStatus = 'active' | 'expired' | 'grace_period' | 'cancelled';
 export type DiscountType = 'percent' | 'fixed' | 'free_months';

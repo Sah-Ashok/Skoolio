@@ -128,7 +128,7 @@ export default function SchoolSubscriptionHistoryPage() {
                       <td style={{ fontWeight: 700 }}>
                         {h.amount_paid > 0
                           ? `${h.currency ?? ""} ${Number(h.amount_paid).toLocaleString()}`
-                          : <span style={{ color: "#6b7b86" }}>Free</span>}
+                          : <span style={{ color: "#6b7b86" }}>Trial</span>}
                       </td>
                       <td style={{ color: "#6b7b86", textTransform: "capitalize" }}>
                         {h.payment_method?.replace("_", " ") || "—"}

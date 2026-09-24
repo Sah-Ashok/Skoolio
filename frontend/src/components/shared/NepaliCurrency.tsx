@@ -15,7 +15,7 @@ export interface NepaliCurrencyProps {
  * It uses the SVG vector paths with `stroke={color}` (default "currentColor") so it seamlessly
  * inherits font color, scales cleanly, and renders instantly without any network fetch delay or FOUC.
  */
-export default function NepaliCurrency({
+export function NepaliCurrency({
   size = 15,
   className = "",
   style = {},
@@ -108,7 +108,7 @@ export function CurrencyAmount({
   customSymbol = "रू",
   prefix,
 }: {
-  amount: number | string;
+  amount?: number | string | null;
   size?: number;
   short?: boolean;
   className?: string;
@@ -156,3 +156,4 @@ export function CurrencyAmount({
 
 // Backward-compatible alias
 export const NepaliCurrencyAmount = CurrencyAmount;
+export default NepaliCurrency;

@@ -445,13 +445,13 @@ export async function getCachedSchoolSubscription(schoolId: number): Promise<ICa
     let is_in_grace_period = false;
     let days_until_lock: number | null = null;
     let plan_id = 0;
-    let plan_name = 'Free Trial';
+    let plan_name = 'Trial';
     let end_date: string | null = null;
 
     if (result.rows.length > 0) {
       const sub = result.rows[0];
       plan_id = sub.plan_id;
-      plan_name = sub.plan_name || 'Standard';
+      plan_name = sub.plan_name || 'Plus';
       end_date = sub.end_date ? new Date(sub.end_date).toISOString().split('T')[0] : null;
 
       if (sub.end_date) {

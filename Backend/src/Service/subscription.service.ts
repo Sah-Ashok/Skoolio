@@ -2,7 +2,6 @@ import {
   getActivePlans, getAllPlans, getPlanById, getPlanByName, createPlan, updatePlan,
   createSubscription, getLatestSubscription, getSubscriptionHistory,
   updateSubscriptionStatus, getStudentCount, getTeacherCount, getAllSchoolsWithSubscriptions,
-  downgradeToFreeTransaction,
   getActiveOffers, getAllOffers, getOfferById, getActiveOfferByCode, consumeOffer, createOffer, updateOffer, deleteOffer,
 } from '../Repositories/subscription.repository';
 import {
@@ -94,19 +93,6 @@ export const deleteOfferService = async (id: number) => {
 export const seedDefaultSubscriptionPlans = async () => {
   const defaultPlans: ICreatePlan[] = [
     {
-      name: 'Free',
-      max_students: 50,
-      max_teachers: 5,
-      fee_management_enabled: false,
-      online_payment_enabled: false,
-      price_npr_monthly: 0,
-      price_npr_yearly: 0,
-      price_inr_monthly: 0,
-      price_inr_yearly: 0,
-      price_usd_monthly: 0,
-      price_usd_yearly: 0,
-    },
-    {
       name: 'Pro',
       max_students: 500,
       max_teachers: 30,
@@ -171,10 +157,10 @@ export const setupTrialSubscription = async (
     targetPlan = (await getPlanByName(preferredPlan)) || (await getPlanByName('Pro'));
   }
 
-  // Fallback to any non-Free plan if Plus/Pro fail
+  // Fallback to any active plan if Plus/Pro fail
   if (!targetPlan) {
     const all = await getAllPlans();
-    targetPlan = all.find(p => p.name.toLowerCase() !== 'free') || null;
+    targetPlan = all[0] || null;
   }
 
   if (!targetPlan) {
@@ -278,7 +264,9 @@ export const activateSubscriptionService = async (
 
     const currency = (data.currency || 'NPR').toUpperCase() as 'NPR' | 'INR' | 'USD';
     const months = data.billing_cycle === 'yearly' ? 12 : data.billing_cycle === 'monthly' ? 1 : 0;
-    if (data.billing_cycle === 'free') throw new AppError('Offers cannot be used with the Free plan.', 400);
+    if (data.billing_cycle !== 'monthly' && data.billing_cycle !== 'yearly') {
+      throw new AppError('Offers apply to monthly or yearly subscriptions only.', 400);
+    }
     if (offer.plan_name && offer.plan_name !== plan.name) throw new AppError(`This offer applies to the ${offer.plan_name} plan only.`, 400);
     if (offer.applies_to_billing && offer.applies_to_billing !== data.billing_cycle) throw new AppError(`This offer applies to ${offer.applies_to_billing} billing only.`, 400);
     if (offer.currency_applies_to && offer.currency_applies_to !== currency) throw new AppError(`This offer applies to ${offer.currency_applies_to} payments only.`, 400);

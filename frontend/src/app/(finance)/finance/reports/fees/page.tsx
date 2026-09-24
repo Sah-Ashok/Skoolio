@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useApi } from '@/lib/useApi';
 import { useAcademicYear } from '@/hooks/useAcademicYear';
-import { useCurrency } from '@/lib/useCurrency';
+import { useCurrency, CurrencyAmount } from '@/lib/useCurrency';
 import Loader from '@/components/shared/Loader';
 import styles from './fees-report.module.css';
 
@@ -119,7 +119,7 @@ export default function FinanceFeeReportPage() {
           </div>
           <div>
             <div className={styles.statPillLabel}>Gross Expected Receivables</div>
-            <div className={styles.statPillVal}>{fmt(data?.summary?.total_expected ?? 0)}</div>
+            <div className={styles.statPillVal}><CurrencyAmount amount={data?.summary?.total_expected ?? 0} /></div>
           </div>
         </div>
 
@@ -130,7 +130,7 @@ export default function FinanceFeeReportPage() {
           <div>
             <div className={styles.statPillLabel}>Total Recovered / Collected</div>
             <div className={styles.statPillVal} style={{ color: '#059669' }}>
-              {fmt(data?.summary?.total_collected ?? 0)}
+              <CurrencyAmount amount={data?.summary?.total_collected ?? 0} />
             </div>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function FinanceFeeReportPage() {
           <div>
             <div className={styles.statPillLabel}>Overdue Uncollected Balance</div>
             <div className={styles.statPillVal} style={{ color: '#dc2626' }}>
-              {fmt(data?.summary?.total_outstanding ?? 0)}
+              <CurrencyAmount amount={data?.summary?.total_outstanding ?? 0} />
             </div>
           </div>
         </div>
@@ -202,9 +202,9 @@ export default function FinanceFeeReportPage() {
                 {classList.map((c) => (
                   <tr key={c.class_name}>
                     <td><strong>{c.class_name}</strong></td>
-                    <td>{typeof c.expected === 'number' ? fmt(c.expected) : c.expected}</td>
-                    <td style={{ color: '#059669' }}><strong>{typeof c.collected === 'number' ? fmt(c.collected) : c.collected}</strong></td>
-                    <td style={{ color: '#dc2626' }}><strong>{typeof c.outstanding === 'number' ? fmt(c.outstanding) : c.outstanding}</strong></td>
+                    <td><CurrencyAmount amount={c.expected} /></td>
+                    <td style={{ color: '#059669' }}><strong><CurrencyAmount amount={c.collected} /></strong></td>
+                    <td style={{ color: '#dc2626' }}><strong><CurrencyAmount amount={c.outstanding} /></strong></td>
                     <td>
                       <span
                         style={{
@@ -264,8 +264,8 @@ export default function FinanceFeeReportPage() {
                   <tr key={t.fee_type}>
                     <td><strong>{t.fee_type}</strong></td>
                     <td>{t.total_students} Students</td>
-                    <td style={{ color: '#059669' }}><strong>{typeof t.collected === 'number' ? fmt(t.collected) : t.collected}</strong></td>
-                    <td style={{ color: '#dc2626' }}><strong>{typeof t.outstanding === 'number' ? fmt(t.outstanding) : t.outstanding}</strong></td>
+                    <td style={{ color: '#059669' }}><strong><CurrencyAmount amount={t.collected} /></strong></td>
+                    <td style={{ color: '#dc2626' }}><strong><CurrencyAmount amount={t.outstanding} /></strong></td>
                   </tr>
                 ))}
               </tbody>

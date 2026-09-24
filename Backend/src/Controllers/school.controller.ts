@@ -128,7 +128,7 @@ export const getSuperAdminSchoolDetails = catchAsync(async (req: Request, res: R
     getSchoolActiveUsersCount(schoolId).catch(() => 0),
   ]);
 
-  const rawPlanName = planStatus?.plan?.name || (planStatus as any)?.subscription?.plan_name || 'Free';
+  const rawPlanName = planStatus?.plan?.name || (planStatus as any)?.subscription?.plan_name || 'Plus';
   const enrichedPlan = planStatus ? {
     ...planStatus,
     plan_name: rawPlanName,

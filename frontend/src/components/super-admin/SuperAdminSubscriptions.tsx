@@ -11,6 +11,7 @@ import { showToast } from "@/store/toastSlice";
 import { apiRequest } from "@/lib/api";
 import OfferModal, { computeSavingText } from "./OfferModal";
 import ConfirmModal from "@/components/shared/ConfirmModal";
+import { NepaliCurrency } from "@/components/shared/NepaliCurrency";
 
 const s  = (c: string) => styles[c] ?? c;
 const cx = (...cs: (string | false | undefined)[]) => cs.filter(Boolean).join(" ");
@@ -172,8 +173,8 @@ export default function SuperAdminSubscriptions() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
                 <span style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 }}>Platform Revenue</span>
-                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a" }}>
-                  {revenueNPR ? `Rs. ${(revenueNPR / 100000).toFixed(1)}L` : "Rs. 0.0"}
+                <h3 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, color: "#0f172a", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {revenueNPR ? <><NepaliCurrency /> {(revenueNPR / 100000).toFixed(1)}L</> : <><NepaliCurrency /> 0.0</>}
                 </h3>
               </div>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: "#f0fdfa", border: "1.5px solid #99f6e4", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
@@ -323,8 +324,8 @@ export default function SuperAdminSubscriptions() {
                                 </div>
                               </Link>
                             </td>
-                            <td><span className={cx(s("badge"), s(PLAN_BADGE[sc.plan_name] ?? "badge-blue"))}>{sc.plan_name ?? "Free"}</span></td>
-                            <td style={{ textTransform: "capitalize", color: "#6b7b86", fontSize: 13 }}>{sc.billing_cycle ?? "free"}</td>
+                            <td><span className={cx(s("badge"), s(PLAN_BADGE[sc.plan_name] ?? "badge-blue"))}>{sc.plan_name ?? "Plus"}</span></td>
+                            <td style={{ textTransform: "capitalize", color: "#6b7b86", fontSize: 13 }}>{sc.billing_cycle ?? "trial"}</td>
                             <td>
                               <span className={cx(s("badge"), s(SUB_BADGE[sc.status] ?? "badge-blue"))} style={{ textTransform: "capitalize" }}>
                                 {STATUS_LABEL[sc.status] ?? sc.status}
@@ -516,9 +517,7 @@ export default function SuperAdminSubscriptions() {
           plansL
             ? <div style={{ padding: "3rem 1rem", textAlign: "center" }}><Loader fullScreen={false} size="md" text="Loading plans…" /></div>
             : <section className={s("three-col")}>
-                {(plans ?? [])
-                  .filter((plan: any) => plan.name !== "Free")
-                  .map((plan: any) => (
+                {(plans ?? []).map((plan: any) => (
                     <PlanCard
                       key={plan.id}
                       plan={plan}

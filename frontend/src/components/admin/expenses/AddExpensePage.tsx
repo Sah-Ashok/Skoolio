@@ -9,7 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { showToast } from "@/store/toastSlice";
 import { Spinner } from "@/components/shared/Loader";
 import DateInput from "@/components/shared/DateInput";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount, CurrencySymbol } from "@/lib/useCurrency";
 
 const s = (name: string) => styles[name] || name;
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -132,7 +132,7 @@ export default function AddExpensePage() {
                   </select>
                 </Field>
 
-                <Field label="Amount" required>
+                <Field label={<>Amount (<CurrencySymbol />)</>} required>
                   <input 
                     value={amount} 
                     onChange={(event) => setAmount(event.target.value)} 
@@ -231,7 +231,7 @@ export default function AddExpensePage() {
                 </div>
                 <div className={s("summaryTotalRow")}>
                   <b>Total Amount</b>
-                  <strong>{fmt(amount)}</strong>
+                  <strong><CurrencyAmount amount={amount} /></strong>
                 </div>
               </div>
             </div>
@@ -275,7 +275,7 @@ function FormCard({ icon, title, step, children }: { icon: string; title: string
   );
 }
 
-function Field({ label, required, full, children }: { label: string; required?: boolean; full?: boolean; children: ReactNode }) {
+function Field({ label, required, full, children }: { label: ReactNode; required?: boolean; full?: boolean; children: ReactNode }) {
   return (
     <label className={cx(s("field"), full && s("full"))}>
       <span>

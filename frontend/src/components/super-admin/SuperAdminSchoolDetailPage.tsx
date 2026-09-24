@@ -34,7 +34,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
   // Activate Plan Modal
   const [showPlanModal, setShowPlanModal]   = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<number | "">("");
-  const [billingCycle, setBillingCycle]     = useState<"yearly" | "monthly" | "trial" | "free">("yearly");
+  const [billingCycle, setBillingCycle]     = useState<"yearly" | "monthly" | "trial">("yearly");
   const [customDays, setCustomDays]         = useState("365");
   const [customPrice, setCustomPrice]       = useState("");
   const [paymentMethod, setPaymentMethod]   = useState("bank_transfer");
@@ -824,7 +824,7 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b", fontWeight: 700 }}>Price Paid:</span>
                   <span style={{ color: "#16a34a", fontWeight: 900 }}>
-                    {currentPricePaid ? `${school.currency || "NPR"} ${currentPricePaid}` : "Free / Trial"}
+                    {currentPricePaid ? `${school.currency || "NPR"} ${currentPricePaid}` : "Trial"}
                   </span>
                 </div>
               </div>

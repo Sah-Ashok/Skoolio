@@ -4,7 +4,7 @@ import Topbar from "@/components/shared/Topbar";
 import { useApi } from "@/lib/useApi";
 import Loader, { Spinner } from "@/components/shared/Loader";
 import { useAppSelector } from "@/store/hooks";
-import { useCurrency } from "@/lib/useCurrency";
+import { useCurrency, CurrencyAmount } from "@/lib/useCurrency";
 import { useDateFormat } from "@/lib/useDateFormat";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -17,7 +17,7 @@ const STATUS: Record<string, { bg: string; color: string; icon: string }> = {
 
 export default function TeacherSalaryPage() {
   const { user }                                    = useAppSelector((s) => s.auth);
-  const { fmt }                                     = useCurrency();
+  const { fmt, symbol }                             = useCurrency();
   const { formatDate }                              = useDateFormat();
   const { data: salaries, loading }                 = useApi<any[]>("/teachers/me/salary");
 
@@ -45,7 +45,7 @@ export default function TeacherSalaryPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
           {[
             { label: "Total Records",  value: salaries?.length ?? 0, color: "#1f2d36", bg: "#f8fafc", icon: "fa-receipt"        },
-            { label: "Total Earned",   value: fmt(totalEarned),      color: "#12805c", bg: "#e2f6ee", icon: "fa-money-bill-wave" },
+            { label: "Total Earned",   value: <CurrencyAmount amount={totalEarned} size={18} customSymbol={symbol} />, color: "#12805c", bg: "#e2f6ee", icon: "fa-money-bill-wave" },
             { label: "Pending Months", value: pendingCount,           color: "#c46a14", bg: "#fff1df", icon: "fa-clock"          },
           ].map((c) => (
             <div key={c.label} style={{ padding: "18px 20px", borderRadius: 12, background: c.bg, border: "1px solid rgba(191,201,209,0.5)", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 2px 8px rgba(31,45,54,.04)" }}>
@@ -110,18 +110,24 @@ export default function TeacherSalaryPage() {
                       <div style={{ display: "flex", gap: 24 }}>
                         <div>
                           <p style={{ fontSize: 10, fontWeight: 900, color: "#6a7882", margin: 0 }}>BASIC</p>
-                          <strong style={{ fontSize: 14 }}>{fmt(rec.basic_salary)}</strong>
+                          <strong style={{ fontSize: 14 }}>
+                            <CurrencyAmount amount={rec.basic_salary} size={12} customSymbol={symbol} />
+                          </strong>
                         </div>
                         {Number(rec.bonus) > 0 && (
                           <div>
                             <p style={{ fontSize: 10, fontWeight: 900, color: "#6a7882", margin: 0 }}>BONUS</p>
-                            <strong style={{ fontSize: 14, color: "#12805c" }}>+{fmt(rec.bonus)}</strong>
+                            <strong style={{ fontSize: 14, color: "#12805c" }}>
+                              <CurrencyAmount amount={rec.bonus} size={12} customSymbol={symbol} prefix="+" />
+                            </strong>
                           </div>
                         )}
                         {Number(rec.deduction) > 0 && (
                           <div>
                             <p style={{ fontSize: 10, fontWeight: 900, color: "#6a7882", margin: 0 }}>DEDUCTION</p>
-                            <strong style={{ fontSize: 14, color: "#b42318" }}>-{fmt(rec.deduction)}</strong>
+                            <strong style={{ fontSize: 14, color: "#b42318" }}>
+                              <CurrencyAmount amount={rec.deduction} size={12} customSymbol={symbol} prefix="-" />
+                            </strong>
                           </div>
                         )}
                       </div>
@@ -129,7 +135,9 @@ export default function TeacherSalaryPage() {
                       {/* Net salary */}
                       <div style={{ textAlign: "right" }}>
                         <p style={{ fontSize: 10, fontWeight: 900, color: "#6a7882", margin: 0 }}>NET SALARY</p>
-                        <strong style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}>{fmt(netSalary)}</strong>
+                        <strong style={{ fontSize: 16, fontWeight: 900, color: "#12805c" }}>
+                          <CurrencyAmount amount={netSalary} size={14} customSymbol={symbol} />
+                        </strong>
                       </div>
 
                       {/* Payment method */}
@@ -165,18 +173,19 @@ export default function TeacherSalaryPage() {
                             </strong>
                           </div>
                           <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                            {[
-                              ["Basic Salary",       fmt(rec.basic_salary)],
-                              ["Bonus / Allowance",  fmt(rec.bonus || 0)  ],
-                            ].map(([label, val]) => (
-                              <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                                <span style={{ color: "#6a7882", fontWeight: 700 }}>{label}</span>
-                                <strong>{val}</strong>
-                              </div>
-                            ))}
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "#6a7882", fontWeight: 700 }}>Basic Salary</span>
+                              <strong><CurrencyAmount amount={rec.basic_salary} size={12} customSymbol={symbol} /></strong>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "#6a7882", fontWeight: 700 }}>Bonus / Allowance</span>
+                              <strong><CurrencyAmount amount={rec.bonus || 0} size={12} customSymbol={symbol} /></strong>
+                            </div>
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, borderTop: "1px solid #eee", paddingTop: 8, marginTop: 4 }}>
                               <span style={{ fontWeight: 900 }}>Gross</span>
-                              <strong style={{ color: "#12805c" }}>{fmt(Number(rec.basic_salary) + Number(rec.bonus || 0))}</strong>
+                              <strong style={{ color: "#12805c" }}>
+                                <CurrencyAmount amount={Number(rec.basic_salary) + Number(rec.bonus || 0)} size={13} customSymbol={symbol} />
+                              </strong>
                             </div>
                           </div>
                         </div>
@@ -192,20 +201,24 @@ export default function TeacherSalaryPage() {
                             {hasDedBreakdown ? (
                               <>
                                 {[
-                                  ["Tax / TDS",       fmt(rec.tax_amount      || 0)],
-                                  ["Provident Fund",  fmt(rec.provident_fund  || 0)],
-                                  ["Other Deduction", fmt(rec.other_deduction || 0)],
-                                ].map(([label, val]) => (
+                                  { label: "Tax / TDS",       val: rec.tax_amount      || 0 },
+                                  { label: "Provident Fund",  val: rec.provident_fund  || 0 },
+                                  { label: "Other Deduction", val: rec.other_deduction || 0 },
+                                ].map(({ label, val }) => (
                                   <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                                     <span style={{ color: "#6a7882", fontWeight: 700 }}>{label}</span>
-                                    <strong style={{ color: "#b42318" }}>{val}</strong>
+                                    <strong style={{ color: "#b42318" }}>
+                                      <CurrencyAmount amount={val} size={12} customSymbol={symbol} />
+                                    </strong>
                                   </div>
                                 ))}
                               </>
                             ) : (
                               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                                 <span style={{ color: "#6a7882", fontWeight: 700 }}>Total Deduction</span>
-                                <strong style={{ color: "#b42318" }}>{fmt(rec.deduction || 0)}</strong>
+                                <strong style={{ color: "#b42318" }}>
+                                  <CurrencyAmount amount={rec.deduction || 0} size={12} customSymbol={symbol} />
+                                </strong>
                               </div>
                             )}
                             {rec.deduction_remarks && (
@@ -216,7 +229,9 @@ export default function TeacherSalaryPage() {
                             )}
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, borderTop: "1px solid #eee", paddingTop: 8, marginTop: 4 }}>
                               <span style={{ fontWeight: 900 }}>Total Deducted</span>
-                              <strong style={{ color: "#b42318" }}>-{fmt(rec.deduction || 0)}</strong>
+                              <strong style={{ color: "#b42318" }}>
+                                <CurrencyAmount amount={rec.deduction || 0} size={13} customSymbol={symbol} prefix="-" />
+                              </strong>
                             </div>
                           </div>
                         </div>
@@ -226,7 +241,9 @@ export default function TeacherSalaryPage() {
                       <div style={{ marginTop: 14, padding: "16px 20px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <p style={{ fontSize: 12, fontWeight: 900, color: "#6a7882", margin: 0 }}>NET SALARY PAYABLE</p>
-                          <strong style={{ fontSize: 24, fontWeight: 900, color: "#12805c" }}>{fmt(netSalary)}</strong>
+                          <strong style={{ fontSize: 24, fontWeight: 900, color: "#12805c" }}>
+                            <CurrencyAmount amount={netSalary} size={20} customSymbol={symbol} />
+                          </strong>
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <p style={{ fontSize: 11, fontWeight: 900, color: "#6a7882", margin: 0 }}>Payment Method</p>
