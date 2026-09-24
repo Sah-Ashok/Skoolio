@@ -1,317 +1,591 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
 import { Spinner } from '@/components/shared/Loader';
+import { showToast } from '@/store/toastSlice';
+import { useAppDispatch } from '@/store/hooks';
 import styles from '../login/login.module.css';
 
 type Step = 'email' | 'otp' | 'password';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
-  const [step,       setStep]       = useState<Step>('email');
-  const [email,      setEmail]      = useState('');
-  const [digits,     setDigits]     = useState(['','','','','','']);
+  const [step, setStep] = useState<Step>('email');
+  const [email, setEmail] = useState('');
+  const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [resetToken, setResetToken] = useState('');
-  const [newPass,    setNewPass]    = useState('');
-  const [confirmPass,setConfirmPass]= useState('');
-  const [showPass,   setShowPass]   = useState(false);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState('');
-  const [success,    setSuccess]    = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // ── Step 1: send OTP ──────────────────────────────────────────────────────
+  // Cooldown timer for resend OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Focus first OTP box when entering OTP step
+  useEffect(() => {
+    if (step === 'otp') {
+      setTimeout(() => {
+        inputs.current[0]?.focus();
+      }, 50);
+    }
+  }, [step]);
+
+  // ── Step 1: Send OTP ──────────────────────────────────────────────────────
   const handleSendOTP = async () => {
-    if (!email.trim()) { setError('Please enter your email address.'); return; }
-    setLoading(true); setError('');
+    if (!email.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
       await apiRequest('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email: email.trim() }),
       });
       setStep('otp');
-      setSuccess(`OTP sent to ${email}. Check your inbox.`);
+      setResendCooldown(30);
+      setSuccess(`Verification code sent to ${email.trim()}.`);
+      dispatch(
+        showToast({
+          type: 'success',
+          title: 'Code Sent',
+          message: `Verification code sent to ${email.trim()}.`,
+        })
+      );
     } catch (e: any) {
-      setError(e.message || 'Failed to send OTP. Please check your email.');
-    } finally { setLoading(false); }
+      setError(e.message || 'Failed to send verification code. Please check your email.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ── Step 2: verify OTP ────────────────────────────────────────────────────
+  // ── Resend OTP ────────────────────────────────────────────────────────────
+  const handleResendOTP = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await apiRequest('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setResendCooldown(30);
+      setDigits(['', '', '', '', '', '']);
+      setSuccess('A new 6-digit code has been sent to your email.');
+      inputs.current[0]?.focus();
+      dispatch(
+        showToast({
+          type: 'success',
+          title: 'Code Resent',
+          message: 'A fresh verification code was sent to your email.',
+        })
+      );
+    } catch (e: any) {
+      setError(e.message || 'Failed to resend code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Step 2: Verify OTP ────────────────────────────────────────────────────
   const handleVerifyOTP = async () => {
     const otp = digits.join('');
-    if (otp.length < 6) { setError('Please enter the complete 6-digit code.'); return; }
-    setLoading(true); setError(''); setSuccess('');
+    if (otp.length < 6) {
+      setError('Please enter the complete 6-digit code.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
       const res = await apiRequest<{ data: { reset_token: string } }>('/auth/verify-reset-otp', {
         method: 'POST',
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email: email.trim(), otp }),
       });
       setResetToken(res.data.reset_token);
       setStep('password');
-      setSuccess('OTP verified! Set your new password below.');
+      setSuccess('Code verified! Set your new password below.');
     } catch (e: any) {
-      setError(e.message || 'Invalid or expired OTP. Please try again.');
-    } finally { setLoading(false); }
+      setError(e.message || 'Invalid or expired verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ── Step 3: reset password ────────────────────────────────────────────────
+  // ── Step 3: Reset Password ────────────────────────────────────────────────
   const handleResetPassword = async () => {
-    if (!newPass || newPass.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (newPass !== confirmPass)         { setError('Passwords do not match.'); return; }
-    setLoading(true); setError(''); setSuccess('');
+    if (!newPass || newPass.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
       await apiRequest('/auth/reset-password', {
         method: 'POST',
         body: JSON.stringify({ reset_token: resetToken, new_password: newPass }),
       });
-      setSuccess('Password reset successful! Redirecting to login…');
-      setTimeout(() => router.push('/login'), 1800);
+      setSuccess('Password updated successfully! Redirecting to login…');
+      dispatch(
+        showToast({
+          type: 'success',
+          title: 'Password Updated',
+          message: 'Your password was successfully updated. You can now login.',
+        })
+      );
+      setTimeout(() => router.push('/login'), 1500);
     } catch (e: any) {
-      setError(e.message || 'Failed to reset password. The link may have expired.');
-    } finally { setLoading(false); }
+      setError(e.message || 'Failed to reset password. The session may have expired.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ── OTP digit input helpers ───────────────────────────────────────────────
+  // ── OTP digit helpers ─────────────────────────────────────────────────────
   const handleDigit = (i: number, v: string) => {
     if (!/^\d?$/.test(v)) return;
-    const next = [...digits]; next[i] = v; setDigits(next);
+    const next = [...digits];
+    next[i] = v;
+    setDigits(next);
     if (v && i < 5) inputs.current[i + 1]?.focus();
   };
+
   const handleDigitKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !digits[i] && i > 0) inputs.current[i - 1]?.focus();
-    if (e.key === 'Enter') handleVerifyOTP();
-  };
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g,'').slice(0,6);
-    if (pasted.length === 6) { setDigits(pasted.split('')); inputs.current[5]?.focus(); }
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      inputs.current[i - 1]?.focus();
+    }
+    if (e.key === 'Enter') {
+      handleVerifyOTP();
+    }
   };
 
-  // ── Step indicator ────────────────────────────────────────────────────────
-  const STEPS = [
-    { key: 'email',    num: 1, label: 'Email'       },
-    { key: 'otp',      num: 2, label: 'Verify OTP'  },
-    { key: 'password', num: 3, label: 'New Password' },
-  ];
-  const stepIdx = STEPS.findIndex(s => s.key === step);
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setDigits(pasted.split(''));
+      inputs.current[5]?.focus();
+    }
+  };
 
   return (
     <div className={styles.page}>
-      {/* ── Left panel ── */}
-      <div className={styles.left}>
-        <div className={styles.bgOrbs}>
-          <div className={styles.orb1}/><div className={styles.orb2}/><div className={styles.orb3}/>
-        </div>
-        <div className={styles.leftInner}>
-          <div className={styles.brand}>
-            <div className={styles.brandIcon}><i className="fa-solid fa-graduation-cap"/></div>
-            <div><h1>CampusPOS</h1><p>School Management Suite</p></div>
-          </div>
+      <div className={styles.container}>
+        {/* ── LEFT: Illustration & Brand Panel ── */}
+        <div className={styles.leftPanel}>
+          <div className={styles.illustrationCard}>
+            {/* Top-Left Brand Logo */}
+            <div className={styles.brandHeader}>
+              <Link href="/" aria-label="Skoolio — Home" className={styles.brandLink}>
+                <Image
+                  src="/Logo.png"
+                  alt="Skoolio"
+                  width={240}
+                  height={82}
+                  priority
+                  style={{ objectFit: 'contain' }}
+                />
+              </Link>
+            </div>
 
-          {/* Step progress */}
-          <div style={{ padding: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p style={{ color: '#EAEFEF', fontWeight: 800, fontSize: 14, marginBottom: 20 }}>Password Reset Steps</p>
-            {STEPS.map((s, i) => {
-              const done    = i < stepIdx;
-              const current = i === stepIdx;
-              return (
-                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                    background: done ? '#15803d' : current ? '#FF9B51' : 'rgba(255,255,255,0.1)',
-                    color: done || current ? '#fff' : '#6b7b86',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 900,
-                  }}>
-                    {done ? <i className="fa-solid fa-check"/> : s.num}
-                  </div>
-                  <div>
-                    <p style={{ color: current ? '#FF9B51' : done ? '#EAEFEF' : '#6b7b86', fontWeight: current ? 800 : 700, fontSize: 13 }}>
-                      Step {s.num}: {s.label}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            {/* Illustration */}
+            <div className={styles.illustrationWrapper}>
+              <Image
+                src="/Login-page-image.png"
+                alt="Account Security Illustration"
+                width={660}
+                height={440}
+                priority
+                className={styles.illustrationImg}
+              />
+            </div>
 
-          <div style={{ padding: '20px 24px', background: 'rgba(255,255,255,0.04)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p style={{ color: '#7a96a6', fontSize: 13, lineHeight: 1.7, fontWeight: 600 }}>
-              We'll send a 6-digit one-time code to your registered email. The code expires in <strong style={{ color: '#FF9B51' }}>10 minutes</strong>.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right panel ── */}
-      <div className={styles.right}>
-        <div className={styles.formCard}>
-
-          {/* ── STEP 1: Email ── */}
-          {step === 'email' && (
-            <>
-              <div className={styles.formHeader}>
-                <div className={styles.welcomeIcon}><i className="fa-solid fa-key"/></div>
-                <h2>Forgot Password?</h2>
-                <p>Enter your school admin email to receive a reset code</p>
+            {/* Feature Pills */}
+            <div className={styles.featurePills}>
+              <div className={styles.featurePill}>
+                <i className="fa-solid fa-envelope-circle-check" style={{ color: '#2563eb' }} />
+                <span>Instant Email OTP</span>
               </div>
+              <div className={styles.featurePill}>
+                <i className="fa-solid fa-shield-check" style={{ color: '#16a34a' }} />
+                <span>256-bit Secure Reset</span>
+              </div>
+              <div className={styles.featurePill}>
+                <i className="fa-solid fa-key" style={{ color: '#ea580c' }} />
+                <span>Encrypted Recovery</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              <div className={styles.formBody}>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Email Address</label>
+        {/* ── RIGHT: Form Card ── */}
+        <div className={styles.rightPanel}>
+          <div className={styles.card}>
+            {/* Step Progress Bar */}
+            <div className={styles.stepBar}>
+              <div
+                className={`${styles.stepDot} ${step === 'email' ? styles.active : 'completed'}`}
+              >
+                <div className={styles.stepCircle}>
+                  {step !== 'email' ? <i className="fa-solid fa-check" /> : '1'}
+                </div>
+                <span>Email</span>
+              </div>
+              <div className={`${styles.stepLine} ${step !== 'email' ? styles.completed : ''}`} />
+              <div
+                className={`${styles.stepDot} ${
+                  step === 'otp' ? styles.active : step === 'password' ? 'completed' : ''
+                }`}
+              >
+                <div className={styles.stepCircle}>
+                  {step === 'password' ? <i className="fa-solid fa-check" /> : '2'}
+                </div>
+                <span>Verify OTP</span>
+              </div>
+              <div className={`${styles.stepLine} ${step === 'password' ? styles.completed : ''}`} />
+              <div className={`${styles.stepDot} ${step === 'password' ? styles.active : ''}`}>
+                <div className={styles.stepCircle}>3</div>
+                <span>New Password</span>
+              </div>
+            </div>
+
+            {/* ── STEP 1: Enter Email ── */}
+            {step === 'email' && (
+              <>
+                <div className={styles.header}>
+                  <h1 className={styles.title}>Forgot Password?</h1>
+                  <p className={styles.subtitle}>
+                    Enter your registered email address to receive a 6-digit reset code.
+                  </p>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="email">
+                    Email Address
+                  </label>
                   <div className={styles.inputWrap}>
-                    <i className="fa-solid fa-envelope"/>
+                    <i className="fa-regular fa-envelope" />
                     <input
+                      id="email"
                       type="email"
-                      className={styles.input}
-                      placeholder="school@email.com"
+                      placeholder="Enter your email address"
                       value={email}
-                      onChange={e => { setEmail(e.target.value); setError(''); }}
-                      onKeyDown={e => e.key === 'Enter' && handleSendOTP()}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError('');
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendOTP()}
+                      className={styles.input}
                       autoFocus
                     />
                   </div>
                 </div>
 
-                {error   && <div className={styles.error}><i className="fa-solid fa-circle-exclamation"/><span>{error}</span></div>}
-                {success && <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, color: '#15803d', fontSize: 13, fontWeight: 600 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 8 }}/>{success}</div>}
+                {error && (
+                  <div className={styles.errorBox} role="alert">
+                    <i className="fa-solid fa-circle-exclamation" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-                <button className={styles.btnPrimary} onClick={handleSendOTP} disabled={loading}>
-                  {loading ? <><Spinner size={16}/> Sending…</> : <><i className="fa-solid fa-paper-plane"/> Send OTP</>}
+                {success && (
+                  <div className={styles.successBox} role="status">
+                    <i className="fa-solid fa-circle-check" />
+                    <span>{success}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className={styles.btnLogin}
+                  onClick={handleSendOTP}
+                  disabled={loading || !email.trim()}
+                  style={{ marginTop: 8 }}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size={16} /> Sending Code…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-paper-plane" /> Send Reset Code
+                    </>
+                  )}
                 </button>
-              </div>
-            </>
-          )}
 
-          {/* ── STEP 2: OTP ── */}
-          {step === 'otp' && (
-            <>
-              <div className={styles.formHeader}>
-                <div className={styles.welcomeIcon}><i className="fa-solid fa-shield-halved"/></div>
-                <h2>Enter OTP</h2>
-                <p>We sent a 6-digit code to <strong style={{ color: '#25343F' }}>{email}</strong></p>
-              </div>
+                <div className={styles.footerNote}>
+                  <p>
+                    Remember your password?{' '}
+                    <Link href="/login" className={styles.loginLink}>
+                      Back to Login
+                    </Link>
+                  </p>
+                </div>
+              </>
+            )}
 
-              <div className={styles.formBody}>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 8 }}>
+            {/* ── STEP 2: Verify OTP ── */}
+            {step === 'otp' && (
+              <>
+                <div className={styles.header}>
+                  <h1 className={styles.title}>Enter Verification Code</h1>
+                  <p className={styles.subtitle}>
+                    We sent a 6-digit verification code to <strong style={{ color: '#0f172a' }}>{email}</strong>
+                  </p>
+                </div>
+
+                {/* OTP Boxes */}
+                <div className={styles.otpRow}>
                   {digits.map((d, i) => (
                     <input
                       key={i}
-                      ref={el => { inputs.current[i] = el; }}
+                      ref={(el) => {
+                        inputs.current[i] = el;
+                      }}
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
                       value={d}
-                      onChange={e => handleDigit(i, e.target.value)}
-                      onKeyDown={e => handleDigitKey(i, e)}
+                      onChange={(e) => handleDigit(i, e.target.value)}
+                      onKeyDown={(e) => handleDigitKey(i, e)}
                       onPaste={i === 0 ? handlePaste : undefined}
-                      style={{
-                        width: 52, height: 58, borderRadius: 13, textAlign: 'center',
-                        fontSize: 24, fontWeight: 900, fontFamily: 'monospace',
-                        border: d ? '2.5px solid #25343F' : '1.5px solid #e2e8f0',
-                        background: d ? '#f0f4f8' : '#f8fafc',
-                        color: '#1e293b', outline: 'none', transition: 'all 0.15s',
-                      }}
+                      className={`${styles.otpBox} ${d ? styles.otpBoxFilled : ''}`}
                     />
                   ))}
                 </div>
 
-                <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, fontWeight: 600 }}>
-                  Check inbox & spam — expires in 10 minutes
-                </p>
+                {error && (
+                  <div className={styles.errorBox} role="alert">
+                    <i className="fa-solid fa-circle-exclamation" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-                {error   && <div className={styles.error}><i className="fa-solid fa-circle-exclamation"/><span>{error}</span></div>}
-                {success && <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, color: '#15803d', fontSize: 13, fontWeight: 600 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 8 }}/>{success}</div>}
+                {success && (
+                  <div className={styles.successBox} role="status">
+                    <i className="fa-solid fa-circle-check" />
+                    <span>{success}</span>
+                  </div>
+                )}
 
-                <button className={styles.btnPrimary} onClick={handleVerifyOTP} disabled={loading || digits.join('').length < 6}>
-                  {loading ? <><Spinner size={16}/> Verifying…</> : <><i className="fa-solid fa-check-circle"/> Verify OTP</>}
+                <button
+                  type="button"
+                  className={styles.btnLogin}
+                  onClick={handleVerifyOTP}
+                  disabled={loading || digits.join('').length < 6}
+                  style={{ marginTop: 8 }}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size={16} /> Verifying…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-circle-check" /> Verify Code
+                    </>
+                  )}
                 </button>
 
-                <button type="button" onClick={() => { setStep('email'); setError(''); setSuccess(''); setDigits(['','','','','','']); }}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}>
-                  <i className="fa-solid fa-arrow-left"/> Back
-                </button>
-              </div>
-            </>
-          )}
+                {/* Resend & Change Email Actions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={resendCooldown > 0 || loading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: resendCooldown > 0 ? '#94a3b8' : '#1d4ed8',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <i className="fa-solid fa-rotate-right" />
+                    {resendCooldown > 0
+                      ? `Resend code in ${resendCooldown}s`
+                      : "Didn't receive code? Resend"}
+                  </button>
 
-          {/* ── STEP 3: New Password ── */}
-          {step === 'password' && (
-            <>
-              <div className={styles.formHeader}>
-                <div className={styles.welcomeIcon}><i className="fa-solid fa-lock-open"/></div>
-                <h2>Set New Password</h2>
-                <p>Create a strong password for your account</p>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('email');
+                      setDigits(['', '', '', '', '', '']);
+                      setError('');
+                      setSuccess('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#64748b',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ← Change email address
+                  </button>
+                </div>
 
-              <div className={styles.formBody}>
-                {success && <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, color: '#15803d', fontSize: 13, fontWeight: 600, marginBottom: 4 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 8 }}/>{success}</div>}
+                <div className={styles.footerNote} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+                  <p>
+                    <Link href="/login" className={styles.loginLink}>
+                      ← Back to Login
+                    </Link>
+                  </p>
+                </div>
+              </>
+            )}
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>New Password</label>
+            {/* ── STEP 3: Set New Password ── */}
+            {step === 'password' && (
+              <>
+                <div className={styles.header}>
+                  <h1 className={styles.title}>Set New Password</h1>
+                  <p className={styles.subtitle}>
+                    Enter your new secure password below to complete recovery.
+                  </p>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="new-pass">
+                    New Password
+                  </label>
                   <div className={styles.inputWrap}>
-                    <i className="fa-solid fa-lock"/>
+                    <i className="fa-solid fa-lock" />
                     <input
+                      id="new-pass"
                       type={showPass ? 'text' : 'password'}
-                      className={styles.input}
                       placeholder="Minimum 6 characters"
                       value={newPass}
-                      onChange={e => { setNewPass(e.target.value); setError(''); }}
+                      onChange={(e) => {
+                        setNewPass(e.target.value);
+                        setError('');
+                      }}
+                      className={styles.input}
                       autoFocus
                     />
-                    <button type="button" className={styles.eyeBtn} onClick={() => setShowPass(!showPass)}>
-                      <i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}/>
+                    <button
+                      type="button"
+                      className={styles.eyeBtn}
+                      onClick={() => setShowPass(!showPass)}
+                      aria-label={showPass ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`fa-regular ${showPass ? 'fa-eye-slash' : 'fa-eye'}`} />
                     </button>
                   </div>
                 </div>
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Confirm New Password</label>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="confirm-pass">
+                    Confirm New Password
+                  </label>
                   <div className={styles.inputWrap}>
-                    <i className="fa-solid fa-lock"/>
+                    <i className="fa-solid fa-lock" />
                     <input
-                      type={showPass ? 'text' : 'password'}
-                      className={styles.input}
-                      placeholder="Re-enter your password"
+                      id="confirm-pass"
+                      type={showConfirm ? 'text' : 'password'}
+                      placeholder="Re-enter your new password"
                       value={confirmPass}
-                      onChange={e => { setConfirmPass(e.target.value); setError(''); }}
-                      onKeyDown={e => e.key === 'Enter' && handleResetPassword()}
+                      onChange={(e) => {
+                        setConfirmPass(e.target.value);
+                        setError('');
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}
+                      className={styles.input}
                     />
+                    <button
+                      type="button"
+                      className={styles.eyeBtn}
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`fa-regular ${showConfirm ? 'fa-eye-slash' : 'fa-eye'}`} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Password strength indicator */}
-                {newPass && (
-                  <div style={{ marginTop: -8 }}>
-                    <div style={{ height: 4, borderRadius: 4, background: '#e2e8f0', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 4, transition: 'width 0.3s',
-                        width: newPass.length >= 10 ? '100%' : newPass.length >= 8 ? '66%' : newPass.length >= 6 ? '33%' : '10%',
-                        background: newPass.length >= 10 ? '#15803d' : newPass.length >= 8 ? '#d8941f' : '#ef4444',
-                      }}/>
-                    </div>
-                    <p style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: newPass.length >= 10 ? '#15803d' : newPass.length >= 8 ? '#d8941f' : '#ef4444' }}>
-                      {newPass.length >= 10 ? 'Strong' : newPass.length >= 8 ? 'Medium' : 'Weak'}
-                    </p>
+                {error && (
+                  <div className={styles.errorBox} role="alert">
+                    <i className="fa-solid fa-circle-exclamation" />
+                    <span>{error}</span>
                   </div>
                 )}
 
-                {error && <div className={styles.error}><i className="fa-solid fa-circle-exclamation"/><span>{error}</span></div>}
+                {success && (
+                  <div className={styles.successBox} role="status">
+                    <i className="fa-solid fa-circle-check" />
+                    <span>{success}</span>
+                  </div>
+                )}
 
-                <button className={styles.btnPrimary} onClick={handleResetPassword} disabled={loading}>
-                  {loading ? <><Spinner size={16}/> Resetting…</> : <><i className="fa-solid fa-check"/> Reset Password</>}
+                <button
+                  type="button"
+                  className={styles.btnLogin}
+                  onClick={handleResetPassword}
+                  disabled={loading || !newPass || !confirmPass}
+                  style={{ marginTop: 8 }}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size={16} /> Updating Password…
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-key" /> Update Password
+                    </>
+                  )}
                 </button>
-              </div>
-            </>
-          )}
 
-          <p className={styles.registerLink}>
-            Remembered your password?{' '}
-            <Link href="/login">Back to login</Link>
-          </p>
+                <div className={styles.footerNote}>
+                  <p>
+                    <Link href="/login" className={styles.loginLink}>
+                      ← Back to Login
+                    </Link>
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

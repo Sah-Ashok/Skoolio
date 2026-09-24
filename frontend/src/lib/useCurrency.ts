@@ -1,6 +1,13 @@
 import { useAppSelector } from '@/store/hooks';
 import { useApi } from './useApi';
-export { default as NepaliCurrency, NepaliCurrencyAmount } from '@/components/shared/NepaliCurrency';
+import { isNepaliCurrency } from '@/components/shared/NepaliCurrency';
+export {
+  default as NepaliCurrency,
+  NepaliCurrencyAmount,
+  CurrencyAmount,
+  CurrencySymbol,
+  isNepaliCurrency,
+} from '@/components/shared/NepaliCurrency';
 
 // Resolves school currency symbol from school settings and calendar system
 function resolveSymbol(country: string | undefined | null, calendarSystem?: string, explicitCurrency?: string): string {
@@ -11,8 +18,7 @@ function resolveSymbol(country: string | undefined | null, calendarSystem?: stri
   if (explicitCurrency === 'EUR') return '€';
 
   if (calendarSystem === 'BS') return 'रू';
-  if (!country) return '₹';
-  const c = country.toLowerCase().trim();
+  const c = country ? country.toLowerCase().trim() : '';
   if (c.includes('nepal') || c === 'np') return 'रू';
   if (c.includes('india') || c === 'in') return '₹';
   if (c.includes('united kingdom') || c === 'uk' || c === 'gb') return '£';
@@ -23,7 +29,8 @@ function resolveSymbol(country: string | undefined | null, calendarSystem?: stri
   if (c.includes('saudi') || c === 'sa') return 'SAR ';
   if (c.includes('japan') || c === 'jp') return '¥';
   if (c.includes('united states') || c === 'us' || c === 'usa') return '$';
-  return '₹';
+  if (!country) return 'रू';
+  return 'रू';
 }
 
 interface SchoolSettingsPayload {
@@ -40,9 +47,9 @@ export function useCurrency() {
   const calendarSystem = user?.calendar_system || settings?.calendar_system;
   const explicitCurrency = user?.currency || settings?.currency;
   const symbol = resolveSymbol(country, calendarSystem, explicitCurrency);
-  const isNepali = symbol === 'रू';
+  const isNepali = isNepaliCurrency(symbol);
   const currencyIcon = isNepali ? '/nepali-currency.svg' : null;
-  const isSouthAsian = symbol === 'रू' || symbol === '₹';
+  const isSouthAsian = symbol === 'रू' || symbol === 'रु' || symbol === '₹';
   const locale = isSouthAsian ? 'en-IN' : 'en-US';
   
   const fmt = (n: number | string, customSymbol?: string) =>
@@ -52,15 +59,37 @@ export function useCurrency() {
     const sym = customSymbol || symbol;
     const num = Number(n || 0);
     if (isSouthAsian) {
-      if (num >= 100_000) return `${sym}${(num / 100_000).toFixed(1)}L`;
-      if (num >= 1_000)   return `${sym}${(num / 1_000).toFixed(1)}K`;
+      if (num >= 100_000) return `${sym}${(num / 100_000).toFixed(1).replace(/\.0$/, "")}L`;
+      if (num >= 1_000)   return `${sym}${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
     } else {
-      if (num >= 1_000_000) return `${sym}${(num / 1_000_000).toFixed(1)}M`;
-      if (num >= 1_000)     return `${sym}${(num / 1_000).toFixed(1)}K`;
+      if (num >= 1_000_000) return `${sym}${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+      if (num >= 1_000)     return `${sym}${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
     }
     return `${sym}${num.toLocaleString(locale)}`;
   };
 
-  return { symbol, fmt, fmtShort, isNepali, currencyIcon };
-}
+  const formatRaw = (n: number | string) =>
+    Number(n || 0).toLocaleString(locale);
 
+  const formatRawShort = (n: number | string) => {
+    const num = Number(n || 0);
+    if (isSouthAsian) {
+      if (num >= 100_000) return `${(num / 100_000).toFixed(1).replace(/\.0$/, "")}L`;
+      if (num >= 1_000)   return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    } else {
+      if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+      if (num >= 1_000)     return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    }
+    return Number(n || 0).toLocaleString(locale);
+  };
+
+  return {
+    symbol,
+    fmt,
+    fmtShort,
+    formatRaw,
+    formatRawShort,
+    isNepali,
+    currencyIcon,
+  };
+}

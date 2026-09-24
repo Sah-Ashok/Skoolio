@@ -137,23 +137,6 @@ export default function TwoFAPage() {
           <div className={styles.card}>
             {/* Header */}
             <div className={styles.header}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 46,
-                  height: 46,
-                  borderRadius: 12,
-                  background: '#f0fdf4',
-                  color: '#16a34a',
-                  fontSize: 20,
-                  marginBottom: 12,
-                  border: '1px solid #bbf7d0',
-                }}
-              >
-                <i className="fa-solid fa-shield-halved" />
-              </div>
               <h1 className={styles.title}>Two-Factor Verification</h1>
               <p className={styles.subtitle}>
                 {useRecovery
@@ -169,7 +152,7 @@ export default function TwoFAPage() {
               {!useRecovery ? (
                 <>
                   {/* 6-Digit OTP boxes */}
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '8px 0' }}>
+                  <div className={styles.otpRow}>
                     {digits.map((d, i) => (
                       <input
                         key={i}
@@ -183,25 +166,12 @@ export default function TwoFAPage() {
                         onChange={(e) => handleDigit(i, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(i, e)}
                         onPaste={i === 0 ? handlePaste : undefined}
-                        style={{
-                          width: 48,
-                          height: 54,
-                          borderRadius: 10,
-                          border: d ? '2px solid #2563eb' : '1.5px solid #cbd5e1',
-                          background: d ? '#eff6ff' : '#f8fafc',
-                          textAlign: 'center',
-                          fontSize: 22,
-                          fontWeight: 800,
-                          color: '#1e293b',
-                          outline: 'none',
-                          fontFamily: 'monospace',
-                          transition: 'all 0.15s ease',
-                        }}
+                        className={`${styles.otpBox} ${d ? styles.otpBoxFilled : ''}`}
                       />
                     ))}
                   </div>
 
-                  <p style={{ textAlign: 'center', color: '#64748b', fontSize: 12.5, fontWeight: 500, margin: '2px 0 6px' }}>
+                  <p style={{ textAlign: 'center', color: '#64748b', fontSize: 13, fontWeight: 500, margin: '0 0 4px' }}>
                     {isEmail
                       ? 'Check your inbox — and spam folder if needed.'
                       : 'Open your Authenticator app to view your 6-digit verification code.'}
@@ -243,10 +213,10 @@ export default function TwoFAPage() {
               {/* Submit Button */}
               <button
                 type="button"
-                className={styles.btnPrimary}
+                className={styles.btnLogin}
                 onClick={handleVerify}
                 disabled={loading || !canSubmit}
-                style={{ width: '100%', marginTop: 4 }}
+                style={{ width: '100%', marginTop: 8 }}
               >
                 {loading ? (
                   <>
@@ -254,13 +224,13 @@ export default function TwoFAPage() {
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-check-circle" /> Verify &amp; Sign In
+                    <i className="fa-solid fa-circle-check" /> Verify &amp; Sign In
                   </>
                 )}
               </button>
 
               {/* Toggle Recovery Code Mode */}
-              <div style={{ textAlign: 'center', marginTop: 2 }}>
+              <div style={{ textAlign: 'center', marginTop: 6 }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -270,21 +240,38 @@ export default function TwoFAPage() {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#2563eb',
-                    fontSize: 12.5,
-                    fontWeight: 600,
+                    color: '#1d4ed8',
+                    fontSize: 13,
+                    fontWeight: 700,
                     cursor: 'pointer',
-                    textDecoration: 'underline',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#1e40af';
+                    e.currentTarget.style.background = '#f1f5f9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#1d4ed8';
+                    e.currentTarget.style.background = 'none';
                   }}
                 >
-                  {useRecovery
-                    ? '← Use 6-digit Authenticator code instead'
-                    : 'Lost access to your app? Use an emergency recovery code'}
+                  <i className="fa-solid fa-key" style={{ fontSize: 11, color: '#ea580c' }} />
+                  <span>
+                    {useRecovery
+                      ? '← Use 6-digit Authenticator code instead'
+                      : 'Lost access to your app? Use an emergency recovery code'}
+                  </span>
                 </button>
               </div>
 
               {/* Back to Login */}
-              <div style={{ textAlign: 'center', marginTop: 4 }}>
+              <div style={{ textAlign: 'center', marginTop: 10, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
                 <button
                   type="button"
                   onClick={handleBack}
@@ -297,7 +284,18 @@ export default function TwoFAPage() {
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 7,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#0f172a';
+                    e.currentTarget.style.background = '#f1f5f9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#64748b';
+                    e.currentTarget.style.background = 'none';
                   }}
                 >
                   <i className="fa-solid fa-arrow-left" /> Back to Login
