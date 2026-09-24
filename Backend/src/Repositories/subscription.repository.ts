@@ -114,26 +114,77 @@ export const createSubscription = async (
     [data.school_id]
   );
 
-  const result = await pool.query(
-    `INSERT INTO school_subscriptions
-      (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
-       status, payment_method, payment_reference, activated_by, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
-     RETURNING *`,
-    [
-      data.school_id,
-      data.plan_id,
-      data.billing_cycle,
-      data.amount_paid || 0,
-      data.currency || null,
-      data.start_date || new Date().toISOString().split('T')[0],
-      data.end_date || null,
-      data.payment_method || null,
-      data.payment_reference || null,
-      activated_by,
-      data.notes || null,
-    ]
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `INSERT INTO school_subscriptions
+        (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
+         status, payment_method, payment_reference, activated_by, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        data.school_id,
+        data.plan_id,
+        data.billing_cycle,
+        data.amount_paid || 0,
+        data.currency || null,
+        data.start_date || new Date().toISOString().split('T')[0],
+        data.end_date || null,
+        data.payment_method || null,
+        data.payment_reference || null,
+        activated_by,
+        data.notes || null,
+      ]
+    );
+  } catch (err: any) {
+    if (err.message && err.message.includes('billing_cycle_enum') && data.billing_cycle === 'trial') {
+      try {
+        await pool.query("ALTER TYPE billing_cycle_enum ADD VALUE IF NOT EXISTS 'trial'");
+        result = await pool.query(
+          `INSERT INTO school_subscriptions
+            (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
+             status, payment_method, payment_reference, activated_by, notes)
+           VALUES ($1, $2, 'trial', $3, $4, $5, $6, 'active', $7, $8, $9, $10)
+           RETURNING *`,
+          [
+            data.school_id,
+            data.plan_id,
+            data.amount_paid || 0,
+            data.currency || null,
+            data.start_date || new Date().toISOString().split('T')[0],
+            data.end_date || null,
+            data.payment_method || null,
+            data.payment_reference || null,
+            activated_by,
+            data.notes || null,
+          ]
+        );
+      } catch (alterErr: any) {
+        console.warn('[Subscription] Retrying trial subscription as monthly fallback with 0 amount:', alterErr.message);
+        result = await pool.query(
+          `INSERT INTO school_subscriptions
+            (school_id, plan_id, billing_cycle, amount_paid, currency, start_date, end_date,
+             status, payment_method, payment_reference, activated_by, notes)
+           VALUES ($1, $2, 'monthly', $3, $4, $5, $6, 'active', $7, $8, $9, $10)
+           RETURNING *`,
+          [
+            data.school_id,
+            data.plan_id,
+            data.amount_paid || 0,
+            data.currency || null,
+            data.start_date || new Date().toISOString().split('T')[0],
+            data.end_date || null,
+            data.payment_method || null,
+            data.payment_reference || null,
+            activated_by,
+            data.notes ? `${data.notes} [Trial]` : 'Initial 14-Day Free Trial [Trial]',
+          ]
+        );
+      }
+    } else {
+      throw err;
+    }
+  }
   const sub = result.rows[0];
   if (sub?.id) {
     try {

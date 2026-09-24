@@ -38,6 +38,7 @@ interface AuthState {
   // 2FA pending state
   twofaPending:    boolean;
   twofaSession:    string | null;
+  twofaType?:      'totp' | 'email';
 }
 
 const initialState: AuthState = {
@@ -48,6 +49,7 @@ const initialState: AuthState = {
   error:           null,
   twofaPending:    false,
   twofaSession:    null,
+  twofaType:       undefined,
 };
 
 export function getRoleRedirect(role: AllRoles): string {
@@ -176,6 +178,7 @@ const authSlice = createSlice({
     clearTwofa(state) {
       state.twofaPending = false;
       state.twofaSession = null;
+      state.twofaType    = undefined;
     },
   },
   extraReducers: (builder) => {
@@ -186,11 +189,13 @@ const authSlice = createSlice({
         if ((action.payload as any)?.requires_2fa) {
           state.twofaPending = true;
           state.twofaSession = (action.payload as any).twofa_session;
+          state.twofaType    = (action.payload as any).twofa_type || 'totp';
         } else {
           state.user            = action.payload as AuthUser;
           state.isAuthenticated = true;
           state.twofaPending    = false;
           state.twofaSession    = null;
+          state.twofaType       = undefined;
         }
       })
       .addCase(loginThunk.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });

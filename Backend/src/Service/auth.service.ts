@@ -24,6 +24,8 @@ import { setupDefaultAcademicYear } from './academic.service';
 import AppError from '../utils/AppError';
 import { ILoginSchool } from '../types/auth.types';
 import { trackDeviceLoginService } from './security.service';
+import { getTOTPSettingsRepo } from '../Repositories/security.repository';
+import { verify as verifyTOTP } from 'otplib';
 import { Request } from 'express';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -141,7 +143,7 @@ export const registerSchoolService = async (data: IRegisterSchool) => {
 
 export type LoginSchoolResult =
   | { type: 'success';      school: any; token: string }
-  | { type: 'requires_2fa'; twofa_session: string };
+  | { type: 'requires_2fa'; twofa_session: string; twofa_type: 'totp' | 'email' };
 
 export const loginSchoolService = async (data: ILoginSchool, req?: Request): Promise<LoginSchoolResult> => {
   const school = await findSchoolByEmail(data.email);
@@ -168,7 +170,7 @@ export const loginSchoolService = async (data: ILoginSchool, req?: Request): Pro
     const twofa_session = generateShortToken(
       { id: school.id, email: school.email, role: school.role, purpose: 'totp_pending' }, '5m'
     );
-    return { type: 'requires_2fa', twofa_session };
+    return { type: 'requires_2fa', twofa_session, twofa_type: 'totp' };
   }
 
   // ── Smart Device Login Fingerprint Tracking ──
@@ -194,7 +196,7 @@ export const loginSchoolService = async (data: ILoginSchool, req?: Request): Pro
 
 // ── VERIFY 2FA OTP ────────────────────────────────────────────────────────────
 
-export const verify2FAService = async (twofa_session: string, otp_code: string) => {
+export const verify2FAService = async (twofa_session: string, otp_code: string, req?: Request) => {
   let decoded: any;
   try {
     decoded = verifyToken(twofa_session);
@@ -202,14 +204,44 @@ export const verify2FAService = async (twofa_session: string, otp_code: string) 
     throw new AppError('Session expired. Please login again.', 401);
   }
 
-  if (decoded.purpose !== 'twofa_pending')
+  if (decoded.purpose !== 'twofa_pending' && decoded.purpose !== 'totp_pending') {
     throw new AppError('Invalid session token.', 400);
+  }
 
-  const valid = await consumeOTP(decoded.email, otp_code, 'two_fa');
-  if (!valid) throw new AppError('Invalid or expired verification code.', 400);
+  // 1. If Authenticator App (TOTP)
+  if (decoded.purpose === 'totp_pending') {
+    const userSecurity = await getTOTPSettingsRepo(decoded.id, decoded.role);
+    if (!userSecurity || !userSecurity.totp_secret || !userSecurity.totp_enabled) {
+      throw new AppError('2FA is not configured for this account.', 400);
+    }
+
+    const cleanCode = String(otp_code).toUpperCase().trim();
+    const verifyRes = await verifyTOTP({
+      token: cleanCode,
+      secret: userSecurity.totp_secret,
+    });
+
+    const isTotpValid = typeof verifyRes === 'boolean' ? verifyRes : (verifyRes as any)?.valid;
+    const isRecoveryCode = (userSecurity.totp_recovery_codes || []).includes(cleanCode);
+
+    if (!isTotpValid && !isRecoveryCode) {
+      throw new AppError('Invalid 2FA Authenticator code or recovery code.', 400);
+    }
+  } else {
+    // 2. Email OTP Fallback
+    const valid = await consumeOTP(decoded.email, otp_code, 'two_fa');
+    if (!valid) throw new AppError('Invalid or expired verification code.', 400);
+  }
 
   const school = await findSchoolByEmail(decoded.email);
   if (!school) throw new AppError('Account not found.', 404);
+
+  // Track device login on 2FA completion
+  if (req) {
+    await trackDeviceLoginService(req, school.id, school.id, school.role, school.email).catch((err) => {
+      console.error('[Device Tracker Error]', err.message);
+    });
+  }
 
   const payload: IJwtAdminPayload = {
     id: school.id, email: school.email, role: school.role,

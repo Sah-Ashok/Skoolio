@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -9,6 +9,8 @@ import { registerThunk, clearError, getRoleRedirect } from '@/store/authSlice';
 import { showToast } from '@/store/toastSlice';
 import { Spinner } from '@/components/shared/Loader';
 import { apiRequest } from '@/lib/api';
+import SearchableCountrySelect from './SearchableCountrySelect';
+import { getTimezoneForCountry, getTimezoneOptions, getCountryForTimezone } from './countryTimezones';
 import styles from './register.module.css';
 
 type SchoolType = 'Primary' | 'Secondary' | 'Higher_Secondary' | '';
@@ -35,38 +37,6 @@ const FEATURE_PILLS = [
   { icon: 'fa-calendar-check',      label: 'Attendance & Reports' },
 ];
 
-const GLOBAL_TIMEZONES = [
-  { value: 'UTC',                    label: 'UTC — Universal Coordinated Time (UTC +0:00)' },
-  { value: 'America/New_York',       label: 'America/New York — Eastern Time (EST/EDT -5:00)' },
-  { value: 'America/Chicago',        label: 'America/Chicago — Central Time (CST/CDT -6:00)' },
-  { value: 'America/Denver',         label: 'America/Denver — Mountain Time (MST/MDT -7:00)' },
-  { value: 'America/Los_Angeles',    label: 'America/Los Angeles — Pacific Time (PST/PDT -8:00)' },
-  { value: 'Europe/London',          label: 'Europe/London — UK / Ireland (GMT/BST +0:00)' },
-  { value: 'Europe/Paris',           label: 'Europe/Paris — Central Europe (CET/CEST +1:00)' },
-  { value: 'Asia/Dubai',             label: 'Asia/Dubai — UAE / Gulf (GST +4:00)' },
-  { value: 'Asia/Riyadh',            label: 'Asia/Riyadh — Saudi Arabia (AST +3:00)' },
-  { value: 'Asia/Karachi',           label: 'Asia/Karachi — Pakistan (PKT +5:00)' },
-  { value: 'Asia/Kolkata',           label: 'Asia/Kolkata — India / Sri Lanka (IST +5:30)' },
-  { value: 'Asia/Kathmandu',         label: 'Asia/Kathmandu — Nepal (NPT +5:45)' },
-  { value: 'Asia/Dhaka',             label: 'Asia/Dhaka — Bangladesh (BST +6:00)' },
-  { value: 'Asia/Bangkok',           label: 'Asia/Bangkok — Thailand / Vietnam (ICT +7:00)' },
-  { value: 'Asia/Singapore',         label: 'Asia/Singapore — Singapore / Malaysia (SGT +8:00)' },
-  { value: 'Asia/Shanghai',          label: 'Asia/Shanghai — China (CST +8:00)' },
-  { value: 'Asia/Tokyo',             label: 'Asia/Tokyo — Japan (JST +9:00)' },
-  { value: 'Australia/Sydney',       label: 'Australia/Sydney — Eastern Australia (AEST +10:00)' },
-  { value: 'Africa/Cairo',           label: 'Africa/Cairo — Egypt (EET +2:00)' },
-  { value: 'Africa/Lagos',           label: 'Africa/Lagos — Nigeria / West Africa (WAT +1:00)' },
-];
-
-const COUNTRIES = [
-  'United States', 'United Kingdom', 'Canada', 'Australia', 'India',
-  'Nepal', 'United Arab Emirates', 'Saudi Arabia', 'Singapore', 'Malaysia',
-  'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Sweden',
-  'Pakistan', 'Bangladesh', 'Sri Lanka', 'Bhutan', 'South Africa',
-  'Nigeria', 'Kenya', 'Philippines', 'Indonesia', 'Japan', 'South Korea',
-  'Brazil', 'Mexico', 'Other',
-];
-
 export default function RegisterPage() {
   const dispatch = useAppDispatch();
   const router   = useRouter();
@@ -91,15 +61,44 @@ export default function RegisterPage() {
     calendar_system: 'AD',
   });
 
+  const timezoneOptions = useMemo(() => getTimezoneOptions(form.timezone), [form.timezone]);
+
+  // Auto-detect visitor's country & timezone on initial load
+  useEffect(() => {
+    try {
+      const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (localTz) {
+        const detectedCountry = getCountryForTimezone(localTz);
+        if (detectedCountry) {
+          setForm((prev) => {
+            if (prev.country === 'United States' && !prev.school_name) {
+              return {
+                ...prev,
+                country: detectedCountry,
+                timezone: localTz,
+                calendar_system: detectedCountry === 'Nepal' ? 'BS' : 'AD',
+              };
+            }
+            return prev;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
-      // Auto-set calendar system based on country
+      // Auto-set calendar system & timezone based on country
       if (name === 'country') {
         updated.calendar_system = value === 'Nepal' ? 'BS' : 'AD';
+        const autoTz = getTimezoneForCountry(value);
+        if (autoTz) updated.timezone = autoTz;
       }
       return updated;
     });
@@ -552,12 +551,20 @@ export default function RegisterPage() {
                     <label className={styles.label}>
                       Country <span className={styles.required}>*</span>
                     </label>
-                    <div className={styles.inputWrap}>
-                      <i className="fa-solid fa-globe" />
-                      <select name="country" value={form.country} onChange={handleChange} className={styles.input}>
-                        {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
+                    <SearchableCountrySelect
+                      value={form.country}
+                      onChange={(country) => {
+                        const autoTz = getTimezoneForCountry(country);
+                        setForm((prev) => ({
+                          ...prev,
+                          country,
+                          timezone: autoTz || prev.timezone,
+                          calendar_system: country === 'Nepal' ? 'BS' : 'AD',
+                        }));
+                        setLocalError('');
+                        if (error) dispatch(clearError());
+                      }}
+                    />
                   </div>
                   <div className={styles.field}>
                     <label className={styles.label}>
@@ -566,7 +573,7 @@ export default function RegisterPage() {
                     <div className={styles.inputWrap}>
                       <i className="fa-solid fa-clock" />
                       <select name="timezone" value={form.timezone} onChange={handleChange} className={styles.input}>
-                        {GLOBAL_TIMEZONES.map((tz) => (
+                        {timezoneOptions.map((tz) => (
                           <option key={tz.value} value={tz.value}>{tz.label}</option>
                         ))}
                       </select>

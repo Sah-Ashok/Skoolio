@@ -2,7 +2,7 @@ import { generateSecret, generateURI, verify } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import geoip from 'geoip-lite';
+import redis from '../config/redis.config';
 import { Request } from 'express';
 import {
   getTOTPSettingsRepo,
@@ -77,32 +77,104 @@ export const parseUserAgent = (userAgent: string = ''): { browser: string; os: s
 };
 
 /**
-  Resolve client IP to City and Country using offline geoip-lite
+  Resolve client IP to City and Country using Redis Cache and accurate Geolocation API
  */
-export const resolveIpLocation = (ip: string): string => {
+export const resolveIpLocation = async (ip: string, req?: Request): Promise<string> => {
   if (!ip) return 'Unknown Location';
   const cleanIp = ip.split(',')[0].trim();
+
+  // Edge headers check (e.g. Cloudflare / CDN)
+  if (req) {
+    const cfCity = (req.headers['cf-ipcity'] as string)?.trim();
+    const cfCountry = (req.headers['cf-ipcountry'] as string)?.trim();
+    if (cfCity && cfCountry) return `${cfCity}, ${cfCountry}`;
+    if (cfCountry) return cfCountry;
+  }
+
+  // Private and local loopback IPs
   if (
     cleanIp === '127.0.0.1' ||
     cleanIp === '::1' ||
     cleanIp.startsWith('192.168.') ||
     cleanIp.startsWith('10.') ||
-    cleanIp.startsWith('172.16.')
+    cleanIp.startsWith('172.16.') ||
+    cleanIp.startsWith('172.17.') ||
+    cleanIp.startsWith('172.18.') ||
+    cleanIp.startsWith('172.19.') ||
+    cleanIp.startsWith('172.20.') ||
+    cleanIp.startsWith('172.21.') ||
+    cleanIp.startsWith('172.22.') ||
+    cleanIp.startsWith('172.23.') ||
+    cleanIp.startsWith('172.24.') ||
+    cleanIp.startsWith('172.25.') ||
+    cleanIp.startsWith('172.26.') ||
+    cleanIp.startsWith('172.27.') ||
+    cleanIp.startsWith('172.28.') ||
+    cleanIp.startsWith('172.29.') ||
+    cleanIp.startsWith('172.30.') ||
+    cleanIp.startsWith('172.31.')
   ) {
     return 'Local Network';
   }
 
+  const cacheKey = `geo:ip:${cleanIp}`;
+
+  // 1. Check Redis Cache first (< 0.5 ms)
   try {
-    const geo = geoip.lookup(cleanIp);
-    if (!geo) return 'Unknown Location';
-    const city = geo.city?.trim();
-    const country = geo.country?.trim();
-    if (city && country) return `${city}, ${country}`;
-    if (country) return country;
-    return 'Unknown Location';
-  } catch {
-    return 'Unknown Location';
+    const cached = await redis.get(cacheKey);
+    if (cached) return cached;
+  } catch (err) {
+    // Non-blocking: continue if Redis is connecting or busy
   }
+
+  let resolvedLocation = 'Unknown Location';
+
+  // 2. Resolve via Azure Maps (if configured) or high-accuracy Geolocation API
+  try {
+    if (process.env.AZURE_MAPS_KEY) {
+      const res = await fetch(
+        `https://atlas.microsoft.com/geolocation/ip/json?api-version=1.0&ip=${cleanIp}&subscription-key=${process.env.AZURE_MAPS_KEY}`,
+        { signal: AbortSignal.timeout(2500) }
+      );
+      if (res.ok) {
+        const data: any = await res.json();
+        const country = data?.countryRegion?.name || data?.countryRegion?.isoCode;
+        if (country) resolvedLocation = country;
+      }
+    }
+
+    if (resolvedLocation === 'Unknown Location') {
+      const res = await fetch(
+        `http://ip-api.com/json/${cleanIp}?fields=status,city,regionName,country`,
+        { signal: AbortSignal.timeout(2500) }
+      );
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data.status === 'success') {
+          if (data.city && data.country) {
+            resolvedLocation = `${data.city}, ${data.country}`;
+          } else if (data.regionName && data.country) {
+            resolvedLocation = `${data.regionName}, ${data.country}`;
+          } else if (data.country) {
+            resolvedLocation = data.country;
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+
+  // 3. Cache the resolved location in Redis with 30-day TTL (2,592,000s)
+  if (resolvedLocation && resolvedLocation !== 'Unknown Location') {
+    try {
+      await redis.set(cacheKey, resolvedLocation, 'EX', 30 * 24 * 60 * 60);
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return resolvedLocation;
 };
 
 /**
@@ -232,7 +304,7 @@ export const getSecurityOverviewService = async (
     const rawIp = extractClientIp(req);
     const schoolId = (req.user as any)?.school_id ?? userId;
     const { browser, os } = parseUserAgent(userAgent);
-    const location = resolveIpLocation(rawIp);
+    const location = await resolveIpLocation(rawIp, req);
     currentDeviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
     await upsertUserDeviceRepo(schoolId, userId, role, currentDeviceHash, browser, os, rawIp, location);
   }
@@ -282,7 +354,7 @@ export const trackDeviceLoginService = async (
   const rawIp = extractClientIp(req);
 
   const { browser, os } = parseUserAgent(userAgent);
-  const location = resolveIpLocation(rawIp);
+  const location = await resolveIpLocation(rawIp, req);
   const deviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
 
   const { isNew, device } = await upsertUserDeviceRepo(
@@ -325,7 +397,7 @@ export const getUserDevicesService = async (userId: number, role: string, req?: 
     const rawIp = extractClientIp(req);
     const schoolId = (req.user as any)?.school_id ?? userId;
     const { browser, os } = parseUserAgent(userAgent);
-    const location = resolveIpLocation(rawIp);
+    const location = await resolveIpLocation(rawIp, req);
     currentDeviceHash = computeDeviceHash(userId, role, userAgent, rawIp);
     await upsertUserDeviceRepo(schoolId, userId, role, currentDeviceHash, browser, os, rawIp, location);
   }

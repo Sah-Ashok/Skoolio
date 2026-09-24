@@ -38,6 +38,14 @@ const testConnection = async (retries = 5, delay = 2000): Promise<void> => {
         try {
             const client = await pool.connect();
             console.log('✓ Database connected successfully to Azure PostgreSQL');
+
+            // Safe auto-migration: ensure billing_cycle_enum supports 'trial'
+            try {
+                await client.query("ALTER TYPE billing_cycle_enum ADD VALUE IF NOT EXISTS 'trial'");
+            } catch (enumErr: any) {
+                // If it already exists or not supported, ignore safely
+            }
+
             client.release();
             return;
         } catch (err: any) {

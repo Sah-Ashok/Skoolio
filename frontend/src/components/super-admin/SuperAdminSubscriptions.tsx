@@ -814,7 +814,7 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     plan_id:           plans[1]?.id ?? plans[0]?.id ?? "",
-    billing_cycle:     "monthly" as "monthly" | "yearly" | "trial" | "free",
+    billing_cycle:     "monthly" as "monthly" | "yearly" | "trial",
     amount_paid:       "",
     currency:          school.country?.toLowerCase() === "india" ? "INR" : "NPR",
     start_date:        new Date().toISOString().split("T")[0],
@@ -833,9 +833,8 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
     ? Math.round((yearlySavingNPR / (selectedPlan.price_npr_monthly * 12)) * 100)
     : 0;
 
-  const handleCycleChange = (c: "monthly" | "yearly" | "trial" | "free") => {
+  const handleCycleChange = (c: "monthly" | "yearly" | "trial") => {
     set("billing_cycle", c);
-    if (c === "free") { set("end_date", ""); set("amount_paid", "0"); return; }
     if (c === "trial") {
       const start = new Date(form.start_date || new Date());
       const end = new Date(start);
@@ -870,7 +869,7 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
 
   const handleSubmit = async () => {
     if (!form.plan_id) { dispatch(showToast({ type: "error", title: "Error", message: "Select a plan" })); return; }
-    if (form.billing_cycle !== "free" && !form.end_date) { dispatch(showToast({ type: "error", title: "Error", message: "End date is required" })); return; }
+    if (!form.end_date) { dispatch(showToast({ type: "error", title: "Error", message: "End date is required" })); return; }
     setSaving(true);
     try {
       await apiRequest("/subscriptions/activate", {
@@ -879,12 +878,12 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
           school_id:         school.school_id,
           plan_id:           Number(form.plan_id),
           billing_cycle:     form.billing_cycle,
-          amount_paid:       form.billing_cycle === "trial" || form.billing_cycle === "free" ? 0 : parseFloat(form.amount_paid) || 0,
+          amount_paid:       form.billing_cycle === "trial" ? 0 : parseFloat(form.amount_paid) || 0,
           currency:          form.currency || undefined,
           start_date:        form.start_date || undefined,
-          end_date:          form.billing_cycle !== "free" ? form.end_date : undefined,
-          payment_method:    form.billing_cycle === "trial" || form.billing_cycle === "free" ? undefined : form.payment_method || undefined,
-          payment_reference: form.billing_cycle === "trial" || form.billing_cycle === "free" ? undefined : form.payment_reference || undefined,
+          end_date:          form.end_date,
+          payment_method:    form.billing_cycle === "trial" ? undefined : form.payment_method || undefined,
+          payment_reference: form.billing_cycle === "trial" ? undefined : form.payment_reference || undefined,
           notes:             form.notes || undefined,
         }),
       });
@@ -916,7 +915,7 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
           <div>
             <label style={{ fontSize: 12, fontWeight: 900, color: "#374151", display: "block", marginBottom: 8 }}>Billing Cycle</label>
             <div style={{ display: "flex", gap: 8 }}>
-              {(["monthly", "yearly", "trial", "free"] as const).map(c => (
+              {(["monthly", "yearly", "trial"] as const).map(c => (
                 <button key={c} onClick={() => handleCycleChange(c)} style={{ flex: 1, padding: "9px 6px", borderRadius: 9, border: form.billing_cycle === c ? "2px solid #FF9B51" : "1px solid #e2e8f0", background: form.billing_cycle === c ? "#fff7ed" : "#f9fafb", fontWeight: 800, fontSize: 12, cursor: "pointer", textTransform: "capitalize", color: form.billing_cycle === c ? "#FF9B51" : "#374151" }}>
                   {c}
                 </button>
@@ -954,7 +953,7 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
             </div>
           )}
 
-          {selectedPlan && form.billing_cycle !== "free" && form.billing_cycle !== "trial" && (
+          {selectedPlan && form.billing_cycle !== "trial" && (
             <div style={{ padding: "10px 14px", borderRadius: 9, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, color: "#15803d", fontWeight: 700 }}>
               <i className="fa-solid fa-circle-info" style={{ marginRight: 6 }} />
               Standard: NPR {form.billing_cycle === "monthly" ? selectedPlan.price_npr_monthly : selectedPlan.price_npr_yearly} / INR {form.billing_cycle === "monthly" ? selectedPlan.price_inr_monthly : selectedPlan.price_inr_yearly}
@@ -967,20 +966,18 @@ function ActivateModal({ school, plans, onClose, onSaved }: {
             </div>
           )}
 
-          {form.billing_cycle !== "free" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 900, color: "#374151", display: "block", marginBottom: 6 }}>Start Date</label>
-                <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 13 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 900, color: "#374151", display: "block", marginBottom: 6 }}>End Date</label>
-                <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 13 }} />
-              </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 900, color: "#374151", display: "block", marginBottom: 6 }}>Start Date</label>
+              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 13 }} />
             </div>
-          )}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 900, color: "#374151", display: "block", marginBottom: 6 }}>End Date</label>
+              <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d1d5db", fontSize: 13 }} />
+            </div>
+          </div>
 
-          {form.billing_cycle !== "free" && form.billing_cycle !== "trial" && (
+          {form.billing_cycle !== "trial" && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>

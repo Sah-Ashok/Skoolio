@@ -34,8 +34,41 @@ export default function ClassEditPage() {
   const { data: activeYear                    } = useApi<any>("/academic-years/active");
 
   // ── Panel 1 state ─────────────────────────────────────────────────────────
-  const [info,       setInfo]       = useState({ name: "", stream: "Not Applicable", status: "active", description: "" });
-  const [savingInfo, setSavingInfo] = useState(false);
+  const { data: dbStreams, refetch: refetchStreams } = useApi<any[]>("/streams");
+  const [info,          setInfo]          = useState({ name: "", stream: "Not Applicable", status: "active", description: "" });
+  const [savingInfo,    setSavingInfo]    = useState(false);
+  const [newStream,     setNewStream]     = useState("");
+  const [creatingStream, setCreatingStream] = useState(false);
+
+  const dynamicStreams = Array.from(
+    new Set([
+      "Not Applicable",
+      ...(dbStreams?.map((s: any) => s.name) || []),
+      ...(info.stream && info.stream !== "Not Applicable" ? [info.stream] : []),
+    ])
+  );
+
+  const handleCreateStream = async () => {
+    const stream = newStream.trim();
+    if (!stream) return;
+    setCreatingStream(true);
+    try {
+      const res = await apiRequest<{ success: boolean; data: any }>("/streams", {
+        method: "POST",
+        body: JSON.stringify({ name: stream }),
+      });
+      if (res?.success) {
+        dispatch(showToast({ type: "success", title: "Stream Added", message: `Stream "${stream}" saved to database.` }));
+        await refetchStreams();
+        setInfo((curr) => ({ ...curr, stream }));
+        setNewStream("");
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Could not create stream", message: err.message || "Failed to create stream." }));
+    } finally {
+      setCreatingStream(false);
+    }
+  };
 
   // ── Panel 2 state ─────────────────────────────────────────────────────────
   const [assignedSubjects,  setAssignedSubjects]  = useState<any[]>([]);
@@ -307,9 +340,34 @@ export default function ClassEditPage() {
                 <label className={s("field")}>
                   <span>Stream</span>
                   <select value={info.stream} onChange={(e) => setInfo({ ...info, stream: e.target.value })}>
-                    {STREAMS.map((st) => <option key={st} value={st}>{st}</option>)}
+                    {dynamicStreams.map((st) => <option key={st} value={st}>{st}</option>)}
                   </select>
                 </label>
+
+                <div className={s("inline-create")} style={{ gridColumn: 'span 2' }}>
+                  <label className={s("field")}>
+                    <span>Create New Stream</span>
+                    <input
+                      value={newStream}
+                      onChange={(e) => setNewStream(e.target.value)}
+                      placeholder="e.g. Vocational"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleCreateStream();
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    className={cx(s("btn"), s("btn-primary"))}
+                    type="button"
+                    onClick={handleCreateStream}
+                    disabled={creatingStream || !newStream.trim()}
+                  >
+                    {creatingStream ? <Spinner size={14} /> : <i className="fa-solid fa-plus" />} Add Stream
+                  </button>
+                </div>
 
                 <label className={s("field")}>
                   <span>Status</span>

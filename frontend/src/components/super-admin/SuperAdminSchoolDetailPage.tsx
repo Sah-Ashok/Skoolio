@@ -156,7 +156,6 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
     setSubmittingPlan(true);
     try {
       const selectedPlan = (plans || []).find((p) => p.id === Number(selectedPlanId));
-      const isFree = selectedPlan?.name?.toLowerCase() === "free" || billingCycle === "free";
       const isTrial = billingCycle === "trial";
       const days = Number(customDays) || (billingCycle === "yearly" ? 365 : billingCycle === "trial" ? 14 : 30);
       const startDate = new Date().toISOString().split("T")[0];
@@ -167,13 +166,13 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
         body: JSON.stringify({
           school_id: schoolId,
           plan_id: Number(selectedPlanId),
-          billing_cycle: isFree ? "free" : isTrial ? "trial" : billingCycle,
-          amount_paid: (isFree || isTrial) ? 0 : Number(customPrice || 0),
-          currency: (isFree || isTrial) ? undefined : (school.currency || "NPR"),
+          billing_cycle: isTrial ? "trial" : billingCycle,
+          amount_paid: isTrial ? 0 : Number(customPrice || 0),
+          currency: isTrial ? undefined : (school.currency || "NPR"),
           start_date: startDate,
-          end_date: isFree ? undefined : endDate,
-          payment_method: (isFree || isTrial) ? undefined : paymentMethod,
-          payment_reference: (isFree || isTrial) ? undefined : paymentRef.trim() || "Manual Offline Activation",
+          end_date: endDate,
+          payment_method: isTrial ? undefined : paymentMethod,
+          payment_reference: isTrial ? undefined : paymentRef.trim() || "Manual Offline Activation",
           notes: isTrial ? `${days}-Day Free Trial on ${selectedPlan?.name || "Plus"}` : `Activated via Super Admin console for ${days} days`,
         }),
       });
@@ -1028,13 +1027,10 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                   <select
                     value={billingCycle}
                     onChange={(e) => {
-                      const newCycle = e.target.value as "yearly" | "monthly" | "trial" | "free";
+                      const newCycle = e.target.value as "yearly" | "monthly" | "trial";
                       setBillingCycle(newCycle);
                       if (newCycle === "trial") {
                         setCustomDays("14");
-                        setCustomPrice("0");
-                      } else if (newCycle === "free") {
-                        setCustomDays("365");
                         setCustomPrice("0");
                       } else {
                         setCustomDays(newCycle === "yearly" ? "365" : "30");
@@ -1053,7 +1049,6 @@ export default function SuperAdminSchoolDetailPage({ schoolId: propId }: Props) 
                     <option value="yearly">Yearly (Annual)</option>
                     <option value="monthly">Monthly</option>
                     <option value="trial">Free Trial</option>
-                    <option value="free">Free Forever</option>
                   </select>
                 </div>
 

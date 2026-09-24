@@ -201,8 +201,12 @@ export const resolveCurrentPlanStatus = async (school_id: number): Promise<ICurr
   let latest = await getLatestSubscription(school_id);
 
   if (!latest) {
-    await setupTrialSubscription(school_id, 'Plus', 14);
-    latest = await getLatestSubscription(school_id);
+    try {
+      await setupTrialSubscription(school_id, 'Plus', 14);
+      latest = await getLatestSubscription(school_id);
+    } catch (err: any) {
+      console.error('[Subscription] Failed to setup trial subscription in resolveCurrentPlanStatus:', err.message);
+    }
   }
 
   if (!latest) throw new AppError('Unable to resolve subscription.', 500);
@@ -309,7 +313,7 @@ export const activateSubscriptionService = async (
       activation.end_date = start.toISOString().split('T')[0];
     }
     activation.amount_paid = activation.amount_paid ?? 0;
-  } else if (activation.billing_cycle !== 'free' && !activation.end_date) {
+  } else if (!activation.end_date) {
     throw new AppError('End date is required for paid subscriptions.', 400);
   }
 

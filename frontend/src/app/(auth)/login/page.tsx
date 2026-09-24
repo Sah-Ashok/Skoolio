@@ -91,7 +91,14 @@ export default function LoginPage() {
       const payload = result.payload as any;
 
       if (payload?.requires_2fa) {
-        dispatch(showToast({ type: 'info', title: '2FA Required', message: 'A verification code has been sent to your email.' }));
+        const isTotp = payload?.twofa_type === 'totp' || !payload?.twofa_type;
+        dispatch(showToast({
+          type: 'info',
+          title: '2FA Verification Required',
+          message: isTotp
+            ? 'Please enter the 6-digit code from your Authenticator app.'
+            : 'A verification code has been sent to your email.',
+        }));
         router.push('/login/2fa');
         return;
       }

@@ -15,8 +15,6 @@ const s = (className: string) => styles[className];
 const cx = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
 const classOptions = Array.from({ length: 12 }, (_, index) => `Class ${index + 1}`);
-const streamOptions = ["Not Applicable", "Commerce", "Science - PCM", "Science - PCB", "Arts"];
-
 // Each selected subject carries its own teacher assignment
 type SelectedSubject = {
   id:       number;
@@ -31,17 +29,26 @@ export default function AddClassForm() {
   const { activeYear, academicYearId } = useAcademicYear();
   const { data: dbSubjects }  = useApi<any[]>("/classes/subjects");
   const { data: teachers }    = useApi<any[]>("/teachers");
+  const { data: dbStreams, refetch: refetchStreams } = useApi<any[]>("/streams");
 
   const [sections,             setSections]            = useState([{ name: "A", capacity: "40" }]);
   const [selectedSubjects,     setSelectedSubjects]    = useState<SelectedSubject[]>([]);
   const [availableClasses,     setAvailableClasses]    = useState(classOptions);
-  const [availableStreams,     setAvailableStreams]     = useState(streamOptions);
   const [selectedClass,        setSelectedClass]       = useState("Class 1");
   const [selectedStream,       setSelectedStream]      = useState("Not Applicable");
   const [newClass,             setNewClass]            = useState("");
   const [newStream,            setNewStream]           = useState("");
+  const [creatingStream,       setCreatingStream]      = useState(false);
   const [selectedCoordinatorId, setSelectedCoordinatorId] = useState<string>("");
   const [isSubmitting,         setIsSubmitting]        = useState(false);
+
+  const streamList = Array.from(
+    new Set([
+      "Not Applicable",
+      ...(dbStreams?.map((s: any) => s.name) || []),
+      ...(selectedStream && selectedStream !== "Not Applicable" ? [selectedStream] : []),
+    ])
+  );
 
   const activeTeachers = (teachers || []).filter((t) => t.status === "active");
 
@@ -77,12 +84,26 @@ export default function AddClassForm() {
     setNewClass("");
   };
 
-  const createStreamOption = () => {
+  const createStreamOption = async () => {
     const stream = newStream.trim();
     if (!stream) return;
-    setAvailableStreams((curr) => (curr.includes(stream) ? curr : [...curr, stream]));
-    setSelectedStream(stream);
-    setNewStream("");
+    setCreatingStream(true);
+    try {
+      const res = await apiRequest<{ success: boolean; data: any }>("/streams", {
+        method: "POST",
+        body: JSON.stringify({ name: stream }),
+      });
+      if (res?.success) {
+        dispatch(showToast({ type: "success", title: "Stream Added", message: `Stream "${stream}" saved to database.` }));
+        await refetchStreams();
+        setSelectedStream(stream);
+        setNewStream("");
+      }
+    } catch (err: any) {
+      dispatch(showToast({ type: "error", title: "Could not create stream", message: err.message || "Failed to create stream." }));
+    } finally {
+      setCreatingStream(false);
+    }
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -117,6 +138,7 @@ export default function AddClassForm() {
         body: JSON.stringify({
           academic_year_id: academicYearId,
           name:    className,
+          stream:  selectedStream !== "Not Applicable" ? selectedStream : null,
           status:  "active",
           sections: trimmedSections.map((sec) => ({
             name:     sec.name,
@@ -197,7 +219,7 @@ export default function AddClassForm() {
             <label className={s("field")}>
               <span>Stream</span>
               <select value={selectedStream} onChange={(e) => setSelectedStream(e.target.value)}>
-                {availableStreams.map((s) => <option key={s}>{s}</option>)}
+                {streamList.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
 
@@ -214,10 +236,25 @@ export default function AddClassForm() {
             <div className={s("inline-create")}>
               <label className={s("field")}>
                 <span>Create Stream</span>
-                <input value={newStream} onChange={(e) => setNewStream(e.target.value)} placeholder="Example: Vocational" />
+                <input
+                  value={newStream}
+                  onChange={(e) => setNewStream(e.target.value)}
+                  placeholder="Example: Vocational"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      createStreamOption();
+                    }
+                  }}
+                />
               </label>
-              <button className={cx(s("btn"), s("btn-primary"))} type="button" onClick={createStreamOption}>
-                <i className="fa-solid fa-plus" /> Add
+              <button
+                className={cx(s("btn"), s("btn-primary"))}
+                type="button"
+                onClick={createStreamOption}
+                disabled={creatingStream || !newStream.trim()}
+              >
+                {creatingStream ? <Spinner size={14} /> : <i className="fa-solid fa-plus" />} Add
               </button>
             </div>
 

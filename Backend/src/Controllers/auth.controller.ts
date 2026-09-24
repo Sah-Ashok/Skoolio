@@ -54,7 +54,8 @@ export const loginSchool = catchAsync(async (req: Request, res: Response) => {
   if (result.type === 'requires_2fa') {
     sendResponse(res, 200, true, '2FA verification required', {
       requires_2fa:   true,
-      twofa_session: result.twofa_session,
+      twofa_type:     (result as any).twofa_type || 'totp',
+      twofa_session:  result.twofa_session,
     });
     return;
   }
@@ -71,7 +72,7 @@ export const verify2FA = catchAsync(async (req: Request, res: Response) => {
   if (!twofa_session || !otp_code)
     throw { message: 'Session token and OTP code are required.', statusCode: 400 };
 
-  const { school, token } = await verify2FAService(twofa_session, otp_code);
+  const { school, token } = await verify2FAService(twofa_session, otp_code, req);
   setAuthCookie(res, token);
   sendResponse(res, 200, true, 'Login successful', { school, token });
 });
